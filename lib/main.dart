@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_screen.dart';
 import 'screens/guard/guard_panel.dart';
+import 'screens/admin/admin_panel.dart';
 
 
 Future<void> main() async {
@@ -48,7 +49,7 @@ class KidSyncApp extends StatelessWidget {
       home: const LoginScreen(),
         routes: {
           '/login': (_) => const LoginScreen(),
-          // '/admin': (_) => const AdminDashboard(),
+          '/admin': (_) => const AdminPanel(),
           // '/parent': (_) => const ParentHome(),
           // '/teacher': (_) => const TeacherDashboard(),
           '/guard': (_) => GuardPanel(),
