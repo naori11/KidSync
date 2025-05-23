@@ -9,7 +9,7 @@ class AdminPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return RoleProtected(
       requiredRole: 'Admin',
-      child: AdminPanelContent(),
+      child: AdminPanelContent(userName: user?.userMetadata?['full_name'] ?? 'User'),
     );
   }
 }

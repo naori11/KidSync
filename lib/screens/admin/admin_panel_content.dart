@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'student_management.dart'; // adjust path as needed
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+final supabase = Supabase.instance.client;
+final user = supabase.auth.currentUser;
+final userName = user?.userMetadata?['full_name'] ?? 'User';
 
 // Dummy Analytics Data Model
 class AnalyticsData {
@@ -17,26 +23,146 @@ class AnalyticsData {
   });
 }
 
-class AdminPanelContent extends StatelessWidget {
-  AdminPanelContent({super.key});
+class AdminPanelContent extends StatefulWidget {
+  final String userName;
 
-  final AnalyticsData analytics = AnalyticsData(
-    totalStudents: 320,
-    studentsPickedUpToday: 290,
-    totalGuardians: 215,
-    attendanceToday: 303,
-    auditLogEvents: 48,
-  );
+  const AdminPanelContent({super.key, required this.userName});
 
-  final List<_NavItem> navItems = [
-    _NavItem("Dashboard", Icons.dashboard, true),
-    _NavItem("Student Management", Icons.person_outline, false),
-    _NavItem("User Management", Icons.supervised_user_circle_outlined, false),
-    _NavItem("Parent/Guardian", Icons.directions_car_outlined, false),
-    _NavItem("Attendance", Icons.calendar_today_outlined, false),
-    _NavItem("Audit Logs", Icons.access_time, false),
-    _NavItem("Logout", Icons.logout, false),
-  ];
+  @override
+  State<AdminPanelContent> createState() => _AdminPanelContentState();
+}
+
+class _AdminPanelContentState extends State<AdminPanelContent> {
+  int selectedIndex = 0;
+
+  late final List<_NavItem> navItems;
+
+  @override
+  void initState() {
+    super.initState();
+    navItems = [
+      _NavItem("Dashboard", Icons.dashboard, const SizedBox()), // Placeholder
+      _NavItem(
+        "Student Management",
+        Icons.person_outline,
+        StudentManagementPage(),
+      ),
+      _NavItem(
+        "User Management",
+        Icons.supervised_user_circle_outlined,
+        Container(child: Text("User Management Page")),
+      ),
+      _NavItem(
+        "Parent/Guardian",
+        Icons.directions_car_outlined,
+        Container(child: Text("Parent/Guardian Page")),
+      ),
+      _NavItem(
+        "Attendance",
+        Icons.calendar_today_outlined,
+        Container(child: Text("Attendance Page")),
+      ),
+      _NavItem(
+        "Audit Logs",
+        Icons.access_time,
+        Container(child: Text("Audit Logs Page")),
+      ),
+      _NavItem("Logout", Icons.logout, Container(child: Text("Logout Page"))),
+    ];
+  }
+
+  Widget _buildDashboard() {
+    final analytics = AnalyticsData(
+      totalStudents: 320,
+      studentsPickedUpToday: 290,
+      totalGuardians: 215,
+      attendanceToday: 303,
+      auditLogEvents: 48,
+    );
+
+    return ListView(
+      children: [
+        Text(
+          "Admin Dashboard",
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        Spacer(),
+        Row(
+          children: [
+            Icon(
+              Icons.account_circle_rounded,
+              size: 30,
+              color: Colors.grey[700],
+            ),
+            SizedBox(width: 8),
+            Text(
+              widget.userName,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 24),
+        Wrap(
+          spacing: 24,
+          runSpacing: 24,
+          children: [
+            _AnalyticsCard(
+              title: "Total Students",
+              value: analytics.totalStudents.toString(),
+              icon: Icons.school,
+              color: Colors.blue,
+            ),
+            _AnalyticsCard(
+              title: "Picked Up Today",
+              value: analytics.studentsPickedUpToday.toString(),
+              icon: Icons.directions_walk,
+              color: Colors.green,
+            ),
+            _AnalyticsCard(
+              title: "Total Guardians",
+              value: analytics.totalGuardians.toString(),
+              icon: Icons.people_outline,
+              color: Colors.teal,
+            ),
+            _AnalyticsCard(
+              title: "Attendance Today",
+              value: analytics.attendanceToday.toString(),
+              icon: Icons.event_available_outlined,
+              color: Colors.orange,
+            ),
+            _AnalyticsCard(
+              title: "Audit Log Events",
+              value: analytics.auditLogEvents.toString(),
+              icon: Icons.access_time,
+              color: Colors.grey,
+            ),
+          ],
+        ),
+        SizedBox(height: 32),
+        Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(32),
+            height: 280,
+            alignment: Alignment.center,
+            child: Text(
+              "Analytics Charts/Graphs Here",
+              style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +176,13 @@ class AdminPanelContent extends StatelessWidget {
             child: Column(
               children: [
                 SizedBox(height: 40),
-                ...navItems.map((item) => _NavTile(item: item)).toList(),
+                ...List.generate(navItems.length, (index) {
+                  return _NavTile(
+                    item: navItems[index],
+                    isSelected: selectedIndex == index,
+                    onTap: () => setState(() => selectedIndex = index),
+                  );
+                }),
               ],
             ),
           ),
@@ -58,67 +190,10 @@ class AdminPanelContent extends StatelessWidget {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(32.0),
-              child: ListView(
-                children: [
-                  Text(
-                    "Admin Dashboard",
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 24),
-                  // Analytics Section
-                  Wrap(
-                    spacing: 24,
-                    runSpacing: 24,
-                    children: [
-                      _AnalyticsCard(
-                        title: "Total Students",
-                        value: analytics.totalStudents.toString(),
-                        icon: Icons.school,
-                        color: Colors.blue,
-                      ),
-                      _AnalyticsCard(
-                        title: "Picked Up Today",
-                        value: analytics.studentsPickedUpToday.toString(),
-                        icon: Icons.directions_walk,
-                        color: Colors.green,
-                      ),
-                      _AnalyticsCard(
-                        title: "Total Guardians",
-                        value: analytics.totalGuardians.toString(),
-                        icon: Icons.people_outline,
-                        color: Colors.teal,
-                      ),
-                      _AnalyticsCard(
-                        title: "Attendance Today",
-                        value: analytics.attendanceToday.toString(),
-                        icon: Icons.event_available_outlined,
-                        color: Colors.orange,
-                      ),
-                      _AnalyticsCard(
-                        title: "Audit Log Events",
-                        value: analytics.auditLogEvents.toString(),
-                        icon: Icons.access_time,
-                        color: Colors.grey,
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 32),
-                  // Placeholder for further analytics (e.g., charts)
-                  Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    child: Container(
-                      padding: const EdgeInsets.all(32),
-                      height: 280,
-                      alignment: Alignment.center,
-                      child: Text(
-                        "Analytics Charts/Graphs Here",
-                        style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              child:
+                  selectedIndex == 0
+                      ? _buildDashboard()
+                      : navItems[selectedIndex].page,
             ),
           ),
         ],
@@ -127,22 +202,28 @@ class AdminPanelContent extends StatelessWidget {
   }
 }
 
-// Sidebar item model
 class _NavItem {
   final String label;
   final IconData icon;
-  final bool isSelected;
-  _NavItem(this.label, this.icon, this.isSelected);
+  final Widget page;
+
+  _NavItem(this.label, this.icon, this.page);
 }
 
-// Sidebar navigation tile
 class _NavTile extends StatelessWidget {
   final _NavItem item;
-  const _NavTile({required this.item, super.key});
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _NavTile({
+    required this.item,
+    required this.isSelected,
+    required this.onTap,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isSelected = item.isSelected;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 12),
       child: Material(
@@ -150,23 +231,25 @@ class _NavTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () {
-            // Handle navigation here
-          },
+          onTap: onTap,
           child: Container(
             height: 48,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                Icon(item.icon,
-                    color: isSelected ? Colors.black : Colors.grey[800], size: 22),
+                Icon(
+                  item.icon,
+                  color: isSelected ? Colors.black : Colors.grey[800],
+                  size: 22,
+                ),
                 SizedBox(width: 16),
                 Text(
                   item.label,
                   style: TextStyle(
                     fontSize: 16,
                     color: isSelected ? Colors.black : Colors.grey[800],
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
               ],
@@ -214,9 +297,19 @@ class _AnalyticsCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(title, style: TextStyle(fontSize: 15, color: Colors.grey[700])),
+                Text(
+                  title,
+                  style: TextStyle(fontSize: 15, color: Colors.grey[700]),
+                ),
                 SizedBox(height: 8),
-                Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
               ],
             ),
           ],
