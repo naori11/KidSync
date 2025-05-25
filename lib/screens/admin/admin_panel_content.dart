@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'student_management.dart'; // adjust path as needed
+import 'student_management.dart';
+import 'user_management.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 final supabase = Supabase.instance.client;
@@ -50,7 +51,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       _NavItem(
         "User Management",
         Icons.supervised_user_circle_outlined,
-        Container(child: Text("User Management Page")),
+        UserManagementPage(),
       ),
       _NavItem(
         "Parent/Guardian",
