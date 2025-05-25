@@ -11,7 +11,10 @@ class SignUpScreen extends StatefulWidget {
 class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _fullNameController = TextEditingController();
+  final _fnameController = TextEditingController();
+  final _mnameController = TextEditingController();
+  final _lnameController = TextEditingController();
+  // final _fullNameController = TextEditingController();
   final List<String> _roles = ['Parent', 'Guard', 'Teacher', 'Admin', 'Driver'];
   String? _selectedRole;
   final SupabaseClient supabase = Supabase.instance.client;
@@ -24,20 +27,47 @@ class _SignUpScreenState extends State<SignUpScreen> {
     try {
       final email = _emailController.text.trim();
       final password = _passwordController.text;
-      final fullName = _fullNameController.text.trim();
+      final fname = _fnameController.text.trim();
+      final mname = _mnameController.text.trim();
+      final lname = _lnameController.text.trim();
+      // final fullName = _fullNameController.text.trim();
+      final role = _selectedRole;
 
-      if (_selectedRole == null || fullName.isEmpty) {
+      if (role == null ||
+          fname.isEmpty ||
+          lname.isEmpty ||
+          email.isEmpty ||
+          password.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Please enter all fields.")),
         );
+        setState(() => _loading = false);
         return;
       }
 
-      await supabase.auth.signUp(
+      // 1. Sign up user with Supabase Auth
+      final authResponse = await supabase.auth.signUp(
         email: email,
         password: password,
-        data: {'role': _selectedRole, 'full_name': fullName},
+        data: {'role': role, 'fname': fname, 'mname': mname, 'lname': lname},
       );
+
+      final user = authResponse.user;
+      if (user == null) {
+        throw Exception('User not created. Please try again.');
+      }
+
+      // 2. Insert into your 'users' table
+      await supabase.from('users').insert({
+        'id': user.id,
+        // 'full_name': fullName,
+        'fname': fname,
+        'mname': mname,
+        'lname': lname,
+        'email': email,
+        'role': role,
+        // Add more fields as needed (e.g., contact_number)
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -82,20 +112,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
               const SizedBox(height: 12),
               TextField(
-                controller: _fullNameController,
-                decoration: const InputDecoration(labelText: 'Full Name'),
+                controller: _fnameController,
+                decoration: const InputDecoration(labelText: 'First Name'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _mnameController,
+                decoration: const InputDecoration(labelText: 'Middle Name'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _lnameController,
+                decoration: const InputDecoration(labelText: 'Last Name'),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _selectedRole,
                 hint: const Text('Select Role'),
                 items:
-                    _roles.map((role) {
-                      return DropdownMenuItem<String>(
-                        value: role,
-                        child: Text(role),
-                      );
-                    }).toList(),
+                    _roles
+                        .map(
+                          (role) => DropdownMenuItem<String>(
+                            value: role,
+                            child: Text(role),
+                          ),
+                        )
+                        .toList(),
                 onChanged: (value) => setState(() => _selectedRole = value),
               ),
               const SizedBox(height: 20),
