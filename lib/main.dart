@@ -6,7 +6,8 @@ import 'screens/admin/admin_panel.dart';
 import 'screens/set_password_screen.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-
+import 'package:url_strategy/url_strategy.dart'; // <--- IMPORT THIS
+import 'dart:html' as html; // <--- IMPORT THIS for web-specific URL reading
 
 // This new screen will handle the initial auth state and URL fragment check
 class AuthRedirectScreen extends StatefulWidget {
@@ -27,22 +28,66 @@ class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
 
   Future<void> _processAuthRedirect() async {
     // Give Supabase a bit more time, especially on web after a redirect
-    await Future.delayed(const Duration(milliseconds: 300)); // Slightly longer delay
+    await Future.delayed(
+      const Duration(milliseconds: 300),
+    ); // Slightly longer delay
 
     if (!mounted) return;
 
     final supabaseClient = Supabase.instance.client;
     final currentUser = supabaseClient.auth.currentUser;
     final uri = Uri.base;
-    final fragment = uri.fragment;
-    final bool isSetPasswordFlowFromUrl = fragment.startsWith(SetPasswordScreen.routeName);
+
+    String currentRoutePath = "";
+    String rawFragmentFromWindow = "";
+
+    if (kIsWeb) {
+      final fullHash =
+          html.window.location.hash; // e.g., #/set-password#access_token=...
+      rawFragmentFromWindow = fullHash; // For debugging
+
+      // Expected structure with hash strategy: #/your-path#actual_fragment_from_supabase
+      // Or sometimes just #actual_fragment_from_supabase if Flutter hasn't routed yet.
+      if (fullHash.startsWith("#/")) {
+        // Standard for hash strategy
+        String pathAndPotentialFragment = fullHash.substring(
+          2,
+        ); // Remove #/ -> gives 'set-password#access_token=...'
+        if (pathAndPotentialFragment.contains("#")) {
+          // We have a path and then another fragment
+          currentRoutePath =
+              "/${pathAndPotentialFragment.substring(0, pathAndPotentialFragment.indexOf("#"))}";
+        } else if (pathAndPotentialFragment.contains("?")) {
+          // Path might have query params, but fragment is primary here
+          currentRoutePath =
+              "/${pathAndPotentialFragment.substring(0, pathAndPotentialFragment.indexOf("?"))}";
+        } else {
+          currentRoutePath = "/$pathAndPotentialFragment";
+        }
+      } else if (fullHash.startsWith("#")) {
+        // This case might occur if Supabase redirects to #token... and your app isn't yet at /#/set-password
+        // The Supabase SDK should ideally handle this fragment for authentication.
+        // For path determination for navigation, this might mean the path is root '/' or the initial route.
+        currentRoutePath =
+            "/"; // Default to root or your app's initial configured route if no #/ prefix
+      } else {
+        // If using path strategy (not recommended here initially), path would be from pathname
+        // Or if there's no hash at all.
+        currentRoutePath = html.window.location.pathname ?? '';
+      }
+    }
+
+    final bool isOnSetPasswordPath =
+        currentRoutePath == SetPasswordScreen.routeName;
 
     // Prepare debug information
     final newDebugInfo = """
-    Current URL: ${uri.toString()}
-    Fragment: $fragment
+    Current URL (Uri.base): ${uri.toString()}
+    Uri.base.fragment (Flutter's view): ${uri.fragment}
+    Window Location Hash (Raw): $rawFragmentFromWindow
+    Determined Current Route Path: $currentRoutePath
+    IsOnSetPasswordPath: $isOnSetPasswordPath
     SetPasswordScreen.routeName: ${SetPasswordScreen.routeName}
-    IsSetPasswordFlowFromUrl: $isSetPasswordFlowFromUrl
     CurrentUser ID: ${currentUser?.id}
     CurrentUser Email: ${currentUser?.email}
     Current Time: ${DateTime.now()}
@@ -58,7 +103,6 @@ class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
     // Print to console as well
     print("AuthRedirectScreen Debug Info:\n$newDebugInfo");
 
-
     // ---- TEMPORARY DELAY FOR DEBUGGING ----
     // This will pause the screen for 10 seconds so you can read the debug info.
     // REMOVE THIS FOR PRODUCTION.
@@ -69,26 +113,43 @@ class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
 
     if (!mounted) return; // Check mounted again after delay
 
-    if (isSetPasswordFlowFromUrl && currentUser != null) {
-      print("AuthRedirectScreen: Navigating to SetPasswordScreen");
-      Navigator.of(context).pushReplacementNamed(SetPasswordScreen.routeName);
-    } else if (currentUser != null) {
-      final role = currentUser.userMetadata?['role'];
-      print("AuthRedirectScreen: User has session, role = $role. Navigating by role.");
-      switch (role) {
-        case 'Admin': // Ensure your roles are cased correctly
-          Navigator.of(context).pushReplacementNamed('/admin');
-          break;
-        case 'Guard':
-          Navigator.of(context).pushReplacementNamed('/guard');
-          break;
-        default:
-          print("AuthRedirectScreen: Unknown role or fallback. Signing out and navigating to Login.");
-          await supabaseClient.auth.signOut();
-          Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+    if (currentUser != null) {
+      // User is logged in (token was processed by Supabase SDK or existing session)
+      // Now, decide where to navigate based on the path they were trying to reach.
+      if (isOnSetPasswordPath) {
+        print(
+          "AuthRedirectScreen: User confirmed, on set password path. Navigating to SetPasswordScreen.",
+        );
+        Navigator.of(context).pushReplacementNamed(SetPasswordScreen.routeName);
+      } else {
+        // User is logged in but wasn't trying to go to /set-password
+        // (e.g., they were already logged in and visited the site directly)
+        final role = currentUser.userMetadata?['role'];
+        print(
+          "AuthRedirectScreen: User has session (role: $role), not on set-password path. Navigating by role.",
+        );
+        switch (role) {
+          case 'Admin': // Ensure your roles are cased correctly
+            Navigator.of(context).pushReplacementNamed('/admin');
+            break;
+          case 'Guard':
+            Navigator.of(context).pushReplacementNamed('/guard');
+            break;
+          default:
+            print(
+              "AuthRedirectScreen: Unknown role or fallback. Signing out and navigating to Login.",
+            );
+            await supabaseClient.auth.signOut(); // Sign out if role is unknown
+            Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+        }
       }
     } else {
-      print("AuthRedirectScreen: No currentUser or not set-password flow with user. Navigating to LoginScreen.");
+      // No current user after delay and Supabase check
+      // This means the token in URL (if any) was not valid, expired, or already used,
+      // or there was no token in the first place.
+      print(
+        "AuthRedirectScreen: No currentUser. Token likely invalid/missing or fresh visit. Navigating to LoginScreen.",
+      );
       Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
     }
   }
@@ -113,6 +174,7 @@ class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  setHashUrlStrategy();
 
   // Initialize Supabase here
   await Supabase.initialize(
@@ -159,7 +221,7 @@ class KidSyncApp extends StatelessWidget {
             (_) => const LoginScreen(), // Use static routeName
         SetPasswordScreen.routeName:
             (_) =>
-                const SetPasswordScreen(), // Add route for set password screen
+                const SetPasswordScreen(),
         '/admin': (_) => const AdminPanel(),
         // '/parent': (_) => const ParentHome(),
         // '/teacher': (_) => const TeacherDashboard(),
