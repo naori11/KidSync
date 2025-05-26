@@ -478,6 +478,9 @@ class _KidSyncAppState extends State<KidSyncApp> {
         LoginScreen.routeName:
             (_) => const LoginScreen(), // Use static routeName
         SetPasswordScreen.routeName: (_) => const SetPasswordScreen(),
+        '/set-password':
+            (_) =>
+                const SetPasswordScreen(), // Add this route for direct URL access
         '/admin': (_) => const AdminPanel(),
         // '/parent': (_) => const ParentHome(),
         // '/teacher': (_) => const TeacherDashboard(),

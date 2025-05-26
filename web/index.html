@@ -46,11 +46,38 @@
     window.addEventListener('DOMContentLoaded', function() {
       var location = window.location.href;
       if (location.includes('#/set-password#access_token=')) {
-        // Store the token in sessionStorage for Flutter to access
-        var tokenPart = location.split('#access_token=')[1];
-        window.sessionStorage.setItem('supabase_invite_token', tokenPart);
+        console.log('Detected invite URL with double hash pattern');
         
-        console.log('Stored token in sessionStorage for Flutter to access');
+        // Extract all parts of the auth data
+        var authPart = location.split('#/set-password#')[1];
+        var params = {};
+        
+        // Parse all parameters
+        authPart.split('&').forEach(function(pair) {
+          if (pair.includes('=')) {
+            var keyValue = pair.split('=');
+            params[keyValue[0]] = keyValue[1];
+          }
+        });
+        
+        // Store each parameter separately
+        if (params.access_token) {
+          window.sessionStorage.setItem('supabase_access_token', params.access_token);
+        }
+        if (params.refresh_token) {
+          window.sessionStorage.setItem('supabase_refresh_token', params.refresh_token);
+        }
+        if (params.expires_in) {
+          window.sessionStorage.setItem('supabase_expires_in', params.expires_in);
+        }
+        if (params.expires_at) {
+          window.sessionStorage.setItem('supabase_expires_at', params.expires_at);
+        }
+        
+        console.log('Stored token components in sessionStorage for Flutter to access');
+        
+        // Clean up the URL (optional, makes it prettier)
+        history.replaceState({}, document.title, location.split('#')[0] + '#/set-password');
       }
     });
   </script>
