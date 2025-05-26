@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_screen.dart';
 import 'screens/guard/guard_panel.dart';
 import 'screens/admin/admin_panel.dart';
-import 'screens/set_password_screen.dart'; // Import the new screen
+import 'screens/set_password_screen.dart';
 
 // This new screen will handle the initial auth state and URL fragment check
 class AuthRedirectScreen extends StatefulWidget {
@@ -32,8 +32,8 @@ class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
     // For Flutter Web, check the URL fragment.
     // Assumes invite link's redirectTo was 'YOUR_APP_URL/#/set-password'
     final uri = Uri.base;
-    final bool isSetPasswordFlowFromUrl = uri.fragment == SetPasswordScreen.routeName;
-
+    final bool isSetPasswordFlowFromUrl = uri.fragment.startsWith(SetPasswordScreen.routeName);
+    
     if (isSetPasswordFlowFromUrl && currentUser != null) {
       // User landed on /#/set-password and has a session (from invite token)
       Navigator.of(context).pushReplacementNamed(SetPasswordScreen.routeName);
