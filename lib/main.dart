@@ -5,6 +5,9 @@ import 'screens/guard/guard_panel.dart';
 import 'screens/admin/admin_panel.dart';
 import 'screens/set_password_screen.dart';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+
+
 // This new screen will handle the initial auth state and URL fragment check
 class AuthRedirectScreen extends StatefulWidget {
   const AuthRedirectScreen({super.key});
@@ -14,6 +17,9 @@ class AuthRedirectScreen extends StatefulWidget {
 }
 
 class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
+  String _debugInfo = "Initializing..."; // State variable to hold debug info
+
+
   @override
   void initState() {
     super.initState();
@@ -81,6 +87,8 @@ class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
     final currentUser = supabaseClient.auth.currentUser; // Key check 1
 
     final uri = Uri.base;
+    final fragment = uri.fragment; // Gets the part after '#'
+
     // uri.fragment will be something like "/set-password#access_token=..."
     final bool isSetPasswordFlowFromUrl = uri.fragment.startsWith(
       SetPasswordScreen.routeName,
@@ -95,6 +103,17 @@ class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
       "AuthRedirectScreen: isSetPasswordFlowFromUrl = $isSetPasswordFlowFromUrl",
     );
     print("AuthRedirectScreen: currentUser = ${currentUser?.id}");
+
+     // ---- TEMPORARY DELAY FOR DEBUGGING ----
+    // This will pause the screen for 10 seconds so you can read the debug info.
+    // REMOVE THIS FOR PRODUCTION.
+    if (kIsWeb) { // Only apply long delay on web for this specific debugging
+      await Future.delayed(const Duration(seconds: 10));
+    }
+    // ---- END TEMPORARY DELAY ----
+
+    if (!mounted) return; // Check mounted again after delay
+
 
     if (isSetPasswordFlowFromUrl && currentUser != null) {
       // Key check 2
