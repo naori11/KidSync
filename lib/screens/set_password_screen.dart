@@ -23,49 +23,47 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   String? _errorMessage;
   String? _userEmail;
   bool _isAuthenticated = false;
+  User? _currentUser;
 
   @override
   void initState() {
     super.initState();
     print("SetPasswordScreen: initState called");
-
+    
     // Check if authenticated
-    final currentUser = Supabase.instance.client.auth.currentUser;
-    if (currentUser != null) {
-      print("SetPasswordScreen: User authenticated: ${currentUser.email}");
+    _currentUser = Supabase.instance.client.auth.currentUser;
+    if (_currentUser != null) {
+      print("SetPasswordScreen: User authenticated: ${_currentUser!.email}");
       _isAuthenticated = true;
-      _userEmail = currentUser.email;
+      _userEmail = _currentUser!.email;
       setState(() => _isLoading = false);
       return;
     }
-
+    
     // If not authenticated, check if we're processing an invite
     if (kIsWeb) {
       print("SetPasswordScreen: Not authenticated, checking for invite tokens");
       _processInviteToken();
     } else {
       // Not web platform and not authenticated, redirect to login
-      print(
-        "SetPasswordScreen: Not web platform and not authenticated, redirecting to login",
-      );
+      print("SetPasswordScreen: Not web platform and not authenticated, redirecting to login");
       setState(() => _isLoading = false);
       _redirectToLogin();
     }
   }
-
+  
   Future<void> _processInviteToken() async {
     try {
       final url = html.window.location.href;
       print("SetPasswordScreen: Processing URL: $url");
-
+      
       // Let Supabase client handle the authentication flow - it already has logic to parse the URL
-      final response = await Supabase.instance.client.auth.getSessionFromUrl(
-        Uri.parse(url),
-      );
-
+      final response = await Supabase.instance.client.auth.getSessionFromUrl(Uri.parse(url));
+      
       if (response.session != null) {
         print("SetPasswordScreen: Successfully authenticated with URL token");
         _isAuthenticated = true;
+        _currentUser = response.session.user;
         _userEmail = response.session.user.email;
         setState(() => _isLoading = false);
         return;
@@ -73,22 +71,20 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     } catch (e) {
       print("SetPasswordScreen: Error processing invite token: $e");
     }
-
+    
     // If we couldn't authenticate with the URL directly, try to extract the email from token
     try {
       String? token;
       String? email;
-
+      
       // Try to get token from URL
       final url = html.window.location.href;
       if (url.contains('access_token=')) {
         token = url.split('access_token=')[1].split('&')[0];
-      } else if (html.window.sessionStorage.containsKey(
-        'supabase_access_token',
-      )) {
+      } else if (html.window.sessionStorage.containsKey('supabase_access_token')) {
         token = html.window.sessionStorage['supabase_access_token'];
       }
-
+      
       if (token != null) {
         // Extract email from token
         final parts = token.split('.');
@@ -98,10 +94,24 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
           final decoded = utf8.decode(base64Url.decode(normalized));
           final json = jsonDecode(decoded);
           email = json['email'];
-
+          
           if (email != null) {
             print("SetPasswordScreen: Extracted email from token: $email");
             _userEmail = email;
+            
+            // Try to authenticate with the token
+            try {
+              print("SetPasswordScreen: Attempting to authenticate with token");
+              final response = await Supabase.instance.client.auth.setSession(token);
+              if (response.session != null) {
+                print("SetPasswordScreen: Successfully authenticated with token");
+                _isAuthenticated = true;
+                _currentUser = response.user;
+              }
+            } catch (e) {
+              print("SetPasswordScreen: Failed to authenticate with token: $e");
+            }
+            
             setState(() => _isLoading = false);
             return;
           }
@@ -110,16 +120,15 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     } catch (e) {
       print("SetPasswordScreen: Error extracting email from token: $e");
     }
-
+    
     // If we couldn't authenticate or extract email, show error
     print("SetPasswordScreen: Could not process invite token");
     setState(() {
       _isLoading = false;
-      _errorMessage =
-          "Could not process the invitation link. Please contact your administrator.";
+      _errorMessage = "Could not process the invitation link. Please contact your administrator.";
     });
   }
-
+  
   void _redirectToLogin() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -141,50 +150,68 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       final newPassword = _passwordController.text;
 
       try {
-        if (_isAuthenticated) {
-          // For authenticated users, update password directly
+        // First, check for current session or user
+        final session = Supabase.instance.client.auth.currentSession;
+        final currentUser = _currentUser ?? Supabase.instance.client.auth.currentUser;
+        
+        print("SetPasswordScreen: Setting password for user. Session exists: ${session != null}, User exists: ${currentUser != null}");
+        
+        if (session != null || currentUser != null) {
+          // If either a session or user exists, try to update password directly
+          print("SetPasswordScreen: Updating password directly with updateUser");
           await Supabase.instance.client.auth.updateUser(
             UserAttributes(password: newPassword),
           );
-
+          
           if (!mounted) return;
-
+          
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                "Password set successfully! Please log in with your new password.",
-              ),
-            ),
+            const SnackBar(content: Text("Password set successfully! Please log in with your new password.")),
           );
-
+          
           // Sign out and redirect to login
           await Supabase.instance.client.auth.signOut();
           Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
-        } else if (_userEmail != null) {
-          // For non-authenticated users where we extracted the email
-          // Initiate a password reset flow instead
-          await Supabase.instance.client.auth.resetPasswordForEmail(
-            _userEmail!,
-            redirectTo: 'https://ksync.netlify.app/#/login',
-          );
-
-          if (!mounted) return;
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                "Password reset email sent. Please check your inbox.",
-              ),
-            ),
-          );
-
-          Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
-        } else {
-          setState(() {
-            _isLoading = false;
-            _errorMessage = "Cannot set password: No active user session.";
-          });
+          return;
+        } 
+        
+        // Try with access token if session/user check failed
+        if (_userEmail != null) {
+          // Try to authenticate with the token from sessionStorage if available
+          final accessToken = html.window.sessionStorage['supabase_access_token'];
+          if (accessToken != null) {
+            try {
+              print("SetPasswordScreen: Found token in sessionStorage, trying to set session");
+              final response = await Supabase.instance.client.auth.setSession(accessToken);
+              
+              if (response.session != null) {
+                print("SetPasswordScreen: Successfully authenticated! Now updating password");
+                await Supabase.instance.client.auth.updateUser(
+                  UserAttributes(password: newPassword),
+                );
+                
+                if (!mounted) return;
+                
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Password set successfully! Please log in with your new password.")),
+                );
+                
+                // Sign out and redirect to login
+                await Supabase.instance.client.auth.signOut();
+                Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+                return;
+              }
+            } catch (e) {
+              print("SetPasswordScreen: Error authenticating with token: $e");
+            }
+          }
         }
+        
+        // If all direct methods failed
+        setState(() {
+          _isLoading = false;
+          _errorMessage = "Unable to set password directly. Please try again or contact your administrator.";
+        });
       } on AuthException catch (error) {
         if (!mounted) return;
         setState(() {
@@ -219,7 +246,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         ),
       );
     }
-
+    
     // Show error state if there's an error message and no email
     if (_errorMessage != null && _userEmail == null) {
       return Scaffold(
@@ -240,10 +267,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed:
-                    () => Navigator.of(
-                      context,
-                    ).pushReplacementNamed(LoginScreen.routeName),
+                onPressed: () => Navigator.of(context).pushReplacementNamed(LoginScreen.routeName),
                 child: const Text("Go to Login"),
               ),
             ],
@@ -265,11 +289,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               if (_userEmail != null) ...[
                 Text(
                   "Set password for $_userEmail",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[800],
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[800]),
                   textAlign: TextAlign.center,
                 ),
               ] else ...[
@@ -279,7 +299,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                   textAlign: TextAlign.center,
                 ),
               ],
-
+              
               if (_errorMessage != null) ...[
                 const SizedBox(height: 16),
                 Text(
@@ -288,7 +308,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                   textAlign: TextAlign.center,
                 ),
               ],
-
+              
               const SizedBox(height: 30),
               TextFormField(
                 controller: _passwordController,
@@ -337,18 +357,12 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text(
-                    "Set Password and Log In",
-                    style: TextStyle(fontSize: 16),
-                  ),
+                  child: const Text("Set Password and Log In", style: TextStyle(fontSize: 16)),
                 ),
               ),
               const SizedBox(height: 16),
               TextButton(
-                onPressed:
-                    () => Navigator.of(
-                      context,
-                    ).pushReplacementNamed(LoginScreen.routeName),
+                onPressed: () => Navigator.of(context).pushReplacementNamed(LoginScreen.routeName),
                 child: const Text("Cancel and go to login"),
               ),
             ],
