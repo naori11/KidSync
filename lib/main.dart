@@ -20,51 +20,99 @@ class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
     _redirectUser();
   }
 
+  // Future<void> _redirectUser() async {
+  //   // Give Supabase a moment to process URL fragments and update auth state
+  //   await Future.delayed(Duration.zero);
+
+  //   if (!mounted) return;
+
+  //   final supabaseClient = Supabase.instance.client;
+  //   final currentUser = supabaseClient.auth.currentUser;
+
+  //   // For Flutter Web, check the URL fragment.
+  //   // Assumes invite link's redirectTo was 'YOUR_APP_URL/#/set-password'
+  //   final uri = Uri.base;
+  //   final bool isSetPasswordFlowFromUrl = uri.fragment.startsWith(
+  //     SetPasswordScreen.routeName,
+  //   );
+
+  //   if (isSetPasswordFlowFromUrl && currentUser != null) {
+  //     // User landed on /#/set-password and has a session (from invite token)
+  //     Navigator.of(context).pushReplacementNamed(SetPasswordScreen.routeName);
+  //   } else if (currentUser != null) {
+  //     // User has an active session, not a set-password flow from URL
+  //     final role = currentUser.userMetadata?['role'];
+  //     switch (role) {
+  //       case 'Admin':
+  //         Navigator.of(context).pushReplacementNamed('/admin');
+  //         break;
+  //       case 'Guard':
+  //         Navigator.of(context).pushReplacementNamed('/guard');
+  //         break;
+  //       // TODO: Add cases for 'Parent', 'Teacher', 'Driver'
+  //       // case 'Parent':
+  //       //   Navigator.pushReplacementNamed(context, '/parent');
+  //       //   break;
+  //       // case 'Teacher':
+  //       //   Navigator.pushReplacementNamed(context, '/teacher');
+  //       //   break;
+  //       // case 'Driver':
+  //       //   Navigator.pushReplacementNamed(context, '/driver');
+  //       //   break;
+  //       default:
+  //         // Role not found or unknown, or session exists but no role.
+  //         // Could also be a user whose password is set but trying to access /#/set-password without a valid token.
+  //         await supabaseClient.auth.signOut(); // Sign out to be safe
+  //         Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+  //     }
+  //   } else {
+  //     // No session, or trying to access /#/set-password without a session token.
+  //     Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+  //   }
+  // }
+
   Future<void> _redirectUser() async {
     // Give Supabase a moment to process URL fragments and update auth state
-    await Future.delayed(Duration.zero); 
+    await Future.delayed(Duration.zero);
 
     if (!mounted) return;
 
     final supabaseClient = Supabase.instance.client;
-    final currentUser = supabaseClient.auth.currentUser;
-    
-    // For Flutter Web, check the URL fragment.
-    // Assumes invite link's redirectTo was 'YOUR_APP_URL/#/set-password'
+    final currentUser = supabaseClient.auth.currentUser; // Key check 1
+
     final uri = Uri.base;
-    final bool isSetPasswordFlowFromUrl = uri.fragment.startsWith(SetPasswordScreen.routeName);
-    
+    // uri.fragment will be something like "/set-password#access_token=..."
+    final bool isSetPasswordFlowFromUrl = uri.fragment.startsWith(
+      SetPasswordScreen.routeName,
+    );
+
+    // For debugging, add these print statements:
+    print("AuthRedirectScreen: uri.fragment = ${uri.fragment}");
+    print(
+      "AuthRedirectScreen: SetPasswordScreen.routeName = ${SetPasswordScreen.routeName}",
+    );
+    print(
+      "AuthRedirectScreen: isSetPasswordFlowFromUrl = $isSetPasswordFlowFromUrl",
+    );
+    print("AuthRedirectScreen: currentUser = ${currentUser?.id}");
+
     if (isSetPasswordFlowFromUrl && currentUser != null) {
-      // User landed on /#/set-password and has a session (from invite token)
+      // Key check 2
+      print("AuthRedirectScreen: Navigating to SetPasswordScreen");
       Navigator.of(context).pushReplacementNamed(SetPasswordScreen.routeName);
     } else if (currentUser != null) {
       // User has an active session, not a set-password flow from URL
       final role = currentUser.userMetadata?['role'];
-      switch (role) {
-        case 'Admin':
-          Navigator.of(context).pushReplacementNamed('/admin');
-          break;
-        case 'Guard':
-          Navigator.of(context).pushReplacementNamed('/guard');
-          break;
-        // TODO: Add cases for 'Parent', 'Teacher', 'Driver'
-        // case 'Parent':
-        //   Navigator.pushReplacementNamed(context, '/parent');
-        //   break;
-        // case 'Teacher':
-        //   Navigator.pushReplacementNamed(context, '/teacher');
-        //   break;
-        // case 'Driver':
-        //   Navigator.pushReplacementNamed(context, '/driver');
-        //   break;
-        default:
-          // Role not found or unknown, or session exists but no role.
-          // Could also be a user whose password is set but trying to access /#/set-password without a valid token.
-          await supabaseClient.auth.signOut(); // Sign out to be safe
-          Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
-      }
+      print(
+        "AuthRedirectScreen: User has session, role = $role. Navigating by role.",
+      );
+      // ... (role-based navigation) ...
     } else {
-      // No session, or trying to access /#/set-password without a session token.
+      // No session, or trying to access /#/set-password without a session token,
+      // or tokens from URL not yet processed to set currentUser.
+      print(
+        "AuthRedirectScreen: No currentUser or not set-password flow with user. Navigating to LoginScreen.",
+      );
       Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
     }
   }
@@ -72,9 +120,7 @@ class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
   @override
   Widget build(BuildContext context) {
     // Show a loading indicator while redirecting
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
 
@@ -84,9 +130,10 @@ Future<void> main() async {
   // Initialize Supabase here
   await Supabase.initialize(
     url: 'https://zouitgpqqudhqdcbuhbz.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdWl0Z3BxcXVkaHFkY2J1aGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDk5OTUsImV4cCI6MjA2MzIyNTk5NX0.FuWUR1QHFiWzPwZa0HvW0yLhJfHHw0EhBLibA0t0Dsw',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdWl0Z3BxcXVkaHFkY2J1aGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDk5OTUsImV4cCI6MjA2MzIyNTk5NX0.FuWUR1QHFiWzPwZa0HvW0yLhJfHHw0EhBLibA0t0Dsw',
   );
-  
+
   runApp(const KidSyncApp());
 }
 
@@ -115,21 +162,24 @@ class KidSyncApp extends StatelessWidget {
         //
         // This works for code too, not just values: Most code changes can be
         // tested with just a hot reload.
-          scaffoldBackgroundColor: Colors.white,
-          useMaterial3: true,
+        scaffoldBackgroundColor: Colors.white,
+        useMaterial3: true,
         // colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
       home: const AuthRedirectScreen(),
-        routes: {
-          LoginScreen.routeName: (_) => const LoginScreen(), // Use static routeName
-          SetPasswordScreen.routeName: (_) => const SetPasswordScreen(), // Add route for set password screen
-          '/admin': (_) => const AdminPanel(),
-          // '/parent': (_) => const ParentHome(),
-          // '/teacher': (_) => const TeacherDashboard(),
-          '/guard': (_) => GuardPanel(),
-          // '/guard': (_) => const GuardPanel(role: 'Guard'),
-          // '/driver': (_) => const DriverPage(),
-        },
+      routes: {
+        LoginScreen.routeName:
+            (_) => const LoginScreen(), // Use static routeName
+        SetPasswordScreen.routeName:
+            (_) =>
+                const SetPasswordScreen(), // Add route for set password screen
+        '/admin': (_) => const AdminPanel(),
+        // '/parent': (_) => const ParentHome(),
+        // '/teacher': (_) => const TeacherDashboard(),
+        '/guard': (_) => GuardPanel(),
+        // '/guard': (_) => const GuardPanel(role: 'Guard'),
+        // '/driver': (_) => const DriverPage(),
+      },
       // home: const MyHomePage(title: 'Flutter Demo Home Page'),
     );
   }
@@ -220,4 +270,3 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
-
