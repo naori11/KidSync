@@ -94,37 +94,38 @@ class _KidSyncAppState extends State<KidSyncApp> {
   void initState() {
     super.initState();
     print(
-      "[TEMP DEBUG] _KidSyncAppState initState: Initial URL passed from main: ${widget.initialUrl}",
+      "[DEBUG] _KidSyncAppState initState: Initial URL passed from main: ${widget.initialUrl}",
     );
 
-    // Check for double hash pattern in URL which is causing problems
-    bool hasDoubleHash = widget.initialUrl.contains('#/set-password#');
-    if (hasDoubleHash) {
+    // First check if this is an invite URL with a double hash pattern
+    if (kIsWeb && widget.initialUrl.contains('#/set-password#')) {
+      // There's a double hash in the URL causing problems
       print(
-        "[TEMP DEBUG] Detected double hash pattern in URL: ${widget.initialUrl}",
+        "[DEBUG] Detected double hash pattern in URL - cleaning up routing",
       );
-      _extractAndProcessTokenFromDoubleHash();
-    } else if (widget.initialUrl.contains('access_token=')) {
-      // Process standard access_token if present
-      _processAuthToken();
+
+      // Access the raw token directly from the URL
+      final rawUrl = html.window.location.href;
+
+      // Check if this URL contains an access token
+      if (rawUrl.contains('access_token=')) {
+        // Manually navigate to set-password route
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            final navigator = _navigatorKey.currentState;
+            if (navigator != null) {
+              navigator.pushReplacementNamed(SetPasswordScreen.routeName);
+            }
+          }
+        });
+      }
     }
 
+    // Set up auth state change listener
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
     ) {
-      final AuthChangeEvent event = data.event;
-      final Session? session = data.session;
-      final User? user = session?.user;
-
-      // General log for every event
-      print(
-        "[TEMP DEBUG] _KidSyncAppState onAuthStateChange: event=$event, user ID=${user?.id}, session active: ${session != null}",
-      );
-      _initialAuthCheckCompleted =
-          true; // Mark that an auth event has been processed
-
-      // Handle navigation based on auth state
-      _handleNavigation(session, user, event, widget.initialUrl);
+      // your existing code
     });
 
     _checkInitialSessionAfterDelay();
@@ -323,8 +324,9 @@ class _KidSyncAppState extends State<KidSyncApp> {
 
     // Priority 1: Handle password reset or invite flow first
     if (wasSetPasswordInviteFlow ||
-        event == AuthChangeEvent.passwordRecovery || (initialUrl.contains('type=invite'))) {
-        // event == AuthChangeEvent.userSignedIn 
+        event == AuthChangeEvent.passwordRecovery ||
+        (initialUrl.contains('type=invite'))) {
+      // event == AuthChangeEvent.userSignedIn
       print(
         "[TEMP DEBUG] _handleNavigation: Set password flow detected. Navigating to SetPasswordScreen.",
       );
