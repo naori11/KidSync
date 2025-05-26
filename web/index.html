@@ -1,38 +1,55 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
-  <base href="$FLUTTER_BASE_HREF">
-
   <meta charset="UTF-8">
+  <!-- Other meta tags like viewport, apple-touch-icon, etc., can go here -->
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A new Flutter project.">
 
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
+  <!-- iOS meta tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="kidsync">
+  <meta name="apple-mobile-web-app-title" content="ksync">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>kidsync</title>
+  <title>KidSync</title>
   <link rel="manifest" href="manifest.json">
+
+  <script>
+    // WARNING: DO NOT MODIFY OR REMOVE THE NEXT LINE!
+    // This is required for Flutter web to work correctly in development and production.
+    var serviceWorkerVersion = null;
+  </script>
+
+  <!-- EARLIEST POSSIBLE HASH CHECK -->
+  <script>
+    console.log('[DEBUG index.html HEAD SCRIPT] window.location.href:', window.location.href);
+    console.log('[DEBUG index.html HEAD SCRIPT] window.location.hash:', window.location.hash);
+  </script>
+  <!-- END EARLIEST POSSIBLE HASH CHECK -->
+
+  <!-- This script installs service_worker.js to provide PWA functionality to
+       application. For more information, see:
+       https://developers.google.com/web/fundamentals/primers/service-workers -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('flutter-first-frame', function () {
+        navigator.serviceWorker.register('flutter_service_worker.js?v=' + serviceWorkerVersion);
+      });
+    }
+  </script>
 </head>
 <body>
+  <!-- SECOND EARLY HASH CHECK - First thing in body -->
+  <script>
+    console.log('[DEBUG index.html BODY SCRIPT] window.location.href:', window.location.href);
+    console.log('[DEBUG index.html BODY SCRIPT] window.location.hash:', window.location.hash);
+  </script>
+  <!-- END SECOND EARLY HASH CHECK -->
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
