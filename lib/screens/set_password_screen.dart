@@ -187,38 +187,52 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             final email = json['email'];
 
             if (email != null) {
-              print(
-                "SetPasswordScreen: Trying to sign in with email: $email and OTP",
-              );
+              print("SetPasswordScreen: Extracted email from token: $email");
+              setState(() {
+                _userEmail = email;
+              });
 
-              // Use signInWithOtp to start a passwordless login flow
-              await Supabase.instance.client.auth.signInWithOtp(email: email);
+              // Try to use the token directly with setSession
+              try {
+                print(
+                  "SetPasswordScreen: Attempting to set session with token",
+                );
+                final sessionResponse = await Supabase.instance.client.auth
+                    .setSession(accessToken);
+                if (sessionResponse.session != null) {
+                  print(
+                    "SetPasswordScreen: Successfully set session with token",
+                  );
+                  return true;
+                }
+              } catch (e) {
+                print("SetPasswordScreen: Error setting session: $e");
+              }
 
-              print("SetPasswordScreen: OTP sign-in initiated.");
+              // If setSession fails, try a different approach
+              try {
+                print("SetPasswordScreen: Trying to parse session from URL");
 
-              // At this point, we don't have the user yet, but we've started the flow
-              // The user will need to set their password to complete it
-              return true;
+                // Build a mock URL with the correct structure for Supabase
+                final mockUrl =
+                    'https://ksync.netlify.app/#/set-password?access_token=$accessToken';
+                final session = await Supabase.instance.client.auth
+                    .getSessionFromUrl(Uri.parse(mockUrl));
+
+                if (session.session != null) {
+                  print("SetPasswordScreen: Successfully got session from URL");
+                  return true;
+                }
+              } catch (e) {
+                print("SetPasswordScreen: Error getting session from URL: $e");
+              }
+
+              // If all else fails, we'll just proceed with email extraction
+              return false;
             }
           }
         } catch (e) {
           print("SetPasswordScreen: Error during token processing: $e");
-        }
-
-        // If we couldn't extract email, try with the token directly
-        try {
-          final response = await Supabase.instance.client.auth.getSessionFromUrl(
-            Uri.parse(
-              'https://ksync.netlify.app/#/set-password#access_token=$accessToken',
-            ),
-          );
-
-          if (response.session != null) {
-            print("SetPasswordScreen: Got session from URL");
-            return true;
-          }
-        } catch (e) {
-          print("SetPasswordScreen: Error getting session from URL: $e");
         }
       }
 
@@ -242,21 +256,54 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       final newPassword = _passwordController.text;
 
       try {
-        await Supabase.instance.client.auth.updateUser(
-          UserAttributes(password: newPassword),
-        );
+        // If we have a current user, update their password
+        final currentUser = Supabase.instance.client.auth.currentUser;
+        if (currentUser != null) {
+          await Supabase.instance.client.auth.updateUser(
+            UserAttributes(password: newPassword),
+          );
 
-        if (!mounted) return;
-        setState(() => _isLoading = false);
+          if (!mounted) return;
+          setState(() => _isLoading = false);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Password set successfully! Please log in."),
-          ),
-        );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Password set successfully! Please log in."),
+            ),
+          );
 
-        // Navigate to login screen after successful password set
-        Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+          // Navigate to login screen after successful password set
+          Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+        } else if (_userEmail != null) {
+          // If we don't have a current user but have an email, try to sign up
+          print(
+            "SetPasswordScreen: No current user, attempting to sign up with email: $_userEmail",
+          );
+
+          // Sign up the user with the extracted email and new password
+          final response = await Supabase.instance.client.auth.signUp(
+            email: _userEmail!,
+            password: newPassword,
+          );
+
+          if (response.user != null) {
+            if (!mounted) return;
+            setState(() => _isLoading = false);
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Account created successfully! Please log in."),
+              ),
+            );
+
+            // Navigate to login screen after successful sign up
+            Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+          } else {
+            throw Exception("Failed to create account");
+          }
+        } else {
+          throw Exception("No user or email available");
+        }
       } on AuthException catch (error) {
         if (!mounted) return;
         setState(() {
@@ -408,6 +455,15 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                     style: TextStyle(fontSize: 16),
                   ),
                 ),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(
+                    context,
+                  ).pushReplacementNamed(LoginScreen.routeName);
+                },
+                child: const Text("Cancel and go to Login"),
               ),
             ],
           ),
