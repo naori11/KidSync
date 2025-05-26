@@ -42,42 +42,60 @@
     }
   </script>
   <script>
-    // Handle double hash pattern for Supabase authentication
+    // Handle authentication token in URL
     window.addEventListener('DOMContentLoaded', function() {
       var location = window.location.href;
-      if (location.includes('#/set-password#access_token=')) {
-        console.log('Detected invite URL with double hash pattern');
+      console.log("Processing URL in script:", location);
+      
+      // Check for access token in different URL formats
+      if (location.includes('access_token=')) {
+        console.log("Found access_token in URL");
         
-        // Extract all parts of the auth data
-        var authPart = location.split('#/set-password#')[1];
+        // Parse the token and other parameters
         var params = {};
+        var hashParts = location.split('#');
         
-        // Parse all parameters
-        authPart.split('&').forEach(function(pair) {
-          if (pair.includes('=')) {
-            var keyValue = pair.split('=');
-            params[keyValue[0]] = keyValue[1];
-          }
-        });
+        // Process the hash part(s) that contain the token
+        if (hashParts.length > 1) {
+          var authPart = hashParts[hashParts.length - 1]; // Get the last hash part
+          
+          // Split into key-value pairs
+          authPart.split('&').forEach(function(pair) {
+            if (pair.includes('=')) {
+              var keyValue = pair.split('=');
+              var key = keyValue[0];
+              // Handle the case where the key might contain access_token=
+              if (key.includes('access_token=')) {
+                key = 'access_token';
+                keyValue[1] = keyValue[0].split('access_token=')[1];
+              }
+              params[key] = keyValue[1];
+            }
+          });
+        }
         
-        // Store each parameter separately
+        // Store auth parameters in session storage
         if (params.access_token) {
           window.sessionStorage.setItem('supabase_access_token', params.access_token);
+          console.log("Stored access token in session storage");
         }
         if (params.refresh_token) {
           window.sessionStorage.setItem('supabase_refresh_token', params.refresh_token);
         }
-        if (params.expires_in) {
-          window.sessionStorage.setItem('supabase_expires_in', params.expires_in);
-        }
         if (params.expires_at) {
           window.sessionStorage.setItem('supabase_expires_at', params.expires_at);
         }
+        if (params.expires_in) {
+          window.sessionStorage.setItem('supabase_expires_in', params.expires_in);
+        }
+        if (params.type) {
+          window.sessionStorage.setItem('supabase_auth_type', params.type);
+        }
         
-        console.log('Stored token components in sessionStorage for Flutter to access');
+        // Also store the raw URL for debugging
+        window.sessionStorage.setItem('original_url', location);
         
-        // Clean up the URL (optional, makes it prettier)
-        history.replaceState({}, document.title, location.split('#')[0] + '#/set-password');
+        console.log("Auth parameters stored in session storage");
       }
     });
   </script>

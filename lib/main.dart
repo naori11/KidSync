@@ -472,19 +472,14 @@ class _KidSyncAppState extends State<KidSyncApp> {
       ),
       initialRoute: InitialLoadingScreen.routeName, // Start with loading screen
       routes: {
-        InitialLoadingScreen.routeName:
-            (_) =>
-                const InitialLoadingScreen(), // Add InitialLoadingScreen route
-        LoginScreen.routeName:
-            (_) => const LoginScreen(), // Use static routeName
+        InitialLoadingScreen.routeName: (_) => const InitialLoadingScreen(),
+        LoginScreen.routeName: (_) => const LoginScreen(),
         SetPasswordScreen.routeName: (_) => const SetPasswordScreen(),
-        '/set-password':
-            (_) =>
-                const SetPasswordScreen(), // Add this route for direct URL access
+        '/set-password': (_) => const SetPasswordScreen(),
         '/admin': (_) => const AdminPanel(),
+        '/guard': (_) => GuardPanel(),
         // '/parent': (_) => const ParentHome(),
         // '/teacher': (_) => const TeacherDashboard(),
-        '/guard': (_) => GuardPanel(),
         // '/guard': (_) => const GuardPanel(role: 'Guard'),
         // '/driver': (_) => const DriverPage(),
       },
