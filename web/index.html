@@ -41,6 +41,19 @@
       });
     }
   </script>
+  <script>
+    // Handle double hash pattern for Supabase authentication
+    window.addEventListener('DOMContentLoaded', function() {
+      var location = window.location.href;
+      if (location.includes('#/set-password#access_token=')) {
+        // Store the token in sessionStorage for Flutter to access
+        var tokenPart = location.split('#access_token=')[1];
+        window.sessionStorage.setItem('supabase_invite_token', tokenPart);
+        
+        console.log('Stored token in sessionStorage for Flutter to access');
+      }
+    });
+  </script>
 </head>
 <body>
   <!-- SECOND EARLY HASH CHECK - First thing in body -->

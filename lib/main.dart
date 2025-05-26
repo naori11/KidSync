@@ -97,28 +97,23 @@ class _KidSyncAppState extends State<KidSyncApp> {
       "[DEBUG] _KidSyncAppState initState: Initial URL passed from main: ${widget.initialUrl}",
     );
 
-    // First check if this is an invite URL with a double hash pattern
-    if (kIsWeb && widget.initialUrl.contains('#/set-password#')) {
-      // There's a double hash in the URL causing problems
+    // For invite flows with double hash pattern, don't do any processing here
+    // Instead, let the SetPasswordScreen handle it
+    if (kIsWeb && widget.initialUrl.contains('#/set-password#access_token=')) {
       print(
         "[DEBUG] Detected double hash pattern in URL - cleaning up routing",
       );
 
-      // Access the raw token directly from the URL
-      final rawUrl = html.window.location.href;
-
-      // Check if this URL contains an access token
-      if (rawUrl.contains('access_token=')) {
-        // Manually navigate to set-password route
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            final navigator = _navigatorKey.currentState;
-            if (navigator != null) {
-              navigator.pushReplacementNamed(SetPasswordScreen.routeName);
-            }
+      // Just navigate directly to set password screen
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          final navigator = _navigatorKey.currentState;
+          if (navigator != null) {
+            navigator.pushReplacementNamed(SetPasswordScreen.routeName);
+            return; // Skip the rest of the initialization
           }
-        });
-      }
+        }
+      });
     }
 
     // Set up auth state change listener
@@ -383,10 +378,27 @@ class _KidSyncAppState extends State<KidSyncApp> {
     );
 
     if (!mounted || _initialAuthCheckCompleted) {
-      // If an auth event already ran and potentially navigated, or widget is disposed, do nothing.
+      return;
+    }
+
+    print(
+      "[TEMP DEBUG] _checkInitialSessionAfterDelay: Manually checking session as no onAuthStateChange event seemed to complete navigation yet.",
+    );
+
+    // Special handling for invitation URLs
+    if ((widget.initialUrl.contains('#/set-password#') ||
+            widget.initialUrl.contains('/set-password')) &&
+        (widget.initialUrl.contains('access_token=') ||
+            widget.initialUrl.contains('type=invite'))) {
       print(
-        "[TEMP DEBUG] _checkInitialSessionAfterDelay: Exiting because mounted=$mounted or _initialAuthCheckCompleted=$_initialAuthCheckCompleted",
+        "[TEMP DEBUG] _checkInitialSessionAfterDelay: Detected invitation URL pattern.",
       );
+
+      final navigator = _navigatorKey.currentState;
+      if (navigator != null) {
+        navigator.pushReplacementNamed(SetPasswordScreen.routeName);
+      }
+      _initialAuthCheckCompleted = true;
       return;
     }
 

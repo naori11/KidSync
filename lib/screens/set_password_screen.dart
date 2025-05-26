@@ -24,133 +24,136 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   @override
   void initState() {
     super.initState();
-    
-    // Check if this is an invite link via URL
+
+    // Check if this is an invite link via URL or sessionStorage
     bool isInviteFlow = false;
     if (kIsWeb) {
       final currentUrl = html.window.location.href;
-      isInviteFlow = currentUrl.contains('access_token=') || 
-                      currentUrl.contains('type=invite');
-      
+
+      // First check the URL directly
+      isInviteFlow =
+          currentUrl.contains('access_token=') ||
+          currentUrl.contains('type=invite');
+
+      // If not found in URL, check sessionStorage (from our script in index.html)
+      if (!isInviteFlow) {
+        final token = html.window.sessionStorage['supabase_invite_token'];
+        isInviteFlow = token != null && token.isNotEmpty;
+
+        if (isInviteFlow) {
+          print("SetPasswordScreen: Found invite token in sessionStorage");
+        }
+      }
+
       print("SetPasswordScreen: URL check - $currentUrl");
       print("SetPasswordScreen: Is invite flow - $isInviteFlow");
     }
-    
-    // If it's an invite link, try to process the token before checking for a user
+
+    // If it's an invite link, try to process the token
     if (isInviteFlow) {
       setState(() => _isLoading = true);
-      
-      print("SetPasswordScreen: Processing invite flow, waiting for token processing...");
-      
-      // Wait a moment to allow Supabase client to process the token
-      Future.delayed(const Duration(seconds: 2), () async {
-        // Check if the user is logged in after waiting
-        final currentUser = Supabase.instance.client.auth.currentUser;
-        
-        if (currentUser != null) {
-          print("SetPasswordScreen: User ${currentUser.email} is now active after token processing.");
-          if (mounted) setState(() => _isLoading = false);
-        } else {
-          print("SetPasswordScreen: No user after token processing, attempting manual authentication...");
-          
-          // Try to manually authenticate using the token from the URL
-          try {
-            await _processInviteToken();
-          } catch (e) {
+
+      print(
+        "SetPasswordScreen: Processing invite flow, waiting for token processing...",
+      );
+
+      // Process the token
+      _processInviteToken()
+          .then((_) {
+            // Check if user is now logged in
+            final currentUser = Supabase.instance.client.auth.currentUser;
+            if (currentUser != null) {
+              print(
+                "SetPasswordScreen: User ${currentUser.email} is now active after token processing.",
+              );
+              if (mounted) setState(() => _isLoading = false);
+            } else {
+              print("SetPasswordScreen: Failed to authenticate with token.");
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                  _errorMessage =
+                      "Failed to process invitation. Please contact administrator.";
+                });
+              }
+            }
+          })
+          .catchError((e) {
             print("SetPasswordScreen: Error processing invite token: $e");
             if (mounted) {
               setState(() {
                 _isLoading = false;
-                _errorMessage = "Failed to process invitation link. Please contact administrator.";
+                _errorMessage = "Error processing invitation: ${e.toString()}";
               });
             }
-          }
-        }
-      });
+          });
     } else {
-      // For regular access (not via invite link), check for logged in user
+      // Regular flow for non-invite links
       final currentUser = Supabase.instance.client.auth.currentUser;
       if (currentUser == null) {
-        // It's important to schedule navigation after the build phase.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            print("SetPasswordScreen: No active user and not an invite flow. Redirecting to login.");
+            print(
+              "SetPasswordScreen: No active user and not an invite flow. Redirecting to login.",
+            );
             Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
           }
         });
       } else {
-        print("SetPasswordScreen: User ${currentUser.email} is setting password.");
+        print(
+          "SetPasswordScreen: User ${currentUser.email} is setting password.",
+        );
       }
     }
   }
 
-  // Function to process the invite token from URL
+  // Updated function to process the invite token from URL or sessionStorage
   Future<void> _processInviteToken() async {
     if (!kIsWeb) return;
-    
-    final currentUrl = html.window.location.href;
-    
-    // Handle both URL formats to extract the token
+
     String? accessToken;
-    
+    final currentUrl = html.window.location.href;
+
+    // First try to get token from the URL
     if (currentUrl.contains('#/set-password#access_token=')) {
-      // Handle double hash format
       final tokenPart = currentUrl.split('#access_token=')[1];
       accessToken = tokenPart.split('&')[0];
+      print("SetPasswordScreen: Extracted token from URL double hash");
     } else if (currentUrl.contains('access_token=')) {
-      // Handle normal format
       final tokenPart = currentUrl.split('access_token=')[1];
       accessToken = tokenPart.split('&')[0];
+      print("SetPasswordScreen: Extracted token from URL standard format");
+    } else {
+      // Try to get token from sessionStorage
+      accessToken = html.window.sessionStorage['supabase_invite_token'];
+      if (accessToken != null && accessToken.contains('&')) {
+        accessToken = accessToken.split('&')[0];
+      }
+      print("SetPasswordScreen: Using token from sessionStorage");
     }
-    
+
     if (accessToken != null) {
       try {
-        print("SetPasswordScreen: Attempting to set session with extracted token");
-        final response = await Supabase.instance.client.auth.setSession(accessToken);
-        
+        print("SetPasswordScreen: Attempting to authenticate with token");
+
+        // Try to establish a session with the token
+        final response = await Supabase.instance.client.auth.setSession(
+          accessToken,
+        );
+
         if (response.session != null) {
-          print("SetPasswordScreen: Successfully set session with token");
-          if (mounted) setState(() => _isLoading = false);
+          print("SetPasswordScreen: Successfully authenticated with token");
+          return; // Success
         } else {
-          print("SetPasswordScreen: Failed to set session with token");
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-              _errorMessage = "Failed to process invitation. Please try again or contact administrator.";
-            });
-            
-            // Only redirect to login after a delay so the user can see the error
-            Future.delayed(const Duration(seconds: 3), () {
-              if (mounted) Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
-            });
-          }
+          print("SetPasswordScreen: Failed to authenticate with token");
+          throw Exception("Failed to process invitation token");
         }
       } catch (e) {
         print("SetPasswordScreen: Error setting session: $e");
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _errorMessage = "Error processing invitation: ${e.toString()}";
-          });
-          
-          // Only redirect to login after a delay so the user can see the error
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted) Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
-          });
-        }
+        throw e;
       }
     } else {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = "No valid token found in invitation link";
-        });
-        
-        // Only redirect to login after a delay so the user can see the error
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
-        });
-      }
+      throw Exception("No token found");
     }
   }
 
@@ -173,14 +176,15 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
 
         if (!mounted) return;
         setState(() => _isLoading = false);
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Password set successfully! Please log in.")),
+          const SnackBar(
+            content: Text("Password set successfully! Please log in."),
+          ),
         );
-        
+
         // Navigate to login screen after successful password set
         Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
-
       } on AuthException catch (error) {
         if (!mounted) return;
         setState(() {
@@ -215,7 +219,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         ),
       );
     }
-    
+
     // Show error state if there's an error message
     if (_errorMessage != null) {
       return Scaffold(
@@ -233,7 +237,10 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: () => Navigator.of(context).pushReplacementNamed(LoginScreen.routeName),
+                onPressed:
+                    () => Navigator.of(
+                      context,
+                    ).pushReplacementNamed(LoginScreen.routeName),
                 child: const Text("Go to Login"),
               ),
             ],
@@ -311,7 +318,10 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text("Set Password and Log In", style: TextStyle(fontSize: 16)),
+                  child: const Text(
+                    "Set Password and Log In",
+                    style: TextStyle(fontSize: 16),
+                  ),
                 ),
               ),
             ],
