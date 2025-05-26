@@ -19,127 +19,95 @@ class AuthRedirectScreen extends StatefulWidget {
 class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
   String _debugInfo = "Initializing..."; // State variable to hold debug info
 
-
   @override
   void initState() {
     super.initState();
-    _redirectUser();
+    _processAuthRedirect(); // Changed name for clarity
   }
 
-  // Future<void> _redirectUser() async {
-  //   // Give Supabase a moment to process URL fragments and update auth state
-  //   await Future.delayed(Duration.zero);
-
-  //   if (!mounted) return;
-
-  //   final supabaseClient = Supabase.instance.client;
-  //   final currentUser = supabaseClient.auth.currentUser;
-
-  //   // For Flutter Web, check the URL fragment.
-  //   // Assumes invite link's redirectTo was 'YOUR_APP_URL/#/set-password'
-  //   final uri = Uri.base;
-  //   final bool isSetPasswordFlowFromUrl = uri.fragment.startsWith(
-  //     SetPasswordScreen.routeName,
-  //   );
-
-  //   if (isSetPasswordFlowFromUrl && currentUser != null) {
-  //     // User landed on /#/set-password and has a session (from invite token)
-  //     Navigator.of(context).pushReplacementNamed(SetPasswordScreen.routeName);
-  //   } else if (currentUser != null) {
-  //     // User has an active session, not a set-password flow from URL
-  //     final role = currentUser.userMetadata?['role'];
-  //     switch (role) {
-  //       case 'Admin':
-  //         Navigator.of(context).pushReplacementNamed('/admin');
-  //         break;
-  //       case 'Guard':
-  //         Navigator.of(context).pushReplacementNamed('/guard');
-  //         break;
-  //       // TODO: Add cases for 'Parent', 'Teacher', 'Driver'
-  //       // case 'Parent':
-  //       //   Navigator.pushReplacementNamed(context, '/parent');
-  //       //   break;
-  //       // case 'Teacher':
-  //       //   Navigator.pushReplacementNamed(context, '/teacher');
-  //       //   break;
-  //       // case 'Driver':
-  //       //   Navigator.pushReplacementNamed(context, '/driver');
-  //       //   break;
-  //       default:
-  //         // Role not found or unknown, or session exists but no role.
-  //         // Could also be a user whose password is set but trying to access /#/set-password without a valid token.
-  //         await supabaseClient.auth.signOut(); // Sign out to be safe
-  //         Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
-  //     }
-  //   } else {
-  //     // No session, or trying to access /#/set-password without a session token.
-  //     Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
-  //   }
-  // }
-
-  Future<void> _redirectUser() async {
-    // Give Supabase a moment to process URL fragments and update auth state
-    await Future.delayed(Duration.zero);
+  Future<void> _processAuthRedirect() async {
+    // Give Supabase a bit more time, especially on web after a redirect
+    await Future.delayed(const Duration(milliseconds: 300)); // Slightly longer delay
 
     if (!mounted) return;
 
     final supabaseClient = Supabase.instance.client;
-    final currentUser = supabaseClient.auth.currentUser; // Key check 1
-
+    final currentUser = supabaseClient.auth.currentUser;
     final uri = Uri.base;
-    final fragment = uri.fragment; // Gets the part after '#'
+    final fragment = uri.fragment;
+    final bool isSetPasswordFlowFromUrl = fragment.startsWith(SetPasswordScreen.routeName);
 
-    // uri.fragment will be something like "/set-password#access_token=..."
-    final bool isSetPasswordFlowFromUrl = uri.fragment.startsWith(
-      SetPasswordScreen.routeName,
-    );
+    // Prepare debug information
+    final newDebugInfo = """
+    Current URL: ${uri.toString()}
+    Fragment: $fragment
+    SetPasswordScreen.routeName: ${SetPasswordScreen.routeName}
+    IsSetPasswordFlowFromUrl: $isSetPasswordFlowFromUrl
+    CurrentUser ID: ${currentUser?.id}
+    CurrentUser Email: ${currentUser?.email}
+    Current Time: ${DateTime.now()}
+    """;
 
-    // For debugging, add these print statements:
-    print("AuthRedirectScreen: uri.fragment = ${uri.fragment}");
-    print(
-      "AuthRedirectScreen: SetPasswordScreen.routeName = ${SetPasswordScreen.routeName}",
-    );
-    print(
-      "AuthRedirectScreen: isSetPasswordFlowFromUrl = $isSetPasswordFlowFromUrl",
-    );
-    print("AuthRedirectScreen: currentUser = ${currentUser?.id}");
+    // Update state to display debug info on screen
+    if (mounted) {
+      setState(() {
+        _debugInfo = newDebugInfo;
+      });
+    }
 
-     // ---- TEMPORARY DELAY FOR DEBUGGING ----
+    // Print to console as well
+    print("AuthRedirectScreen Debug Info:\n$newDebugInfo");
+
+
+    // ---- TEMPORARY DELAY FOR DEBUGGING ----
     // This will pause the screen for 10 seconds so you can read the debug info.
     // REMOVE THIS FOR PRODUCTION.
-    if (kIsWeb) { // Only apply long delay on web for this specific debugging
+    if (kIsWeb) {
       await Future.delayed(const Duration(seconds: 10));
     }
     // ---- END TEMPORARY DELAY ----
 
     if (!mounted) return; // Check mounted again after delay
 
-
     if (isSetPasswordFlowFromUrl && currentUser != null) {
-      // Key check 2
       print("AuthRedirectScreen: Navigating to SetPasswordScreen");
       Navigator.of(context).pushReplacementNamed(SetPasswordScreen.routeName);
     } else if (currentUser != null) {
-      // User has an active session, not a set-password flow from URL
       final role = currentUser.userMetadata?['role'];
-      print(
-        "AuthRedirectScreen: User has session, role = $role. Navigating by role.",
-      );
-      // ... (role-based navigation) ...
+      print("AuthRedirectScreen: User has session, role = $role. Navigating by role.");
+      switch (role) {
+        case 'Admin': // Ensure your roles are cased correctly
+          Navigator.of(context).pushReplacementNamed('/admin');
+          break;
+        case 'Guard':
+          Navigator.of(context).pushReplacementNamed('/guard');
+          break;
+        default:
+          print("AuthRedirectScreen: Unknown role or fallback. Signing out and navigating to Login.");
+          await supabaseClient.auth.signOut();
+          Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+      }
     } else {
-      // No session, or trying to access /#/set-password without a session token,
-      // or tokens from URL not yet processed to set currentUser.
-      print(
-        "AuthRedirectScreen: No currentUser or not set-password flow with user. Navigating to LoginScreen.",
-      );
+      print("AuthRedirectScreen: No currentUser or not set-password flow with user. Navigating to LoginScreen.");
       Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Show a loading indicator while redirecting
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    // This build method will now display the _debugInfo string
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            _debugInfo, // Display the debug information
+            style: const TextStyle(fontSize: 14, fontFamily: 'monospace'),
+            textAlign: TextAlign.left,
+          ),
+        ),
+      ),
+    );
   }
 }
 
