@@ -6,10 +6,38 @@ import 'screens/admin/admin_panel.dart';
 import 'screens/set_password_screen.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:url_strategy/url_strategy.dart'; // <--- IMPORT THIS
-import 'dart:html' as html; // <--- IMPORT THIS for web-specific URL reading
+import 'package:url_strategy/url_strategy.dart'; // <--- IMPORT THIS (already present)
+import 'dart:html' as html;
+import 'dart:async'; // For StreamSubscription
 
-// This new screen will handle the initial auth state and URL fragment check
+// Global variable to store the initial URL, captured before Flutter app runs.
+String initialUrlFromMain = "";
+
+// Simple screen to show while initial auth processing happens.
+class InitialLoadingScreen extends StatelessWidget {
+  const InitialLoadingScreen({super.key});
+  static const String routeName = '/'; // Using '/' as the route name for the initial screen
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 20),
+            Text("Initializing... Please wait."),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// The AuthRedirectScreen is no longer needed with the new approach.
+// Its logic is now handled by InitialLoadingScreen and _KidSyncAppState.
+/*
 class AuthRedirectScreen extends StatefulWidget {
   const AuthRedirectScreen({super.key});
 
@@ -18,162 +46,19 @@ class AuthRedirectScreen extends StatefulWidget {
 }
 
 class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
-  String _debugInfo = "Initializing..."; // State variable to hold debug info
-
-  @override
-  void initState() {
-    super.initState();
-    _processAuthRedirect(); // Changed name for clarity
-  }
-
-  Future<void> _processAuthRedirect() async {
-    // Give Supabase a bit more time, especially on web after a redirect
-    await Future.delayed(
-      const Duration(milliseconds: 300),
-    ); // Slightly longer delay
-
-    if (!mounted) return;
-
-    final supabaseClient = Supabase.instance.client;
-    final currentUser = supabaseClient.auth.currentUser;
-    final uri = Uri.base;
-
-    String currentRoutePath = "";
-    String rawFragmentFromWindow = "";
-
-    if (kIsWeb) {
-      final fullHash =
-          html.window.location.hash; // e.g., #/set-password#access_token=...
-      rawFragmentFromWindow = fullHash; // For debugging
-
-      // Expected structure with hash strategy: #/your-path#actual_fragment_from_supabase
-      // Or sometimes just #actual_fragment_from_supabase if Flutter hasn't routed yet.
-      if (fullHash.startsWith("#/")) {
-        // Standard for hash strategy
-        String pathAndPotentialFragment = fullHash.substring(
-          2,
-        ); // Remove #/ -> gives 'set-password#access_token=...'
-        if (pathAndPotentialFragment.contains("#")) {
-          // We have a path and then another fragment
-          currentRoutePath =
-              "/${pathAndPotentialFragment.substring(0, pathAndPotentialFragment.indexOf("#"))}";
-        } else if (pathAndPotentialFragment.contains("?")) {
-          // Path might have query params, but fragment is primary here
-          currentRoutePath =
-              "/${pathAndPotentialFragment.substring(0, pathAndPotentialFragment.indexOf("?"))}";
-        } else {
-          currentRoutePath = "/$pathAndPotentialFragment";
-        }
-      } else if (fullHash.startsWith("#")) {
-        // This case might occur if Supabase redirects to #token... and your app isn't yet at /#/set-password
-        // The Supabase SDK should ideally handle this fragment for authentication.
-        // For path determination for navigation, this might mean the path is root '/' or the initial route.
-        currentRoutePath =
-            "/"; // Default to root or your app's initial configured route if no #/ prefix
-      } else {
-        // If using path strategy (not recommended here initially), path would be from pathname
-        // Or if there's no hash at all.
-        currentRoutePath = html.window.location.pathname ?? '';
-      }
-    }
-
-    final bool isOnSetPasswordPath =
-        currentRoutePath == SetPasswordScreen.routeName;
-
-    // Prepare debug information
-    final newDebugInfo = """
-    Current URL (Uri.base): ${uri.toString()}
-    Uri.base.fragment (Flutter's view): ${uri.fragment}
-    Window Location Hash (Raw): $rawFragmentFromWindow
-    Determined Current Route Path: $currentRoutePath
-    IsOnSetPasswordPath: $isOnSetPasswordPath
-    SetPasswordScreen.routeName: ${SetPasswordScreen.routeName}
-    CurrentUser ID: ${currentUser?.id}
-    CurrentUser Email: ${currentUser?.email}
-    Current Time: ${DateTime.now()}
-    """;
-
-    // Update state to display debug info on screen
-    if (mounted) {
-      setState(() {
-        _debugInfo = newDebugInfo;
-      });
-    }
-
-    // Print to console as well
-    print("AuthRedirectScreen Debug Info:\n$newDebugInfo");
-
-    // ---- TEMPORARY DELAY FOR DEBUGGING ----
-    // This will pause the screen for 10 seconds so you can read the debug info.
-    // REMOVE THIS FOR PRODUCTION.
-    if (kIsWeb) {
-      await Future.delayed(const Duration(seconds: 10));
-    }
-    // ---- END TEMPORARY DELAY ----
-
-    if (!mounted) return; // Check mounted again after delay
-
-    if (currentUser != null) {
-      // User is logged in (token was processed by Supabase SDK or existing session)
-      // Now, decide where to navigate based on the path they were trying to reach.
-      if (isOnSetPasswordPath) {
-        print(
-          "AuthRedirectScreen: User confirmed, on set password path. Navigating to SetPasswordScreen.",
-        );
-        Navigator.of(context).pushReplacementNamed(SetPasswordScreen.routeName);
-      } else {
-        // User is logged in but wasn't trying to go to /set-password
-        // (e.g., they were already logged in and visited the site directly)
-        final role = currentUser.userMetadata?['role'];
-        print(
-          "AuthRedirectScreen: User has session (role: $role), not on set-password path. Navigating by role.",
-        );
-        switch (role) {
-          case 'Admin': // Ensure your roles are cased correctly
-            Navigator.of(context).pushReplacementNamed('/admin');
-            break;
-          case 'Guard':
-            Navigator.of(context).pushReplacementNamed('/guard');
-            break;
-          default:
-            print(
-              "AuthRedirectScreen: Unknown role or fallback. Signing out and navigating to Login.",
-            );
-            await supabaseClient.auth.signOut(); // Sign out if role is unknown
-            Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
-        }
-      }
-    } else {
-      // No current user after delay and Supabase check
-      // This means the token in URL (if any) was not valid, expired, or already used,
-      // or there was no token in the first place.
-      print(
-        "AuthRedirectScreen: No currentUser. Token likely invalid/missing or fresh visit. Navigating to LoginScreen.",
-      );
-      Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // This build method will now display the _debugInfo string
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            _debugInfo, // Display the debug information
-            style: const TextStyle(fontSize: 14, fontFamily: 'monospace'),
-            textAlign: TextAlign.left,
-          ),
-        ),
-      ),
-    );
-  }
+  // ... (previous content of AuthRedirectScreenState) ...
 }
+*/
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Capture the initial URL as early as possible in Dart.
+  if (kIsWeb) {
+    initialUrlFromMain = html.window.location.href;
+    print("main.dart - main(): Captured initial full URL: $initialUrlFromMain");
+  }
+
   setHashUrlStrategy();
 
   // Initialize Supabase here
@@ -183,16 +68,145 @@ Future<void> main() async {
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdWl0Z3BxcXVkaHFkY2J1aGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDk5OTUsImV4cCI6MjA2MzIyNTk5NX0.FuWUR1QHFiWzPwZa0HvW0yLhJfHHw0EhBLibA0t0Dsw',
   );
 
-  runApp(const KidSyncApp());
+  runApp(KidSyncApp(initialUrl: initialUrlFromMain)); // Pass initialUrl
 }
 
-class KidSyncApp extends StatelessWidget {
-  const KidSyncApp({super.key});
+class KidSyncApp extends StatefulWidget { // Changed to StatefulWidget
+  final String initialUrl;
+  const KidSyncApp({super.key, required this.initialUrl});
+
+  @override
+  State<KidSyncApp> createState() => _KidSyncAppState();
+}
+
+class _KidSyncAppState extends State<KidSyncApp> {
+  StreamSubscription<AuthState>? _authSubscription;
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  bool _initialAuthCheckCompleted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    print("_KidSyncAppState initState: Initial URL passed from main: ${widget.initialUrl}");
+
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      final AuthChangeEvent event = data.event;
+      final Session? session = data.session;
+      final User? user = session?.user;
+
+      print("_KidSyncAppState onAuthStateChange: event=$event, user=${user?.id}, session active: ${session != null}");
+      _initialAuthCheckCompleted = true;
+
+      final navigator = _navigatorKey.currentState;
+      if (navigator == null) {
+        print("_KidSyncAppState onAuthStateChange: Navigator not yet available.");
+        return;
+      }
+
+      String? currentRouteName;
+      navigator.popUntil((route) {
+        currentRouteName = route.settings.name;
+        return true;
+      });
+      print("_KidSyncAppState onAuthStateChange: Current route is $currentRouteName");
+
+      bool wasSetPasswordInviteFlow = widget.initialUrl.contains('/#/set-password') &&
+                                   (widget.initialUrl.contains('access_token=') || widget.initialUrl.contains('token='));
+
+      if (event == AuthChangeEvent.passwordRecovery || (session != null && wasSetPasswordInviteFlow)) {
+        print("_KidSyncAppState onAuthStateChange: Password recovery or initial set-password flow detected. Navigating to SetPasswordScreen.");
+        if (currentRouteName != SetPasswordScreen.routeName) {
+           navigator.pushReplacementNamed(SetPasswordScreen.routeName);
+        } else {
+           print("_KidSyncAppState onAuthStateChange: Already on SetPasswordScreen.");
+        }
+      } else if (session != null && user != null) {
+        final role = user.userMetadata?['role'];
+        print("_KidSyncAppState onAuthStateChange: Session active. Navigating based on role: $role");
+        switch (role) {
+          case 'Admin':
+            if (currentRouteName != '/admin') navigator.pushReplacementNamed('/admin');
+            break;
+          case 'Guard':
+            if (currentRouteName != '/guard') navigator.pushReplacementNamed('/guard');
+            break;
+          default:
+            print("_KidSyncAppState onAuthStateChange: Unknown role ('$role') or fallback. Navigating to LoginScreen.");
+            if (currentRouteName != LoginScreen.routeName) navigator.pushReplacementNamed(LoginScreen.routeName);
+        }
+      } else {
+        print("_KidSyncAppState onAuthStateChange: No active session. Navigating to LoginScreen.");
+        if (currentRouteName != LoginScreen.routeName) {
+          navigator.pushReplacementNamed(LoginScreen.routeName);
+        } else {
+          print("_KidSyncAppState onAuthStateChange: Already on LoginScreen.");
+        }
+      }
+    });
+
+    _checkInitialSessionAfterDelay();
+  }
+
+  Future<void> _checkInitialSessionAfterDelay() async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (!mounted || _initialAuthCheckCompleted) return;
+
+    print("_KidSyncAppState _checkInitialSessionAfterDelay: Checking initial session manually.");
+    final session = Supabase.instance.client.auth.currentSession;
+    final user = Supabase.instance.client.auth.currentUser;
+    final navigator = _navigatorKey.currentState;
+
+    if (navigator == null) {
+      print("_KidSyncAppState _checkInitialSessionAfterDelay: Navigator not available for manual check.");
+      return;
+    }
+    String? currentRouteName;
+    navigator.popUntil((route) {
+      currentRouteName = route.settings.name;
+      return true;
+    });
+
+    if (session != null && user != null) {
+      print("_KidSyncAppState _checkInitialSessionAfterDelay: Active session found. User: ${user.id}. Role: ${user.userMetadata?['role']}");
+      bool wasSetPasswordInvite = widget.initialUrl.contains('/#/set-password') &&
+                                  (widget.initialUrl.contains('access_token=') || widget.initialUrl.contains('token='));
+
+      if (wasSetPasswordInvite) {
+        print("_KidSyncAppState _checkInitialSessionAfterDelay: Initial URL was for set-password. Navigating.");
+        if (currentRouteName != SetPasswordScreen.routeName) navigator.pushReplacementNamed(SetPasswordScreen.routeName);
+      } else {
+        final role = user.userMetadata?['role'];
+        print("_KidSyncAppState _checkInitialSessionAfterDelay: Navigating by role: $role");
+        switch (role) {
+          case 'Admin':
+            if (currentRouteName != '/admin') navigator.pushReplacementNamed('/admin');
+            break;
+          case 'Guard':
+            if (currentRouteName != '/guard') navigator.pushReplacementNamed('/guard');
+            break;
+          default:
+            print("_KidSyncAppState _checkInitialSessionAfterDelay: Unknown role or fallback. Navigating to LoginScreen.");
+            if (currentRouteName != LoginScreen.routeName) navigator.pushReplacementNamed(LoginScreen.routeName);
+        }
+      }
+    } else if (currentRouteName == InitialLoadingScreen.routeName) {
+      print("_KidSyncAppState _checkInitialSessionAfterDelay: No active session. Navigating to LoginScreen from InitialLoadingScreen.");
+      navigator.pushReplacementNamed(LoginScreen.routeName);
+    }
+    _initialAuthCheckCompleted = true;
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
 
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey, // Assign navigatorKey
       title: 'KidSync',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -215,8 +229,9 @@ class KidSyncApp extends StatelessWidget {
         useMaterial3: true,
         // colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const AuthRedirectScreen(),
+      initialRoute: InitialLoadingScreen.routeName, // Start with loading screen
       routes: {
+        InitialLoadingScreen.routeName: (_) => const InitialLoadingScreen(), // Add InitialLoadingScreen route
         LoginScreen.routeName:
             (_) => const LoginScreen(), // Use static routeName
         SetPasswordScreen.routeName:
@@ -229,7 +244,7 @@ class KidSyncApp extends StatelessWidget {
         // '/guard': (_) => const GuardPanel(role: 'Guard'),
         // '/driver': (_) => const DriverPage(),
       },
-      // home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      // home: const MyHomePage(title: 'Flutter Demo Home Page'), // home is replaced by initialRoute
     );
   }
 }
