@@ -7,13 +7,16 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:html' as html; // <--- IMPORT THIS for web-specific URL reading (already present)
 
 import 'package:kidsync/main.dart';
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+    final initialUrlFromMain = html.window.location.href;
+
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const KidSyncApp());
+    await tester.pumpWidget(KidSyncApp(initialUrl: initialUrlFromMain));
 
     // Verify that our counter starts at 0.
     expect(find.text('0'), findsOneWidget);

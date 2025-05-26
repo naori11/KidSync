@@ -7,7 +7,7 @@ import 'screens/set_password_screen.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_strategy/url_strategy.dart'; // <--- IMPORT THIS (already present)
-import 'dart:html' as html;
+import 'dart:html' as html; // <--- IMPORT THIS for web-specific URL reading (already present)
 import 'dart:async'; // For StreamSubscription
 
 // Global variable to store the initial URL, captured before Flutter app runs.
