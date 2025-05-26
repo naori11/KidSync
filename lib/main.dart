@@ -475,7 +475,8 @@ class _KidSyncAppState extends State<KidSyncApp> {
         InitialLoadingScreen.routeName: (_) => const InitialLoadingScreen(),
         LoginScreen.routeName: (_) => const LoginScreen(),
         SetPasswordScreen.routeName: (_) => const SetPasswordScreen(),
-        '/set-password': (_) => const SetPasswordScreen(),
+        '/set-password': (_) => const SetPasswordScreen(), // For path-based route
+        '#/set-password': (_) => const SetPasswordScreen(),
         '/admin': (_) => const AdminPanel(),
         '/guard': (_) => GuardPanel(),
         // '/parent': (_) => const ParentHome(),

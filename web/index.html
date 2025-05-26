@@ -42,60 +42,66 @@
     }
   </script>
   <script>
-    // Handle authentication token in URL
+    // Handle authentication token in URL for Supabase
     window.addEventListener('DOMContentLoaded', function() {
+      console.log("Auth helper script running...");
       var location = window.location.href;
-      console.log("Processing URL in script:", location);
       
-      // Check for access token in different URL formats
+      // Check if this is a Supabase auth URL
       if (location.includes('access_token=')) {
-        console.log("Found access_token in URL");
+        console.log("Auth URL detected, storing auth parameters");
         
-        // Parse the token and other parameters
-        var params = {};
-        var hashParts = location.split('#');
-        
-        // Process the hash part(s) that contain the token
-        if (hashParts.length > 1) {
-          var authPart = hashParts[hashParts.length - 1]; // Get the last hash part
+        try {
+          // Store original URL for debugging
+          window.sessionStorage.setItem('original_auth_url', location);
           
-          // Split into key-value pairs
-          authPart.split('&').forEach(function(pair) {
-            if (pair.includes('=')) {
-              var keyValue = pair.split('=');
-              var key = keyValue[0];
-              // Handle the case where the key might contain access_token=
-              if (key.includes('access_token=')) {
-                key = 'access_token';
-                keyValue[1] = keyValue[0].split('access_token=')[1];
+          // Parse all auth parameters
+          var authParams = {};
+          var hashParts = location.includes('#') ? location.split('#') : [];
+          
+          // Find the part with auth parameters
+          for (var i = 0; i < hashParts.length; i++) {
+            if (hashParts[i].includes('access_token=')) {
+              var paramPart = hashParts[i];
+              // If this is the format: /set-password#access_token=...
+              if (paramPart.startsWith('/set-password')) {
+                paramPart = paramPart.replace('/set-password', '');
               }
-              params[key] = keyValue[1];
+              
+              // Split by & to get individual params
+              var params = paramPart.split('&');
+              for (var j = 0; j < params.length; j++) {
+                var pair = params[j].split('=');
+                if (pair.length === 2) {
+                  var key = pair[0];
+                  // Handle the access_token= case specially
+                  if (key.includes('access_token=')) {
+                    key = 'access_token';
+                    pair[1] = pair[0].split('access_token=')[1];
+                  }
+                  authParams[key] = pair[1];
+                }
+              }
+              break;
             }
-          });
+          }
+          
+          // Store each parameter in sessionStorage
+          for (var key in authParams) {
+            window.sessionStorage.setItem('supabase_' + key, authParams[key]);
+          }
+          
+          console.log("Auth parameters stored successfully");
+          
+          // Optional: Clean up the URL for better UX
+          // Note: This doesn't affect the parameters Supabase will read
+          // history.replaceState({}, document.title, location.split('#')[0] + '#/set-password');
+          
+        } catch (e) {
+          console.error("Error processing auth parameters:", e);
         }
-        
-        // Store auth parameters in session storage
-        if (params.access_token) {
-          window.sessionStorage.setItem('supabase_access_token', params.access_token);
-          console.log("Stored access token in session storage");
-        }
-        if (params.refresh_token) {
-          window.sessionStorage.setItem('supabase_refresh_token', params.refresh_token);
-        }
-        if (params.expires_at) {
-          window.sessionStorage.setItem('supabase_expires_at', params.expires_at);
-        }
-        if (params.expires_in) {
-          window.sessionStorage.setItem('supabase_expires_in', params.expires_in);
-        }
-        if (params.type) {
-          window.sessionStorage.setItem('supabase_auth_type', params.type);
-        }
-        
-        // Also store the raw URL for debugging
-        window.sessionStorage.setItem('original_url', location);
-        
-        console.log("Auth parameters stored in session storage");
+      } else {
+        console.log("No auth parameters found in URL");
       }
     });
   </script>
