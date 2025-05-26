@@ -3,7 +3,80 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_screen.dart';
 import 'screens/guard/guard_panel.dart';
 import 'screens/admin/admin_panel.dart';
+import 'screens/set_password_screen.dart'; // Import the new screen
 
+// This new screen will handle the initial auth state and URL fragment check
+class AuthRedirectScreen extends StatefulWidget {
+  const AuthRedirectScreen({super.key});
+
+  @override
+  State<AuthRedirectScreen> createState() => _AuthRedirectScreenState();
+}
+
+class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _redirectUser();
+  }
+
+  Future<void> _redirectUser() async {
+    // Give Supabase a moment to process URL fragments and update auth state
+    await Future.delayed(Duration.zero); 
+
+    if (!mounted) return;
+
+    final supabaseClient = Supabase.instance.client;
+    final currentUser = supabaseClient.auth.currentUser;
+    
+    // For Flutter Web, check the URL fragment.
+    // Assumes invite link's redirectTo was 'YOUR_APP_URL/#/set-password'
+    final uri = Uri.base;
+    final bool isSetPasswordFlowFromUrl = uri.fragment == SetPasswordScreen.routeName;
+
+    if (isSetPasswordFlowFromUrl && currentUser != null) {
+      // User landed on /#/set-password and has a session (from invite token)
+      Navigator.of(context).pushReplacementNamed(SetPasswordScreen.routeName);
+    } else if (currentUser != null) {
+      // User has an active session, not a set-password flow from URL
+      final role = currentUser.userMetadata?['role'];
+      switch (role) {
+        case 'Admin':
+          Navigator.of(context).pushReplacementNamed('/admin');
+          break;
+        case 'Guard':
+          Navigator.of(context).pushReplacementNamed('/guard');
+          break;
+        // TODO: Add cases for 'Parent', 'Teacher', 'Driver'
+        // case 'Parent':
+        //   Navigator.pushReplacementNamed(context, '/parent');
+        //   break;
+        // case 'Teacher':
+        //   Navigator.pushReplacementNamed(context, '/teacher');
+        //   break;
+        // case 'Driver':
+        //   Navigator.pushReplacementNamed(context, '/driver');
+        //   break;
+        default:
+          // Role not found or unknown, or session exists but no role.
+          // Could also be a user whose password is set but trying to access /#/set-password without a valid token.
+          await supabaseClient.auth.signOut(); // Sign out to be safe
+          Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+      }
+    } else {
+      // No session, or trying to access /#/set-password without a session token.
+      Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Show a loading indicator while redirecting
+    return const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
+    );
+  }
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,9 +119,10 @@ class KidSyncApp extends StatelessWidget {
           useMaterial3: true,
         // colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const LoginScreen(),
+      home: const AuthRedirectScreen(),
         routes: {
-          '/login': (_) => const LoginScreen(),
+          LoginScreen.routeName: (_) => const LoginScreen(), // Use static routeName
+          SetPasswordScreen.routeName: (_) => const SetPasswordScreen(), // Add route for set password screen
           '/admin': (_) => const AdminPanel(),
           // '/parent': (_) => const ParentHome(),
           // '/teacher': (_) => const TeacherDashboard(),
