@@ -7,7 +7,8 @@ import 'screens/set_password_screen.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_strategy/url_strategy.dart'; // <--- IMPORT THIS (already present)
-import 'dart:html' as html; // <--- IMPORT THIS for web-specific URL reading (already present)
+import 'dart:html'
+    as html; // <--- IMPORT THIS for web-specific URL reading (already present)
 import 'dart:async'; // For StreamSubscription
 
 // Global variable to store the initial URL, captured before Flutter app runs.
@@ -16,7 +17,8 @@ String initialUrlFromMain = "";
 // Simple screen to show while initial auth processing happens.
 class InitialLoadingScreen extends StatelessWidget {
   const InitialLoadingScreen({super.key});
-  static const String routeName = '/'; // Using '/' as the route name for the initial screen
+  static const String routeName =
+      '/'; // Using '/' as the route name for the initial screen
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +73,8 @@ Future<void> main() async {
   runApp(KidSyncApp(initialUrl: initialUrlFromMain)); // Pass initialUrl
 }
 
-class KidSyncApp extends StatefulWidget { // Changed to StatefulWidget
+class KidSyncApp extends StatefulWidget {
+  // Changed to StatefulWidget
   final String initialUrl;
   const KidSyncApp({super.key, required this.initialUrl});
 
@@ -82,33 +85,76 @@ class KidSyncApp extends StatefulWidget { // Changed to StatefulWidget
 class _KidSyncAppState extends State<KidSyncApp> {
   StreamSubscription<AuthState>? _authSubscription;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
-  bool _initialAuthCheckCompleted = false; // To coordinate with _checkInitialSessionAfterDelay
+  bool _initialAuthCheckCompleted =
+      false; // To coordinate with _checkInitialSessionAfterDelay
 
   @override
   void initState() {
     super.initState();
-    print("[TEMP DEBUG] _KidSyncAppState initState: Initial URL passed from main: ${widget.initialUrl}");
+    // Get the current URL to check if it's an invite link
+    String currentUrl = '';
+    if (kIsWeb) {
+      currentUrl = html.window.location.href;
+    }
 
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      final AuthChangeEvent event = data.event;
-      final Session? session = data.session;
-      final User? user = session?.user;
+    bool isInviteLink =
+        currentUrl.contains('token=') || currentUrl.contains('access_token=');
 
-      // General log for every event
-      print("[TEMP DEBUG] _KidSyncAppState onAuthStateChange: event=$event, user ID=${user?.id}, session active: ${session != null}");
-      _initialAuthCheckCompleted = true; // Mark that an auth event has been processed
+    // For invite links, don't immediately redirect if no user is detected
+    // as the authentication might still be processing
+    if (!isInviteLink) {
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser == null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            print(
+              "SetPasswordScreen: No active user and not an invite link. Redirecting to login.",
+            );
+            Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+          }
+        });
+      } else {
+        print(
+          "SetPasswordScreen: User ${currentUser.email} is setting password.",
+        );
+      }
+    } else {
+      print(
+        "SetPasswordScreen: Handling invite link, waiting for auth to complete.",
+      );
 
-      // Removed the specific 'return;' for initialSession on invite.
-      // All events will now go to _handleNavigation.
-      // If initialSession has user=null for an invite, _handleNavigation will likely route to login.
-
-      _handleNavigation(session, user, event, widget.initialUrl);
-    });
-
-    _checkInitialSessionAfterDelay();
+      // For invite links, attempt to extract and use the token directly
+      // This may be necessary if the Supabase client hasn't processed the token yet
+      _handleInviteToken(currentUrl);
+    }
   }
 
-  void _handleNavigation(Session? session, User? user, AuthChangeEvent event, String initialUrl) {
+  Future<void> _handleInviteToken(String url) async {
+    // Extract token from URL
+    final uri = Uri.parse(url);
+    final token =
+        uri.queryParameters['token'] ?? uri.queryParameters['access_token'];
+
+    if (token != null) {
+      try {
+        // Try to sign in with the token
+        await Supabase.instance.client.auth.setSession(token);
+
+        // Session should be set now, but don't navigate away - stay on set password page
+        print("Successfully processed invite token");
+      } catch (e) {
+        print("Error processing invite token: $e");
+        // Don't redirect yet, let the regular auth system handle it
+      }
+    }
+  }
+
+  void _handleNavigation(
+    Session? session,
+    User? user,
+    AuthChangeEvent event,
+    String initialUrl,
+  ) {
     final navigator = _navigatorKey.currentState;
     if (navigator == null) {
       print("[TEMP DEBUG] _handleNavigation: Navigator not yet available.");
@@ -120,84 +166,91 @@ class _KidSyncAppState extends State<KidSyncApp> {
       currentRouteName = route.settings.name;
       return true; // This doesn't pop anything, just inspects
     });
-    print("[TEMP DEBUG] _handleNavigation: Current route is $currentRouteName. Event: $event");
+    print(
+      "[TEMP DEBUG] _handleNavigation: Current route is $currentRouteName. Event: $event",
+    );
 
-    bool wasSetPasswordInviteFlow = initialUrl.contains('/#/set-password') &&
-                                 (initialUrl.contains('access_token=') || initialUrl.contains('token='));
+    bool wasSetPasswordInviteFlow =
+        initialUrl.contains('/#/set-password') &&
+        (initialUrl.contains('access_token=') || initialUrl.contains('token='));
 
-    // Priority 1: If we have an active session and user
-    if (session != null && user != null) {
-        // Sub-priority 1.1: It was a set password invite flow
-        if (wasSetPasswordInviteFlow) {
-            print("[TEMP DEBUG] _handleNavigation: Set password flow (from initial URL) with active session. Navigating to SetPasswordScreen.");
-            if (currentRouteName != SetPasswordScreen.routeName) {
-                navigator.pushReplacementNamed(SetPasswordScreen.routeName);
-            } else {
-                print("[TEMP DEBUG] _handleNavigation: Already on SetPasswordScreen for invite flow.");
-            }
-        }
-        // Sub-priority 1.2: It was an explicit password recovery event
-        else if (event == AuthChangeEvent.passwordRecovery) {
-            print("[TEMP DEBUG] _handleNavigation: AuthChangeEvent.passwordRecovery detected with active session. Navigating to SetPasswordScreen.");
-            if (currentRouteName != SetPasswordScreen.routeName) {
-                navigator.pushReplacementNamed(SetPasswordScreen.routeName);
-            } else {
-                print("[TEMP DEBUG] _handleNavigation: Already on SetPasswordScreen for passwordRecovery event.");
-            }
-        }
-        // Sub-priority 1.3: Regular signed-in user, navigate by role
-        else {
-            final role = user.userMetadata?['role'];
-            print("[TEMP DEBUG] _handleNavigation: Session active (event: $event). Navigating based on role: $role");
-            switch (role) {
-            case 'Admin':
-                if (currentRouteName != '/admin') navigator.pushReplacementNamed('/admin');
-                break;
-            case 'Guard':
-                if (currentRouteName != '/guard') navigator.pushReplacementNamed('/guard');
-                break;
-            default:
-                print("[TEMP DEBUG] _handleNavigation: Unknown role ('$role') or fallback. Navigating to LoginScreen.");
-                if (currentRouteName != LoginScreen.routeName) navigator.pushReplacementNamed(LoginScreen.routeName);
-            }
-        }
+    // Priority 1: Check if this is a password reset or invite flow first, regardless of session
+    if (wasSetPasswordInviteFlow || event == AuthChangeEvent.passwordRecovery) {
+      // || event == AuthChangeEvent.userSignedIn
+      print(
+        "[TEMP DEBUG] _handleNavigation: Set password flow detected. Navigating to SetPasswordScreen.",
+      );
+      if (currentRouteName != SetPasswordScreen.routeName) {
+        navigator.pushReplacementNamed(SetPasswordScreen.routeName);
+      }
+      return; // Important to return here and not proceed to other checks
     }
-    // Priority 2: No session (user is signed out, or token was invalid/not processed by client)
+
+    // Priority 2: If we have an active session and user
+    if (session != null && user != null) {
+      final role = user.userMetadata?['role'];
+      print(
+        "[TEMP DEBUG] _handleNavigation: Session active (event: $event). Navigating based on role: $role",
+      );
+      switch (role) {
+        case 'Admin':
+          if (currentRouteName != '/admin')
+            navigator.pushReplacementNamed('/admin');
+          break;
+        case 'Guard':
+          if (currentRouteName != '/guard')
+            navigator.pushReplacementNamed('/guard');
+          break;
+        default:
+          print(
+            "[TEMP DEBUG] _handleNavigation: Unknown role ('$role') or fallback. Navigating to LoginScreen.",
+          );
+          if (currentRouteName != LoginScreen.routeName)
+            navigator.pushReplacementNamed(LoginScreen.routeName);
+      }
+    }
+    // Priority 3: No session (user is signed out, or token was invalid/not processed by client)
     else {
-      print("[TEMP DEBUG] _handleNavigation: No active session (event: $event). Navigating to LoginScreen.");
+      print(
+        "[TEMP DEBUG] _handleNavigation: No active session (event: $event). Navigating to LoginScreen.",
+      );
       // Avoid navigation loop if already on login or initial loading trying to go to login
-      if (currentRouteName != LoginScreen.routeName && currentRouteName != InitialLoadingScreen.routeName) {
+      if (currentRouteName != LoginScreen.routeName &&
+          currentRouteName != InitialLoadingScreen.routeName) {
         navigator.pushReplacementNamed(LoginScreen.routeName);
-      } else if (currentRouteName == LoginScreen.routeName) {
-        print("[TEMP DEBUG] _handleNavigation: Already on LoginScreen.");
-      } else if (currentRouteName == InitialLoadingScreen.routeName) {
-         print("[TEMP DEBUG] _handleNavigation: Still on InitialLoadingScreen with no session. Will navigate to LoginScreen.");
-         // If on loading and no session, definitely go to login.
-         // This handles the case where initialSession had no user and it wasn't an invite needing a wait.
-         navigator.pushReplacementNamed(LoginScreen.routeName);
       }
     }
   }
 
-
   Future<void> _checkInitialSessionAfterDelay() async {
     // This delay helps ensure onAuthStateChange has a chance to fire for initial events.
-    await Future.delayed(const Duration(milliseconds: 500)); // Slightly longer delay for safety
+    await Future.delayed(
+      const Duration(milliseconds: 500),
+    ); // Slightly longer delay for safety
     if (!mounted || _initialAuthCheckCompleted) {
       // If an auth event already ran and potentially navigated, or widget is disposed, do nothing.
-      print("[TEMP DEBUG] _checkInitialSessionAfterDelay: Exiting because mounted=$mounted or _initialAuthCheckCompleted=$_initialAuthCheckCompleted");
+      print(
+        "[TEMP DEBUG] _checkInitialSessionAfterDelay: Exiting because mounted=$mounted or _initialAuthCheckCompleted=$_initialAuthCheckCompleted",
+      );
       return;
     }
 
-    print("[TEMP DEBUG] _checkInitialSessionAfterDelay: Manually checking session as no onAuthStateChange event seemed to complete navigation yet.");
+    print(
+      "[TEMP DEBUG] _checkInitialSessionAfterDelay: Manually checking session as no onAuthStateChange event seemed to complete navigation yet.",
+    );
     final session = Supabase.instance.client.auth.currentSession;
     final user = Supabase.instance.client.auth.currentUser;
-    
+
     // Call _handleNavigation to use the centralized logic.
     // Treat this manual check as if it's a follow-up to an initial state.
     // Pass AuthChangeEvent.initialSession as the event type for this manual check's context.
-    _handleNavigation(session, user, AuthChangeEvent.initialSession, widget.initialUrl); 
-    
+    _handleNavigation(
+      session,
+      user,
+      AuthChangeEvent.initialSession,
+      widget.initialUrl,
+    );
+
     _initialAuthCheckCompleted = true; // Mark this manual check as done.
   }
 
@@ -236,12 +289,12 @@ class _KidSyncAppState extends State<KidSyncApp> {
       ),
       initialRoute: InitialLoadingScreen.routeName, // Start with loading screen
       routes: {
-        InitialLoadingScreen.routeName: (_) => const InitialLoadingScreen(), // Add InitialLoadingScreen route
+        InitialLoadingScreen.routeName:
+            (_) =>
+                const InitialLoadingScreen(), // Add InitialLoadingScreen route
         LoginScreen.routeName:
             (_) => const LoginScreen(), // Use static routeName
-        SetPasswordScreen.routeName:
-            (_) =>
-                const SetPasswordScreen(),
+        SetPasswordScreen.routeName: (_) => const SetPasswordScreen(),
         '/admin': (_) => const AdminPanel(),
         // '/parent': (_) => const ParentHome(),
         // '/teacher': (_) => const TeacherDashboard(),
