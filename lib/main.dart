@@ -10,6 +10,7 @@ import 'package:url_strategy/url_strategy.dart'; // <--- IMPORT THIS (already pr
 import 'dart:html'
     as html; // <--- IMPORT THIS for web-specific URL reading (already present)
 import 'dart:async'; // For StreamSubscription
+import 'dart:math' as math; // For min function in substring
 
 // Global variable to store the initial URL, captured before Flutter app runs.
 String initialUrlFromMain = "";
@@ -87,65 +88,207 @@ class _KidSyncAppState extends State<KidSyncApp> {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _initialAuthCheckCompleted =
       false; // To coordinate with _checkInitialSessionAfterDelay
+  bool _hasHandledInviteToken = false; // Flag to prevent duplicate processing
 
   @override
   void initState() {
     super.initState();
-    // Get the current URL to check if it's an invite link
-    String currentUrl = '';
-    if (kIsWeb) {
-      currentUrl = html.window.location.href;
+    print(
+      "[TEMP DEBUG] _KidSyncAppState initState: Initial URL passed from main: ${widget.initialUrl}",
+    );
+
+    // Check for double hash pattern in URL which is causing problems
+    bool hasDoubleHash = widget.initialUrl.contains('#/set-password#');
+    if (hasDoubleHash) {
+      print(
+        "[TEMP DEBUG] Detected double hash pattern in URL: ${widget.initialUrl}",
+      );
+      _extractAndProcessTokenFromDoubleHash();
+    } else if (widget.initialUrl.contains('access_token=')) {
+      // Process standard access_token if present
+      _processAuthToken();
     }
 
-    bool isInviteLink =
-        currentUrl.contains('token=') || currentUrl.contains('access_token=');
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      data,
+    ) {
+      final AuthChangeEvent event = data.event;
+      final Session? session = data.session;
+      final User? user = session?.user;
 
-    // For invite links, don't immediately redirect if no user is detected
-    // as the authentication might still be processing
-    if (!isInviteLink) {
-      final currentUser = Supabase.instance.client.auth.currentUser;
-      if (currentUser == null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            print(
-              "SetPasswordScreen: No active user and not an invite link. Redirecting to login.",
-            );
-            Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
-          }
-        });
-      } else {
-        print(
-          "SetPasswordScreen: User ${currentUser.email} is setting password.",
-        );
-      }
-    } else {
+      // General log for every event
       print(
-        "SetPasswordScreen: Handling invite link, waiting for auth to complete.",
+        "[TEMP DEBUG] _KidSyncAppState onAuthStateChange: event=$event, user ID=${user?.id}, session active: ${session != null}",
       );
+      _initialAuthCheckCompleted =
+          true; // Mark that an auth event has been processed
 
-      // For invite links, attempt to extract and use the token directly
-      // This may be necessary if the Supabase client hasn't processed the token yet
-      _handleInviteToken(currentUrl);
+      // Handle navigation based on auth state
+      _handleNavigation(session, user, event, widget.initialUrl);
+    });
+
+    _checkInitialSessionAfterDelay();
+  }
+
+  // New function to handle double hash pattern
+  void _extractAndProcessTokenFromDoubleHash() async {
+    if (_hasHandledInviteToken) return; // Prevent duplicate processing
+    _hasHandledInviteToken = true;
+
+    try {
+      // Split at the first '#/set-password#' to extract the part containing the token
+      final parts = widget.initialUrl.split('#/set-password#');
+      if (parts.length > 1) {
+        final tokenPart = parts[1];
+
+        // Extract the access_token from the tokenPart
+        String? accessToken;
+        if (tokenPart.contains('access_token=')) {
+          accessToken = tokenPart.split('access_token=')[1];
+          if (accessToken.contains('&')) {
+            accessToken = accessToken.split('&')[0];
+          }
+
+          print(
+            "[TEMP DEBUG] Extracted access token from double hash: ${accessToken.substring(0, math.min(20, accessToken.length))}...",
+          );
+
+          // Attempt to set session directly
+          try {
+            final response = await Supabase.instance.client.auth.setSession(
+              accessToken,
+            );
+            if (response.session != null) {
+              print(
+                "[TEMP DEBUG] Successfully set session from double hash token",
+              );
+
+              // Force navigation to set-password screen
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  final navigator = _navigatorKey.currentState;
+                  if (navigator != null) {
+                    navigator.pushReplacementNamed(SetPasswordScreen.routeName);
+                  }
+                }
+              });
+            } else {
+              print(
+                "[TEMP DEBUG] Failed to set session from double hash token",
+              );
+            }
+          } catch (e) {
+            print(
+              "[TEMP DEBUG] Error setting session from double hash token: $e",
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print("[TEMP DEBUG] Error processing double hash URL: $e");
+    }
+  }
+
+  // Process access_token from initialUrl
+  void _processAuthToken() {
+    if (_hasHandledInviteToken) return; // Prevent duplicate processing
+    _hasHandledInviteToken = true;
+
+    if (widget.initialUrl.contains('access_token=')) {
+      try {
+        // Extract the token part from the URL
+        String tokenPart = widget.initialUrl.split('access_token=')[1];
+        // If there are other parameters after the token, only take the token
+        if (tokenPart.contains('&')) {
+          tokenPart = tokenPart.split('&')[0];
+        }
+
+        print(
+          "[TEMP DEBUG] Extracted token: ${tokenPart.substring(0, math.min(20, tokenPart.length))}...",
+        );
+
+        // Set the session with the extracted token
+        Supabase.instance.client.auth
+            .setSession(tokenPart)
+            .then((response) {
+              final session = response.session;
+              final user = response.user;
+              if (session != null && user != null) {
+                print("[TEMP DEBUG] Successfully set session with token");
+
+                // Force navigation to set-password screen
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    final navigator = _navigatorKey.currentState;
+                    if (navigator != null) {
+                      navigator.pushReplacementNamed(
+                        SetPasswordScreen.routeName,
+                      );
+                    }
+                  }
+                });
+              } else {
+                print("[TEMP DEBUG] Failed to set session with token");
+              }
+            })
+            .catchError((error) {
+              print("[TEMP DEBUG] Error setting session: $error");
+            });
+      } catch (e) {
+        print("[TEMP DEBUG] Error processing token: $e");
+      }
     }
   }
 
   Future<void> _handleInviteToken(String url) async {
-    // Extract token from URL
-    final uri = Uri.parse(url);
-    final token =
-        uri.queryParameters['token'] ?? uri.queryParameters['access_token'];
+    if (_hasHandledInviteToken) return; // Prevent duplicate processing
+    _hasHandledInviteToken = true;
 
-    if (token != null) {
-      try {
-        // Try to sign in with the token
-        await Supabase.instance.client.auth.setSession(token);
+    try {
+      // Extract token from URL - handle both standard and double hash formats
+      String? token;
 
-        // Session should be set now, but don't navigate away - stay on set password page
-        print("Successfully processed invite token");
-      } catch (e) {
-        print("Error processing invite token: $e");
-        // Don't redirect yet, let the regular auth system handle it
+      if (url.contains('#/set-password#')) {
+        // Handle double hash format
+        final tokenPart = url.split('#/set-password#')[1];
+        if (tokenPart.contains('access_token=')) {
+          token = tokenPart.split('access_token=')[1].split('&')[0];
+        }
+      } else {
+        // Handle standard format
+        final uri = Uri.parse(url);
+        token =
+            uri.queryParameters['token'] ?? uri.queryParameters['access_token'];
       }
+
+      if (token != null) {
+        try {
+          // Try to sign in with the token
+          final response = await Supabase.instance.client.auth.setSession(
+            token,
+          );
+
+          if (response.session != null) {
+            print("[TEMP DEBUG] Successfully processed invite token");
+
+            // Navigate to set password page
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                final navigator = _navigatorKey.currentState;
+                if (navigator != null) {
+                  navigator.pushReplacementNamed(SetPasswordScreen.routeName);
+                }
+              }
+            });
+          } else {
+            print("[TEMP DEBUG] Failed to set session with invite token");
+          }
+        } catch (e) {
+          print("[TEMP DEBUG] Error processing invite token: $e");
+        }
+      }
+    } catch (e) {
+      print("[TEMP DEBUG] Error in _handleInviteToken: $e");
     }
   }
 
@@ -170,13 +313,18 @@ class _KidSyncAppState extends State<KidSyncApp> {
       "[TEMP DEBUG] _handleNavigation: Current route is $currentRouteName. Event: $event",
     );
 
+    // Check for invite URL patterns - both regular and double hash format
     bool wasSetPasswordInviteFlow =
-        initialUrl.contains('/#/set-password') &&
-        (initialUrl.contains('access_token=') || initialUrl.contains('token='));
+        (initialUrl.contains('/set-password') ||
+            initialUrl.contains('#/set-password')) &&
+        (initialUrl.contains('access_token=') ||
+            initialUrl.contains('token=') ||
+            initialUrl.contains('type=invite'));
 
-    // Priority 1: Check if this is a password reset or invite flow first, regardless of session
-    if (wasSetPasswordInviteFlow || event == AuthChangeEvent.passwordRecovery) {
-      // || event == AuthChangeEvent.userSignedIn
+    // Priority 1: Handle password reset or invite flow first
+    if (wasSetPasswordInviteFlow ||
+        event == AuthChangeEvent.passwordRecovery || (initialUrl.contains('type=invite'))) {
+        // event == AuthChangeEvent.userSignedIn 
       print(
         "[TEMP DEBUG] _handleNavigation: Set password flow detected. Navigating to SetPasswordScreen.",
       );
@@ -186,7 +334,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
       return; // Important to return here and not proceed to other checks
     }
 
-    // Priority 2: If we have an active session and user
+    // Priority 2: Handle active session with user role-based navigation
     if (session != null && user != null) {
       final role = user.userMetadata?['role'];
       print(
@@ -209,7 +357,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
             navigator.pushReplacementNamed(LoginScreen.routeName);
       }
     }
-    // Priority 3: No session (user is signed out, or token was invalid/not processed by client)
+    // Priority 3: Handle no session (not logged in)
     else {
       print(
         "[TEMP DEBUG] _handleNavigation: No active session (event: $event). Navigating to LoginScreen.",
@@ -218,6 +366,10 @@ class _KidSyncAppState extends State<KidSyncApp> {
       if (currentRouteName != LoginScreen.routeName &&
           currentRouteName != InitialLoadingScreen.routeName) {
         navigator.pushReplacementNamed(LoginScreen.routeName);
+      } else if (currentRouteName == InitialLoadingScreen.routeName &&
+          _initialAuthCheckCompleted) {
+        // If we're on the loading screen after completing auth check with no session, go to login
+        navigator.pushReplacementNamed(LoginScreen.routeName);
       }
     }
   }
@@ -225,8 +377,9 @@ class _KidSyncAppState extends State<KidSyncApp> {
   Future<void> _checkInitialSessionAfterDelay() async {
     // This delay helps ensure onAuthStateChange has a chance to fire for initial events.
     await Future.delayed(
-      const Duration(milliseconds: 500),
-    ); // Slightly longer delay for safety
+      const Duration(milliseconds: 1000), // Increased delay for safety
+    );
+
     if (!mounted || _initialAuthCheckCompleted) {
       // If an auth event already ran and potentially navigated, or widget is disposed, do nothing.
       print(
@@ -238,12 +391,28 @@ class _KidSyncAppState extends State<KidSyncApp> {
     print(
       "[TEMP DEBUG] _checkInitialSessionAfterDelay: Manually checking session as no onAuthStateChange event seemed to complete navigation yet.",
     );
+
+    // Special case for invitation URLs - check URL before session
+    if ((widget.initialUrl.contains('#/set-password') ||
+            widget.initialUrl.contains('/set-password')) &&
+        (widget.initialUrl.contains('access_token=') ||
+            widget.initialUrl.contains('type=invite'))) {
+      print(
+        "[TEMP DEBUG] _checkInitialSessionAfterDelay: Detected invitation URL pattern.",
+      );
+
+      final navigator = _navigatorKey.currentState;
+      if (navigator != null) {
+        navigator.pushReplacementNamed(SetPasswordScreen.routeName);
+      }
+      _initialAuthCheckCompleted = true;
+      return;
+    }
+
     final session = Supabase.instance.client.auth.currentSession;
     final user = Supabase.instance.client.auth.currentUser;
 
     // Call _handleNavigation to use the centralized logic.
-    // Treat this manual check as if it's a follow-up to an initial state.
-    // Pass AuthChangeEvent.initialSession as the event type for this manual check's context.
     _handleNavigation(
       session,
       user,
