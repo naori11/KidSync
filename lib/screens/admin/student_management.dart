@@ -70,8 +70,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     String? birthday = student?['birthday'];
     String? grade = student?['grade_level'];
     String? section = student?['section_id']?.toString();
-    String? email = student?['email'];
-    String? contactNumber = student?['contact_number'];
+    // String? email = student?['email'];
+    // String? contactNumber = student?['contact_number'];
     String? status = student?['status'] ?? 'Active';
 
     await showDialog(
@@ -104,18 +104,18 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   controller: TextEditingController(text: gender),
                   onChanged: (val) => gender = val,
                 ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Email'),
-                  controller: TextEditingController(text: email),
-                  onChanged: (val) => email = val,
-                ),
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Contact Number',
-                  ),
-                  controller: TextEditingController(text: contactNumber),
-                  onChanged: (val) => contactNumber = val,
-                ),
+                // TextField(
+                //   decoration: const InputDecoration(labelText: 'Email'),
+                //   controller: TextEditingController(text: email),
+                //   onChanged: (val) => email = val,
+                // ),
+                // TextField(
+                //   decoration: const InputDecoration(
+                //     labelText: 'Contact Number',
+                //   ),
+                //   controller: TextEditingController(text: contactNumber),
+                //   onChanged: (val) => contactNumber = val,
+                // ),
                 TextField(
                   decoration: const InputDecoration(labelText: 'Address'),
                   controller: TextEditingController(text: address),
@@ -173,8 +173,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   'birthday': birthday,
                   'grade_level': grade,
                   'section_id': section,
-                  'email': email,
-                  'contact_number': contactNumber,
+                  // 'email': email,
+                  // 'contact_number': contactNumber,
                   'status': status,
                 };
                 if (student == null) {
