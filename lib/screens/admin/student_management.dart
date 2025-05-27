@@ -70,8 +70,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     String? birthday = student?['birthday'];
     String? grade = student?['grade_level'];
     String? section = student?['section_id']?.toString();
-    String? email = student?['email'];
-    String? contactNumber = student?['contact_number'];
+    // String? email = student?['email'];
+    // String? contactNumber = student?['contact_number'];
     String? status = student?['status'] ?? 'Active';
 
     await showDialog(
@@ -104,18 +104,18 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   controller: TextEditingController(text: gender),
                   onChanged: (val) => gender = val,
                 ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Email'),
-                  controller: TextEditingController(text: email),
-                  onChanged: (val) => email = val,
-                ),
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Contact Number',
-                  ),
-                  controller: TextEditingController(text: contactNumber),
-                  onChanged: (val) => contactNumber = val,
-                ),
+                // TextField(
+                //   decoration: const InputDecoration(labelText: 'Email'),
+                //   controller: TextEditingController(text: email),
+                //   onChanged: (val) => email = val,
+                // ),
+                // TextField(
+                //   decoration: const InputDecoration(
+                //     labelText: 'Contact Number',
+                //   ),
+                //   controller: TextEditingController(text: contactNumber),
+                //   onChanged: (val) => contactNumber = val,
+                // ),
                 TextField(
                   decoration: const InputDecoration(labelText: 'Address'),
                   controller: TextEditingController(text: address),
@@ -173,8 +173,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   'birthday': birthday,
                   'grade_level': grade,
                   'section_id': section,
-                  'email': email,
-                  'contact_number': contactNumber,
+                  // 'email': email,
+                  // 'contact_number': contactNumber,
                   'status': status,
                 };
                 if (student == null) {
@@ -496,285 +496,277 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   children: [
                     // Table
                     Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: const Color(0xFFEEEEEE)),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: SingleChildScrollView(
-                            child: Table(
-                              border: TableBorder(
-                                horizontalInside: BorderSide(
-                                  color: Colors.grey[200]!,
-                                  width: 1,
-                                ),
+                      child: SingleChildScrollView(
+                        child: Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: const Color(0xFFEEEEEE)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Table(
+                            border: TableBorder(
+                              horizontalInside: BorderSide(
+                                color: Colors.grey[200]!,
+                                width: 1,
                               ),
-                              columnWidths: const {
-                                0: FixedColumnWidth(80), // ID
-                                1: FixedColumnWidth(160), // Name
-                                2: FixedColumnWidth(100), // Class
-                                3: FixedColumnWidth(80), // Gender
-                                4: FixedColumnWidth(150), // Contact
-                                5: FixedColumnWidth(150), // Email
-                                6: FixedColumnWidth(120), // Enrollment
-                                7: FixedColumnWidth(80), // Status
-                                8: FixedColumnWidth(60), // Actions
-                              },
-                              defaultVerticalAlignment:
-                                  TableCellVerticalAlignment.middle,
-                              children: [
-                                // Table header row
-                                TableRow(
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[50],
-                                  ),
-                                  children: const [
-                                    TableHeaderCell(text: 'Student ID'),
-                                    TableHeaderCell(text: 'Student Name'),
-                                    TableHeaderCell(text: 'Class'),
-                                    TableHeaderCell(text: 'Gender'),
-                                    TableHeaderCell(text: 'Contact Number'),
-                                    TableHeaderCell(text: 'Email'),
-                                    TableHeaderCell(text: 'Enrollment Date'),
-                                    TableHeaderCell(text: 'Status'),
-                                    TableHeaderCell(text: 'Actions'),
-                                  ],
+                            ),
+                            columnWidths: const {
+                              0: FlexColumnWidth(0.8), // ID
+                              1: FlexColumnWidth(1.5), // Name
+                              2: FlexColumnWidth(0.8), // Class
+                              3: FlexColumnWidth(0.8), // Gender
+                              4: FlexColumnWidth(1.2), // Contact
+                              5: FlexColumnWidth(1.2), // Email
+                              6: FlexColumnWidth(1.0), // Enrollment
+                              7: FlexColumnWidth(0.8), // Status
+                              8: FlexColumnWidth(0.5), // Actions
+                            },
+                            defaultVerticalAlignment:
+                                TableCellVerticalAlignment.middle,
+                            children: [
+                              // Table header row
+                              TableRow(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
                                 ),
+                                children: const [
+                                  TableHeaderCell(text: 'Student ID'),
+                                  TableHeaderCell(text: 'Student Name'),
+                                  TableHeaderCell(text: 'Class'),
+                                  TableHeaderCell(text: 'Gender'),
+                                  TableHeaderCell(text: 'Contact Number'),
+                                  TableHeaderCell(text: 'Email'),
+                                  TableHeaderCell(text: 'Enrollment Date'),
+                                  TableHeaderCell(text: 'Status'),
+                                  TableHeaderCell(text: 'Actions'),
+                                ],
+                              ),
 
-                                // Table data rows
-                                ...currentPageItems.map((student) {
-                                  final fullName =
-                                      "${student['fname'] ?? ''} ${student['lname'] ?? ''}";
-                                  final String studentId =
-                                      "STU${student['id'].toString().padLeft(3, '0')}";
-                                  final String className =
-                                      "Grade ${student['grade_level'] ?? ''}${student['section_id'] != null ? String.fromCharCode(64 + int.parse(student['section_id'])) : ''}";
-                                  final enrollmentDate =
-                                      student['created_at'] != null
-                                          ? DateFormat('yyyy-MM-dd').format(
-                                            DateTime.parse(
-                                              student['created_at'],
-                                            ),
-                                          )
-                                          : "N/A";
-                                  final status = student['status'] ?? 'Active';
+                              // Table data rows
+                              ...currentPageItems.map((student) {
+                                final fullName =
+                                    "${student['fname'] ?? ''} ${student['lname'] ?? ''}";
+                                final String studentId =
+                                    "STU${student['id'].toString().padLeft(3, '0')}";
+                                final String className =
+                                    "Grade ${student['grade_level'] ?? ''}${student['section_id'] != null ? String.fromCharCode(64 + int.parse(student['section_id'])) : ''}";
+                                final enrollmentDate =
+                                    student['created_at'] != null
+                                        ? DateFormat('yyyy-MM-dd').format(
+                                          DateTime.parse(student['created_at']),
+                                        )
+                                        : "N/A";
+                                final status = student['status'] ?? 'Active';
 
-                                  return TableRow(
-                                    decoration: const BoxDecoration(
-                                      color: Colors.white,
+                                return TableRow(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                  ),
+                                  children: [
+                                    // Student ID
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Container(
+                                        alignment: Alignment.centerLeft,
+                                        padding: const EdgeInsets.all(16),
+                                        child: Text(
+                                          studentId,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF555555),
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                    children: [
-                                      // Student ID
-                                      TableCell(
-                                        verticalAlignment:
-                                            TableCellVerticalAlignment.middle,
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(16),
-                                          child: Text(
-                                            studentId,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF555555),
+
+                                    // Student name
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Container(
+                                        alignment: Alignment.centerLeft,
+                                        padding: const EdgeInsets.all(16),
+                                        child: Text(
+                                          fullName,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF333333),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+
+                                    // Class
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Container(
+                                        alignment: Alignment.centerLeft,
+                                        padding: const EdgeInsets.all(16),
+                                        child: Text(className),
+                                      ),
+                                    ),
+
+                                    // Gender
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Container(
+                                        alignment: Alignment.centerLeft,
+                                        padding: const EdgeInsets.all(16),
+                                        child: Text(student['gender'] ?? 'N/A'),
+                                      ),
+                                    ),
+
+                                    // Contact number
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Container(
+                                        alignment: Alignment.centerLeft,
+                                        padding: const EdgeInsets.all(16),
+                                        child: Text(
+                                          student['contact_number'] ?? 'N/A',
+                                        ),
+                                      ),
+                                    ),
+
+                                    // Email
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Container(
+                                        alignment: Alignment.centerLeft,
+                                        padding: const EdgeInsets.all(16),
+                                        child: Text(student['email'] ?? 'N/A'),
+                                      ),
+                                    ),
+
+                                    // Enrollment date
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Container(
+                                        alignment: Alignment.centerLeft,
+                                        padding: const EdgeInsets.all(16),
+                                        child: Text(enrollmentDate),
+                                      ),
+                                    ),
+
+                                    // Status
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color:
+                                                status == 'Active'
+                                                    ? const Color(0xFFE8F5E9)
+                                                    : const Color(0xFFFFEBEE),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
                                             ),
                                           ),
-                                        ),
-                                      ),
-
-                                      // Student name
-                                      TableCell(
-                                        verticalAlignment:
-                                            TableCellVerticalAlignment.middle,
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(16),
                                           child: Text(
-                                            fullName,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF333333),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-
-                                      // Class
-                                      TableCell(
-                                        verticalAlignment:
-                                            TableCellVerticalAlignment.middle,
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(16),
-                                          child: Text(className),
-                                        ),
-                                      ),
-
-                                      // Gender
-                                      TableCell(
-                                        verticalAlignment:
-                                            TableCellVerticalAlignment.middle,
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(16),
-                                          child: Text(
-                                            student['gender'] ?? 'N/A',
-                                          ),
-                                        ),
-                                      ),
-
-                                      // Contact number
-                                      TableCell(
-                                        verticalAlignment:
-                                            TableCellVerticalAlignment.middle,
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(16),
-                                          child: Text(
-                                            student['contact_number'] ?? 'N/A',
-                                          ),
-                                        ),
-                                      ),
-
-                                      // Email
-                                      TableCell(
-                                        verticalAlignment:
-                                            TableCellVerticalAlignment.middle,
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(16),
-                                          child: Text(
-                                            student['email'] ?? 'N/A',
-                                          ),
-                                        ),
-                                      ),
-
-                                      // Enrollment date
-                                      TableCell(
-                                        verticalAlignment:
-                                            TableCellVerticalAlignment.middle,
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(16),
-                                          child: Text(enrollmentDate),
-                                        ),
-                                      ),
-
-                                      // Status
-                                      TableCell(
-                                        verticalAlignment:
-                                            TableCellVerticalAlignment.middle,
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(16),
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
+                                            status,
+                                            style: TextStyle(
                                               color:
                                                   status == 'Active'
-                                                      ? const Color(0xFFE8F5E9)
-                                                      : const Color(0xFFFFEBEE),
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
+                                                      ? const Color(0xFF2E7D32)
+                                                      : const Color(0xFFC62828),
+                                              fontWeight: FontWeight.w500,
+                                              fontSize: 12,
                                             ),
-                                            child: Text(
-                                              status,
-                                              style: TextStyle(
-                                                color:
-                                                    status == 'Active'
-                                                        ? const Color(
-                                                          0xFF2E7D32,
-                                                        )
-                                                        : const Color(
-                                                          0xFFC62828,
-                                                        ),
-                                                fontWeight: FontWeight.w500,
-                                                fontSize: 12,
-                                              ),
-                                              textAlign: TextAlign.center,
-                                            ),
+                                            textAlign: TextAlign.center,
                                           ),
                                         ),
                                       ),
+                                    ),
 
-                                      // Actions
-                                      TableCell(
-                                        verticalAlignment:
-                                            TableCellVerticalAlignment.middle,
-                                        child: Center(
-                                          child: PopupMenuButton<String>(
-                                            icon: const Icon(Icons.more_vert),
-                                            onSelected: (value) {
-                                              if (value == 'edit') {
-                                                _addOrEditStudent(
-                                                  student: student,
-                                                );
-                                              } else if (value == 'delete') {
-                                                showDialog(
-                                                  context: context,
-                                                  builder:
-                                                      (ctx) => AlertDialog(
-                                                        title: const Text(
-                                                          'Confirm Delete',
-                                                        ),
-                                                        content: const Text(
-                                                          'Are you sure you want to delete this student?',
-                                                        ),
-                                                        actions: [
-                                                          TextButton(
-                                                            onPressed:
-                                                                () =>
-                                                                    Navigator.pop(
-                                                                      ctx,
-                                                                    ),
-                                                            child: const Text(
-                                                              'Cancel',
-                                                            ),
-                                                          ),
-                                                          ElevatedButton(
-                                                            style:
-                                                                ElevatedButton.styleFrom(
-                                                                  backgroundColor:
-                                                                      Colors
-                                                                          .red,
-                                                                ),
-                                                            onPressed: () {
-                                                              Navigator.pop(
-                                                                ctx,
-                                                              );
-                                                              _deleteStudent(
-                                                                student['id'],
-                                                              );
-                                                            },
-                                                            child: const Text(
-                                                              'Delete',
-                                                              style: TextStyle(
-                                                                color:
-                                                                    Colors
-                                                                        .white,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ],
+                                    // Actions
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Center(
+                                        child: PopupMenuButton<String>(
+                                          icon: const Icon(Icons.more_vert),
+                                          onSelected: (value) {
+                                            if (value == 'edit') {
+                                              _addOrEditStudent(
+                                                student: student,
+                                              );
+                                            } else if (value == 'delete') {
+                                              showDialog(
+                                                context: context,
+                                                builder:
+                                                    (ctx) => AlertDialog(
+                                                      title: const Text(
+                                                        'Confirm Delete',
                                                       ),
-                                                );
-                                              }
-                                            },
-                                            itemBuilder:
-                                                (context) => [
-                                                  const PopupMenuItem(
-                                                    value: 'edit',
-                                                    child: Text('Edit'),
-                                                  ),
-                                                  const PopupMenuItem(
-                                                    value: 'delete',
-                                                    child: Text('Delete'),
-                                                  ),
-                                                ],
-                                          ),
+                                                      content: const Text(
+                                                        'Are you sure you want to delete this student?',
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed:
+                                                              () =>
+                                                                  Navigator.pop(
+                                                                    ctx,
+                                                                  ),
+                                                          child: const Text(
+                                                            'Cancel',
+                                                          ),
+                                                        ),
+                                                        ElevatedButton(
+                                                          style:
+                                                              ElevatedButton.styleFrom(
+                                                                backgroundColor:
+                                                                    Colors.red,
+                                                              ),
+                                                          onPressed: () {
+                                                            Navigator.pop(ctx);
+                                                            _deleteStudent(
+                                                              student['id'],
+                                                            );
+                                                          },
+                                                          child: const Text(
+                                                            'Delete',
+                                                            style: TextStyle(
+                                                              color:
+                                                                  Colors.white,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                              );
+                                            }
+                                          },
+                                          itemBuilder:
+                                              (context) => [
+                                                const PopupMenuItem(
+                                                  value: 'edit',
+                                                  child: Text('Edit'),
+                                                ),
+                                                const PopupMenuItem(
+                                                  value: 'delete',
+                                                  child: Text('Delete'),
+                                                ),
+                                              ],
                                         ),
                                       ),
-                                    ],
-                                  );
-                                }).toList(),
-                              ],
-                            ),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                            ],
                           ),
                         ),
                       ),
@@ -893,7 +885,8 @@ class TableHeaderCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      alignment: Alignment.centerLeft,
       child: Text(
         text,
         style: const TextStyle(
