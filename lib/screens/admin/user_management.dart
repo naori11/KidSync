@@ -29,7 +29,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   String _searchQuery = '';
   String _roleFilter = 'All Roles';
   String _sortOption = 'Name (A-Z)';
-  
+
   // For pagination
   int _currentPage = 1;
   int _itemsPerPage = 8; // Show 8 items per page like in the image
@@ -283,11 +283,16 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   String _getUserIdPrefix(String role) {
     switch (role) {
-      case 'Teacher': return 'T';
-      case 'Parent': return 'P';
-      case 'Driver': return 'D';
-      case 'Guard': return 'G';
-      default: return 'U';
+      case 'Teacher':
+        return 'T';
+      case 'Parent':
+        return 'P';
+      case 'Driver':
+        return 'D';
+      case 'Guard':
+        return 'G';
+      default:
+        return 'U';
     }
   }
 
@@ -297,12 +302,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
     final isAdmin = user?.userMetadata?['role'] == 'Admin';
 
     // Filter and sort logic
-    var filteredUsers = users.where((u) {
-      final name = "${u['fname'] ?? ''} ${u['lname'] ?? ''}".toLowerCase();
-      final roleMatch = _roleFilter == 'All Roles' || u['role'] == _roleFilter;
-      
-      return name.contains(_searchQuery.toLowerCase()) && roleMatch;
-    }).toList();
+    var filteredUsers =
+        users.where((u) {
+          final name = "${u['fname'] ?? ''} ${u['lname'] ?? ''}".toLowerCase();
+          final roleMatch =
+              _roleFilter == 'All Roles' || u['role'] == _roleFilter;
+
+          return name.contains(_searchQuery.toLowerCase()) && roleMatch;
+        }).toList();
 
     // Apply sorting
     if (_sortOption == 'Name (A-Z)') {
@@ -325,16 +332,17 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     // Calculate pages for pagination
     _calculateTotalPages(filteredUsers);
-    
+
     // Get current page items
     final int startIndex = (_currentPage - 1) * _itemsPerPage;
-    final int endIndex = startIndex + _itemsPerPage > filteredUsers.length 
-        ? filteredUsers.length 
-        : startIndex + _itemsPerPage;
-    
-    final List<Map<String, dynamic>> currentPageItems = 
-        filteredUsers.length > startIndex 
-            ? filteredUsers.sublist(startIndex, endIndex) 
+    final int endIndex =
+        startIndex + _itemsPerPage > filteredUsers.length
+            ? filteredUsers.length
+            : startIndex + _itemsPerPage;
+
+    final List<Map<String, dynamic>> currentPageItems =
+        filteredUsers.length > startIndex
+            ? filteredUsers.sublist(startIndex, endIndex)
             : [];
 
     // Get unique roles for filter dropdown
@@ -347,77 +355,52 @@ class _UserManagementPageState extends State<UserManagementPage> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA), // Light blue-gray background from image
+      backgroundColor: Colors.white,
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top controls row
+            // Header row with title and search/add user buttons
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Search box
-                Expanded(
-                  flex: 2,
-                  child: Container(
-                    height: 40,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(4),
-                      color: Colors.white,
-                    ),
-                    child: TextField(
-                      decoration: const InputDecoration(
-                        hintText: 'Search users...',
-                        prefixIcon: Icon(Icons.search, color: Color(0xFF9E9E9E)),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 10.0),
-                      ),
-                      onChanged: (val) => setState(() {
-                        _searchQuery = val;
-                        _currentPage = 1; // Reset to first page on new search
-                      }),
-                    ),
+                const Text(
+                  "User Management",
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF333333),
                   ),
                 ),
-                
-                const SizedBox(width: 16),
-                
-                // Role filter
+                const Spacer(),
+
+                // Search box
                 Container(
+                  width: 240,
                   height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
                   decoration: BoxDecoration(
                     border: Border.all(color: const Color(0xFFE0E0E0)),
                     borderRadius: BorderRadius.circular(4),
                     color: Colors.white,
                   ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _roleFilter,
-                      style: const TextStyle(
-                        color: Color(0xFF333333),
-                        fontSize: 14,
-                      ),
-                      icon: const Icon(Icons.keyboard_arrow_down),
-                      items: roleOptions.map((String item) {
-                        return DropdownMenuItem(
-                          value: item,
-                          child: Text(item),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          _roleFilter = newValue!;
-                          _currentPage = 1;
-                        });
-                      },
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Search users...',
+                      prefixIcon: Icon(Icons.search, color: Color(0xFF9E9E9E)),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 10.0),
                     ),
+                    onChanged:
+                        (val) => setState(() {
+                          _searchQuery = val;
+                          _currentPage = 1; // Reset to first page on new search
+                        }),
                   ),
                 ),
-                
-                const Spacer(),
-                
+
+                const SizedBox(width: 16),
+
                 // Add New User button
                 SizedBox(
                   height: 40,
@@ -428,7 +411,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       style: TextStyle(color: Colors.white),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2ECC71), // Green color from image
+                      backgroundColor: const Color(0xFF2ECC71), // Green color
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4),
@@ -441,20 +424,100 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 ),
               ],
             ),
-            
-            const SizedBox(height: 24),
-            
+
+            // Breadcrumb / subtitle
+            const Padding(
+              padding: EdgeInsets.only(top: 4.0, bottom: 20.0),
+              child: Text(
+                "Home / User Management",
+                style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
+              ),
+            ),
+
+            // Filter row
+            Container(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE))),
+              ),
+              child: Row(
+                children: [
+                  // Role filter dropdown
+                  Container(
+                    height: 40,
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFFE0E0E0)),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _roleFilter,
+                        icon: const Icon(Icons.keyboard_arrow_down),
+                        items:
+                            roleOptions.map((String item) {
+                              return DropdownMenuItem(
+                                value: item,
+                                child: Text(item),
+                              );
+                            }).toList(),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _roleFilter = newValue!;
+                            _currentPage = 1;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Sort by dropdown
+                  Container(
+                    height: 40,
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFFE0E0E0)),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _sortOption,
+                        icon: const Icon(Icons.keyboard_arrow_down),
+                        items:
+                            <String>[
+                              'Name (A-Z)',
+                              'Name (Z-A)',
+                              'Role',
+                            ].map<DropdownMenuItem<String>>((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text("Sort by: $value"),
+                              );
+                            }).toList(),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _sortOption = newValue!;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
             // Table
             if (isLoading)
               const Expanded(
                 child: Center(
                   child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
-                )
+                ),
               )
             else if (currentPageItems.isEmpty)
-              const Expanded(
-                child: Center(child: Text("No users found.")),
-              )
+              const Expanded(child: Center(child: Text("No users found.")))
             else
               Expanded(
                 child: Container(
@@ -479,21 +542,20 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         ),
                       ),
                       columnWidths: const {
-                        0: FlexColumnWidth(0.7),  // ID
-                        1: FlexColumnWidth(1.4),  // Name
-                        2: FlexColumnWidth(0.9),  // Role
-                        3: FlexColumnWidth(1.8),  // Email
-                        4: FlexColumnWidth(1.2),  // Phone
-                        5: FlexColumnWidth(0.8),  // Status
-                        6: FlexColumnWidth(0.8),  // Actions
+                        0: FlexColumnWidth(0.7), // ID
+                        1: FlexColumnWidth(1.4), // Name
+                        2: FlexColumnWidth(0.9), // Role
+                        3: FlexColumnWidth(1.8), // Email
+                        4: FlexColumnWidth(1.2), // Phone
+                        5: FlexColumnWidth(0.8), // Status
+                        6: FlexColumnWidth(0.8), // Actions
                       },
-                      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                      defaultVerticalAlignment:
+                          TableCellVerticalAlignment.middle,
                       children: [
                         // Table header row
                         TableRow(
-                          decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                          ),
+                          decoration: BoxDecoration(color: Colors.grey[50]),
                           children: const [
                             TableHeaderCell(text: 'User ID'),
                             TableHeaderCell(text: 'Name'),
@@ -504,21 +566,28 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             TableHeaderCell(text: 'Actions'),
                           ],
                         ),
-                        
+
                         // Table data rows
                         ...currentPageItems.map((u) {
                           final role = u['role'] ?? '';
                           final userPrefix = _getUserIdPrefix(role);
-                          final int userIndex = users.indexWhere((item) => item['id'] == u['id']) + 1;
-                          final String userId = "$userPrefix${userIndex.toString().padLeft(3, '0')}";
-                          final fullName = "${u['fname'] ?? ''} ${u['lname'] ?? ''}";
+                          final int userIndex =
+                              users.indexWhere(
+                                (item) => item['id'] == u['id'],
+                              ) +
+                              1;
+                          final String userId =
+                              "$userPrefix${userIndex.toString().padLeft(3, '0')}";
+                          final fullName =
+                              "${u['fname'] ?? ''} ${u['lname'] ?? ''}";
                           final status = u['status'] ?? 'Active';
-                          
+
                           return TableRow(
                             children: [
                               // User ID
                               TableCell(
-                                verticalAlignment: TableCellVerticalAlignment.middle,
+                                verticalAlignment:
+                                    TableCellVerticalAlignment.middle,
                                 child: Container(
                                   padding: const EdgeInsets.all(16),
                                   child: Text(
@@ -530,10 +599,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   ),
                                 ),
                               ),
-                              
+
                               // Name
                               TableCell(
-                                verticalAlignment: TableCellVerticalAlignment.middle,
+                                verticalAlignment:
+                                    TableCellVerticalAlignment.middle,
                                 child: Container(
                                   padding: const EdgeInsets.all(16),
                                   child: Text(
@@ -545,37 +615,41 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   ),
                                 ),
                               ),
-                              
+
                               // Role
                               TableCell(
-                                verticalAlignment: TableCellVerticalAlignment.middle,
+                                verticalAlignment:
+                                    TableCellVerticalAlignment.middle,
                                 child: Container(
                                   padding: const EdgeInsets.all(16),
                                   child: Text(role),
                                 ),
                               ),
-                              
+
                               // Email
                               TableCell(
-                                verticalAlignment: TableCellVerticalAlignment.middle,
+                                verticalAlignment:
+                                    TableCellVerticalAlignment.middle,
                                 child: Container(
                                   padding: const EdgeInsets.all(16),
                                   child: Text(u['email'] ?? 'N/A'),
                                 ),
                               ),
-                              
+
                               // Phone/Contact
                               TableCell(
-                                verticalAlignment: TableCellVerticalAlignment.middle,
+                                verticalAlignment:
+                                    TableCellVerticalAlignment.middle,
                                 child: Container(
                                   padding: const EdgeInsets.all(16),
                                   child: Text(u['contact_number'] ?? 'N/A'),
                                 ),
                               ),
-                              
+
                               // Status
                               TableCell(
-                                verticalAlignment: TableCellVerticalAlignment.middle,
+                                verticalAlignment:
+                                    TableCellVerticalAlignment.middle,
                                 child: Container(
                                   padding: const EdgeInsets.all(16),
                                   child: Container(
@@ -584,17 +658,19 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: status == 'Active' 
-                                          ? const Color(0xFFE8F5E9) 
-                                          : const Color(0xFFFFEBEE),
+                                      color:
+                                          status == 'Active'
+                                              ? const Color(0xFFE8F5E9)
+                                              : const Color(0xFFFFEBEE),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
                                       status,
                                       style: TextStyle(
-                                        color: status == 'Active'
-                                            ? const Color(0xFF2E7D32)
-                                            : const Color(0xFFC62828),
+                                        color:
+                                            status == 'Active'
+                                                ? const Color(0xFF2E7D32)
+                                                : const Color(0xFFC62828),
                                         fontWeight: FontWeight.w500,
                                         fontSize: 12,
                                       ),
@@ -603,69 +679,97 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   ),
                                 ),
                               ),
-                              
+
                               // Actions (keeping original functionality)
                               TableCell(
-                                verticalAlignment: TableCellVerticalAlignment.middle,
+                                verticalAlignment:
+                                    TableCellVerticalAlignment.middle,
                                 child: Container(
                                   padding: const EdgeInsets.all(16),
-                                  child: isAdmin
-                                      ? PopupMenuButton<String>(
-                                        onSelected: (value) {
-                                          if (value == 'edit') {
-                                            _addOrEditUser(user: u);
-                                          } else if (value == 'delete') {
-                                            showDialog(
-                                              context: context,
-                                              builder: (ctx) => AlertDialog(
-                                                title: const Text('Confirm Delete'),
-                                                content: const Text(
-                                                  'Are you sure you want to delete this user?',
-                                                ),
-                                                actions: [
-                                                  TextButton(
-                                                    onPressed: () => Navigator.pop(ctx),
-                                                    child: const Text('Cancel'),
+                                  child:
+                                      isAdmin
+                                          ? PopupMenuButton<String>(
+                                            onSelected: (value) {
+                                              if (value == 'edit') {
+                                                _addOrEditUser(user: u);
+                                              } else if (value == 'delete') {
+                                                showDialog(
+                                                  context: context,
+                                                  builder:
+                                                      (ctx) => AlertDialog(
+                                                        title: const Text(
+                                                          'Confirm Delete',
+                                                        ),
+                                                        content: const Text(
+                                                          'Are you sure you want to delete this user?',
+                                                        ),
+                                                        actions: [
+                                                          TextButton(
+                                                            onPressed:
+                                                                () =>
+                                                                    Navigator.pop(
+                                                                      ctx,
+                                                                    ),
+                                                            child: const Text(
+                                                              'Cancel',
+                                                            ),
+                                                          ),
+                                                          ElevatedButton(
+                                                            style:
+                                                                ElevatedButton.styleFrom(
+                                                                  backgroundColor:
+                                                                      Colors
+                                                                          .red,
+                                                                ),
+                                                            onPressed: () async {
+                                                              Navigator.pop(
+                                                                ctx,
+                                                              );
+                                                              try {
+                                                                await deleteUserViaEdgeFunction(
+                                                                  u['id']
+                                                                      .toString(),
+                                                                );
+                                                                await _fetchUsers();
+                                                              } catch (e) {
+                                                                ScaffoldMessenger.of(
+                                                                  context,
+                                                                ).showSnackBar(
+                                                                  SnackBar(
+                                                                    content: Text(
+                                                                      'Error: $e',
+                                                                    ),
+                                                                  ),
+                                                                );
+                                                              }
+                                                            },
+                                                            child: const Text(
+                                                              'Delete',
+                                                              style: TextStyle(
+                                                                color:
+                                                                    Colors
+                                                                        .white,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                );
+                                              }
+                                            },
+                                            itemBuilder:
+                                                (context) => [
+                                                  const PopupMenuItem(
+                                                    value: 'edit',
+                                                    child: Text('Edit'),
                                                   ),
-                                                  ElevatedButton(
-                                                    style: ElevatedButton.styleFrom(
-                                                      backgroundColor: Colors.red,
-                                                    ),
-                                                    onPressed: () async {
-                                                      Navigator.pop(ctx);
-                                                      try {
-                                                        await deleteUserViaEdgeFunction(
-                                                          u['id'].toString(),
-                                                        );
-                                                        await _fetchUsers();
-                                                      } catch (e) {
-                                                        ScaffoldMessenger.of(context).showSnackBar(
-                                                          SnackBar(content: Text('Error: $e')),
-                                                        );
-                                                      }
-                                                    },
-                                                    child: const Text(
-                                                      'Delete',
-                                                      style: TextStyle(color: Colors.white),
-                                                    ),
+                                                  const PopupMenuItem(
+                                                    value: 'delete',
+                                                    child: Text('Delete'),
                                                   ),
                                                 ],
-                                              ),
-                                            );
-                                          }
-                                        },
-                                        itemBuilder: (context) => [
-                                          const PopupMenuItem(
-                                            value: 'edit',
-                                            child: Text('Edit'),
-                                          ),
-                                          const PopupMenuItem(
-                                            value: 'delete',
-                                            child: Text('Delete'),
-                                          ),
-                                        ],
-                                      )
-                                      : const Text('-'),
+                                          )
+                                          : const Text('-'),
                                 ),
                               ),
                             ],
@@ -676,7 +780,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   ),
                 ),
               ),
-              
+
             // Pagination
             if (!isLoading && filteredUsers.isNotEmpty)
               Padding(
@@ -692,46 +796,51 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         fontSize: 12,
                       ),
                     ),
-                    
+
                     // Pagination controls
                     Row(
                       children: [
                         // Previous button
                         TextButton(
-                          onPressed: _currentPage > 1
-                              ? () => setState(() => _currentPage--)
-                              : null,
+                          onPressed:
+                              _currentPage > 1
+                                  ? () => setState(() => _currentPage--)
+                                  : null,
                           style: TextButton.styleFrom(
-                            foregroundColor: _currentPage > 1
-                                ? const Color(0xFF666666)
-                                : const Color(0xFFCCCCCC),
+                            foregroundColor:
+                                _currentPage > 1
+                                    ? const Color(0xFF666666)
+                                    : const Color(0xFFCCCCCC),
                           ),
                           child: const Text('Previous'),
                         ),
-                        
+
                         // Page numbers
                         for (int i = 1; i <= _totalPages; i++)
-                          if (i == _currentPage || 
-                              i == 1 || 
-                              i == _totalPages || 
+                          if (i == _currentPage ||
+                              i == 1 ||
+                              i == _totalPages ||
                               (i >= _currentPage - 1 && i <= _currentPage + 1))
                             Container(
                               margin: const EdgeInsets.symmetric(horizontal: 4),
                               width: 32,
                               height: 32,
                               decoration: BoxDecoration(
-                                color: i == _currentPage 
-                                    ? const Color(0xFF2ECC71) 
-                                    : Colors.transparent,
+                                color:
+                                    i == _currentPage
+                                        ? const Color(0xFF2ECC71)
+                                        : Colors.transparent,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: TextButton(
-                                onPressed: () => setState(() => _currentPage = i),
+                                onPressed:
+                                    () => setState(() => _currentPage = i),
                                 style: TextButton.styleFrom(
                                   padding: EdgeInsets.zero,
-                                  foregroundColor: i == _currentPage 
-                                      ? Colors.white 
-                                      : const Color(0xFF666666),
+                                  foregroundColor:
+                                      i == _currentPage
+                                          ? Colors.white
+                                          : const Color(0xFF666666),
                                 ),
                                 child: Text(
                                   i.toString(),
@@ -739,21 +848,24 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 ),
                               ),
                             )
-                          else if (i == _currentPage - 2 || i == _currentPage + 2)
+                          else if (i == _currentPage - 2 ||
+                              i == _currentPage + 2)
                             const Padding(
                               padding: EdgeInsets.symmetric(horizontal: 4),
                               child: Text('...'),
                             ),
-                        
+
                         // Next button
                         TextButton(
-                          onPressed: _currentPage < _totalPages
-                              ? () => setState(() => _currentPage++)
-                              : null,
+                          onPressed:
+                              _currentPage < _totalPages
+                                  ? () => setState(() => _currentPage++)
+                                  : null,
                           style: TextButton.styleFrom(
-                            foregroundColor: _currentPage < _totalPages
-                                ? const Color(0xFF666666)
-                                : const Color(0xFFCCCCCC),
+                            foregroundColor:
+                                _currentPage < _totalPages
+                                    ? const Color(0xFF666666)
+                                    : const Color(0xFFCCCCCC),
                           ),
                           child: const Text('Next'),
                         ),
@@ -772,11 +884,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
 // Custom header cell for table
 class TableHeaderCell extends StatelessWidget {
   final String text;
-  
-  const TableHeaderCell({
-    super.key, 
-    required this.text,
-  });
+
+  const TableHeaderCell({super.key, required this.text});
 
   @override
   Widget build(BuildContext context) {
