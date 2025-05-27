@@ -299,6 +299,22 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
+                // Sign Up link
+                Center(
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/signup');
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF2ECC71),
+                    ),
+                    child: const Text(
+                      "Don't have an account? Sign Up",
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

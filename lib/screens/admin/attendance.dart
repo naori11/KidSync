@@ -18,8 +18,9 @@ class _AttendancePageState extends State<AttendancePage> {
   Map<DateTime, Map<String, dynamic>> _attendanceData = {};
   bool _showCalendarView = false;
   String _selectedGrade = 'Kindergarten';
+  bool _fetchingStudents = false;
 
-  // Mock data for demonstration
+  // Mock data for demonstration (ensure IDs are strings for consistency)
   final List<Map<String, dynamic>> _students = [
     {
       'id': '1',
@@ -56,10 +57,65 @@ class _AttendancePageState extends State<AttendancePage> {
   @override
   void initState() {
     super.initState();
-    if (_students.isNotEmpty) {
-      _selectedStudentId = _students[0]['id'];
-      _selectedStudent = _students[0];
-      _fetchAttendanceData();
+    _fetchRealStudentData();
+  }
+
+  // Fetch real student data from Supabase if available
+  Future<void> _fetchRealStudentData() async {
+    try {
+      setState(() => _fetchingStudents = true);
+
+      // Try to fetch students from Supabase
+      final response = await supabase
+          .from('students')
+          .select()
+          .limit(10); // Limit to 10 students for now
+
+      // If we get real data, transform it to match the format we need
+      if (response != null && response.isNotEmpty) {
+        final List<Map<String, dynamic>> realStudents = [];
+
+        for (var student in response) {
+          // Ensure student ID is a string
+          final String studentId = student['id']?.toString() ?? '';
+
+          realStudents.add({
+            'id': studentId,
+            'first_name': student['fname'] ?? '',
+            'last_name': student['lname'] ?? '',
+            'grade': 'Grade ${student['grade_level'] ?? ''}',
+            'section':
+                student['section_id'] != null
+                    ? 'Section ${student['section_id']}'
+                    : 'Unassigned',
+            'status': 'present', // Default for demo
+            'last_scan': '8:15 AM', // Default for demo
+            'attendance_rate': '95%', // Default for demo
+          });
+        }
+
+        // If we got real students, use them
+        if (realStudents.isNotEmpty) {
+          setState(() {
+            _students.clear();
+            _students.addAll(realStudents);
+          });
+        }
+      }
+    } catch (e) {
+      // If error, keep using mock data
+      debugPrint('Error fetching students: $e');
+    } finally {
+      setState(() {
+        _fetchingStudents = false;
+
+        // Now that we have either mock or real data, initialize the selection
+        if (_students.isNotEmpty) {
+          _selectedStudentId = _students[0]['id'].toString();
+          _selectedStudent = _students[0];
+          _fetchAttendanceData();
+        }
+      });
     }
   }
 
@@ -80,7 +136,7 @@ class _AttendancePageState extends State<AttendancePage> {
   void _onViewDetails(Map<String, dynamic> student) {
     setState(() {
       _selectedStudent = student;
-      _selectedStudentId = student['id'];
+      _selectedStudentId = student['id'].toString(); // Ensure ID is a string
       _showCalendarView = true;
       _fetchAttendanceData();
     });
@@ -154,7 +210,14 @@ class _AttendancePageState extends State<AttendancePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F8F5),
-      body: _showCalendarView ? _buildCalendarView() : _buildStudentListView(),
+      body:
+          _fetchingStudents
+              ? const Center(
+                child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
+              )
+              : _showCalendarView
+              ? _buildCalendarView()
+              : _buildStudentListView(),
     );
   }
 
