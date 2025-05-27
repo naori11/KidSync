@@ -570,7 +570,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                       TableCell(
                                         verticalAlignment:
                                             TableCellVerticalAlignment.middle,
-                                        child: Padding(
+                                        child: Container(
+                                          alignment: Alignment.centerLeft,
                                           padding: const EdgeInsets.all(16),
                                           child: Text(
                                             studentId,
