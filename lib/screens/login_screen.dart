@@ -4,7 +4,7 @@ import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
-  static const String routeName = '/login'; 
+  static const String routeName = '/login';
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -65,41 +65,78 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF9FAFB), // soft gray background
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 30),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
           child: Form(
             key: _formKey,
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                const Icon(Icons.school, size: 72, color: Color(0xFF4A90E2)),
+                const SizedBox(height: 20),
                 const Text(
-                  'KidSync',
-                  style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
+                  'Welcome to KidSync',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF333333),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Login to continue',
+                  style: TextStyle(fontSize: 16, color: Color(0xFF777777)),
                 ),
                 const SizedBox(height: 30),
                 TextFormField(
                   controller: _emailController,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                  validator: (value) =>
-                      value == null || !value.contains('@')
-                          ? 'Enter a valid email'
-                          : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Email Address',
+                    prefixIcon: Icon(Icons.email_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator:
+                      (value) =>
+                          value == null || !value.contains('@')
+                              ? 'Enter a valid email'
+                              : null,
                 ),
                 const SizedBox(height: 20),
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password'),
-                  validator: (value) =>
-                      value == null || value.isEmpty
-                          ? 'Enter your password'
-                          : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Password',
+                    prefixIcon: Icon(Icons.lock_outline),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator:
+                      (value) =>
+                          value == null || value.isEmpty
+                              ? 'Enter your password'
+                              : null,
                 ),
                 const SizedBox(height: 30),
-                ElevatedButton(
-                  onPressed: _handleLogin,
-                  child: const Text("Login"),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4A90E2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: _handleLogin,
+                    child: const Text(
+                      "Login",
+                      style: TextStyle(fontSize: 18, color: Colors.white),
+                    ),
+                  ),
                 ),
+                const SizedBox(height: 15),
                 TextButton(
                   onPressed: () {
                     Navigator.push(
@@ -107,7 +144,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       MaterialPageRoute(builder: (_) => const SignUpScreen()),
                     );
                   },
-                  child: const Text("Don't have an account? Sign up"),
+                  child: const Text(
+                    "Don't have an account? Sign up",
+                    style: TextStyle(color: Color(0xFF4A90E2), fontSize: 14),
+                  ),
                 ),
               ],
             ),
