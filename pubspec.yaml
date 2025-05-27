@@ -36,6 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   supabase_flutter: ^2.9.0
   url_strategy: ^0.2.0
+  intl: ^0.20.2
   flutter_web_plugins:
     sdk: flutter
 
