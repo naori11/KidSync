@@ -64,7 +64,6 @@ Future<void> main() async {
 
   setHashUrlStrategy();
 
-  // Initialize Supabase here
   await Supabase.initialize(
     url: 'https://zouitgpqqudhqdcbuhbz.supabase.co',
     anonKey:
@@ -86,9 +85,8 @@ class KidSyncApp extends StatefulWidget {
 class _KidSyncAppState extends State<KidSyncApp> {
   StreamSubscription<AuthState>? _authSubscription;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
-  bool _initialAuthCheckCompleted =
-      false; // To coordinate with _checkInitialSessionAfterDelay
-  bool _hasHandledInviteToken = false; // Flag to prevent duplicate processing
+  bool _initialAuthCheckCompleted = false;
+  bool _hasHandledInviteToken = false;
 
   @override
   void initState() {
@@ -97,8 +95,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
       "[DEBUG] _KidSyncAppState initState: Initial URL passed from main: ${widget.initialUrl}",
     );
 
-    // For invite flows with double hash pattern, don't do any processing here
-    // Instead, let the SetPasswordScreen handle it
+    // For invite flows with double hash pattern, navigate directly to set password screen
     if (kIsWeb && widget.initialUrl.contains('#/set-password#access_token=')) {
       print(
         "[DEBUG] Detected double hash pattern in URL - cleaning up routing",
@@ -120,172 +117,81 @@ class _KidSyncAppState extends State<KidSyncApp> {
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
     ) {
-      // your existing code
+      final authEvent = data.event;
+      final session = data.session;
+      final user = session?.user;
+
+      print(
+        "[DEBUG] Auth state changed: $authEvent, User: ${user?.email}, Session: ${session != null}",
+      );
+
+      // Handle routing based on auth state
+      _handleNavigation(session, user, authEvent, widget.initialUrl);
     });
 
+    // Always call this as a backup, in case the auth state listener doesn't fire
     _checkInitialSessionAfterDelay();
   }
 
-  // New function to handle double hash pattern
-  void _extractAndProcessTokenFromDoubleHash() async {
-    if (_hasHandledInviteToken) return; // Prevent duplicate processing
-    _hasHandledInviteToken = true;
+  Future<void> _checkInitialSessionAfterDelay() async {
+    // Use a shorter delay to ensure responsiveness
+    await Future.delayed(const Duration(milliseconds: 500));
 
-    try {
-      // Split at the first '#/set-password#' to extract the part containing the token
-      final parts = widget.initialUrl.split('#/set-password#');
-      if (parts.length > 1) {
-        final tokenPart = parts[1];
-
-        // Extract the access_token from the tokenPart
-        String? accessToken;
-        if (tokenPart.contains('access_token=')) {
-          accessToken = tokenPart.split('access_token=')[1];
-          if (accessToken.contains('&')) {
-            accessToken = accessToken.split('&')[0];
-          }
-
-          print(
-            "[TEMP DEBUG] Extracted access token from double hash: ${accessToken.substring(0, math.min(20, accessToken.length))}...",
-          );
-
-          // Attempt to set session directly
-          try {
-            final response = await Supabase.instance.client.auth.setSession(
-              accessToken,
-            );
-            if (response.session != null) {
-              print(
-                "[TEMP DEBUG] Successfully set session from double hash token",
-              );
-
-              // Force navigation to set-password screen
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  final navigator = _navigatorKey.currentState;
-                  if (navigator != null) {
-                    navigator.pushReplacementNamed(SetPasswordScreen.routeName);
-                  }
-                }
-              });
-            } else {
-              print(
-                "[TEMP DEBUG] Failed to set session from double hash token",
-              );
-            }
-          } catch (e) {
-            print(
-              "[TEMP DEBUG] Error setting session from double hash token: $e",
-            );
-          }
-        }
-      }
-    } catch (e) {
-      print("[TEMP DEBUG] Error processing double hash URL: $e");
+    if (!mounted || _initialAuthCheckCompleted) {
+      return;
     }
-  }
 
-  // Process access_token from initialUrl
-  void _processAuthToken() {
-    if (_hasHandledInviteToken) return; // Prevent duplicate processing
-    _hasHandledInviteToken = true;
+    print(
+      "[DEBUG] _checkInitialSessionAfterDelay: Manually checking session as no onAuthStateChange event seemed to complete navigation yet.",
+    );
 
-    if (widget.initialUrl.contains('access_token=')) {
-      try {
-        // Extract the token part from the URL
-        String tokenPart = widget.initialUrl.split('access_token=')[1];
-        // If there are other parameters after the token, only take the token
-        if (tokenPart.contains('&')) {
-          tokenPart = tokenPart.split('&')[0];
-        }
+    // Special handling for invitation URLs
+    if ((widget.initialUrl.contains('#/set-password#') ||
+            widget.initialUrl.contains('/set-password')) &&
+        (widget.initialUrl.contains('access_token=') ||
+            widget.initialUrl.contains('type=invite'))) {
+      print(
+        "[DEBUG] _checkInitialSessionAfterDelay: Detected invitation URL pattern.",
+      );
 
-        print(
-          "[TEMP DEBUG] Extracted token: ${tokenPart.substring(0, math.min(20, tokenPart.length))}...",
-        );
-
-        // Set the session with the extracted token
-        Supabase.instance.client.auth
-            .setSession(tokenPart)
-            .then((response) {
-              final session = response.session;
-              final user = response.user;
-              if (session != null && user != null) {
-                print("[TEMP DEBUG] Successfully set session with token");
-
-                // Force navigation to set-password screen
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
-                    final navigator = _navigatorKey.currentState;
-                    if (navigator != null) {
-                      navigator.pushReplacementNamed(
-                        SetPasswordScreen.routeName,
-                      );
-                    }
-                  }
-                });
-              } else {
-                print("[TEMP DEBUG] Failed to set session with token");
-              }
-            })
-            .catchError((error) {
-              print("[TEMP DEBUG] Error setting session: $error");
-            });
-      } catch (e) {
-        print("[TEMP DEBUG] Error processing token: $e");
+      final navigator = _navigatorKey.currentState;
+      if (navigator != null) {
+        navigator.pushReplacementNamed(SetPasswordScreen.routeName);
       }
+      _initialAuthCheckCompleted = true;
+      return;
     }
-  }
 
-  Future<void> _handleInviteToken(String url) async {
-    if (_hasHandledInviteToken) return; // Prevent duplicate processing
-    _hasHandledInviteToken = true;
+    // Check current session state
+    final session = Supabase.instance.client.auth.currentSession;
+    final user = Supabase.instance.client.auth.currentUser;
 
-    try {
-      // Extract token from URL - handle both standard and double hash formats
-      String? token;
+    print(
+      "[DEBUG] _checkInitialSessionAfterDelay: Session exists: ${session != null}, User exists: ${user != null}",
+    );
 
-      if (url.contains('#/set-password#')) {
-        // Handle double hash format
-        final tokenPart = url.split('#/set-password#')[1];
-        if (tokenPart.contains('access_token=')) {
-          token = tokenPart.split('access_token=')[1].split('&')[0];
-        }
-      } else {
-        // Handle standard format
-        final uri = Uri.parse(url);
-        token =
-            uri.queryParameters['token'] ?? uri.queryParameters['access_token'];
+    // CRITICAL: If no session and no user, ALWAYS redirect to login screen
+    if (session == null && user == null) {
+      print(
+        "[DEBUG] _checkInitialSessionAfterDelay: No session or user found, redirecting to login screen",
+      );
+      final navigator = _navigatorKey.currentState;
+      if (navigator != null) {
+        navigator.pushReplacementNamed(LoginScreen.routeName);
       }
-
-      if (token != null) {
-        try {
-          // Try to sign in with the token
-          final response = await Supabase.instance.client.auth.setSession(
-            token,
-          );
-
-          if (response.session != null) {
-            print("[TEMP DEBUG] Successfully processed invite token");
-
-            // Navigate to set password page
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                final navigator = _navigatorKey.currentState;
-                if (navigator != null) {
-                  navigator.pushReplacementNamed(SetPasswordScreen.routeName);
-                }
-              }
-            });
-          } else {
-            print("[TEMP DEBUG] Failed to set session with invite token");
-          }
-        } catch (e) {
-          print("[TEMP DEBUG] Error processing invite token: $e");
-        }
-      }
-    } catch (e) {
-      print("[TEMP DEBUG] Error in _handleInviteToken: $e");
+      _initialAuthCheckCompleted = true;
+      return;
     }
+
+    // Use existing handling logic for other cases
+    _handleNavigation(
+      session,
+      user,
+      AuthChangeEvent.initialSession,
+      widget.initialUrl,
+    );
+
+    _initialAuthCheckCompleted = true;
   }
 
   void _handleNavigation(
@@ -296,7 +202,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
   ) {
     final navigator = _navigatorKey.currentState;
     if (navigator == null) {
-      print("[TEMP DEBUG] _handleNavigation: Navigator not yet available.");
+      print("[DEBUG] _handleNavigation: Navigator not yet available.");
       return;
     }
 
@@ -306,7 +212,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
       return true; // This doesn't pop anything, just inspects
     });
     print(
-      "[TEMP DEBUG] _handleNavigation: Current route is $currentRouteName. Event: $event",
+      "[DEBUG] _handleNavigation: Current route is $currentRouteName. Event: $event",
     );
 
     // Check for invite URL patterns - both regular and double hash format
@@ -321,9 +227,8 @@ class _KidSyncAppState extends State<KidSyncApp> {
     if (wasSetPasswordInviteFlow ||
         event == AuthChangeEvent.passwordRecovery ||
         (initialUrl.contains('type=invite'))) {
-      // event == AuthChangeEvent.userSignedIn
       print(
-        "[TEMP DEBUG] _handleNavigation: Set password flow detected. Navigating to SetPasswordScreen.",
+        "[DEBUG] _handleNavigation: Set password flow detected. Navigating to SetPasswordScreen.",
       );
       if (currentRouteName != SetPasswordScreen.routeName) {
         navigator.pushReplacementNamed(SetPasswordScreen.routeName);
@@ -335,8 +240,9 @@ class _KidSyncAppState extends State<KidSyncApp> {
     if (session != null && user != null) {
       final role = user.userMetadata?['role'];
       print(
-        "[TEMP DEBUG] _handleNavigation: Session active (event: $event). Navigating based on role: $role",
+        "[DEBUG] _handleNavigation: Session active (event: $event). Navigating based on role: $role",
       );
+
       switch (role) {
         case 'Admin':
           if (currentRouteName != '/admin')
@@ -348,93 +254,21 @@ class _KidSyncAppState extends State<KidSyncApp> {
           break;
         default:
           print(
-            "[TEMP DEBUG] _handleNavigation: Unknown role ('$role') or fallback. Navigating to LoginScreen.",
+            "[DEBUG] _handleNavigation: Unknown role ('$role') or fallback. Navigating to LoginScreen.",
           );
           if (currentRouteName != LoginScreen.routeName)
             navigator.pushReplacementNamed(LoginScreen.routeName);
       }
     }
-    // Priority 3: Handle no session (not logged in)
+    // Priority 3: Handle no session (not logged in) - FORCE LOGIN NAVIGATION
     else {
       print(
-        "[TEMP DEBUG] _handleNavigation: No active session (event: $event). Navigating to LoginScreen.",
-      );
-      // Avoid navigation loop if already on login or initial loading trying to go to login
-      if (currentRouteName != LoginScreen.routeName &&
-          currentRouteName != InitialLoadingScreen.routeName) {
-        navigator.pushReplacementNamed(LoginScreen.routeName);
-      } else if (currentRouteName == InitialLoadingScreen.routeName &&
-          _initialAuthCheckCompleted) {
-        // If we're on the loading screen after completing auth check with no session, go to login
-        navigator.pushReplacementNamed(LoginScreen.routeName);
-      }
-    }
-  }
-
-  Future<void> _checkInitialSessionAfterDelay() async {
-    // This delay helps ensure onAuthStateChange has a chance to fire for initial events.
-    await Future.delayed(
-      const Duration(milliseconds: 1000), // Increased delay for safety
-    );
-
-    if (!mounted || _initialAuthCheckCompleted) {
-      return;
-    }
-
-    print(
-      "[TEMP DEBUG] _checkInitialSessionAfterDelay: Manually checking session as no onAuthStateChange event seemed to complete navigation yet.",
-    );
-
-    // Special handling for invitation URLs
-    if ((widget.initialUrl.contains('#/set-password#') ||
-            widget.initialUrl.contains('/set-password')) &&
-        (widget.initialUrl.contains('access_token=') ||
-            widget.initialUrl.contains('type=invite'))) {
-      print(
-        "[TEMP DEBUG] _checkInitialSessionAfterDelay: Detected invitation URL pattern.",
+        "[DEBUG] _handleNavigation: No active session (event: $event). Navigating to LoginScreen.",
       );
 
-      final navigator = _navigatorKey.currentState;
-      if (navigator != null) {
-        navigator.pushReplacementNamed(SetPasswordScreen.routeName);
-      }
-      _initialAuthCheckCompleted = true;
-      return;
+      // ALWAYS navigate to login screen if no session, regardless of current screen
+      navigator.pushReplacementNamed(LoginScreen.routeName);
     }
-
-    print(
-      "[TEMP DEBUG] _checkInitialSessionAfterDelay: Manually checking session as no onAuthStateChange event seemed to complete navigation yet.",
-    );
-
-    // Special case for invitation URLs - check URL before session
-    if ((widget.initialUrl.contains('#/set-password') ||
-            widget.initialUrl.contains('/set-password')) &&
-        (widget.initialUrl.contains('access_token=') ||
-            widget.initialUrl.contains('type=invite'))) {
-      print(
-        "[TEMP DEBUG] _checkInitialSessionAfterDelay: Detected invitation URL pattern.",
-      );
-
-      final navigator = _navigatorKey.currentState;
-      if (navigator != null) {
-        navigator.pushReplacementNamed(SetPasswordScreen.routeName);
-      }
-      _initialAuthCheckCompleted = true;
-      return;
-    }
-
-    final session = Supabase.instance.client.auth.currentSession;
-    final user = Supabase.instance.client.auth.currentUser;
-
-    // Call _handleNavigation to use the centralized logic.
-    _handleNavigation(
-      session,
-      user,
-      AuthChangeEvent.initialSession,
-      widget.initialUrl,
-    );
-
-    _initialAuthCheckCompleted = true; // Mark this manual check as done.
   }
 
   @override
@@ -447,44 +281,23 @@ class _KidSyncAppState extends State<KidSyncApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      navigatorKey: _navigatorKey, // Assign navigatorKey
+      navigatorKey: _navigatorKey,
       title: 'KidSync',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
         scaffoldBackgroundColor: Colors.white,
         useMaterial3: true,
-        // colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      initialRoute: InitialLoadingScreen.routeName, // Start with loading screen
+      initialRoute: InitialLoadingScreen.routeName,
       routes: {
         InitialLoadingScreen.routeName: (_) => const InitialLoadingScreen(),
         LoginScreen.routeName: (_) => const LoginScreen(),
         SetPasswordScreen.routeName: (_) => const SetPasswordScreen(),
-        '/set-password': (_) => const SetPasswordScreen(), // For path-based route
+        '/set-password': (_) => const SetPasswordScreen(),
         '#/set-password': (_) => const SetPasswordScreen(),
         '/admin': (_) => const AdminPanel(),
         '/guard': (_) => GuardPanel(),
-        // '/parent': (_) => const ParentHome(),
-        // '/teacher': (_) => const TeacherDashboard(),
-        // '/guard': (_) => const GuardPanel(role: 'Guard'),
-        // '/driver': (_) => const DriverPage(),
       },
-      // home: const MyHomePage(title: 'Flutter Demo Home Page'), // home is replaced by initialRoute
     );
   }
 }
