@@ -62,6 +62,81 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _showForgotPasswordModal() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.rectangle,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 10.0,
+                  offset: const Offset(0.0, 10.0),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.lock_reset,
+                  size: 64,
+                  color: Color(0xFF4A90E2),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Forgot Password',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF333333),
+                  ),
+                ),
+                const SizedBox(height: 15),
+                const Text(
+                  'Contact the System Administrator for Password Reset',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Color(0xFF777777)),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4A90E2),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text(
+                      'OK',
+                      style: TextStyle(fontSize: 16, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -137,17 +212,41 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 15),
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SignUpScreen()),
-                    );
-                  },
-                  child: const Text(
-                    "Don't have an account? Sign up",
-                    style: TextStyle(color: Color(0xFF4A90E2), fontSize: 14),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SignUpScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        "Are you a parent? Sign Up",
+                        style: TextStyle(
+                          color: Color(0xFF4A90E2),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    const Text(
+                      " | ",
+                      style: TextStyle(color: Color(0xFF777777), fontSize: 14),
+                    ),
+                    TextButton(
+                      onPressed: _showForgotPasswordModal,
+                      child: const Text(
+                        "Forgot Password?",
+                        style: TextStyle(
+                          color: Color(0xFF4A90E2),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

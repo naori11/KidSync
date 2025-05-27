@@ -14,9 +14,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _fnameController = TextEditingController();
   final _mnameController = TextEditingController();
   final _lnameController = TextEditingController();
-  // final _fullNameController = TextEditingController();
-  final List<String> _roles = ['Parent', 'Guard', 'Teacher', 'Admin', 'Driver'];
-  String? _selectedRole;
   final SupabaseClient supabase = Supabase.instance.client;
 
   bool _loading = false;
@@ -30,11 +27,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final fname = _fnameController.text.trim();
       final mname = _mnameController.text.trim();
       final lname = _lnameController.text.trim();
-      // final fullName = _fullNameController.text.trim();
-      final role = _selectedRole;
 
-      if (role == null ||
-          fname.isEmpty ||
+      if (fname.isEmpty ||
           lname.isEmpty ||
           email.isEmpty ||
           password.isEmpty) {
@@ -49,7 +43,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final authResponse = await supabase.auth.signUp(
         email: email,
         password: password,
-        data: {'role': role, 'fname': fname, 'mname': mname, 'lname': lname},
+        data: {'role': 'Parent', 'fname': fname, 'mname': mname, 'lname': lname},
       );
 
       final user = authResponse.user;
@@ -65,7 +59,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         'mname': mname,
         'lname': lname,
         'email': email,
-        'role': role,
+        'role': 'Parent',
         // Add more fields as needed (e.g., contact_number)
       });
 
@@ -126,21 +120,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 decoration: const InputDecoration(labelText: 'Last Name'),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: _selectedRole,
-                hint: const Text('Select Role'),
-                items:
-                    _roles
-                        .map(
-                          (role) => DropdownMenuItem<String>(
-                            value: role,
-                            child: Text(role),
-                          ),
-                        )
-                        .toList(),
-                onChanged: (value) => setState(() => _selectedRole = value),
-              ),
-              const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: _loading ? null : _signUp,
                 child:
