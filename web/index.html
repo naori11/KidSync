@@ -1,38 +1,119 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
-  <base href="$FLUTTER_BASE_HREF">
-
   <meta charset="UTF-8">
+  <!-- Other meta tags like viewport, apple-touch-icon, etc., can go here -->
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A new Flutter project.">
 
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
+  <!-- iOS meta tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="kidsync">
+  <meta name="apple-mobile-web-app-title" content="ksync">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>kidsync</title>
+  <title>KidSync</title>
   <link rel="manifest" href="manifest.json">
+
+  <script>
+    // WARNING: DO NOT MODIFY OR REMOVE THE NEXT LINE!
+    // This is required for Flutter web to work correctly in development and production.
+    var serviceWorkerVersion = null;
+  </script>
+
+  <!-- EARLIEST POSSIBLE HASH CHECK -->
+  <script>
+    console.log('[DEBUG index.html HEAD SCRIPT] window.location.href:', window.location.href);
+    console.log('[DEBUG index.html HEAD SCRIPT] window.location.hash:', window.location.hash);
+  </script>
+  <!-- END EARLIEST POSSIBLE HASH CHECK -->
+
+  <!-- This script installs service_worker.js to provide PWA functionality to
+       application. For more information, see:
+       https://developers.google.com/web/fundamentals/primers/service-workers -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('flutter-first-frame', function () {
+        navigator.serviceWorker.register('flutter_service_worker.js?v=' + serviceWorkerVersion);
+      });
+    }
+  </script>
+  <script>
+    // Handle authentication token in URL for Supabase
+    window.addEventListener('DOMContentLoaded', function() {
+      console.log("Auth helper script running...");
+      var location = window.location.href;
+      
+      // Check if this is a Supabase auth URL
+      if (location.includes('access_token=')) {
+        console.log("Auth URL detected, storing auth parameters");
+        
+        try {
+          // Store original URL for debugging
+          window.sessionStorage.setItem('original_auth_url', location);
+          
+          // Parse all auth parameters
+          var authParams = {};
+          var hashParts = location.includes('#') ? location.split('#') : [];
+          
+          // Find the part with auth parameters
+          for (var i = 0; i < hashParts.length; i++) {
+            if (hashParts[i].includes('access_token=')) {
+              var paramPart = hashParts[i];
+              // If this is the format: /set-password#access_token=...
+              if (paramPart.startsWith('/set-password')) {
+                paramPart = paramPart.replace('/set-password', '');
+              }
+              
+              // Split by & to get individual params
+              var params = paramPart.split('&');
+              for (var j = 0; j < params.length; j++) {
+                var pair = params[j].split('=');
+                if (pair.length === 2) {
+                  var key = pair[0];
+                  // Handle the access_token= case specially
+                  if (key.includes('access_token=')) {
+                    key = 'access_token';
+                    pair[1] = pair[0].split('access_token=')[1];
+                  }
+                  authParams[key] = pair[1];
+                }
+              }
+              break;
+            }
+          }
+          
+          // Store each parameter in sessionStorage
+          for (var key in authParams) {
+            window.sessionStorage.setItem('supabase_' + key, authParams[key]);
+          }
+          
+          console.log("Auth parameters stored successfully");
+          
+          // Optional: Clean up the URL for better UX
+          // Note: This doesn't affect the parameters Supabase will read
+          // history.replaceState({}, document.title, location.split('#')[0] + '#/set-password');
+          
+        } catch (e) {
+          console.error("Error processing auth parameters:", e);
+        }
+      } else {
+        console.log("No auth parameters found in URL");
+      }
+    });
+  </script>
 </head>
 <body>
+  <!-- SECOND EARLY HASH CHECK - First thing in body -->
+  <script>
+    console.log('[DEBUG index.html BODY SCRIPT] window.location.href:', window.location.href);
+    console.log('[DEBUG index.html BODY SCRIPT] window.location.hash:', window.location.hash);
+  </script>
+  <!-- END SECOND EARLY HASH CHECK -->
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

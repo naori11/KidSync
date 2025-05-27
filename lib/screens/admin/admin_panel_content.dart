@@ -68,8 +68,33 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
         Icons.access_time,
         Container(child: Text("Audit Logs Page")),
       ),
-      _NavItem("Logout", Icons.logout, Container(child: Text("Logout Page"))),
+      _NavItem(
+        "Logout",
+        Icons.logout,
+        null,
+      ), // Changed to null as it's not a page
     ];
+  }
+
+  // Function to handle logout
+  Future<void> _handleLogout(BuildContext context) async {
+    try {
+      await supabase.auth.signOut();
+      // Navigate to login screen or home screen after logout
+      if (context.mounted) {
+        // Replace this with your login route navigation
+        Navigator.of(context).pushReplacementNamed('/login');
+
+        // Alternatively, you can use Navigator.pushAndRemoveUntil to clear the navigation stack
+        // Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error signing out: ${e.toString()}')),
+        );
+      }
+    }
   }
 
   Widget _buildDashboard() {
@@ -89,7 +114,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
             context,
           ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
-        Spacer(),
+        const SizedBox(height: 8),
         Row(
           children: [
             Icon(
@@ -178,10 +203,19 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
               children: [
                 SizedBox(height: 40),
                 ...List.generate(navItems.length, (index) {
+                  final item = navItems[index];
+
                   return _NavTile(
-                    item: navItems[index],
+                    item: item,
                     isSelected: selectedIndex == index,
-                    onTap: () => setState(() => selectedIndex = index),
+                    onTap: () {
+                      // If it's the logout button
+                      if (item.label == "Logout") {
+                        _handleLogout(context);
+                      } else {
+                        setState(() => selectedIndex = index);
+                      }
+                    },
                   );
                 }),
               ],
@@ -194,7 +228,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
               child:
                   selectedIndex == 0
                       ? _buildDashboard()
-                      : navItems[selectedIndex].page,
+                      : navItems[selectedIndex].page ?? const SizedBox(),
             ),
           ),
         ],
@@ -206,7 +240,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
 class _NavItem {
   final String label;
   final IconData icon;
-  final Widget page;
+  final Widget? page; // Changed to nullable
 
   _NavItem(this.label, this.icon, this.page);
 }

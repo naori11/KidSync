@@ -3,60 +3,301 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_screen.dart';
 import 'screens/guard/guard_panel.dart';
 import 'screens/admin/admin_panel.dart';
+import 'screens/set_password_screen.dart';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:url_strategy/url_strategy.dart'; // <--- IMPORT THIS (already present)
+import 'dart:html'
+    as html; // <--- IMPORT THIS for web-specific URL reading (already present)
+import 'dart:async'; // For StreamSubscription
+import 'dart:math' as math; // For min function in substring
+
+// Global variable to store the initial URL, captured before Flutter app runs.
+String initialUrlFromMain = "";
+
+// Simple screen to show while initial auth processing happens.
+class InitialLoadingScreen extends StatelessWidget {
+  const InitialLoadingScreen({super.key});
+  static const String routeName =
+      '/'; // Using '/' as the route name for the initial screen
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 20),
+            Text("Initializing... Please wait."),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// The AuthRedirectScreen is no longer needed with the new approach.
+// Its logic is now handled by InitialLoadingScreen and _KidSyncAppState.
+/*
+class AuthRedirectScreen extends StatefulWidget {
+  const AuthRedirectScreen({super.key});
+
+  @override
+  State<AuthRedirectScreen> createState() => _AuthRedirectScreenState();
+}
+
+class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
+  // ... (previous content of AuthRedirectScreenState) ...
+}
+*/
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Supabase here
+  // Capture the initial URL as early as possible in Dart.
+  if (kIsWeb) {
+    initialUrlFromMain = html.window.location.href;
+    print("main.dart - main(): Captured initial full URL: $initialUrlFromMain");
+  }
+
+  setHashUrlStrategy();
+
   await Supabase.initialize(
     url: 'https://zouitgpqqudhqdcbuhbz.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdWl0Z3BxcXVkaHFkY2J1aGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDk5OTUsImV4cCI6MjA2MzIyNTk5NX0.FuWUR1QHFiWzPwZa0HvW0yLhJfHHw0EhBLibA0t0Dsw',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdWl0Z3BxcXVkaHFkY2J1aGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDk5OTUsImV4cCI6MjA2MzIyNTk5NX0.FuWUR1QHFiWzPwZa0HvW0yLhJfHHw0EhBLibA0t0Dsw',
   );
-  
-  runApp(const KidSyncApp());
+
+  runApp(KidSyncApp(initialUrl: initialUrlFromMain)); // Pass initialUrl
 }
 
-class KidSyncApp extends StatelessWidget {
-  const KidSyncApp({super.key});
+class KidSyncApp extends StatefulWidget {
+  // Changed to StatefulWidget
+  final String initialUrl;
+  const KidSyncApp({super.key, required this.initialUrl});
+
+  @override
+  State<KidSyncApp> createState() => _KidSyncAppState();
+}
+
+class _KidSyncAppState extends State<KidSyncApp> {
+  StreamSubscription<AuthState>? _authSubscription;
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  bool _initialAuthCheckCompleted = false;
+  bool _hasHandledInviteToken = false;
+
+  @override
+  void initState() {
+    super.initState();
+    print(
+      "[DEBUG] _KidSyncAppState initState: Initial URL passed from main: ${widget.initialUrl}",
+    );
+
+    // For invite flows with double hash pattern, navigate directly to set password screen
+    if (kIsWeb && widget.initialUrl.contains('#/set-password#access_token=')) {
+      print(
+        "[DEBUG] Detected double hash pattern in URL - cleaning up routing",
+      );
+
+      // Just navigate directly to set password screen
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          final navigator = _navigatorKey.currentState;
+          if (navigator != null) {
+            navigator.pushReplacementNamed(SetPasswordScreen.routeName);
+            return; // Skip the rest of the initialization
+          }
+        }
+      });
+    }
+
+    // Set up auth state change listener
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      data,
+    ) {
+      final authEvent = data.event;
+      final session = data.session;
+      final user = session?.user;
+
+      print(
+        "[DEBUG] Auth state changed: $authEvent, User: ${user?.email}, Session: ${session != null}",
+      );
+
+      // Handle routing based on auth state
+      _handleNavigation(session, user, authEvent, widget.initialUrl);
+    });
+
+    // Always call this as a backup, in case the auth state listener doesn't fire
+    _checkInitialSessionAfterDelay();
+  }
+
+  Future<void> _checkInitialSessionAfterDelay() async {
+    // Use a shorter delay to ensure responsiveness
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (!mounted || _initialAuthCheckCompleted) {
+      return;
+    }
+
+    print(
+      "[DEBUG] _checkInitialSessionAfterDelay: Manually checking session as no onAuthStateChange event seemed to complete navigation yet.",
+    );
+
+    // Special handling for invitation URLs
+    if ((widget.initialUrl.contains('#/set-password#') ||
+            widget.initialUrl.contains('/set-password')) &&
+        (widget.initialUrl.contains('access_token=') ||
+            widget.initialUrl.contains('type=invite'))) {
+      print(
+        "[DEBUG] _checkInitialSessionAfterDelay: Detected invitation URL pattern.",
+      );
+
+      final navigator = _navigatorKey.currentState;
+      if (navigator != null) {
+        navigator.pushReplacementNamed(SetPasswordScreen.routeName);
+      }
+      _initialAuthCheckCompleted = true;
+      return;
+    }
+
+    // Check current session state
+    final session = Supabase.instance.client.auth.currentSession;
+    final user = Supabase.instance.client.auth.currentUser;
+
+    print(
+      "[DEBUG] _checkInitialSessionAfterDelay: Session exists: ${session != null}, User exists: ${user != null}",
+    );
+
+    // CRITICAL: If no session and no user, ALWAYS redirect to login screen
+    if (session == null && user == null) {
+      print(
+        "[DEBUG] _checkInitialSessionAfterDelay: No session or user found, redirecting to login screen",
+      );
+      final navigator = _navigatorKey.currentState;
+      if (navigator != null) {
+        navigator.pushReplacementNamed(LoginScreen.routeName);
+      }
+      _initialAuthCheckCompleted = true;
+      return;
+    }
+
+    // Use existing handling logic for other cases
+    _handleNavigation(
+      session,
+      user,
+      AuthChangeEvent.initialSession,
+      widget.initialUrl,
+    );
+
+    _initialAuthCheckCompleted = true;
+  }
+
+  void _handleNavigation(
+    Session? session,
+    User? user,
+    AuthChangeEvent event,
+    String initialUrl,
+  ) {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) {
+      print("[DEBUG] _handleNavigation: Navigator not yet available.");
+      return;
+    }
+
+    String? currentRouteName;
+    navigator.popUntil((route) {
+      currentRouteName = route.settings.name;
+      return true; // This doesn't pop anything, just inspects
+    });
+    print(
+      "[DEBUG] _handleNavigation: Current route is $currentRouteName. Event: $event",
+    );
+
+    // Check for invite URL patterns - both regular and double hash format
+    bool wasSetPasswordInviteFlow =
+        (initialUrl.contains('/set-password') ||
+            initialUrl.contains('#/set-password')) &&
+        (initialUrl.contains('access_token=') ||
+            initialUrl.contains('token=') ||
+            initialUrl.contains('type=invite'));
+
+    // Priority 1: Handle password reset or invite flow first
+    if (wasSetPasswordInviteFlow ||
+        event == AuthChangeEvent.passwordRecovery ||
+        (initialUrl.contains('type=invite'))) {
+      print(
+        "[DEBUG] _handleNavigation: Set password flow detected. Navigating to SetPasswordScreen.",
+      );
+      if (currentRouteName != SetPasswordScreen.routeName) {
+        navigator.pushReplacementNamed(SetPasswordScreen.routeName);
+      }
+      return; // Important to return here and not proceed to other checks
+    }
+
+    // Priority 2: Handle active session with user role-based navigation
+    if (session != null && user != null) {
+      final role = user.userMetadata?['role'];
+      print(
+        "[DEBUG] _handleNavigation: Session active (event: $event). Navigating based on role: $role",
+      );
+
+      switch (role) {
+        case 'Admin':
+          if (currentRouteName != '/admin')
+            navigator.pushReplacementNamed('/admin');
+          break;
+        case 'Guard':
+          if (currentRouteName != '/guard')
+            navigator.pushReplacementNamed('/guard');
+          break;
+        default:
+          print(
+            "[DEBUG] _handleNavigation: Unknown role ('$role') or fallback. Navigating to LoginScreen.",
+          );
+          if (currentRouteName != LoginScreen.routeName)
+            navigator.pushReplacementNamed(LoginScreen.routeName);
+      }
+    }
+    // Priority 3: Handle no session (not logged in) - FORCE LOGIN NAVIGATION
+    else {
+      print(
+        "[DEBUG] _handleNavigation: No active session (event: $event). Navigating to LoginScreen.",
+      );
+
+      // ALWAYS navigate to login screen if no session, regardless of current screen
+      navigator.pushReplacementNamed(LoginScreen.routeName);
+    }
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
 
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'KidSync',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-          scaffoldBackgroundColor: Colors.white,
-          useMaterial3: true,
-        // colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        scaffoldBackgroundColor: Colors.white,
+        useMaterial3: true,
       ),
-      home: const LoginScreen(),
-        routes: {
-          '/login': (_) => const LoginScreen(),
-          '/admin': (_) => const AdminPanel(),
-          // '/parent': (_) => const ParentHome(),
-          // '/teacher': (_) => const TeacherDashboard(),
-          '/guard': (_) => GuardPanel(),
-          // '/guard': (_) => const GuardPanel(role: 'Guard'),
-          // '/driver': (_) => const DriverPage(),
-        },
-      // home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      initialRoute: InitialLoadingScreen.routeName,
+      routes: {
+        InitialLoadingScreen.routeName: (_) => const InitialLoadingScreen(),
+        LoginScreen.routeName: (_) => const LoginScreen(),
+        SetPasswordScreen.routeName: (_) => const SetPasswordScreen(),
+        '/set-password': (_) => const SetPasswordScreen(),
+        '#/set-password': (_) => const SetPasswordScreen(),
+        '/admin': (_) => const AdminPanel(),
+        '/guard': (_) => GuardPanel(),
+      },
     );
   }
 }
@@ -146,4 +387,3 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
-

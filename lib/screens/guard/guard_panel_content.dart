@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+final supabase = Supabase.instance.client;
+final user = supabase.auth.currentUser;
+final userName = user?.userMetadata?['full_name'] ?? 'User';
 
 // Dummy Data Models
 class Student {
@@ -86,6 +91,24 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     });
   }
 
+  // Function to handle logout
+  Future<void> _handleLogout(BuildContext context) async {
+    try {
+      await supabase.auth.signOut();
+
+      // Navigate to login screen and clear the navigation stack
+      if (context.mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error signing out: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -103,23 +126,23 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
             ListTile(
               leading: Icon(Icons.logout),
               title: Text('Log Out'),
-              onTap: () {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (_) => false,
-                );
-              },
+              onTap: () => _handleLogout(context), // Simplified logout call
             ),
             ListTile(
               leading: Icon(Icons.sync),
               title: Text('Simulate Scan'),
-              onTap: simulateRFIDScan,
+              onTap: () {
+                simulateRFIDScan();
+                Navigator.pop(context); // Close drawer after action
+              },
             ),
             ListTile(
               leading: Icon(Icons.refresh),
               title: Text('Reset'),
-              onTap: clearScan,
+              onTap: () {
+                clearScan();
+                Navigator.pop(context); // Close drawer after action
+              },
             ),
           ],
         ),
