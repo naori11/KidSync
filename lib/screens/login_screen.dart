@@ -79,20 +79,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(labelText: 'Email'),
-                  validator: (value) =>
-                      value == null || !value.contains('@')
-                          ? 'Enter a valid email'
-                          : null,
+                  validator: (value) => value == null || !value.contains('@')
+                      ? 'Enter a valid email'
+                      : null,
                 ),
                 const SizedBox(height: 20),
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
                   decoration: const InputDecoration(labelText: 'Password'),
-                  validator: (value) =>
-                      value == null || value.isEmpty
-                          ? 'Enter your password'
-                          : null,
+                  validator: (value) => value == null || value.isEmpty
+                      ? 'Enter your password'
+                      : null,
                 ),
                 const SizedBox(height: 30),
                 ElevatedButton(
