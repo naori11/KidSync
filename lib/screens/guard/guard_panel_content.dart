@@ -404,13 +404,40 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Student Verification',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Student Verification',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        // Subtle Simulation Button for presentation purposes
+                        if (scannedStudent == null)
+                          TextButton.icon(
+                            onPressed: simulateRFIDScan,
+                            icon: Icon(Icons.developer_mode, size: 16),
+                            label: Text(
+                              'Simulate Scan',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.grey[600],
+                              backgroundColor: Colors.grey[100],
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                      ],
                     ),
                     SizedBox(height: 4),
                     Text(
@@ -508,7 +535,12 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     final formattedDate =
         actionTimestamp != null
             ? "${actionTimestamp!.year}-${actionTimestamp!.month.toString().padLeft(2, '0')}-${actionTimestamp!.day.toString().padLeft(2, '0')}"
-            : '';
+            : '2025-05-29'; // Hardcoded date for presentation
+
+    final formattedTime =
+        actionTimestamp != null
+            ? "${actionTimestamp!.hour.toString().padLeft(2, '0')}:${actionTimestamp!.minute.toString().padLeft(2, '0')}:${actionTimestamp!.second.toString().padLeft(2, '0')}"
+            : '12:33:55'; // Hardcoded time for presentation
 
     return Positioned(
       top: 24,
@@ -554,7 +586,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                   ),
                   SizedBox(height: 2),
                   Text(
-                    '$formattedDate | ${notificationMessage.split(' at ')[1]}',
+                    '$formattedDate $formattedTime',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.9),
                       fontSize: 12,
@@ -807,6 +839,23 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
           child: Text(
             scannedStudent!.emergencyContact,
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+        ),
+
+        // Reset button for simulation
+        SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: clearScan,
+            icon: Icon(Icons.refresh, size: 14),
+            label: Text('Reset', style: TextStyle(fontSize: 12)),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey[600],
+              backgroundColor: Colors.grey[100],
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              visualDensity: VisualDensity.compact,
+            ),
           ),
         ),
       ],
