@@ -142,19 +142,17 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(
-        0xFFF0F2F4,
-      ), // Light grayish background like in the image
+      backgroundColor: const Color(0xFFF5F8F5), // Light mint background
       body: Center(
         child: Container(
-          width: 400, // Width of the white card
-          padding: const EdgeInsets.all(32),
+          width: 400,
+          padding: const EdgeInsets.all(40),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withOpacity(0.05),
                 spreadRadius: 1,
                 blurRadius: 10,
                 offset: const Offset(0, 3),
@@ -170,7 +168,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Logo or App name section
                 const Center(
                   child: Text(
-                    'KidSync', // Replacing "Logo" from image with your app name
+                    'KidSync',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
@@ -182,11 +180,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Instructions text
                 const Center(
                   child: Text(
-                    'Enter your email ID and password to login',
+                    'Enter your email id and password to login',
                     style: TextStyle(fontSize: 14, color: Color(0xFF777777)),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 30),
                 // Username/Email field label
                 const Text(
                   'Username',
@@ -201,8 +199,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextFormField(
                   controller: _emailController,
                   decoration: InputDecoration(
-                    hintText: '--',
-                    hintStyle: TextStyle(color: Colors.grey[300]),
+                    hintText: 'Enter your username',
+                    hintStyle: TextStyle(color: Colors.grey[400]),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(4),
                       borderSide: BorderSide(color: Colors.grey[300]!),
@@ -216,7 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderSide: const BorderSide(color: Color(0xFF2ECC71)),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
+                      horizontal: 16,
                       vertical: 16,
                     ),
                   ),
@@ -242,8 +240,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller: _passwordController,
                   obscureText: true,
                   decoration: InputDecoration(
-                    hintText: '--',
-                    hintStyle: TextStyle(color: Colors.grey[300]),
+                    hintText: 'Enter your password',
+                    hintStyle: TextStyle(color: Colors.grey[400]),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(4),
                       borderSide: BorderSide(color: Colors.grey[300]!),
@@ -257,7 +255,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderSide: const BorderSide(color: Color(0xFF2ECC71)),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
+                      horizontal: 16,
                       vertical: 16,
                     ),
                   ),
@@ -274,9 +272,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   height: 48,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(
-                        0xFF2ECC71,
-                      ), // Green color from design
+                      backgroundColor: const Color(0xFF2ECC71),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4),
                       ),
@@ -303,21 +299,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                // Sign up option (kept from original functionality)
+                const SizedBox(height: 8),
+                // Sign Up link
                 Center(
                   child: TextButton(
                     onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const SignUpScreen()),
-                      );
+                      Navigator.pushNamed(context, '/signup');
                     },
                     style: TextButton.styleFrom(
                       foregroundColor: const Color(0xFF2ECC71),
                     ),
                     child: const Text(
-                      "Are you a parent? Sign Up",
+                      "Don't have an account? Sign Up",
                       style: TextStyle(fontSize: 14),
                     ),
                   ),

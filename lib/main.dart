@@ -4,6 +4,7 @@ import 'screens/login_screen.dart';
 import 'screens/guard/guard_panel.dart';
 import 'screens/admin/admin_panel.dart';
 import 'screens/set_password_screen.dart';
+import 'screens/signup_screen.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_strategy/url_strategy.dart'; // <--- IMPORT THIS (already present)
@@ -297,6 +298,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
         '#/set-password': (_) => const SetPasswordScreen(),
         '/admin': (_) => const AdminPanel(),
         '/guard': (_) => GuardPanel(),
+        '/signup': (_) => const SignUpScreen(),
       },
     );
   }

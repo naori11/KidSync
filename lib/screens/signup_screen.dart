@@ -37,7 +37,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final authResponse = await supabase.auth.signUp(
         email: email,
         password: password,
-        data: {'role': 'Parent', 'fname': fname, 'mname': mname, 'lname': lname},
+        data: {
+          'role': 'Parent',
+          'fname': fname,
+          'mname': mname,
+          'lname': lname,
+        },
       );
 
       final user = authResponse.user;
@@ -75,7 +80,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F4), // Light grayish background like login
+      backgroundColor: const Color(
+        0xFFF0F2F4,
+      ), // Light grayish background like login
       body: Center(
         child: Container(
           width: 450, // Slightly wider to accommodate more fields
@@ -115,14 +122,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   const Center(
                     child: Text(
                       'Create your parent account',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF777777),
-                      ),
+                      style: TextStyle(fontSize: 14, color: Color(0xFF777777)),
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
+
                   // Email field
                   const Text(
                     'Email Address',
@@ -150,15 +154,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         borderRadius: BorderRadius.circular(4),
                         borderSide: const BorderSide(color: Color(0xFF2ECC71)),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 16,
+                      ),
                     ),
-                    validator: (value) => 
-                      value == null || !value.contains('@') 
-                        ? 'Enter a valid email' 
-                        : null,
+                    validator:
+                        (value) =>
+                            value == null || !value.contains('@')
+                                ? 'Enter a valid email'
+                                : null,
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Password field
                   const Text(
                     'Password',
@@ -187,16 +195,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         borderRadius: BorderRadius.circular(4),
                         borderSide: const BorderSide(color: Color(0xFF2ECC71)),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 16,
+                      ),
                     ),
-                    validator: (value) => value == null || value.isEmpty 
-                      ? 'Enter a password' 
-                      : value.length < 6 
-                        ? 'Password must be at least 6 characters' 
-                        : null,
+                    validator:
+                        (value) =>
+                            value == null || value.isEmpty
+                                ? 'Enter a password'
+                                : value.length < 6
+                                ? 'Password must be at least 6 characters'
+                                : null,
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // First Name field
                   const Text(
                     'First Name',
@@ -224,14 +237,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         borderRadius: BorderRadius.circular(4),
                         borderSide: const BorderSide(color: Color(0xFF2ECC71)),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 16,
+                      ),
                     ),
-                    validator: (value) => value == null || value.isEmpty 
-                      ? 'Enter your first name' 
-                      : null,
+                    validator:
+                        (value) =>
+                            value == null || value.isEmpty
+                                ? 'Enter your first name'
+                                : null,
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Middle Name field
                   const Text(
                     'Middle Name',
@@ -259,12 +277,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         borderRadius: BorderRadius.circular(4),
                         borderSide: const BorderSide(color: Color(0xFF2ECC71)),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 16,
+                      ),
                     ),
                     // Middle name can be optional
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Last Name field
                   const Text(
                     'Last Name',
@@ -292,44 +313,57 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         borderRadius: BorderRadius.circular(4),
                         borderSide: const BorderSide(color: Color(0xFF2ECC71)),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 16,
+                      ),
                     ),
-                    validator: (value) => value == null || value.isEmpty 
-                      ? 'Enter your last name' 
-                      : null,
+                    validator:
+                        (value) =>
+                            value == null || value.isEmpty
+                                ? 'Enter your last name'
+                                : null,
                   ),
                   const SizedBox(height: 24),
-                  
+
                   // Sign Up button
                   SizedBox(
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2ECC71), // Green color from login design
+                        backgroundColor: const Color(
+                          0xFF2ECC71,
+                        ), // Green color from login design
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(4),
                         ),
                         elevation: 0,
                       ),
                       onPressed: _loading ? null : _signUp,
-                      child: _loading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 3,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      child:
+                          _loading
+                              ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                              : const Text(
+                                "Sign Up",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white,
+                                ),
                               ),
-                            )
-                          : const Text(
-                              "Sign Up",
-                              style: TextStyle(fontSize: 16, color: Colors.white),
-                            ),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Login link
                   Center(
                     child: TextButton(
