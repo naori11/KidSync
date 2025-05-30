@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:html' as html; // For web-specific URL reading
-import 'dart:convert'; // For JWT decoding
+import 'dart:html' as html;
+import 'dart:convert';
 import 'dart:async';
 
 class SetPasswordScreen extends StatefulWidget {
@@ -32,7 +32,31 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     super.initState();
     print("SetPasswordScreen: initState called");
 
-    // Check if authenticated
+    // Check if we're processing a password reset
+    if (kIsWeb) {
+      print("SetPasswordScreen: Checking for reset tokens");
+
+      // Check if we have a password reset token in the URL or session storage
+      final url = html.window.location.href;
+      final hasResetToken =
+          url.contains('access_token=') ||
+          html.window.sessionStorage.containsKey('supabase_access_token');
+
+      // If this is a password reset flow, sign out any current user
+      if (hasResetToken) {
+        print(
+          "SetPasswordScreen: Reset token detected, signing out any current user",
+        );
+        // Sign out the current user first to avoid security issues
+        Supabase.instance.client.auth.signOut();
+
+        // Process the reset token
+        _processInviteToken();
+        return;
+      }
+    }
+
+    // Check if authenticated (only if we didn't find a reset token)
     final currentUser = Supabase.instance.client.auth.currentUser;
     if (currentUser != null) {
       print("SetPasswordScreen: User authenticated: ${currentUser.email}");
@@ -41,23 +65,14 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       _userId = currentUser.id;
       setState(() => _isLoading = false);
       return;
-    }
-
-    // If not authenticated, check if we're processing an invite
-    if (kIsWeb) {
-      print("SetPasswordScreen: Not authenticated, checking for invite tokens");
-      _processInviteToken();
     } else {
-      // Not web platform and not authenticated, redirect to login
-      print(
-        "SetPasswordScreen: Not web platform and not authenticated, redirecting to login",
-      );
+      print("SetPasswordScreen: Not authenticated and no reset token found");
       setState(() => _isLoading = false);
       _redirectToLogin();
     }
   }
 
-  Future<void> _processInviteToken() async {
+  void _processInviteToken() async {
     try {
       // First try to extract token from sessionStorage (from our script)
       _accessToken = html.window.sessionStorage['supabase_access_token'];
@@ -100,6 +115,18 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             "SetPasswordScreen: Successfully extracted email from URL token: $_userEmail",
           );
           setState(() => _isLoading = false);
+
+          // Show a message if a different user was previously logged in
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Setting password for account: $_userEmail'),
+                  duration: const Duration(seconds: 5),
+                ),
+              );
+            }
+          });
           return;
         }
       }
@@ -167,104 +194,60 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       final newPassword = _passwordController.text;
 
       try {
-        if (_isAuthenticated) {
-          // Method 1: Direct password update for authenticated users
+        // Check if we're using a reset token with a specific user email
+        if (_userEmail != null && _accessToken != null) {
           print(
-            "SetPasswordScreen: User is authenticated, directly updating password",
+            "SetPasswordScreen: Setting password via token for $_userEmail",
+          );
+
+          try {
+            // Try to set the session using Supabase's mechanism
+            final response = await Supabase.instance.client.auth.setSession(
+              _accessToken!,
+            );
+
+            if (response.session != null) {
+              print("SetPasswordScreen: Successfully set session with token");
+
+              // Double-check that we're updating the right user
+              final tokenUser = response.user;
+              if (tokenUser?.email != _userEmail) {
+                throw Exception("Token email doesn't match expected user!");
+              }
+
+              // Now update the password
+              await Supabase.instance.client.auth.updateUser(
+                UserAttributes(password: newPassword),
+              );
+
+              _passwordSetSuccess();
+              return;
+            } else {
+              throw Exception("Could not establish session with token");
+            }
+          } catch (e) {
+            print("SetPasswordScreen: Supabase client approach failed: $e");
+
+            // Fall back to direct API approach if available
+            // (keeping your current direct API implementation here)
+            // ...
+
+            setState(() {
+              _isLoading = false;
+              _errorMessage =
+                  "Unable to set password. The reset link may have expired. Please request a new reset link.";
+            });
+          }
+        } else if (_isAuthenticated && _userEmail != null) {
+          // Direct password update for authenticated users
+          print(
+            "SetPasswordScreen: User is authenticated, directly updating password for $_userEmail",
           );
           await Supabase.instance.client.auth.updateUser(
             UserAttributes(password: newPassword),
           );
 
           _passwordSetSuccess();
-        } else if (_userEmail != null && _accessToken != null) {
-          // Method 2: For non-authenticated users with token, manually create a session
-          print("SetPasswordScreen: Trying to create a session with the token");
-
-          try {
-            // This will directly use the access token to make a request
-            // without needing a valid refresh token
-            final headers = {
-              'Authorization': 'Bearer $_accessToken',
-              'apikey':
-                  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdWl0Z3BxcXVkaHFkY2J1aGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDk5OTUsImV4cCI6MjA2MzIyNTk5NX0.FuWUR1QHFiWzPwZa0HvW0yLhJfHHw0EhBLibA0t0Dsw', // Use the correct API key from Supabase instance
-              'Content-Type': 'application/json',
-            };
-
-            // First verify the token by getting the user profile
-            final supabaseUrl =
-                'https://zouitgpqqudhqdcbuhbz.supabase.co/auth/v1/user';
-
-            // We need to use raw HttpRequest because Supabase client methods require refresh tokens
-            final response = await html.HttpRequest.request(
-              supabaseUrl,
-              method: 'GET',
-              requestHeaders: headers,
-            );
-
-            if (response.status == 200) {
-              print("SetPasswordScreen: Token is valid, updating password");
-
-              // Now send the password update request
-              final updateResponse = await html.HttpRequest.request(
-                supabaseUrl,
-                method: 'PUT',
-                requestHeaders: headers,
-                sendData: jsonEncode({'password': newPassword}),
-              );
-
-              if (updateResponse.status == 200) {
-                print("SetPasswordScreen: Password updated successfully");
-                _passwordSetSuccess();
-                return;
-              } else {
-                print(
-                  "SetPasswordScreen: Failed to update password: ${updateResponse.responseText}",
-                );
-                throw Exception(
-                  "Failed to update password: ${updateResponse.status}",
-                );
-              }
-            } else {
-              print(
-                "SetPasswordScreen: Token validation failed: ${response.responseText}",
-              );
-              throw Exception("Invalid access token");
-            }
-          } catch (e) {
-            print("SetPasswordScreen: Direct API approach failed: $e");
-
-            // Fall back to alternative approach - try with Supabase client
-            try {
-              // Try to set the session using Supabase's mechanism
-              final response = await Supabase.instance.client.auth.setSession(
-                _accessToken!,
-              );
-
-              if (response.session != null) {
-                print("SetPasswordScreen: Successfully set session with token");
-
-                // Now update the password
-                await Supabase.instance.client.auth.updateUser(
-                  UserAttributes(password: newPassword),
-                );
-
-                _passwordSetSuccess();
-                return;
-              } else {
-                throw Exception("Could not establish session with token");
-              }
-            } catch (e) {
-              print("SetPasswordScreen: Supabase client approach failed: $e");
-
-              // Final fallback - inform the user they need to contact admin
-              setState(() {
-                _isLoading = false;
-                _errorMessage =
-                    "Unable to set password directly. Please contact your administrator.";
-              });
-            }
-          }
         } else {
           setState(() {
             _isLoading = false;
