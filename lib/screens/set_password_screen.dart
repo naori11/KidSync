@@ -19,27 +19,36 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _userEmailController = TextEditingController(); // NEW: For email input
   bool _isLoading = true;
   String? _errorMessage;
   String? _userEmail;
   String? _userId;
   bool _isAuthenticated = false;
   String? _accessToken;
-  String? _resetCode; // NEW FIELD for password reset flow
+  String? _resetCode;
   String? _previousUserEmail;
+  bool _showEmailInput = false; // NEW: To show email input when needed
 
   @override
   void initState() {
     super.initState();
     print("SetPasswordScreen: initState called");
 
-    // NEW CODE: First check for reset code (password reset flow)
+    // Check for reset code (password reset flow)
     if (kIsWeb &&
         html.window.sessionStorage.containsKey('kidsync_reset_code')) {
       _resetCode = html.window.sessionStorage['kidsync_reset_code'];
       print(
         "SetPasswordScreen: Found reset code in session storage: $_resetCode",
       );
+
+      // Check if we have the email too
+      if (html.window.sessionStorage.containsKey('kidsync_reset_email')) {
+        _userEmail = html.window.sessionStorage['kidsync_reset_email'];
+        _userEmailController.text = _userEmail ?? '';
+        print("SetPasswordScreen: Found email in session storage: $_userEmail");
+      }
 
       // Check if another user is logged in
       final currentUser = Supabase.instance.client.auth.currentUser;
@@ -55,15 +64,11 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       }
       return;
     }
-    // END NEW CODE
 
-    // KEEP YOUR EXISTING CODE FROM HERE
-
-    // Check if we're processing a password reset
+    // Process the invite token
     if (kIsWeb) {
       print("SetPasswordScreen: Checking for reset tokens");
 
-      // Process the invite token
       _processInviteToken();
       return;
     }
@@ -186,18 +191,47 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       final newPassword = _passwordController.text;
 
       try {
-        // NEW CODE: Handle password reset with reset code
+        // Handle password reset with reset code
         if (_resetCode != null) {
           print("SetPasswordScreen: Processing password reset with code");
 
+          // Get email from input field or state
+          String? email;
+
+          // Check if we have an email already
+          if (_userEmailController.text.isNotEmpty) {
+            email = _userEmailController.text;
+          } else if (_userEmail != null && _userEmail!.isNotEmpty) {
+            email = _userEmail;
+          }
+
+          // If we don't have an email, ask for it
+          if (email == null || email.isEmpty) {
+            setState(() {
+              _isLoading = false;
+              _showEmailInput = true;
+              _errorMessage =
+                  "Please enter your email to complete the password reset";
+            });
+            return;
+          }
+
           try {
+            print(
+              "SetPasswordScreen: Verifying OTP with code: $_resetCode and email: $email",
+            );
+
             final response = await Supabase.instance.client.auth.verifyOTP(
               token: _resetCode!,
               type: OtpType.recovery,
+              email: email, // Include the email with the verification
             );
 
             if (response.session != null && response.user != null) {
               _userEmail = response.user!.email;
+              print(
+                "SetPasswordScreen: Successfully verified OTP for $_userEmail",
+              );
 
               // Update password now that we have a session
               await Supabase.instance.client.auth.updateUser(
@@ -207,10 +241,13 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               // Clear the reset code
               if (kIsWeb) {
                 html.window.sessionStorage.remove('kidsync_reset_code');
+                html.window.sessionStorage.remove('kidsync_reset_email');
               }
 
               _passwordSetSuccess("Your password has been reset successfully!");
               return;
+            } else {
+              throw Exception("Failed to verify the recovery code");
             }
           } catch (e) {
             print("SetPasswordScreen: Error verifying reset code: $e");
@@ -219,9 +256,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             );
           }
         }
-        // END NEW CODE
 
-        // YOUR EXISTING CODE FOR INVITE TOKEN BELOW
         // Check if we're using a reset token with a specific user email
         if (_userEmail != null && _accessToken != null) {
           print(
@@ -256,15 +291,12 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
           } catch (e) {
             print("SetPasswordScreen: Supabase client approach failed: $e");
 
-            // Fall back to direct API approach if available
-            // (keeping your current direct API implementation here)
+            // Fall back to direct API approach
             try {
-              // This will directly use the access token to make a request
-              // without needing a valid refresh token
               final headers = {
                 'Authorization': 'Bearer $_accessToken',
                 'apikey':
-                    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdWl0Z3BxcXVkaHFkY2J1aGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDk5OTUsImV4cCI6MjA2MzIyNTk5NX0.FuWUR1QHFiWzPwZa0HvW0yLhJfHHw0EhBLibA0t0Dsw', // Use the correct API key from Supabase instance
+                    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdWl0Z3BxcXVkaHFkY2J1aGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDk5OTUsImV4cCI6MjA2MzIyNTk5NX0.FuWUR1QHFiWzPwZa0HvW0yLhJfHHw0EhBLibA0t0Dsw',
                 'Content-Type': 'application/json',
               };
 
@@ -272,7 +304,6 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               final supabaseUrl =
                   'https://zouitgpqqudhqdcbuhbz.supabase.co/auth/v1/user';
 
-              // We need to use raw HttpRequest because Supabase client methods require refresh tokens
               final response = await html.HttpRequest.request(
                 supabaseUrl,
                 method: 'GET',
@@ -282,7 +313,6 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               if (response.status == 200) {
                 print("SetPasswordScreen: Token is valid, updating password");
 
-                // Now send the password update request
                 final updateResponse = await html.HttpRequest.request(
                   supabaseUrl,
                   method: 'PUT',
@@ -364,6 +394,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   void dispose() {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _userEmailController.dispose();
     super.dispose();
   }
 
@@ -395,7 +426,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     if (_errorMessage != null &&
         _accessToken == null &&
         _resetCode == null &&
-        !_isAuthenticated) {
+        !_isAuthenticated &&
+        !_showEmailInput) {
       return Scaffold(
         backgroundColor: Colors.grey[50],
         body: Center(
@@ -489,7 +521,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                     ),
 
                     // Show user email if available
-                    if (_userEmail != null) ...[
+                    if (_userEmail != null && !_showEmailInput) ...[
                       const SizedBox(height: 4),
                       Text(
                         _userEmail!,
@@ -561,7 +593,65 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                       ),
                     ],
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
+
+                    // Email input field (only shown when needed)
+                    if (_showEmailInput ||
+                        (_resetCode != null && _userEmail == null)) ...[
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Email Address",
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.normal,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _userEmailController,
+                            decoration: InputDecoration(
+                              hintText: "Enter your email address",
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 15,
+                                horizontal: 16,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(4),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(4),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(4),
+                                borderSide: const BorderSide(
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return "Email address cannot be empty";
+                              }
+                              if (!value.contains('@') ||
+                                  !value.contains('.')) {
+                                return "Please enter a valid email address";
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
 
                     // New Password field
                     Column(

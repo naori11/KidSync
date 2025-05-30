@@ -4,33 +4,48 @@
     <meta charset="UTF-8">
     <!-- NEW CODE: Add this script at the very top for password reset handling -->
     <script>
-  // Early detection of password reset codes
-  (function() {
-    var url = window.location.href;
-    // Only check for password reset codes, not access tokens
-    if (url.indexOf('?code=') !== -1 || url.indexOf('&code=') !== -1) {
-      console.log('[PASSWORD RESET] Detected code parameter in URL');
-      var code = "";
-      if (url.indexOf('?code=') !== -1) {
-        code = url.split('?code=')[1];
-      } else if (url.indexOf('&code=') !== -1) {
-        code = url.split('&code=')[1];
+    // Early detection of password reset codes
+    (function() {
+      var url = window.location.href;
+      // Only check for password reset codes, not access tokens
+      if (url.indexOf('?code=') !== -1 || url.indexOf('&code=') !== -1) {
+        console.log('[PASSWORD RESET] Detected code parameter in URL');
+        var code = "";
+        var email = "";
+        
+        // Extract code
+        if (url.indexOf('?code=') !== -1) {
+          code = url.split('?code=')[1];
+        } else if (url.indexOf('&code=') !== -1) {
+          code = url.split('&code=')[1];
+        }
+        
+        if (code.indexOf('&') !== -1) {
+          code = code.split('&')[0];
+        }
+        
+        // Also try to extract email if it exists in the URL
+        if (url.indexOf('email=') !== -1) {
+          email = url.split('email=')[1];
+          if (email.indexOf('&') !== -1) {
+            email = email.split('&')[0];
+          }
+          // URL decode the email address
+          email = decodeURIComponent(email);
+          console.log('[PASSWORD RESET] Found email in URL: ' + email);
+          window.sessionStorage.setItem('kidsync_reset_email', email);
+        }
+        
+        // Store reset code separately from your invite token logic
+        window.sessionStorage.setItem('kidsync_reset_code', code);
+        console.log('[PASSWORD RESET] Stored reset code in session storage');
+        
+        // Clean URL to prevent Supabase auto-handling which causes the error
+        var baseUrl = window.location.href.split('?')[0];
+        window.history.replaceState({}, document.title, baseUrl);
       }
-      
-      if (code.indexOf('&') !== -1) {
-        code = code.split('&')[0];
-      }
-      
-      // Store reset code separately from your invite token logic
-      window.sessionStorage.setItem('kidsync_reset_code', code);
-      console.log('[PASSWORD RESET] Stored reset code in session storage');
-      
-      // Clean URL to prevent Supabase auto-handling which causes the error
-      var baseUrl = window.location.href.split('?')[0];
-      window.history.replaceState({}, document.title, baseUrl);
-    }
-  })();
-  </script>
+    })();
+    </script>
     <!-- END NEW CODE -->
 
     <!-- Other meta tags like viewport, apple-touch-icon, etc., can go here -->
