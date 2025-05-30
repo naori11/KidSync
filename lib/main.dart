@@ -270,7 +270,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
       print(
         "[DEBUG] _handleNavigation: Session active (event: $event). Navigating based on role: $role",
       );
-
+  
       switch (role) {
         case 'Admin':
           if (currentRouteName != '/admin')
