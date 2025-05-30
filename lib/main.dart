@@ -134,6 +134,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
     _checkInitialSessionAfterDelay();
   }
 
+  // In _KidSyncAppState class, update the _checkInitialSessionAfterDelay method
   Future<void> _checkInitialSessionAfterDelay() async {
     // Use a shorter delay to ensure responsiveness
     await Future.delayed(const Duration(milliseconds: 500));
@@ -146,7 +147,21 @@ class _KidSyncAppState extends State<KidSyncApp> {
       "[DEBUG] _checkInitialSessionAfterDelay: Manually checking session as no onAuthStateChange event seemed to complete navigation yet.",
     );
 
-    // Special handling for invitation URLs
+    // NEW CODE: Check for password reset code in session storage
+    if (kIsWeb &&
+        html.window.sessionStorage.containsKey('kidsync_reset_code')) {
+      print(
+        "[DEBUG] _checkInitialSessionAfterDelay: Found reset code in session storage, navigating to SetPasswordScreen",
+      );
+      final navigator = _navigatorKey.currentState;
+      if (navigator != null) {
+        navigator.pushReplacementNamed(SetPasswordScreen.routeName);
+      }
+      _initialAuthCheckCompleted = true;
+      return;
+    }
+
+    // Keep your existing code for invitation URLs
     if ((widget.initialUrl.contains('#/set-password#') ||
             widget.initialUrl.contains('/set-password')) &&
         (widget.initialUrl.contains('access_token=') ||
@@ -171,7 +186,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
       "[DEBUG] _checkInitialSessionAfterDelay: Session exists: ${session != null}, User exists: ${user != null}",
     );
 
-    // CRITICAL: If no session and no user, ALWAYS redirect to login screen
+    // If no session and no user, redirect to login screen
     if (session == null && user == null) {
       print(
         "[DEBUG] _checkInitialSessionAfterDelay: No session or user found, redirecting to login screen",
@@ -215,6 +230,18 @@ class _KidSyncAppState extends State<KidSyncApp> {
     print(
       "[DEBUG] _handleNavigation: Current route is $currentRouteName. Event: $event",
     );
+
+    // NEW CODE: Check for reset code in session storage
+    if (kIsWeb &&
+        html.window.sessionStorage.containsKey('kidsync_reset_code')) {
+      print(
+        "[DEBUG] _handleNavigation: Found reset code in session storage, navigating to SetPasswordScreen",
+      );
+      if (currentRouteName != SetPasswordScreen.routeName) {
+        navigator.pushReplacementNamed(SetPasswordScreen.routeName);
+      }
+      return;
+    }
 
     // Check for invite URL patterns - both regular and double hash format
     bool wasSetPasswordInviteFlow =
