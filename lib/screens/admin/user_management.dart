@@ -135,6 +135,18 @@ class _UserManagementPageState extends State<UserManagementPage> {
     }
   }
 
+  // New function to send password reset email
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await supabase.auth.resetPasswordForEmail(
+        email,
+        redirectTo: null, // You can add a redirect URL if needed
+      );
+    } catch (e) {
+      throw Exception('Failed to send password reset email: $e');
+    }
+  }
+
   Future<void> _addOrEditUser({Map<String, dynamic>? user}) async {
     String? fname = user?['fname'];
     String? mname = user?['mname'];
@@ -680,7 +692,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 ),
                               ),
 
-                              // Actions (keeping original functionality)
+                              // Actions with reset password option
                               TableCell(
                                 verticalAlignment:
                                     TableCellVerticalAlignment.middle,
@@ -689,7 +701,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   child:
                                       isAdmin
                                           ? PopupMenuButton<String>(
-                                            onSelected: (value) {
+                                            onSelected: (value) async {
                                               if (value == 'edit') {
                                                 _addOrEditUser(user: u);
                                               } else if (value == 'delete') {
@@ -755,6 +767,77 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                         ],
                                                       ),
                                                 );
+                                              } else if (value ==
+                                                  'reset_password') {
+                                                showDialog(
+                                                  context: context,
+                                                  builder:
+                                                      (ctx) => AlertDialog(
+                                                        title: const Text(
+                                                          'Confirm Reset Password',
+                                                        ),
+                                                        content: const Text(
+                                                          'Send password reset email to this user?',
+                                                        ),
+                                                        actions: [
+                                                          TextButton(
+                                                            onPressed:
+                                                                () =>
+                                                                    Navigator.pop(
+                                                                      ctx,
+                                                                    ),
+                                                            child: const Text(
+                                                              'Cancel',
+                                                            ),
+                                                          ),
+                                                          ElevatedButton(
+                                                            style: ElevatedButton.styleFrom(
+                                                              backgroundColor:
+                                                                  const Color(
+                                                                    0xFF2ECC71,
+                                                                  ),
+                                                            ),
+                                                            onPressed: () async {
+                                                              Navigator.pop(
+                                                                ctx,
+                                                              );
+                                                              try {
+                                                                await sendPasswordResetEmail(
+                                                                  u['email'],
+                                                                );
+                                                                ScaffoldMessenger.of(
+                                                                  context,
+                                                                ).showSnackBar(
+                                                                  const SnackBar(
+                                                                    content: Text(
+                                                                      'Password reset email sent successfully',
+                                                                    ),
+                                                                  ),
+                                                                );
+                                                              } catch (e) {
+                                                                ScaffoldMessenger.of(
+                                                                  context,
+                                                                ).showSnackBar(
+                                                                  SnackBar(
+                                                                    content: Text(
+                                                                      'Error: $e',
+                                                                    ),
+                                                                  ),
+                                                                );
+                                                              }
+                                                            },
+                                                            child: const Text(
+                                                              'Send Email',
+                                                              style: TextStyle(
+                                                                color:
+                                                                    Colors
+                                                                        .white,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                );
                                               }
                                             },
                                             itemBuilder:
@@ -766,6 +849,21 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                   const PopupMenuItem(
                                                     value: 'delete',
                                                     child: Text('Delete'),
+                                                  ),
+                                                  const PopupMenuItem(
+                                                    value: 'reset_password',
+                                                    child: Row(
+                                                      children: [
+                                                        Icon(
+                                                          Icons.email,
+                                                          size: 16,
+                                                        ),
+                                                        SizedBox(width: 8),
+                                                        Text(
+                                                          'Send Reset Password',
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ),
                                                 ],
                                           )
