@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:html' as html; // For web-specific URL reading
-import 'dart:convert'; // For JWT decoding
-import 'dart:async';
+import 'dart:html' as html;
+import 'dart:convert';
 
 class SetPasswordScreen extends StatefulWidget {
   const SetPasswordScreen({super.key});
@@ -25,8 +24,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   String? _userEmail;
   String? _userId;
   bool _isAuthenticated = false;
-  String? _oneTimeCode;
-  bool _isNewUser = false; // Flag to track if this is a new user invite
+  String? _accessToken;
+  String? _resetCode; // NEW FIELD for password reset flow
   String? _previousUserEmail;
 
   @override
@@ -34,18 +33,42 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     super.initState();
     print("SetPasswordScreen: initState called");
 
-    // Check if we have a code in the URL (could be reset or invite)
-    if (kIsWeb) {
-      final url = html.window.location.href;
-      // Check for code parameter in URL
-      if (url.contains('?code=') || url.contains('&code=')) {
-        print("SetPasswordScreen: One-time code detected");
-        _processOneTimeCode(url);
-        return;
+    // NEW CODE: First check for reset code (password reset flow)
+    if (kIsWeb &&
+        html.window.sessionStorage.containsKey('kidsync_reset_code')) {
+      _resetCode = html.window.sessionStorage['kidsync_reset_code'];
+      print(
+        "SetPasswordScreen: Found reset code in session storage: $_resetCode",
+      );
+
+      // Check if another user is logged in
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser != null) {
+        _previousUserEmail = currentUser.email;
+        // Sign out the current user for security
+        Supabase.instance.client.auth.signOut().then((_) {
+          print("SetPasswordScreen: Logged out user $_previousUserEmail");
+          setState(() => _isLoading = false);
+        });
+      } else {
+        setState(() => _isLoading = false);
       }
+      return;
+    }
+    // END NEW CODE
+
+    // KEEP YOUR EXISTING CODE FROM HERE
+
+    // Check if we're processing a password reset
+    if (kIsWeb) {
+      print("SetPasswordScreen: Checking for reset tokens");
+
+      // Process the invite token
+      _processInviteToken();
+      return;
     }
 
-    // If no code, check if user is authenticated
+    // Check if authenticated
     final currentUser = Supabase.instance.client.auth.currentUser;
     if (currentUser != null) {
       print("SetPasswordScreen: User authenticated: ${currentUser.email}");
@@ -54,51 +77,94 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       _userId = currentUser.id;
       setState(() => _isLoading = false);
     } else {
-      // No code and no authenticated user, redirect to login
       print("SetPasswordScreen: Not authenticated, redirecting to login");
       setState(() => _isLoading = false);
       _redirectToLogin();
     }
   }
 
-  Future<void> _processOneTimeCode(String url) async {
+  Future<void> _processInviteToken() async {
     try {
-      // Extract the code from URL
-      String code = "";
-      if (url.contains('?code=')) {
-        code = url.split('?code=')[1];
-      } else if (url.contains('&code=')) {
-        code = url.split('&code=')[1];
+      // First try to extract token from sessionStorage (from our script)
+      _accessToken = html.window.sessionStorage['supabase_access_token'];
+
+      if (_accessToken != null) {
+        print("SetPasswordScreen: Found token in sessionStorage");
+
+        // Extract information from token without authenticating
+        _extractEmailAndUserIdFromToken(_accessToken);
+
+        // If we have enough info, show the set password form
+        if (_userEmail != null) {
+          print(
+            "SetPasswordScreen: Successfully extracted email from token: $_userEmail",
+          );
+          setState(() => _isLoading = false);
+          return;
+        }
       }
 
-      if (code.contains('&')) {
-        code = code.split('&')[0];
+      // If no token in sessionStorage, try URL
+      final url = html.window.location.href;
+      print("SetPasswordScreen: Checking URL for token: $url");
+
+      if (url.contains('access_token=')) {
+        // Extract token from URL
+        _accessToken = url.split('access_token=')[1].split('&')[0];
+        print("SetPasswordScreen: Found token in URL");
+
+        // Extract information from token without authenticating
+        _extractEmailAndUserIdFromToken(_accessToken);
+
+        // Store token in sessionStorage for later use
+        if (_accessToken != null) {
+          html.window.sessionStorage['supabase_access_token'] = _accessToken!;
+        }
+
+        if (_userEmail != null) {
+          print(
+            "SetPasswordScreen: Successfully extracted email from URL token: $_userEmail",
+          );
+          setState(() => _isLoading = false);
+          return;
+        }
       }
 
-      _oneTimeCode = code;
-      print("SetPasswordScreen: Extracted one-time code: $_oneTimeCode");
-
-      // Check if a user is logged in
-      final currentUser = Supabase.instance.client.auth.currentUser;
-      if (currentUser != null) {
-        // Store the current user's email before proceeding
-        _previousUserEmail = currentUser.email;
-
-        // For security, sign out the current user
-        print("SetPasswordScreen: User logged in, signing out for security");
-        await Supabase.instance.client.auth.signOut();
-      }
-
-      // Since we can't verify the type without setting the password,
-      // We'll just assume it's valid and show the form
-      // The actual verification will happen when setting the password
-      setState(() => _isLoading = false);
-    } catch (e) {
-      print("SetPasswordScreen: Error processing one-time code: $e");
+      // If we couldn't extract anything useful
       setState(() {
         _isLoading = false;
-        _errorMessage = "Error processing link: $e";
+        _errorMessage =
+            "Could not process the invitation link. Please contact your administrator.";
       });
+    } catch (e) {
+      print("SetPasswordScreen: Error processing invite token: $e");
+      setState(() {
+        _isLoading = false;
+        _errorMessage = "Error processing invitation: $e";
+      });
+    }
+  }
+
+  void _extractEmailAndUserIdFromToken(String? token) {
+    if (token == null) return;
+
+    try {
+      final parts = token.split('.');
+      if (parts.length > 1) {
+        final payload = parts[1];
+        final normalized = base64Url.normalize(payload);
+        final decoded = utf8.decode(base64Url.decode(normalized));
+        final json = jsonDecode(decoded);
+
+        _userEmail = json['email'];
+        _userId = json['sub']; // 'sub' contains the user ID in JWT
+
+        print(
+          "SetPasswordScreen: Extracted from token - Email: $_userEmail, User ID: $_userId",
+        );
+      }
+    } catch (e) {
+      print("SetPasswordScreen: Error extracting data from token: $e");
     }
   }
 
@@ -120,83 +186,156 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       final newPassword = _passwordController.text;
 
       try {
-        // Case 1: Using a one-time code (either signup or reset)
-        if (_oneTimeCode != null) {
+        // NEW CODE: Handle password reset with reset code
+        if (_resetCode != null) {
+          print("SetPasswordScreen: Processing password reset with code");
+
+          try {
+            final response = await Supabase.instance.client.auth.verifyOTP(
+              token: _resetCode!,
+              type: OtpType.recovery,
+            );
+
+            if (response.session != null && response.user != null) {
+              _userEmail = response.user!.email;
+
+              // Update password now that we have a session
+              await Supabase.instance.client.auth.updateUser(
+                UserAttributes(password: newPassword),
+              );
+
+              // Clear the reset code
+              if (kIsWeb) {
+                html.window.sessionStorage.remove('kidsync_reset_code');
+              }
+
+              _passwordSetSuccess("Your password has been reset successfully!");
+              return;
+            }
+          } catch (e) {
+            print("SetPasswordScreen: Error verifying reset code: $e");
+            throw Exception(
+              "Invalid or expired reset link. Please request a new one.",
+            );
+          }
+        }
+        // END NEW CODE
+
+        // YOUR EXISTING CODE FOR INVITE TOKEN BELOW
+        // Check if we're using a reset token with a specific user email
+        if (_userEmail != null && _accessToken != null) {
           print(
-            "SetPasswordScreen: Using one-time code to set/update password",
+            "SetPasswordScreen: Setting password via token for $_userEmail",
           );
 
-          // Try as signup first
           try {
-            print("SetPasswordScreen: Trying code as signup (new user)");
-            final response = await Supabase.instance.client.auth.verifyOTP(
-              token: _oneTimeCode!,
-              type: OtpType.signup,
+            // Try to set the session using Supabase's mechanism
+            final response = await Supabase.instance.client.auth.setSession(
+              _accessToken!,
             );
 
             if (response.session != null) {
-              // Successfully verified as signup
-              _isNewUser = true;
-              _userEmail = response.user?.email;
+              print("SetPasswordScreen: Successfully set session with token");
+
+              // Double-check that we're updating the right user
+              final tokenUser = response.user;
+              if (tokenUser?.email != _userEmail) {
+                throw Exception("Token email doesn't match expected user!");
+              }
 
               // Now update the password
               await Supabase.instance.client.auth.updateUser(
                 UserAttributes(password: newPassword),
               );
 
-              print("SetPasswordScreen: Password set successful for new user");
-              _passwordSetSuccess(
-                "Your account has been created successfully!",
-              );
+              _passwordSetSuccess("Your account has been set up successfully!");
               return;
+            } else {
+              throw Exception("Could not establish session with token");
             }
           } catch (e) {
-            print(
-              "SetPasswordScreen: Not a signup code, trying as password reset: $e",
-            );
+            print("SetPasswordScreen: Supabase client approach failed: $e");
 
-            // Try as recovery
+            // Fall back to direct API approach if available
+            // (keeping your current direct API implementation here)
             try {
-              final recoveryResponse = await Supabase.instance.client.auth
-                  .verifyOTP(token: _oneTimeCode!, type: OtpType.recovery);
+              // This will directly use the access token to make a request
+              // without needing a valid refresh token
+              final headers = {
+                'Authorization': 'Bearer $_accessToken',
+                'apikey':
+                    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdWl0Z3BxcXVkaHFkY2J1aGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDk5OTUsImV4cCI6MjA2MzIyNTk5NX0.FuWUR1QHFiWzPwZa0HvW0yLhJfHHw0EhBLibA0t0Dsw', // Use the correct API key from Supabase instance
+                'Content-Type': 'application/json',
+              };
 
-              if (recoveryResponse.session != null) {
-                // Successfully verified as password reset
-                _isNewUser = false;
-                _userEmail = recoveryResponse.user?.email;
+              // First verify the token by getting the user profile
+              final supabaseUrl =
+                  'https://zouitgpqqudhqdcbuhbz.supabase.co/auth/v1/user';
 
-                // Now update the password
-                await Supabase.instance.client.auth.updateUser(
-                  UserAttributes(password: newPassword),
-                );
-
-                print("SetPasswordScreen: Password reset successful");
-                _passwordSetSuccess(
-                  "Your password has been reset successfully!",
-                );
-                return;
-              }
-            } catch (e2) {
-              print("SetPasswordScreen: Not a valid reset code either: $e2");
-              throw Exception(
-                "Invalid or expired link. Please request a new one.",
+              // We need to use raw HttpRequest because Supabase client methods require refresh tokens
+              final response = await html.HttpRequest.request(
+                supabaseUrl,
+                method: 'GET',
+                requestHeaders: headers,
               );
+
+              if (response.status == 200) {
+                print("SetPasswordScreen: Token is valid, updating password");
+
+                // Now send the password update request
+                final updateResponse = await html.HttpRequest.request(
+                  supabaseUrl,
+                  method: 'PUT',
+                  requestHeaders: headers,
+                  sendData: jsonEncode({'password': newPassword}),
+                );
+
+                if (updateResponse.status == 200) {
+                  print("SetPasswordScreen: Password updated successfully");
+                  _passwordSetSuccess(
+                    "Your account has been set up successfully!",
+                  );
+                  return;
+                } else {
+                  print(
+                    "SetPasswordScreen: Failed to update password: ${updateResponse.responseText}",
+                  );
+                  throw Exception(
+                    "Failed to update password: ${updateResponse.status}",
+                  );
+                }
+              } else {
+                print(
+                  "SetPasswordScreen: Token validation failed: ${response.responseText}",
+                );
+                throw Exception("Invalid access token");
+              }
+            } catch (e) {
+              print("SetPasswordScreen: Direct API approach failed: $e");
+
+              setState(() {
+                _isLoading = false;
+                _errorMessage =
+                    "Unable to set password. The token may have expired. Please contact your administrator.";
+              });
             }
           }
-        }
-        // Case 2: For already authenticated user updating their password
-        else if (_isAuthenticated) {
+        } else if (_isAuthenticated && _userEmail != null) {
+          // Direct password update for authenticated users
           print(
-            "SetPasswordScreen: User is authenticated, updating password for $_userEmail",
+            "SetPasswordScreen: User is authenticated, directly updating password for $_userEmail",
           );
           await Supabase.instance.client.auth.updateUser(
             UserAttributes(password: newPassword),
           );
+
           _passwordSetSuccess("Your password has been updated successfully!");
         } else {
-          throw Exception(
-            "No valid authentication context for password update",
-          );
+          setState(() {
+            _isLoading = false;
+            _errorMessage =
+                "Missing authentication details. Please try again or contact your administrator.";
+          });
         }
       } catch (e) {
         print("SetPasswordScreen: Error setting password: $e");
@@ -252,8 +391,11 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       );
     }
 
-    // Show error state if there's an error message and no code
-    if (_errorMessage != null && _oneTimeCode == null && !_isAuthenticated) {
+    // Show error state if there's an error message and no valid token
+    if (_errorMessage != null &&
+        _accessToken == null &&
+        _resetCode == null &&
+        !_isAuthenticated) {
       return Scaffold(
         backgroundColor: Colors.grey[50],
         body: Center(
@@ -335,31 +477,26 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Subtitle with context
-                    if (_oneTimeCode != null) ...[
-                      if (_userEmail != null) ...[
-                        Text(
-                          "Set password for $_userEmail",
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ] else ...[
-                        Text(
-                          "Set your password",
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ] else ...[
+                    // Subtitle with context message
+                    Text(
+                      _resetCode != null
+                          ? "Set your new password"
+                          : (_accessToken != null
+                              ? "Set your password to activate your account"
+                              : "Update your password"),
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      textAlign: TextAlign.center,
+                    ),
+
+                    // Show user email if available
+                    if (_userEmail != null) ...[
+                      const SizedBox(height: 4),
                       Text(
-                        "Update your password",
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        _userEmail!,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -395,7 +532,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                             const SizedBox(height: 8),
                             Text(
                               "You were previously logged in as $_previousUserEmail. "
-                              "You have been logged out to process this password action.",
+                              "You have been logged out to process this password reset.",
                               style: TextStyle(color: Colors.amber[900]),
                             ),
                           ],
@@ -480,7 +617,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          "Confirm Password",
+                          "Confirm New Password",
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.normal,
@@ -537,9 +674,13 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                             borderRadius: BorderRadius.circular(4),
                           ),
                         ),
-                        child: const Text(
-                          "Set Password",
-                          style: TextStyle(fontSize: 16),
+                        child: Text(
+                          _resetCode != null
+                              ? "Reset Password"
+                              : (_accessToken != null
+                                  ? "Create Account"
+                                  : "Update Password"),
+                          style: const TextStyle(fontSize: 16),
                         ),
                       ),
                     ),
