@@ -1,27 +1,22 @@
+import 'dart:convert';
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'login_screen.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:html' as html;
-import 'dart:convert';
 
-class SetPasswordScreen extends StatefulWidget {
-  const SetPasswordScreen({super.key});
-  static const String routeName = '/set-password';
+class ResetPasswordPage extends StatefulWidget {
+  const ResetPasswordPage({Key? key}) : super(key: key);
 
   @override
-  State<SetPasswordScreen> createState() => _SetPasswordScreenState();
+  State<ResetPasswordPage> createState() => _ResetPasswordPageState();
 }
 
-class _SetPasswordScreenState extends State<SetPasswordScreen> {
+class _ResetPasswordPageState extends State<ResetPasswordPage> {
   final _formKey = GlobalKey<FormState>();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
-  bool _isLoading = true;
-  String? _errorMessage;
-  String? _userEmail;
-  String? _userId;
-  bool _isAuthenticated = false;
+  final TextEditingController _codeController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+
   String? _accessToken;
   String? _resetCode;
   String? _previousUserEmail;
@@ -121,23 +116,21 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     }
   }
 
-  void _extractEmailAndUserIdFromToken(String? token) {
-    if (token == null) return;
+  void _extractEmailFromToken(String token) {
     try {
       final parts = token.split('.');
-      if (parts.length > 1) {
-        final payload = parts[1];
-        final normalized = base64Url.normalize(payload);
-        final decoded = utf8.decode(base64Url.decode(normalized));
-        final json = jsonDecode(decoded);
-        _userEmail = json['email'];
-        _userId = json['sub'];
-        print(
-          "SetPasswordScreen: Extracted from token - Email: $_userEmail, User ID: $_userId",
-        );
-      }
+      if (parts.length != 3) throw Exception('Invalid token format');
+      final payload = base64Url.normalize(parts[1]);
+      final decoded = utf8.decode(base64Url.decode(payload));
+      final payloadMap = json.decode(decoded);
+
+      setState(() {
+        _userEmail = payloadMap['email'];
+      });
+
+      print('Extracted email: $_userEmail');
     } catch (e) {
-      print("SetPasswordScreen: Error extracting data from token: $e");
+      print('Failed to extract email from token: $e');
     }
   }
 
@@ -168,397 +161,101 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             email: _previousUserEmail ?? _userEmail,
           );
 
-          print("Verify OTP response: $response");
-          if (response.session != null && response.user != null) {
-            _userEmail = response.user!.email;
-            print(
-              "SetPasswordScreen: Successfully verified OTP for $_userEmail",
-            );
-            if (_userEmail != null) {
-              await Supabase.instance.client.auth.updateUser(
-                UserAttributes(password: newPassword),
-              );
-              if (kIsWeb) {
-                html.window.sessionStorage.remove('kidsync_reset_code');
-              }
-              _passwordSetSuccess("Your password has been reset successfully!");
-              return;
-            } else {
-              throw Exception("User email not found in OTP response");
-            }
-          } else {
-            throw Exception(
-              "Failed to verify the recovery code (maybe expired/invalid)",
-            );
-          }
-        }
+      if (response.user != null) {
+        final updateResponse = await Supabase.instance.client.auth.updateUser(
+          UserAttributes(password: newPassword),
+        );
 
-        // Invite (access_token) Flow
-        if (_userEmail != null && _accessToken != null) {
-          print(
-            "SetPasswordScreen: Setting password via token for $_userEmail",
-          );
-          final response = await Supabase.instance.client.auth.setSession(
-            _accessToken!,
-          );
-          if (response.session != null) {
-            final tokenUser = response.user;
-            if (tokenUser?.email != _userEmail) {
-              throw Exception("Token email doesn't match expected user!");
-            }
-            await Supabase.instance.client.auth.updateUser(
-              UserAttributes(password: newPassword),
-            );
-            _passwordSetSuccess("Your account has been set up successfully!");
-            return;
-          } else {
-            throw Exception("Could not establish session with token");
-          }
-        } else if (_isAuthenticated && _userEmail != null) {
-          // Authenticated user changing password
-          print(
-            "SetPasswordScreen: User is authenticated, directly updating password for $_userEmail",
-          );
-          await Supabase.instance.client.auth.updateUser(
-            UserAttributes(password: newPassword),
-          );
-          _passwordSetSuccess("Your password has been updated successfully!");
+        if (updateResponse.user != null) {
+          _showSnackbar('Password reset successful. Please log in again.');
         } else {
-          setState(() {
-            _isLoading = false;
-            _errorMessage =
-                "Missing authentication details. Please try again or contact your administrator.";
-          });
+          _showSnackbar('Failed to update password. Try again.');
         }
-      } catch (e) {
-        print("SetPasswordScreen: Error setting password: $e");
-        if (!mounted) return;
-        setState(() {
-          _isLoading = false;
-          _errorMessage = "Error setting password: $e";
-        });
+      } else {
+        _showSnackbar('Invalid or expired code.');
       }
+    } catch (e) {
+      _showSnackbar('Error: ${e.toString()}');
     }
   }
 
-  void _passwordSetSuccess(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.green),
-    );
-    Supabase.instance.client.auth.signOut();
-    Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+  void _showSnackbar(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   void dispose() {
-    _passwordController.dispose();
+    _codeController.dispose();
+    _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: Colors.grey[50],
-        body: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
-              ),
-              SizedBox(height: 20),
-              Text(
-                "Processing...",
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_errorMessage != null &&
-        _accessToken == null &&
-        _resetCode == null &&
-        !_isAuthenticated) {
-      return Scaffold(
-        backgroundColor: Colors.grey[50],
-        body: Center(
-          child: Card(
-            margin: const EdgeInsets.symmetric(horizontal: 24.0),
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Reset Password')),
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Form(
+              key: _formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
-                    "KidSync",
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                  if (_userEmail != null)
+                    Text(
+                      'Resetting password for $_userEmail',
+                      style: const TextStyle(fontSize: 16),
                     ),
+                  const SizedBox(height: 24),
+                  TextFormField(
+                    controller: _codeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Recovery Code',
+                    ),
+                    validator:
+                        (value) =>
+                            value == null || value.isEmpty
+                                ? 'Enter the recovery code'
+                                : null,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _newPasswordController,
+                    decoration: const InputDecoration(
+                      labelText: 'New Password',
+                    ),
+                    obscureText: true,
+                    validator:
+                        (value) =>
+                            value == null || value.length < 6
+                                ? 'Password must be at least 6 characters'
+                                : null,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    decoration: const InputDecoration(
+                      labelText: 'Confirm New Password',
+                    ),
+                    obscureText: true,
+                    validator:
+                        (value) =>
+                            value != _newPasswordController.text
+                                ? 'Passwords do not match'
+                                : null,
                   ),
                   const SizedBox(height: 24),
-                  const Icon(Icons.error_outline, color: Colors.red, size: 60),
-                  const SizedBox(height: 20),
-                  Text(
-                    _errorMessage!,
-                    style: const TextStyle(fontSize: 16),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed:
-                          () => Navigator.of(
-                            context,
-                          ).pushReplacementNamed(LoginScreen.routeName),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      child: const Text("Go to Login"),
-                    ),
+                  ElevatedButton(
+                    onPressed: _resetPassword,
+                    child: const Text('Reset Password'),
                   ),
                 ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: Center(
-        child: SingleChildScrollView(
-          child: Card(
-            margin: const EdgeInsets.symmetric(horizontal: 24.0),
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      "KidSync",
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      _resetCode != null
-                          ? "Set your new password"
-                          : (_accessToken != null
-                              ? "Set your password to activate your account"
-                              : "Update your password"),
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                      textAlign: TextAlign.center,
-                    ),
-                    if (_userEmail != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        _userEmail!,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                    if (_previousUserEmail != null) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.amber[50],
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.amber),
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.info_outline,
-                                  color: Colors.amber[800],
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  "Account Switch",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.amber[800],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "You were previously logged in as $_previousUserEmail. You have been logged out to process this password reset.",
-                              style: TextStyle(color: Colors.amber[900]),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    if (_errorMessage != null) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red[50],
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.red.shade200),
-                        ),
-                        child: Text(
-                          _errorMessage!,
-                          style: TextStyle(
-                            color: Colors.red.shade900,
-                            fontSize: 14,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 24),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "New Password",
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _passwordController,
-                          decoration: InputDecoration(
-                            hintText: "Enter your password",
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 15,
-                              horizontal: 16,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(4),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(4),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(4),
-                              borderSide: const BorderSide(color: Colors.green),
-                            ),
-                          ),
-                          obscureText: true,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Password cannot be empty";
-                            }
-                            if (value.length < 6) {
-                              return "Password must be at least 6 characters";
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Confirm New Password",
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _confirmPasswordController,
-                          decoration: InputDecoration(
-                            hintText: "Confirm your password",
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 15,
-                              horizontal: 16,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(4),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(4),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(4),
-                              borderSide: const BorderSide(color: Colors.green),
-                            ),
-                          ),
-                          obscureText: true,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Please confirm your password";
-                            }
-                            if (value != _passwordController.text) {
-                              return "Passwords do not match";
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _onSetPassword,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        child: Text(
-                          _resetCode != null
-                              ? "Reset Password"
-                              : (_accessToken != null
-                                  ? "Create Account"
-                                  : "Update Password"),
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextButton(
-                      onPressed:
-                          () => Navigator.of(
-                            context,
-                          ).pushReplacementNamed(LoginScreen.routeName),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.green,
-                      ),
-                      child: const Text("Cancel and go to login"),
-                    ),
-                  ],
-                ),
               ),
             ),
           ),
