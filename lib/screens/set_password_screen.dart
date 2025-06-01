@@ -164,19 +164,25 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             token: _resetCode!,
             type: OtpType.recovery,
           );
+
+          print("Verify OTP response: $response");
           if (response.session != null && response.user != null) {
             _userEmail = response.user!.email;
             print(
               "SetPasswordScreen: Successfully verified OTP for $_userEmail",
             );
-            await Supabase.instance.client.auth.updateUser(
-              UserAttributes(password: newPassword),
-            );
-            if (kIsWeb) {
-              html.window.sessionStorage.remove('kidsync_reset_code');
+            if (_userEmail != null) {
+              await Supabase.instance.client.auth.updateUser(
+                UserAttributes(password: newPassword),
+              );
+              if (kIsWeb) {
+                html.window.sessionStorage.remove('kidsync_reset_code');
+              }
+              _passwordSetSuccess("Your password has been reset successfully!");
+              return;
+            } else {
+              throw Exception("User email not found in OTP response");
             }
-            _passwordSetSuccess("Your password has been reset successfully!");
-            return;
           } else {
             throw Exception(
               "Failed to verify the recovery code (maybe expired/invalid)",
