@@ -61,45 +61,23 @@
     <!-- Supabase Invite Token Interception -->
     <script>
       // This only runs for invite/access_token links, not password resets.
+      // In index.html — Invite flow handler
       window.addEventListener('DOMContentLoaded', function() {
-        console.log("Auth helper script running...");
         var location = window.location.href;
         if (location.includes('access_token=')) {
-          console.log("Auth URL detected, storing auth parameters");
-          try {
-            window.sessionStorage.setItem('original_auth_url', location);
-            var authParams = {};
-            var hashParts = location.includes('#') ? location.split('#') : [];
-            for (var i = 0; i < hashParts.length; i++) {
-              if (hashParts[i].includes('access_token=')) {
-                var paramPart = hashParts[i];
-                if (paramPart.startsWith('/set-password')) {
-                  paramPart = paramPart.replace('/set-password', '');
-                }
-                var params = paramPart.split('&');
-                for (var j = 0; j < params.length; j++) {
-                  var pair = params[j].split('=');
-                  if (pair.length === 2) {
-                    var key = pair[0];
-                    if (key.includes('access_token=')) {
-                      key = 'access_token';
-                      pair[1] = pair[0].split('access_token=')[1];
-                    }
-                    authParams[key] = pair[1];
-                  }
-                }
-                break;
+          var hash = location.split('#').pop(); // get everything after final #
+          var params = hash.split('&');
+          params.forEach(function(param) {
+            var pair = param.split('=');
+            if (pair.length === 2) {
+              var key = pair[0];
+              var value = pair[1];
+              // Store all relevant tokens
+              if (key === 'access_token' || key === 'refresh_token' || key === 'expires_in' || key === 'expires_at' || key === 'token_type') {
+                window.sessionStorage.setItem('supabase_' + key, value);
               }
             }
-            for (var key in authParams) {
-              window.sessionStorage.setItem('supabase_' + key, authParams[key]);
-            }
-            console.log("Auth parameters stored successfully");
-          } catch (e) {
-            console.error("Error processing auth parameters:", e);
-          }
-        } else {
-          console.log("No auth parameters found in URL");
+          });
         }
       });
     </script>

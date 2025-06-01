@@ -23,10 +23,10 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   String? _userId;
   bool _isAuthenticated = false;
   String? _accessToken;
+  String? _refreshToken;
   String? _resetCode;
   String? _resetEmail;
   String? _previousUserEmail;
-
 
   @override
   void initState() {
@@ -80,8 +80,11 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   Future<void> _processInviteToken() async {
     try {
       _accessToken = html.window.sessionStorage['supabase_access_token'];
-      if (_accessToken != null) {
-        print("SetPasswordScreen: Found token in sessionStorage");
+      _refreshToken = html.window.sessionStorage['supabase_refresh_token'];
+      if (_accessToken != null && _refreshToken != null) {
+        print(
+          "SetPasswordScreen: Found access and refresh tokens in sessionStorage",
+        );
         _extractEmailAndUserIdFromToken(_accessToken);
         if (_userEmail != null) {
           print(
@@ -95,10 +98,16 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       print("SetPasswordScreen: Checking URL for token: $url");
       if (url.contains('access_token=')) {
         _accessToken = url.split('access_token=')[1].split('&')[0];
-        print("SetPasswordScreen: Found token in URL");
+        if (url.contains('refresh_token=')) {
+          _refreshToken = url.split('refresh_token=')[1].split('&')[0];
+        }
+        print("SetPasswordScreen: Found tokens in URL");
         _extractEmailAndUserIdFromToken(_accessToken);
         if (_accessToken != null) {
           html.window.sessionStorage['supabase_access_token'] = _accessToken!;
+        }
+        if (_refreshToken != null) {
+          html.window.sessionStorage['supabase_refresh_token'] = _refreshToken!;
         }
         if (_userEmail != null) {
           print(
@@ -181,6 +190,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               );
               if (kIsWeb) {
                 html.window.sessionStorage.remove('kidsync_reset_code');
+                html.window.sessionStorage.remove('kidsync_reset_email');
               }
               _passwordSetSuccess("Your password has been reset successfully!");
               return;
@@ -195,12 +205,14 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         }
 
         // Invite (access_token) Flow
-        if (_userEmail != null && _accessToken != null) {
+        if (_userEmail != null &&
+            _accessToken != null &&
+            _refreshToken != null) {
           print(
             "SetPasswordScreen: Setting password via token for $_userEmail",
           );
           final response = await Supabase.instance.client.auth.setSession(
-            _accessToken!,
+            _refreshToken!,
           );
           if (response.session != null) {
             final tokenUser = response.user;
