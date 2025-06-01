@@ -195,42 +195,38 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         if (_resetCode != null) {
           print("SetPasswordScreen: Processing password reset with code");
 
-          // Get email from input field or state
-          String? email;
+          // // Get email from input field or state
+          // String? email;
 
-          // Check if we have an email already
-          if (_userEmailController.text.isNotEmpty) {
-            email = _userEmailController.text;
-          } else if (_userEmail != null && _userEmail!.isNotEmpty) {
-            email = _userEmail;
-          }
+          // // Check if we have an email already
+          // if (_userEmailController.text.isNotEmpty) {
+          //   email = _userEmailController.text;
+          // } else if (_userEmail != null && _userEmail!.isNotEmpty) {
+          //   email = _userEmail;
+          // }
 
-          // If we don't have an email, ask for it
-          if (email == null || email.isEmpty) {
-            setState(() {
-              _isLoading = false;
-              _showEmailInput = true;
-              _errorMessage =
-                  "Please enter your email to complete the password reset";
-            });
-            return;
-          }
+          // // If we don't have an email, ask for it
+          // if (email == null || email.isEmpty) {
+          //   setState(() {
+          //     _isLoading = false;
+          //     _showEmailInput = true;
+          //     _errorMessage =
+          //         "Please enter your email to complete the password reset";
+          //   });
+          //   return;
+          // }
 
           try {
-            print(
-              "SetPasswordScreen: Verifying OTP with code: $_resetCode and email: $email",
-            );
+            print("SetPasswordScreen: Verifying OTP with code: $_resetCode.");
 
             final response = await Supabase.instance.client.auth.verifyOTP(
               token: _resetCode!,
               type: OtpType.recovery,
-              email: email, // Include the email with the verification
             );
 
             if (response.session != null && response.user != null) {
-              _userEmail = response.user!.email;
               print(
-                "SetPasswordScreen: Successfully verified OTP for $_userEmail",
+                "SetPasswordScreen: Successfully verified OTP for ${response.user!.email}",
               );
 
               // Update password now that we have a session
@@ -247,10 +243,17 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               _passwordSetSuccess("Your password has been reset successfully!");
               return;
             } else {
-              throw Exception("Failed to verify the recovery code");
+              throw Exception(
+                "Failed to verify the recovery code (maybe expired/invalid)",
+              );
             }
           } catch (e) {
             print("SetPasswordScreen: Error verifying reset code: $e");
+            if (!mounted) return;
+            setState(() {
+              _isLoading = false;
+              _errorMessage = "Error setting password: $e";
+            });
             throw Exception(
               "Invalid or expired reset link. Please request a new one.",
             );
