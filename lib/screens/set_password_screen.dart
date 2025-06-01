@@ -26,6 +26,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   String? _resetCode;
   String? _previousUserEmail;
 
+
   @override
   void initState() {
     super.initState();
@@ -35,6 +36,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     if (kIsWeb &&
         html.window.sessionStorage.containsKey('kidsync_reset_code')) {
       _resetCode = html.window.sessionStorage['kidsync_reset_code'];
+      _previousUserEmail = html.window.sessionStorage['kidsync_reset_email'];
       print(
         "SetPasswordScreen: Found reset code in session storage: $_resetCode",
       );
@@ -163,6 +165,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
           final response = await Supabase.instance.client.auth.verifyOTP(
             token: _resetCode!,
             type: OtpType.recovery,
+            email: _previousUserEmail ?? _userEmail,
           );
 
           print("Verify OTP response: $response");
