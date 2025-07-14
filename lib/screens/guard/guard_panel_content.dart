@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:web_socket_channel/html.dart';
 import 'dart:convert';
 
 final supabase = Supabase.instance.client;
 final user = supabase.auth.currentUser;
 final userName = user?.userMetadata?['full_name'] ?? 'User';
-late WebSocketChannel channel;
+late HtmlWebSocketChannel  channel;
 
 // Dummy Data Models
 class Student {
@@ -65,17 +65,15 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     super.initState();
     // Initialize WebSocket channel
     // Connect to the WebSocket on Render
-    channel = WebSocketChannel.connect(
-      Uri.parse('wss://rfid-websocket-server.onrender.com'), // Replace this
-    );
+    channel = HtmlWebSocketChannel.connect('wss://rfid-websocket-server.onrender.com');
+
 
     // Listen for incoming RFID data
-    channel.stream.listen((data) {
-      print("RFID received: $data");
+    channel.stream.listen((message) {
+      print("RFID received: $message");
 
-      if (data == 'SAMPLE_UID') {
-        simulateRFIDScan();
-      }
+      // Trigger the simulation
+      simulateRFIDScan();
     });
   }
 
