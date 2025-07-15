@@ -5,8 +5,6 @@ import 'package:intl/intl.dart';
 import 'package:web_socket_channel/html.dart';
 import 'dart:convert';
 
-late HtmlWebSocketChannel channel;
-
 class StudentManagementPageAdmin extends StatelessWidget {
   const StudentManagementPageAdmin({super.key});
 
@@ -76,20 +74,21 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       barrierDismissible: false,
       builder: (BuildContext context) {
         return StatefulBuilder(
-          builder: (context, setState) {
+          builder: (context, setDialogState) {
             // Initialize WebSocket connection
             if (channel == null && isScanning) {
               try {
                 channel = HtmlWebSocketChannel.connect(
                   'wss://rfid-websocket-server.onrender.com',
                 );
+
                 channel!.stream.listen(
                   (data) {
                     try {
                       final Map<String, dynamic> message = json.decode(data);
                       if (message['type'] == 'rfid_scan' &&
                           message['uid'] != null) {
-                        setState(() {
+                        setDialogState(() {
                           scannedUID = message['uid'];
                           isScanning = false;
                           connectionStatus = 'RFID card detected!';
@@ -100,14 +99,14 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                     }
                   },
                   onError: (error) {
-                    setState(() {
+                    setDialogState(() {
                       isConnected = false;
                       connectionStatus =
                           'Connection error. Please check your RFID scanner.';
                     });
                   },
                   onDone: () {
-                    setState(() {
+                    setDialogState(() {
                       isConnected = false;
                       if (isScanning) {
                         connectionStatus = 'Connection lost. Please try again.';
@@ -116,12 +115,12 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   },
                 );
 
-                setState(() {
+                setDialogState(() {
                   isConnected = true;
                   connectionStatus = 'Ready to scan RFID card...';
                 });
               } catch (e) {
-                setState(() {
+                setDialogState(() {
                   isConnected = false;
                   connectionStatus = 'Failed to connect to RFID scanner.';
                 });
@@ -166,9 +165,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       color: Color(0xFF2ECC71),
                     ),
                     const SizedBox(height: 16),
-                    Text(
+                    const Text(
                       'RFID Card Scanned Successfully!',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF2ECC71),
                       ),
@@ -214,7 +213,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                 if (scannedUID == null && isConnected)
                   TextButton(
                     onPressed: () {
-                      setState(() {
+                      setDialogState(() {
                         isScanning = true;
                         connectionStatus = 'Ready to scan RFID card...';
                       });
@@ -238,258 +237,309 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     String? birthday = student?['birthday'];
     String? grade = student?['grade_level'];
     String? section = student?['section_id']?.toString();
-    // String? email = student?['email'];
-    // String? contactNumber = student?['contact_number'];
     String? status = student?['status'] ?? 'Active';
     String? rfidUID = student?['rfid_uid']; // Add RFID UID field
 
     await showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text(student == null ? 'Add New Student' : 'Edit Student'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  decoration: const InputDecoration(labelText: 'First Name'),
-                  controller: TextEditingController(text: fname),
-                  onChanged: (val) => fname = val,
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Middle Name'),
-                  controller: TextEditingController(text: mname),
-                  onChanged: (val) => mname = val,
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Last Name'),
-                  controller: TextEditingController(text: lname),
-                  onChanged: (val) => lname = val,
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Gender'),
-                  controller: TextEditingController(text: gender),
-                  onChanged: (val) => gender = val,
-                ),
-                // TextField(
-                //   decoration: const InputDecoration(labelText: 'Email'),
-                //   controller: TextEditingController(text: email),
-                //   onChanged: (val) => email = val,
-                // ),
-                // TextField(
-                //   decoration: const InputDecoration(
-                //     labelText: 'Contact Number',
-                //   ),
-                //   controller: TextEditingController(text: contactNumber),
-                //   onChanged: (val) => contactNumber = val,
-                // ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Address'),
-                  controller: TextEditingController(text: address),
-                  onChanged: (val) => address = val,
-                ),
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Birthday (YYYY-MM-DD)',
-                  ),
-                  controller: TextEditingController(text: birthday),
-                  onChanged: (val) => birthday = val,
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Grade Level'),
-                  controller: TextEditingController(text: grade),
-                  onChanged: (val) => grade = val,
-                ),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Section ID'),
-                  controller: TextEditingController(text: section),
-                  onChanged: (val) => section = val,
-                ),
-                const SizedBox(height: 16),
-                // RFID UID Section
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.contactless,
-                            color: Color(0xFF2ECC71),
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'RFID Card',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(student == null ? 'Add New Student' : 'Edit Student'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'First Name',
                       ),
-                      const SizedBox(height: 8),
-                      if (rfidUID != null && rfidUID!.isNotEmpty) ...[
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                      controller: TextEditingController(text: fname),
+                      onChanged: (val) => fname = val,
+                    ),
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Middle Name',
+                      ),
+                      controller: TextEditingController(text: mname),
+                      onChanged: (val) => mname = val,
+                    ),
+                    TextField(
+                      decoration: const InputDecoration(labelText: 'Last Name'),
+                      controller: TextEditingController(text: lname),
+                      onChanged: (val) => lname = val,
+                    ),
+                    TextField(
+                      decoration: const InputDecoration(labelText: 'Gender'),
+                      controller: TextEditingController(text: gender),
+                      onChanged: (val) => gender = val,
+                    ),
+                    TextField(
+                      decoration: const InputDecoration(labelText: 'Address'),
+                      controller: TextEditingController(text: address),
+                      onChanged: (val) => address = val,
+                    ),
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Birthday (YYYY-MM-DD)',
+                      ),
+                      controller: TextEditingController(text: birthday),
+                      onChanged: (val) => birthday = val,
+                    ),
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Grade Level',
+                      ),
+                      controller: TextEditingController(text: grade),
+                      onChanged: (val) => grade = val,
+                    ),
+                    TextField(
+                      decoration: const InputDecoration(
+                        labelText: 'Section ID',
+                      ),
+                      controller: TextEditingController(text: section),
+                      onChanged: (val) => section = val,
+                    ),
+                    const SizedBox(height: 16),
+                    // RFID UID Section
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              const Text(
-                                'Current UID:',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
+                              const Icon(
+                                Icons.contactless,
+                                color: Color(0xFF2ECC71),
                               ),
-                              Text(
-                                rfidUID!,
-                                style: const TextStyle(
-                                  fontFamily: 'monospace',
+                              const SizedBox(width: 8),
+                              const Text(
+                                'RFID Card',
+                                style: TextStyle(
                                   fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
+                          const SizedBox(height: 8),
+                          if (rfidUID != null && rfidUID!.isNotEmpty) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Current UID:',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  Text(
+                                    rfidUID!,
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    icon: const Icon(Icons.contactless),
+                                    label: const Text('Scan New Card'),
+                                    onPressed: () async {
+                                      final newUID = await _showRFIDScanDialog(
+                                        context,
+                                      );
+                                      if (newUID != null) {
+                                        setDialogState(() {
+                                          rfidUID = newUID;
+                                        });
+                                      }
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.clear,
+                                    color: Colors.red,
+                                  ),
+                                  tooltip: 'Remove RFID',
+                                  onPressed: () {
+                                    setDialogState(() {
+                                      rfidUID = null;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ] else ...[
+                            const Text(
+                              'No RFID card assigned',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
                                 icon: const Icon(Icons.contactless),
-                                label: const Text('Scan New Card'),
+                                label: const Text('Scan RFID Card'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2ECC71),
+                                  foregroundColor: Colors.white,
+                                ),
                                 onPressed: () async {
                                   final newUID = await _showRFIDScanDialog(
                                     context,
                                   );
                                   if (newUID != null) {
-                                    setState(() {
+                                    setDialogState(() {
                                       rfidUID = newUID;
                                     });
                                   }
                                 },
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: const Icon(Icons.clear, color: Colors.red),
-                              tooltip: 'Remove RFID',
-                              onPressed: () {
-                                setState(() {
-                                  rfidUID = null;
-                                });
-                              },
-                            ),
                           ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: 'Status'),
+                      value: status,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'Active',
+                          child: Text('Active'),
                         ),
-                      ] else ...[
-                        const Text(
-                          'No RFID card assigned',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            icon: const Icon(Icons.contactless),
-                            label: const Text('Scan RFID Card'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF2ECC71),
-                              foregroundColor: Colors.white,
-                            ),
-                            onPressed: () async {
-                              final newUID = await _showRFIDScanDialog(context);
-                              if (newUID != null) {
-                                setState(() {
-                                  rfidUID = newUID;
-                                });
-                              }
-                            },
-                          ),
+                        DropdownMenuItem(
+                          value: 'Inactive',
+                          child: Text('Inactive'),
                         ),
                       ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(labelText: 'Status'),
-                  value: status,
-                  items: const [
-                    DropdownMenuItem(value: 'Active', child: Text('Active')),
-                    DropdownMenuItem(
-                      value: 'Inactive',
-                      child: Text('Inactive'),
+                      onChanged: (value) => status = value,
                     ),
                   ],
-                  onChanged: (value) => status = value,
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2ECC71),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () async {
+                    try {
+                      final payload = {
+                        'fname': fname,
+                        'mname': mname,
+                        'lname': lname,
+                        'gender': gender,
+                        'address': address,
+                        'birthday': birthday,
+                        'grade_level': grade,
+                        'section_id': section,
+                        'status': status,
+                        'rfid_uid': rfidUID,
+                      };
+
+                      if (student == null) {
+                        await supabase.from('students').insert(payload);
+                      } else {
+                        await supabase
+                            .from('students')
+                            .update(payload)
+                            .eq('id', student['id']);
+                      }
+
+                      Navigator.pop(context);
+                      _fetchStudents();
+
+                      // Show success message
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              student == null
+                                  ? 'Student added successfully!'
+                                  : 'Student updated successfully!',
+                            ),
+                            backgroundColor: const Color(0xFF2ECC71),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      // Show error message
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error: ${e.toString()}'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  child: Text(student == null ? 'Add' : 'Update'),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2ECC71), // Green color
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () async {
-                final payload = {
-                  'fname': fname,
-                  'mname': mname,
-                  'lname': lname,
-                  'gender': gender,
-                  'address': address,
-                  'birthday': birthday,
-                  'grade_level': grade,
-                  'section_id': section,
-                  // 'email': email,
-                  // 'contact_number': contactNumber,
-                  'status': status,
-                  'rfid_uid': rfidUID,
-                };
-                if (student == null) {
-                  await supabase.from('students').insert(payload);
-                } else {
-                  await supabase
-                      .from('students')
-                      .update(payload)
-                      .eq('id', student['id']);
-                }
-                Navigator.pop(context);
-                _fetchStudents();
-              },
-              child: Text(student == null ? 'Add' : 'Update'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
   }
 
   Future<void> _deleteStudent(int id) async {
-    await supabase.from('students').delete().eq('id', id);
-    _fetchStudents();
+    try {
+      await supabase.from('students').delete().eq('id', id);
+      _fetchStudents();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Student deleted successfully!'),
+            backgroundColor: Color(0xFF2ECC71),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting student: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _exportData() {
-    // This would be implemented based on your specific export requirements
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Export functionality would be implemented here'),
@@ -617,7 +667,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       style: TextStyle(color: Colors.white),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2ECC71), // Green color
+                      backgroundColor: const Color(0xFF2ECC71),
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4),
@@ -770,7 +820,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
             const SizedBox(height: 16),
 
-            // Table header
+            // Table content
             if (isLoading)
               const Expanded(
                 child: Center(
