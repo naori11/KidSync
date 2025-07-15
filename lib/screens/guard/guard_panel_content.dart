@@ -6,27 +6,83 @@ import 'dart:convert';
 final supabase = Supabase.instance.client;
 final user = supabase.auth.currentUser;
 final userName = user?.userMetadata?['full_name'] ?? 'User';
-late HtmlWebSocketChannel  channel;
+late HtmlWebSocketChannel channel;
 
-// Dummy Data Models
+// Updated Student model to match your database structure
 class Student {
-  final String name;
-  final String imageUrl;
-  final String studentId;
-  final String emergencyContact;
-  final String grade;
-  final String section;
+  final int id;
+  final String fname;
+  final String? mname;
+  final String lname;
+  final String address;
+  final String? birthday;
+  final String? gradeLevel;
+  final int? sectionId;
+  final String? gender;
+  final String? status;
+  final String? rfidUid;
+  final DateTime createdAt;
 
   Student({
-    required this.name,
-    required this.imageUrl,
-    required this.studentId,
-    required this.emergencyContact,
-    required this.grade,
-    required this.section,
+    required this.id,
+    required this.fname,
+    this.mname,
+    required this.lname,
+    required this.address,
+    this.birthday,
+    this.gradeLevel,
+    this.sectionId,
+    this.gender,
+    this.status,
+    this.rfidUid,
+    required this.createdAt,
   });
+
+  factory Student.fromJson(Map<String, dynamic> json) {
+    return Student(
+      id: json['id'],
+      fname: json['fname'],
+      mname: json['mname'],
+      lname: json['lname'],
+      address: json['address'],
+      birthday: json['birthday'],
+      gradeLevel: json['grade_level'],
+      sectionId: json['section_id'],
+      gender: json['gender'],
+      status: json['status'],
+      rfidUid: json['rfid_uid'],
+      createdAt: DateTime.parse(json['created_at']),
+    );
+  }
+
+  // Helper getters for display
+  String get fullName {
+    if (mname != null && mname!.isNotEmpty) {
+      return '$fname $mname $lname';
+    }
+    return '$fname $lname';
+  }
+
+  String get studentId => 'STU${id.toString().padLeft(3, '0')}';
+
+  String get classSection {
+    if (gradeLevel != null && sectionId != null) {
+      final sectionLetter = String.fromCharCode(64 + sectionId!); // A, B, C, etc.
+      return 'Grade $gradeLevel - Section $sectionLetter';
+    } else if (gradeLevel != null) {
+      return 'Grade $gradeLevel';
+    }
+    return 'No class assigned';
+  }
+
+  // Generate placeholder image URL (you can replace this with actual student photos later)
+  String get imageUrl => 'https://i.pravatar.cc/150?u=$id';
+
+  // For now, we'll use a placeholder emergency contact
+  String get emergencyContact => '+1 (555) 123-4567'; // Will be from guardians table later
 }
 
+// Keep the existing Fetcher class for static data
 class Fetcher {
   final String name;
   final String imageUrl;
@@ -59,25 +115,132 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   String notificationMessage = '';
   Color notificationColor = Colors.green;
   DateTime? actionTimestamp;
+  bool isLoadingStudent = false;
 
   @override
   void initState() {
     super.initState();
     // Initialize WebSocket channel
-    // Connect to the WebSocket on Render
     channel = HtmlWebSocketChannel.connect('wss://rfid-websocket-server.onrender.com');
-
 
     // Listen for incoming RFID data
     channel.stream.listen((message) {
       print("RFID received: $message");
-
-      // Trigger the simulation
-      simulateRFIDScan();
+      
+      try {
+        String? uid;
+        
+        // Try to parse as JSON first
+        try {
+          final Map<String, dynamic> parsedMessage = json.decode(message);
+          if (parsedMessage['type'] == 'rfid_scan' && parsedMessage['uid'] != null) {
+            uid = parsedMessage['uid'];
+          }
+        } catch (jsonError) {
+          // If JSON parsing fails, treat the message as a raw UID string
+          String rawData = message.toString().trim();
+          if (rawData.isNotEmpty && rawData.length > 4) {
+            uid = rawData;
+          }
+        }
+        
+        if (uid != null) {
+          // Fetch real student data from database
+          _fetchStudentByRFID(uid);
+        }
+      } catch (e) {
+        print('Error processing WebSocket message: $e');
+        _showErrorNotification('Error processing RFID scan');
+      }
     });
   }
 
-  // Define navigation items - moved out of initState
+  // Function to fetch student data from Supabase
+  Future<void> _fetchStudentByRFID(String rfidUid) async {
+    setState(() {
+      isLoadingStudent = true;
+      scannedStudent = null;
+      fetchers = null;
+      fetchStatus = null;
+      showNotification = false;
+    });
+
+    try {
+      print('Fetching student with RFID UID: $rfidUid');
+      
+      final response = await supabase
+          .from('students')
+          .select()
+          .eq('rfid_uid', rfidUid)
+          .eq('status', 'Active') // Only fetch active students
+          .maybeSingle();
+
+      if (response != null) {
+        final student = Student.fromJson(response);
+        
+        // Generate static fetchers for now (replace with database query later)
+        final staticFetchers = _generateStaticFetchers(student);
+        
+        setState(() {
+          scannedStudent = student;
+          fetchers = staticFetchers;
+          isLoadingStudent = false;
+          selectedIndex = 1; // Switch to verification tab
+        });
+        
+        print('Student found: ${student.fullName}');
+      } else {
+        setState(() {
+          isLoadingStudent = false;
+        });
+        _showErrorNotification('Student not found or inactive');
+        print('No student found with RFID UID: $rfidUid');
+      }
+    } catch (e) {
+      setState(() {
+        isLoadingStudent = false;
+      });
+      _showErrorNotification('Error fetching student data: ${e.toString()}');
+      print('Error fetching student: $e');
+    }
+  }
+
+  // Generate static fetchers for now (will be replaced with database query)
+  List<Fetcher> _generateStaticFetchers(Student student) {
+    return [
+      Fetcher(
+        name: "Guardian 1", // Will be from database
+        imageUrl: "https://i.pravatar.cc/150?img=3",
+        relationship: "Parent",
+        contact: "+1 (555) 0123",
+      ),
+      Fetcher(
+        name: "Guardian 2", // Will be from database
+        imageUrl: "https://i.pravatar.cc/150?img=13",
+        relationship: "Guardian",
+        contact: "+1 (555) 0456",
+      ),
+    ];
+  }
+
+  // Show error notification
+  void _showErrorNotification(String message) {
+    setState(() {
+      showNotification = true;
+      notificationMessage = message;
+      notificationColor = Colors.red;
+    });
+
+    Future.delayed(Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          showNotification = false;
+        });
+      }
+    });
+  }
+
+  // Define navigation items
   List<_NavItem> get navItems => [
     _NavItem("Dashboard", Icons.dashboard_outlined),
     _NavItem("Student Verification", Icons.verified_outlined),
@@ -86,45 +249,8 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   ];
 
   void simulateRFIDScan() {
-    setState(() {
-      scannedStudent = Student(
-        name: "Sarah Johnson",
-        imageUrl: "https://i.pravatar.cc/150?img=5",
-        studentId: "STU-2024-0123",
-        emergencyContact: "+1 (555) 123-4567",
-        grade: "8",
-        section: "A",
-      );
-
-      fetchers = [
-        Fetcher(
-          name: "Michael Johnson",
-          imageUrl: "https://i.pravatar.cc/150?img=3",
-          relationship: "Father",
-          contact: "+1 (555) 0123",
-        ),
-        Fetcher(
-          name: "Emma Smith",
-          imageUrl: "https://i.pravatar.cc/150?img=13",
-          relationship: "Fetcher",
-          contact: "+1 (555) 0123",
-        ),
-        Fetcher(
-          name: "Sarah Wilsom",
-          imageUrl: "https://i.pravatar.cc/150?img=3",
-          relationship: "Guardian",
-          contact: "+1 (555) 0123",
-        ),
-      ];
-
-      fetchStatus = null;
-      showNotification = false;
-
-      // Switch to verification tab automatically
-      setState(() {
-        selectedIndex = 1;
-      });
-    });
+    // Use one of your test RFID UIDs
+    _fetchStudentByRFID('d9e0c801'); // Using the RFID UID from your sample data
   }
 
   void clearScan() {
@@ -133,6 +259,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
       fetchers = null;
       fetchStatus = null;
       showNotification = false;
+      isLoadingStudent = false;
     });
   }
 
@@ -146,15 +273,17 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
       // Show notification
       showNotification = true;
-      notificationMessage =
-          approved
-              ? 'Pickup approved at $formattedTime'
-              : 'Pickup denied at $formattedTime';
+      notificationMessage = approved
+          ? 'Pickup approved at $formattedTime'
+          : 'Pickup denied at $formattedTime';
       notificationColor = approved ? Colors.green : Colors.red;
       actionTimestamp = now;
     });
 
-    // Optional: hide notification after a few seconds
+    // TODO: Save the approval/denial to database
+    _savePickupRecord(approved);
+
+    // Hide notification after a few seconds
     Future.delayed(Duration(seconds: 5), () {
       if (mounted) {
         setState(() {
@@ -163,7 +292,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
       }
     });
 
-    // Optional: clear scan after some time
+    // Clear scan after some time
     Future.delayed(Duration(seconds: 3), () {
       if (mounted) {
         clearScan();
@@ -171,12 +300,36 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     });
   }
 
+  // Placeholder for saving pickup records (implement when you create pickup_records table)
+  Future<void> _savePickupRecord(bool approved) async {
+    if (scannedStudent == null) return;
+
+    try {
+      // TODO: When you create a pickup_records table, save the record here
+      print('Saving pickup record: ${approved ? 'approved' : 'denied'} for student ${scannedStudent!.fullName}');
+      
+      // Example of what the table structure might look like:
+      /*
+      final record = {
+        'student_id': scannedStudent!.id,
+        'guard_id': user?.id,
+        'action': approved ? 'approved' : 'denied',
+        'timestamp': DateTime.now().toIso8601String(),
+        'notes': null,
+      };
+      
+      await supabase.from('pickup_records').insert(record);
+      */
+    } catch (e) {
+      print('Error saving pickup record: $e');
+    }
+  }
+
   // Function to handle logout
   Future<void> _handleLogout(BuildContext context) async {
     try {
       await supabase.auth.signOut();
 
-      // Navigate to login screen and clear the navigation stack
       if (context.mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
       }
@@ -189,7 +342,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     }
   }
 
-  // Dashboard content
+  // Dashboard content (keeping the same)
   Widget _buildDashboardContent() {
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -292,27 +445,27 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
                 // Activity list
                 _activityItem(
-                  "Sarah Johnson",
-                  "Checked out by parent (John Johnson)",
+                  "RFID Tag",
+                  "Checked out by guardian",
                   "10:15 AM",
                   Icons.logout,
                   Colors.green,
                 ),
                 _divider(),
                 _activityItem(
-                  "Michael Smith",
-                  "Checked in by guardian (Mary Smith)",
+                  "RFID Card",
+                  "Checked in by parent",
                   "8:30 AM",
                   Icons.login,
                   Colors.blue,
                 ),
                 _divider(),
                 _activityItem(
-                  "Emma Davis",
-                  "Checked out by approved pickup (Tom Wilson)",
+                  "Test Student",
+                  "Pickup denied - unauthorized fetcher",
                   "3:45 PM",
-                  Icons.logout,
-                  Colors.green,
+                  Icons.block,
+                  Colors.red,
                 ),
               ],
             ),
@@ -403,7 +556,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     return Divider(color: Colors.grey[200], height: 1);
   }
 
-  // Updated Student verification content based on the image
+  // Updated Student verification content
   Widget _buildVerificationContent() {
     return Stack(
       children: [
@@ -429,13 +582,13 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                             color: Colors.black87,
                           ),
                         ),
-                        // Subtle Simulation Button for presentation purposes
-                        if (scannedStudent == null)
+                        // Simulate button for testing
+                        if (scannedStudent == null && !isLoadingStudent)
                           TextButton.icon(
                             onPressed: simulateRFIDScan,
                             icon: Icon(Icons.developer_mode, size: 16),
                             label: Text(
-                              'Simulate Scan',
+                              'Test with Sample',
                               style: TextStyle(fontSize: 12),
                             ),
                             style: TextButton.styleFrom(
@@ -460,8 +613,10 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                     ),
                     SizedBox(height: 24),
 
-                    // RFID Card box or Student info
-                    if (scannedStudent == null)
+                    // RFID Card box or Student info or Loading
+                    if (isLoadingStudent)
+                      _buildLoadingBox()
+                    else if (scannedStudent == null)
                       _buildRfidScanBox()
                     else
                       _buildStudentInfoBox(),
@@ -478,7 +633,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Authorized Fetcher',
+                      'Authorized Fetchers',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -501,7 +656,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                       Expanded(
                         child: Center(
                           child: Text(
-                            'No student scanned',
+                            isLoadingStudent ? 'Loading...' : 'No student scanned',
                             style: TextStyle(
                               fontSize: 16,
                               color: Colors.grey[400],
@@ -513,7 +668,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
                     SizedBox(height: 16),
 
-                    if (scannedStudent != null)
+                    if (scannedStudent != null && !isLoadingStudent)
                       Column(
                         children: [
                           _buildActionButton(
@@ -544,17 +699,51 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     );
   }
 
+  // Loading widget
+  Widget _buildLoadingBox() {
+    return Column(
+      children: [
+        Container(
+          margin: EdgeInsets.only(bottom: 24),
+          padding: EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.blue[100]!, width: 1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Colors.blue),
+              SizedBox(height: 16),
+              Text(
+                'Loading Student Data...',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.blue[700],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          height: 320,
+          alignment: Alignment.center,
+          child: CircularProgressIndicator(color: Colors.blue),
+        ),
+      ],
+    );
+  }
+
   // Floating notification widget
   Widget _buildFloatingNotification() {
-    final formattedDate =
-        actionTimestamp != null
-            ? "${actionTimestamp!.year}-${actionTimestamp!.month.toString().padLeft(2, '0')}-${actionTimestamp!.day.toString().padLeft(2, '0')}"
-            : '2025-05-29'; // Hardcoded date for presentation
+    final formattedDate = actionTimestamp != null
+        ? "${actionTimestamp!.year}-${actionTimestamp!.month.toString().padLeft(2, '0')}-${actionTimestamp!.day.toString().padLeft(2, '0')}"
+        : '2025-07-15';
 
-    final formattedTime =
-        actionTimestamp != null
-            ? "${actionTimestamp!.hour.toString().padLeft(2, '0')}:${actionTimestamp!.minute.toString().padLeft(2, '0')}:${actionTimestamp!.second.toString().padLeft(2, '0')}"
-            : '12:33:55'; // Hardcoded time for presentation
+    final formattedTime = actionTimestamp != null
+        ? "${actionTimestamp!.hour.toString().padLeft(2, '0')}:${actionTimestamp!.minute.toString().padLeft(2, '0')}:${actionTimestamp!.second.toString().padLeft(2, '0')}"
+        : '12:33:55';
 
     return Positioned(
       top: 24,
@@ -579,7 +768,8 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                fetchStatus == 'approved' ? Icons.check_circle : Icons.cancel,
+                fetchStatus == 'approved' ? Icons.check_circle : 
+                (fetchStatus == 'denied' ? Icons.cancel : Icons.error),
                 color: Colors.white,
                 size: 20,
               ),
@@ -591,7 +781,9 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                   Text(
                     fetchStatus == 'approved'
                         ? 'Pickup Approved'
-                        : 'Pickup Denied',
+                        : fetchStatus == 'denied' 
+                          ? 'Pickup Denied'
+                          : 'Error',
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -607,7 +799,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                     ),
                   ),
                   Text(
-                    'Record saved to database',
+                    fetchStatus != null ? 'Record saved to database' : '',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.9),
                       fontSize: 12,
@@ -657,7 +849,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
             ],
           ),
         ),
-        // Empty student placeholder - matches style
+        // Empty student placeholder
         Container(
           height: 320,
           alignment: Alignment.center,
@@ -774,16 +966,24 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                   width: 150,
                   height: 150,
                   fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 150,
+                      height: 150,
+                      color: Colors.grey[300],
+                      child: Icon(Icons.person, size: 80, color: Colors.grey[600]),
+                    );
+                  },
                 ),
               ),
               SizedBox(height: 16),
               Text(
-                scannedStudent!.name,
+                scannedStudent!.fullName,
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 4),
               Text(
-                'Grade ${scannedStudent!.grade} - Section ${scannedStudent!.section}',
+                scannedStudent!.classSection,
                 style: TextStyle(fontSize: 14, color: Colors.grey[600]),
               ),
               SizedBox(height: 16),
@@ -856,7 +1056,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
           ),
         ),
 
-        // Reset button for simulation
+        // Reset button
         SizedBox(height: 16),
         Align(
           alignment: Alignment.centerRight,
@@ -891,6 +1091,14 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                 width: 64,
                 height: 64,
                 fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    width: 64,
+                    height: 64,
+                    color: Colors.grey[300],
+                    child: Icon(Icons.person, size: 32, color: Colors.grey[600]),
+                  );
+                },
               ),
             ),
             SizedBox(width: 16),
@@ -996,7 +1204,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                     ElevatedButton.icon(
                       onPressed: simulateRFIDScan,
                       icon: Icon(Icons.sync),
-                      label: Text('Simulate RFID Scan'),
+                      label: Text('Test with Sample Data'),
                       style: ElevatedButton.styleFrom(
                         padding: EdgeInsets.symmetric(
                           horizontal: 24,
@@ -1025,7 +1233,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     return Scaffold(
       body: Row(
         children: [
-          // Sidebar Navigation - copied from admin panel layout
+          // Sidebar Navigation
           Container(
             width: 180,
             color: Colors.white,
@@ -1097,7 +1305,6 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
     return InkWell(
       onTap: () {
-        // If it's the logout button
         if (item.label == "Logout") {
           _handleLogout(context);
         } else {
@@ -1131,6 +1338,12 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    channel.sink.close();
+    super.dispose();
   }
 }
 
