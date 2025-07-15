@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kidsync/widgets/role_protection.dart';
-import 'package:intl/intl.dart'; // Add this import for date formatting
+import 'package:intl/intl.dart';
+import 'package:web_socket_channel/html.dart';
+import 'dart:convert';
+
+late HtmlWebSocketChannel channel;
 
 class StudentManagementPageAdmin extends StatelessWidget {
   const StudentManagementPageAdmin({super.key});
@@ -51,7 +55,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     setState(() {
       students = List<Map<String, dynamic>>.from(response);
       isLoading = false;
-      // No need to call _calculateTotalPages here, as it is now called in build with the filtered list
     });
   }
 
@@ -59,6 +62,171 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     _totalPages = (filteredStudents.length / _itemsPerPage).ceil();
     if (_totalPages == 0) _totalPages = 1;
     if (_currentPage > _totalPages) _currentPage = _totalPages;
+  }
+
+  Future<String?> _showRFIDScanDialog(BuildContext context) async {
+    String? scannedUID;
+    HtmlWebSocketChannel? channel;
+    bool isScanning = true;
+    bool isConnected = false;
+    String connectionStatus = 'Connecting to RFID scanner...';
+
+    return await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            // Initialize WebSocket connection
+            if (channel == null && isScanning) {
+              try {
+                channel = HtmlWebSocketChannel.connect(
+                  'wss://rfid-websocket-server.onrender.com',
+                );
+                channel!.stream.listen(
+                  (data) {
+                    try {
+                      final Map<String, dynamic> message = json.decode(data);
+                      if (message['type'] == 'rfid_scan' &&
+                          message['uid'] != null) {
+                        setState(() {
+                          scannedUID = message['uid'];
+                          isScanning = false;
+                          connectionStatus = 'RFID card detected!';
+                        });
+                      }
+                    } catch (e) {
+                      print('Error parsing WebSocket message: $e');
+                    }
+                  },
+                  onError: (error) {
+                    setState(() {
+                      isConnected = false;
+                      connectionStatus =
+                          'Connection error. Please check your RFID scanner.';
+                    });
+                  },
+                  onDone: () {
+                    setState(() {
+                      isConnected = false;
+                      if (isScanning) {
+                        connectionStatus = 'Connection lost. Please try again.';
+                      }
+                    });
+                  },
+                );
+
+                setState(() {
+                  isConnected = true;
+                  connectionStatus = 'Ready to scan RFID card...';
+                });
+              } catch (e) {
+                setState(() {
+                  isConnected = false;
+                  connectionStatus = 'Failed to connect to RFID scanner.';
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: const Text('Scan RFID Card'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (scannedUID == null) ...[
+                    const Icon(
+                      Icons.contactless,
+                      size: 64,
+                      color: Color(0xFF2ECC71),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      connectionStatus,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color:
+                            isConnected
+                                ? const Color(0xFF2ECC71)
+                                : Colors.orange,
+                      ),
+                    ),
+                    if (isConnected && isScanning) ...[
+                      const SizedBox(height: 16),
+                      const CircularProgressIndicator(color: Color(0xFF2ECC71)),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Please tap the RFID card on the scanner...',
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ] else ...[
+                    const Icon(
+                      Icons.check_circle,
+                      size: 64,
+                      color: Color(0xFF2ECC71),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'RFID Card Scanned Successfully!',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2ECC71),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'UID: $scannedUID',
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    channel?.sink.close();
+                    Navigator.of(context).pop(null);
+                  },
+                  child: const Text('Cancel'),
+                ),
+                if (scannedUID != null)
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2ECC71),
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      channel?.sink.close();
+                      Navigator.of(context).pop(scannedUID);
+                    },
+                    child: const Text('Use This UID'),
+                  ),
+                if (scannedUID == null && isConnected)
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        isScanning = true;
+                        connectionStatus = 'Ready to scan RFID card...';
+                      });
+                    },
+                    child: const Text('Retry'),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _addOrEditStudent({Map<String, dynamic>? student}) async {
@@ -73,6 +241,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     // String? email = student?['email'];
     // String? contactNumber = student?['contact_number'];
     String? status = student?['status'] ?? 'Active';
+    String? rfidUID = student?['rfid_uid']; // Add RFID UID field
 
     await showDialog(
       context: context,
@@ -138,6 +307,123 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   controller: TextEditingController(text: section),
                   onChanged: (val) => section = val,
                 ),
+                const SizedBox(height: 16),
+                // RFID UID Section
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.contactless,
+                            color: Color(0xFF2ECC71),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'RFID Card',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (rfidUID != null && rfidUID!.isNotEmpty) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Current UID:',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              Text(
+                                rfidUID!,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.contactless),
+                                label: const Text('Scan New Card'),
+                                onPressed: () async {
+                                  final newUID = await _showRFIDScanDialog(
+                                    context,
+                                  );
+                                  if (newUID != null) {
+                                    setState(() {
+                                      rfidUID = newUID;
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.clear, color: Colors.red),
+                              tooltip: 'Remove RFID',
+                              onPressed: () {
+                                setState(() {
+                                  rfidUID = null;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        const Text(
+                          'No RFID card assigned',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.contactless),
+                            label: const Text('Scan RFID Card'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2ECC71),
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: () async {
+                              final newUID = await _showRFIDScanDialog(context);
+                              if (newUID != null) {
+                                setState(() {
+                                  rfidUID = newUID;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: 'Status'),
                   value: status,
@@ -176,6 +462,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   // 'email': email,
                   // 'contact_number': contactNumber,
                   'status': status,
+                  'rfid_uid': rfidUID,
                 };
                 if (student == null) {
                   await supabase.from('students').insert(payload);
