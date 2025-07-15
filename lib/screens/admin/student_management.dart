@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kidsync/widgets/role_protection.dart';
 import 'package:intl/intl.dart';
@@ -229,16 +230,65 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   }
 
   Future<void> _addOrEditStudent({Map<String, dynamic>? student}) async {
-    String? fname = student?['fname'];
-    String? mname = student?['mname'];
-    String? lname = student?['lname'];
-    String? gender = student?['gender'];
-    String? address = student?['address'];
-    String? birthday = student?['birthday'];
-    String? grade = student?['grade_level'];
-    String? section = student?['section_id']?.toString();
-    String? status = student?['status'] ?? 'Active';
-    String? rfidUID = student?['rfid_uid']; // Add RFID UID field
+    print('Debug: Student data received: $student'); // Debug print
+
+    // Form controllers
+    final fnameController = TextEditingController(text: student?['fname']?.toString() ?? '');
+    final mnameController = TextEditingController(text: student?['mname']?.toString() ?? '');
+    final lnameController = TextEditingController(text: student?['lname']?.toString() ?? '');
+    final addressController = TextEditingController(text: student?['address']?.toString() ?? '');
+    final birthdayController = TextEditingController(
+      text: student?['birthday'] != null 
+        ? DateFormat('yyyy-MM-dd').format(DateTime.parse(student!['birthday'].toString()))
+        : ''
+    );
+
+    // Form state variables - Aligned with schema
+    String? selectedGender = student?['gender']?.toString();
+    
+    // Fix: grade_level is INTEGER in database
+    int? selectedGradeLevel;
+    if (student?['grade_level'] != null) {
+      final gradeValue = student!['grade_level'];
+      if (gradeValue is int) {
+        selectedGradeLevel = gradeValue;
+      } else if (gradeValue is String) {
+        selectedGradeLevel = int.tryParse(gradeValue);
+      }
+    }
+    
+    // Fix: section_id is VARCHAR (STRING) in database
+    String? selectedSectionId;
+    if (student?['section_id'] != null) {
+      selectedSectionId = student!['section_id'].toString();
+    }
+    
+    String selectedStatus = student?['status']?.toString() ?? 'Active';
+    String? rfidUID = student?['rfid_uid']?.toString();
+    
+    DateTime? selectedBirthday;
+    if (student?['birthday'] != null) {
+      try {
+        selectedBirthday = DateTime.parse(student!['birthday'].toString());
+      } catch (e) {
+        print('Error parsing birthday: $e');
+      }
+    }
+
+    // Form validation key
+    final formKey = GlobalKey<FormState>();
+
+    // Gender options
+    final genderOptions = ['Male', 'Female', 'Other'];
+    
+    // Grade level options (integers to match database)
+    final gradeOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    
+    // Section options (strings to match database)
+    final sectionOptions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+
+    print('Debug: selectedGradeLevel: $selectedGradeLevel (${selectedGradeLevel.runtimeType})'); // Debug print
+    print('Debug: selectedSectionId: $selectedSectionId (${selectedSectionId.runtimeType})'); // Debug print
 
     await showDialog(
       context: context,
@@ -246,129 +296,423 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: Text(student == null ? 'Add New Student' : 'Edit Student'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'First Name',
-                      ),
-                      controller: TextEditingController(text: fname),
-                      onChanged: (val) => fname = val,
-                    ),
-                    TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Middle Name',
-                      ),
-                      controller: TextEditingController(text: mname),
-                      onChanged: (val) => mname = val,
-                    ),
-                    TextField(
-                      decoration: const InputDecoration(labelText: 'Last Name'),
-                      controller: TextEditingController(text: lname),
-                      onChanged: (val) => lname = val,
-                    ),
-                    TextField(
-                      decoration: const InputDecoration(labelText: 'Gender'),
-                      controller: TextEditingController(text: gender),
-                      onChanged: (val) => gender = val,
-                    ),
-                    TextField(
-                      decoration: const InputDecoration(labelText: 'Address'),
-                      controller: TextEditingController(text: address),
-                      onChanged: (val) => address = val,
-                    ),
-                    TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Birthday (YYYY-MM-DD)',
-                      ),
-                      controller: TextEditingController(text: birthday),
-                      onChanged: (val) => birthday = val,
-                    ),
-                    TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Grade Level',
-                      ),
-                      controller: TextEditingController(text: grade),
-                      onChanged: (val) => grade = val,
-                    ),
-                    TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Section ID',
-                      ),
-                      controller: TextEditingController(text: section),
-                      onChanged: (val) => section = val,
-                    ),
-                    const SizedBox(height: 16),
-                    // RFID UID Section
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey[300]!),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.contactless,
-                                color: Color(0xFF2ECC71),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'RFID Card',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+              title: Row(
+                children: [
+                  Icon(
+                    student == null ? Icons.person_add : Icons.edit,
+                    color: const Color(0xFF2ECC71),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(student == null ? 'Add New Student' : 'Edit Student'),
+                ],
+              ),
+              content: Container(
+                width: 500,
+                child: Form(
+                  key: formKey,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Personal Information Section
+                        _buildSectionHeader('Personal Information'),
+                        const SizedBox(height: 16),
+                        
+                        // Name fields row
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                controller: fnameController,
+                                decoration: _buildInputDecoration(
+                                  'First Name',
+                                  Icons.person,
+                                  isRequired: true,
                                 ),
+                                validator: (value) {
+                                  if (value?.trim().isEmpty ?? true) {
+                                    return 'First name is required';
+                                  }
+                                  return null;
+                                },
+                                textCapitalization: TextCapitalization.words,
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          if (rfidUID != null && rfidUID!.isNotEmpty) ...[
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[100],
-                                borderRadius: BorderRadius.circular(4),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: mnameController,
+                                decoration: _buildInputDecoration(
+                                  'Middle Name',
+                                  Icons.person_outline,
+                                ),
+                                textCapitalization: TextCapitalization.words,
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Current UID:',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                controller: lnameController,
+                                decoration: _buildInputDecoration(
+                                  'Last Name',
+                                  Icons.person,
+                                  isRequired: true,
+                                ),
+                                validator: (value) {
+                                  if (value?.trim().isEmpty ?? true) {
+                                    return 'Last name is required';
+                                  }
+                                  return null;
+                                },
+                                textCapitalization: TextCapitalization.words,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Gender and Birthday row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                decoration: _buildInputDecoration(
+                                  'Gender',
+                                  Icons.wc,
+                                  isRequired: true,
+                                ),
+                                value: genderOptions.contains(selectedGender) ? selectedGender : null,
+                                items: genderOptions.map((gender) {
+                                  return DropdownMenuItem(
+                                    value: gender,
+                                    child: Text(gender),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setDialogState(() {
+                                    selectedGender = value;
+                                  });
+                                },
+                                validator: (value) {
+                                  if (value == null) {
+                                    return 'Please select gender';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: birthdayController,
+                                decoration: _buildInputDecoration(
+                                  'Birthday',
+                                  Icons.calendar_today,
+                                ).copyWith(
+                                  suffixIcon: IconButton(
+                                    icon: const Icon(Icons.calendar_today),
+                                    onPressed: () async {
+                                      final picked = await showDatePicker(
+                                        context: context,
+                                        initialDate: selectedBirthday ?? DateTime.now().subtract(const Duration(days: 365 * 10)),
+                                        firstDate: DateTime(1990),
+                                        lastDate: DateTime.now(),
+                                        builder: (context, child) {
+                                          return Theme(
+                                            data: Theme.of(context).copyWith(
+                                              colorScheme: Theme.of(context).colorScheme.copyWith(
+                                                primary: const Color(0xFF2ECC71),
+                                              ),
+                                            ),
+                                            child: child!,
+                                          );
+                                        },
+                                      );
+                                      if (picked != null) {
+                                        setDialogState(() {
+                                          selectedBirthday = picked;
+                                          birthdayController.text = DateFormat('yyyy-MM-dd').format(picked);
+                                        });
+                                      }
+                                    },
                                   ),
-                                  Text(
-                                    rfidUID!,
-                                    style: const TextStyle(
-                                      fontFamily: 'monospace',
-                                      fontWeight: FontWeight.bold,
+                                ),
+                                readOnly: true,
+                                validator: (value) {
+                                  if (value?.trim().isEmpty ?? true) {
+                                    return 'Birthday is required';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Address field
+                        TextFormField(
+                          controller: addressController,
+                          decoration: _buildInputDecoration(
+                            'Address',
+                            Icons.home,
+                            isRequired: true,
+                          ),
+                          maxLines: 2,
+                          validator: (value) {
+                            if (value?.trim().isEmpty ?? true) {
+                              return 'Address is required';
+                            }
+                            return null;
+                          },
+                          textCapitalization: TextCapitalization.words,
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Academic Information Section
+                        _buildSectionHeader('Academic Information'),
+                        const SizedBox(height: 16),
+
+                        // Grade and Section row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<int>(
+                                decoration: _buildInputDecoration(
+                                  'Grade Level',
+                                  Icons.school,
+                                  isRequired: true,
+                                ),
+                                value: gradeOptions.contains(selectedGradeLevel) ? selectedGradeLevel : null,
+                                items: gradeOptions.map((grade) {
+                                  return DropdownMenuItem(
+                                    value: grade,
+                                    child: Text('Grade $grade'),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setDialogState(() {
+                                    selectedGradeLevel = value;
+                                  });
+                                },
+                                validator: (value) {
+                                  if (value == null) {
+                                    return 'Please select grade level';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                decoration: _buildInputDecoration(
+                                  'Section',
+                                  Icons.class_,
+                                  isRequired: true,
+                                ),
+                                value: sectionOptions.contains(selectedSectionId) ? selectedSectionId : null,
+                                items: sectionOptions.map((section) {
+                                  return DropdownMenuItem(
+                                    value: section,
+                                    child: Text('Section $section'),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setDialogState(() {
+                                    selectedSectionId = value;
+                                  });
+                                },
+                                validator: (value) {
+                                  if (value == null) {
+                                    return 'Please select section';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Status dropdown
+                        DropdownButtonFormField<String>(
+                          decoration: _buildInputDecoration(
+                            'Status',
+                            Icons.info,
+                          ),
+                          value: selectedStatus,
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'Active',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.check_circle, color: Colors.green, size: 16),
+                                  SizedBox(width: 8),
+                                  Text('Active'),
+                                ],
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: 'Inactive',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.cancel, color: Colors.red, size: 16),
+                                  SizedBox(width: 8),
+                                  Text('Inactive'),
+                                ],
+                              ),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            setDialogState(() {
+                              selectedStatus = value!;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 24),
+
+                        // RFID Section
+                        _buildSectionHeader('RFID Card'),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            border: Border.all(color: Colors.grey[300]!),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.contactless,
+                                    color: Color(0xFF2ECC71),
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'RFID Card Assignment',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    icon: const Icon(Icons.contactless),
-                                    label: const Text('Scan New Card'),
+                              const SizedBox(height: 12),
+                              if (rfidUID != null && rfidUID!.isNotEmpty) ...[
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green[50],
+                                    border: Border.all(color: Colors.green[200]!),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(Icons.check_circle, color: Colors.green[600], size: 16),
+                                          const SizedBox(width: 6),
+                                          const Text(
+                                            'RFID Card Assigned',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                              color: Colors.green,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'UID: $rfidUID',
+                                        style: const TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        icon: const Icon(Icons.contactless, size: 16),
+                                        label: const Text('Scan New Card', style: TextStyle(fontSize: 12)),
+                                        onPressed: () async {
+                                          final newUID = await _showRFIDScanDialog(context);
+                                          if (newUID != null) {
+                                            setDialogState(() {
+                                              rfidUID = newUID;
+                                            });
+                                          }
+                                        },
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    IconButton(
+                                      icon: const Icon(Icons.clear, color: Colors.red, size: 18),
+                                      tooltip: 'Remove RFID',
+                                      onPressed: () {
+                                        setDialogState(() {
+                                          rfidUID = null;
+                                        });
+                                      },
+                                      padding: const EdgeInsets.all(8),
+                                    ),
+                                  ],
+                                ),
+                              ] else ...[
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange[50],
+                                    border: Border.all(color: Colors.orange[200]!),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.warning, color: Colors.orange[600], size: 16),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'No RFID card assigned',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.orange,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    icon: const Icon(Icons.contactless, size: 16),
+                                    label: const Text('Scan RFID Card', style: TextStyle(fontSize: 12)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF2ECC71),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                    ),
                                     onPressed: () async {
-                                      final newUID = await _showRFIDScanDialog(
-                                        context,
-                                      );
+                                      final newUID = await _showRFIDScanDialog(context);
                                       if (newUID != null) {
                                         setDialogState(() {
                                           rfidUID = newUID;
@@ -377,69 +721,13 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                     },
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.clear,
-                                    color: Colors.red,
-                                  ),
-                                  tooltip: 'Remove RFID',
-                                  onPressed: () {
-                                    setDialogState(() {
-                                      rfidUID = null;
-                                    });
-                                  },
-                                ),
                               ],
-                            ),
-                          ] else ...[
-                            const Text(
-                              'No RFID card assigned',
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                            const SizedBox(height: 8),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                icon: const Icon(Icons.contactless),
-                                label: const Text('Scan RFID Card'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF2ECC71),
-                                  foregroundColor: Colors.white,
-                                ),
-                                onPressed: () async {
-                                  final newUID = await _showRFIDScanDialog(
-                                    context,
-                                  );
-                                  if (newUID != null) {
-                                    setDialogState(() {
-                                      rfidUID = newUID;
-                                    });
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(labelText: 'Status'),
-                      value: status,
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'Active',
-                          child: Text('Active'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Inactive',
-                          child: Text('Inactive'),
+                            ],
+                          ),
                         ),
                       ],
-                      onChanged: (value) => status = value,
                     ),
-                  ],
+                  ),
                 ),
               ),
               actions: [
@@ -451,66 +739,157 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2ECC71),
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   ),
                   onPressed: () async {
-                    try {
-                      final payload = {
-                        'fname': fname,
-                        'mname': mname,
-                        'lname': lname,
-                        'gender': gender,
-                        'address': address,
-                        'birthday': birthday,
-                        'grade_level': grade,
-                        'section_id': section,
-                        'status': status,
-                        'rfid_uid': rfidUID,
-                      };
+                    if (formKey.currentState!.validate()) {
+                      try {
+                        // Create payload with proper data types matching schema
+                        final payload = {
+                          'fname': fnameController.text.trim(),
+                          'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                          'lname': lnameController.text.trim(),
+                          'gender': selectedGender,
+                          'address': addressController.text.trim(),
+                          'birthday': birthdayController.text.isEmpty ? null : birthdayController.text,
+                          'grade_level': selectedGradeLevel, // INTEGER
+                          'section_id': selectedSectionId, // VARCHAR (STRING)
+                          'status': selectedStatus,
+                          'rfid_uid': rfidUID?.isEmpty == true ? null : rfidUID,
+                        };
 
-                      if (student == null) {
-                        await supabase.from('students').insert(payload);
-                      } else {
-                        await supabase
-                            .from('students')
-                            .update(payload)
-                            .eq('id', student['id']);
-                      }
+                        print('Debug: Payload to be sent: $payload'); // Debug print
 
-                      Navigator.pop(context);
-                      _fetchStudents();
+                        if (student == null) {
+                          await supabase.from('students').insert(payload);
+                        } else {
+                          await supabase
+                              .from('students')
+                              .update(payload)
+                              .eq('id', student['id']);
+                        }
 
-                      // Show success message
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              student == null
-                                  ? 'Student added successfully!'
-                                  : 'Student updated successfully!',
+                        Navigator.pop(context);
+                        _fetchStudents();
+
+                        // Show success message
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Row(
+                                children: [
+                                  const Icon(Icons.check_circle, color: Colors.white),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    student == null
+                                        ? 'Student added successfully!'
+                                        : 'Student updated successfully!',
+                                  ),
+                                ],
+                              ),
+                              backgroundColor: const Color(0xFF2ECC71),
+                              behavior: SnackBarBehavior.floating,
                             ),
-                            backgroundColor: const Color(0xFF2ECC71),
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      // Show error message
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error: ${e.toString()}'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
+                          );
+                        }
+                      } catch (e) {
+                        print('Debug: Error saving student: $e'); // Debug print
+                        // Show error message
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Row(
+                                children: [
+                                  const Icon(Icons.error, color: Colors.white),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Text('Error: ${e.toString()}')),
+                                ],
+                              ),
+                              backgroundColor: Colors.red,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
                       }
                     }
                   },
-                  child: Text(student == null ? 'Add' : 'Update'),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(student == null ? Icons.add : Icons.save, size: 16),
+                      const SizedBox(width: 8),
+                      Text(student == null ? 'Add Student' : 'Update Student'),
+                    ],
+                  ),
                 ),
               ],
             );
           },
         );
       },
+    );
+
+    // Dispose controllers
+    fnameController.dispose();
+    mnameController.dispose();
+    lnameController.dispose();
+    addressController.dispose();
+    birthdayController.dispose();
+  }
+
+  // Helper method to build section headers
+  Widget _buildSectionHeader(String title) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 20,
+          decoration: BoxDecoration(
+            color: const Color(0xFF2ECC71),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF333333),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper method to build consistent input decoration
+  InputDecoration _buildInputDecoration(String label, IconData icon, {bool isRequired = false}) {
+    return InputDecoration(
+      labelText: isRequired ? '$label *' : label,
+      prefixIcon: Icon(icon, size: 20),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFF2ECC71), width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.red, width: 1),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.red, width: 2),
+      ),
+      filled: true,
+      fillColor: Colors.grey[50],
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      labelStyle: TextStyle(
+        color: Colors.grey[600],
+        fontSize: 14,
+      ),
     );
   }
 
@@ -522,8 +901,15 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Student deleted successfully!'),
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Student deleted successfully!'),
+              ],
+            ),
             backgroundColor: Color(0xFF2ECC71),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -531,8 +917,15 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error deleting student: ${e.toString()}'),
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Error deleting student: ${e.toString()}')),
+              ],
+            ),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -543,6 +936,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Export functionality would be implemented here'),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -553,21 +947,18 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     final isAdmin = user?.userMetadata?['role'] == 'Admin';
 
     // Apply filters
-    var filteredStudents =
-        students.where((s) {
-          final name = "${s['fname']} ${s['lname']}".toLowerCase();
-          final classMatch =
-              _classFilter == 'All Classes' ||
-              s['grade_level']?.toString() ==
-                  _classFilter.replaceAll(RegExp(r'Grade '), '');
-          final statusMatch =
-              _statusFilter == 'All Status' ||
-              (s['status'] ?? 'Active') == _statusFilter;
+    var filteredStudents = students.where((s) {
+      final name = "${s['fname']} ${s['lname']}".toLowerCase();
+      final classMatch = _classFilter == 'All Classes' ||
+          s['grade_level']?.toString() ==
+              _classFilter.replaceAll(RegExp(r'Grade '), '');
+      final statusMatch = _statusFilter == 'All Status' ||
+          (s['status'] ?? 'Active') == _statusFilter;
 
-          return name.contains(_searchQuery.toLowerCase()) &&
-              classMatch &&
-              statusMatch;
-        }).toList();
+      return name.contains(_searchQuery.toLowerCase()) &&
+          classMatch &&
+          statusMatch;
+    }).toList();
 
     // Apply sorting
     if (_sortOption == 'Name (A-Z)') {
@@ -596,10 +987,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
     // Get current page items
     final int startIndex = (_currentPage - 1) * _itemsPerPage;
-    final int endIndex =
-        startIndex + _itemsPerPage > filteredStudents.length
-            ? filteredStudents.length
-            : startIndex + _itemsPerPage;
+    final int endIndex = startIndex + _itemsPerPage > filteredStudents.length
+        ? filteredStudents.length
+        : startIndex + _itemsPerPage;
 
     final List<Map<String, dynamic>> currentPageItems =
         filteredStudents.length > startIndex
@@ -649,11 +1039,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(vertical: 10.0),
                     ),
-                    onChanged:
-                        (val) => setState(() {
-                          _searchQuery = val;
-                          _currentPage = 1; // Reset to first page on new search
-                        }),
+                    onChanged: (val) => setState(() {
+                      _searchQuery = val;
+                      _currentPage = 1; // Reset to first page on new search
+                    }),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -732,13 +1121,12 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       child: DropdownButton<String>(
                         value: _classFilter,
                         icon: const Icon(Icons.keyboard_arrow_down),
-                        items:
-                            classOptions.map((String item) {
-                              return DropdownMenuItem(
-                                value: item,
-                                child: Text(item),
-                              );
-                            }).toList(),
+                        items: classOptions.map((String item) {
+                          return DropdownMenuItem(
+                            value: item,
+                            child: Text(item),
+                          );
+                        }).toList(),
                         onChanged: (String? newValue) {
                           setState(() {
                             _classFilter = newValue!;
@@ -761,17 +1149,16 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       child: DropdownButton<String>(
                         value: _statusFilter,
                         icon: const Icon(Icons.keyboard_arrow_down),
-                        items:
-                            <String>[
-                              'All Status',
-                              'Active',
-                              'Inactive',
-                            ].map<DropdownMenuItem<String>>((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text(value),
-                              );
-                            }).toList(),
+                        items: <String>[
+                          'All Status',
+                          'Active',
+                          'Inactive',
+                        ].map<DropdownMenuItem<String>>((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value),
+                          );
+                        }).toList(),
                         onChanged: (String? newValue) {
                           setState(() {
                             _statusFilter = newValue!;
@@ -794,18 +1181,17 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       child: DropdownButton<String>(
                         value: _sortOption,
                         icon: const Icon(Icons.keyboard_arrow_down),
-                        items:
-                            <String>[
-                              'Name (A-Z)',
-                              'Name (Z-A)',
-                              'Date (Asc)',
-                              'Date (Desc)',
-                            ].map<DropdownMenuItem<String>>((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text("Sort by: $value"),
-                              );
-                            }).toList(),
+                        items: <String>[
+                          'Name (A-Z)',
+                          'Name (Z-A)',
+                          'Date (Asc)',
+                          'Date (Desc)',
+                        ].map<DropdownMenuItem<String>>((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text("Sort by: $value"),
+                          );
+                        }).toList(),
                         onChanged: (String? newValue) {
                           setState(() {
                             _sortOption = newValue!;
@@ -885,13 +1271,18 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                     "${student['fname'] ?? ''} ${student['lname'] ?? ''}";
                                 final String studentId =
                                     "STU${student['id'].toString().padLeft(3, '0')}";
-                                final String className =
-                                    "Grade ${student['grade_level'] ?? ''}${student['section_id'] != null ? String.fromCharCode(64 + int.parse(student['section_id'])) : ''}";
+                                
+                                // Fix: Handle section_id as string for display
+                                final sectionId = student['section_id']?.toString();
+                                final String className = sectionId != null 
+                                    ? "Grade ${student['grade_level'] ?? ''}$sectionId"
+                                    : "Grade ${student['grade_level'] ?? ''}";
+                                
                                 final enrollmentDate =
                                     student['created_at'] != null
                                         ? DateFormat('yyyy-MM-dd').format(
-                                          DateTime.parse(student['created_at']),
-                                        )
+                                            DateTime.parse(student['created_at']),
+                                          )
                                         : "N/A";
                                 final status = student['status'] ?? 'Active';
 
@@ -1003,21 +1394,18 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                             vertical: 4,
                                           ),
                                           decoration: BoxDecoration(
-                                            color:
-                                                status == 'Active'
-                                                    ? const Color(0xFFE8F5E9)
-                                                    : const Color(0xFFFFEBEE),
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
+                                            color: status == 'Active'
+                                                ? const Color(0xFFE8F5E9)
+                                                : const Color(0xFFFFEBEE),
+                                            borderRadius:
+                                                BorderRadius.circular(4),
                                           ),
                                           child: Text(
                                             status,
                                             style: TextStyle(
-                                              color:
-                                                  status == 'Active'
-                                                      ? const Color(0xFF2E7D32)
-                                                      : const Color(0xFFC62828),
+                                              color: status == 'Active'
+                                                  ? const Color(0xFF2E7D32)
+                                                  : const Color(0xFFC62828),
                                               fontWeight: FontWeight.w500,
                                               fontSize: 12,
                                             ),
@@ -1042,61 +1430,69 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                             } else if (value == 'delete') {
                                               showDialog(
                                                 context: context,
-                                                builder:
-                                                    (ctx) => AlertDialog(
-                                                      title: const Text(
-                                                        'Confirm Delete',
-                                                      ),
-                                                      content: const Text(
-                                                        'Are you sure you want to delete this student?',
-                                                      ),
-                                                      actions: [
-                                                        TextButton(
-                                                          onPressed:
-                                                              () =>
-                                                                  Navigator.pop(
-                                                                    ctx,
-                                                                  ),
-                                                          child: const Text(
-                                                            'Cancel',
-                                                          ),
-                                                        ),
-                                                        ElevatedButton(
-                                                          style:
-                                                              ElevatedButton.styleFrom(
-                                                                backgroundColor:
-                                                                    Colors.red,
-                                                              ),
-                                                          onPressed: () {
-                                                            Navigator.pop(ctx);
-                                                            _deleteStudent(
-                                                              student['id'],
-                                                            );
-                                                          },
-                                                          child: const Text(
-                                                            'Delete',
-                                                            style: TextStyle(
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ],
+                                                builder: (ctx) => AlertDialog(
+                                                  title: const Row(
+                                                    children: [
+                                                      Icon(Icons.warning, color: Colors.red),
+                                                      SizedBox(width: 8),
+                                                      Text('Confirm Delete'),
+                                                    ],
+                                                  ),
+                                                  content: Text(
+                                                    'Are you sure you want to delete ${student['fname']} ${student['lname']}? This action cannot be undone.',
+                                                  ),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(ctx),
+                                                      child: const Text('Cancel'),
                                                     ),
+                                                    ElevatedButton(
+                                                      style: ElevatedButton
+                                                          .styleFrom(
+                                                        backgroundColor:
+                                                            Colors.red,
+                                                      ),
+                                                      onPressed: () {
+                                                        Navigator.pop(ctx);
+                                                        _deleteStudent(
+                                                          student['id'],
+                                                        );
+                                                      },
+                                                      child: const Text(
+                                                        'Delete',
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               );
                                             }
                                           },
-                                          itemBuilder:
-                                              (context) => [
-                                                const PopupMenuItem(
-                                                  value: 'edit',
-                                                  child: Text('Edit'),
-                                                ),
-                                                const PopupMenuItem(
-                                                  value: 'delete',
-                                                  child: Text('Delete'),
-                                                ),
-                                              ],
+                                          itemBuilder: (context) => [
+                                            const PopupMenuItem(
+                                              value: 'edit',
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.edit, size: 16),
+                                                  SizedBox(width: 8),
+                                                  Text('Edit'),
+                                                ],
+                                              ),
+                                            ),
+                                            const PopupMenuItem(
+                                              value: 'delete',
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.delete, size: 16, color: Colors.red),
+                                                  SizedBox(width: 8),
+                                                  Text('Delete', style: TextStyle(color: Colors.red)),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -1130,14 +1526,12 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                               // Previous button
                               IconButton(
                                 icon: const Icon(Icons.chevron_left),
-                                onPressed:
-                                    _currentPage > 1
-                                        ? () => setState(() => _currentPage--)
-                                        : null,
-                                color:
-                                    _currentPage > 1
-                                        ? const Color(0xFF666666)
-                                        : const Color(0xFFCCCCCC),
+                                onPressed: _currentPage > 1
+                                    ? () => setState(() => _currentPage--)
+                                    : null,
+                                color: _currentPage > 1
+                                    ? const Color(0xFF666666)
+                                    : const Color(0xFFCCCCCC),
                               ),
 
                               // Page numbers
@@ -1149,27 +1543,23 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                         i <= _currentPage + 1))
                                   Container(
                                     margin: const EdgeInsets.symmetric(
-                                      horizontal: 4,
-                                    ),
+                                        horizontal: 4),
                                     width: 32,
                                     height: 32,
                                     decoration: BoxDecoration(
-                                      color:
-                                          i == _currentPage
-                                              ? const Color(0xFF2ECC71)
-                                              : Colors.transparent,
+                                      color: i == _currentPage
+                                          ? const Color(0xFF2ECC71)
+                                          : Colors.transparent,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: TextButton(
-                                      onPressed:
-                                          () =>
-                                              setState(() => _currentPage = i),
+                                      onPressed: () =>
+                                          setState(() => _currentPage = i),
                                       style: TextButton.styleFrom(
                                         padding: EdgeInsets.zero,
-                                        foregroundColor:
-                                            i == _currentPage
-                                                ? Colors.white
-                                                : const Color(0xFF666666),
+                                        foregroundColor: i == _currentPage
+                                            ? Colors.white
+                                            : const Color(0xFF666666),
                                       ),
                                       child: Text(
                                         i.toString(),
@@ -1180,23 +1570,20 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                 else if (i == _currentPage - 2 ||
                                     i == _currentPage + 2)
                                   const Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 4,
-                                    ),
+                                    padding:
+                                        EdgeInsets.symmetric(horizontal: 4),
                                     child: Text('...'),
                                   ),
 
                               // Next button
                               IconButton(
                                 icon: const Icon(Icons.chevron_right),
-                                onPressed:
-                                    _currentPage < _totalPages
-                                        ? () => setState(() => _currentPage++)
-                                        : null,
-                                color:
-                                    _currentPage < _totalPages
-                                        ? const Color(0xFF666666)
-                                        : const Color(0xFFCCCCCC),
+                                onPressed: _currentPage < _totalPages
+                                    ? () => setState(() => _currentPage++)
+                                    : null,
+                                color: _currentPage < _totalPages
+                                    ? const Color(0xFF666666)
+                                    : const Color(0xFFCCCCCC),
                               ),
                             ],
                           ),
