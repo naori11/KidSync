@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:kidsync/widgets/add_edit_parent_modal.dart'; // Adjust the import based on your project structure
 
 class ParentGuardianPage extends StatefulWidget {
   const ParentGuardianPage({super.key});
@@ -16,6 +17,8 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
   Map<String, dynamic>? _selectedParent;
   bool _showDetailModal = false;
+  bool _showAddEditModal = false;
+  Map<String, dynamic>? _editingParent;
 
   @override
   void initState() {
@@ -26,109 +29,94 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
   Future<void> _fetchParents() async {
     setState(() => isLoading = true);
 
-    // This is mock data for demo purposes
-    // In a real app, fetch from Supabase: await supabase.from('parents').select();
-    final mockParents = [
-      {
-        'id': 1,
-        'first_name': 'John',
-        'last_name': 'Smith',
-        'phone': '+1 (555) 123-4567',
-        'email': 'john.s@email.com',
-        'student_count': 2,
-        'students': [
-          {
-            'first_name': 'Emma',
-            'last_name': 'Smith',
-            'grade': 2,
-            'section': 'C',
-            'fetchers': ['John Smith'],
-            'drivers': ['James Wilson'],
-            'guardians': ['Lisa Smith'],
-          },
-          {
-            'first_name': 'Jacob',
-            'last_name': 'Smith',
-            'grade': 'Kindergarten',
-            'section': 'A',
-            'fetchers': ['John Smith'],
-            'drivers': ['James Wilson'],
-            'guardians': ['Lisa Smith'],
-          },
-        ],
-      },
-      {
-        'id': 2,
-        'first_name': 'Sarah',
-        'last_name': 'Johnson',
-        'phone': '+1 (555) 234-5678',
-        'email': 'sarah.j@email.com',
-        'student_count': 1,
-        'students': [
-          {
-            'first_name': 'Michael',
-            'last_name': 'Johnson',
-            'grade': 1,
-            'section': 'B',
-            'fetchers': ['Sarah Johnson'],
-            'drivers': ['David Johnson'],
-            'guardians': ['Sarah Johnson'],
-          },
-        ],
-      },
-      {
-        'id': 3,
-        'first_name': 'Robert',
-        'last_name': 'Williams',
-        'phone': '+1 (555) 345-6789',
-        'email': 'robert.w@email.com',
-        'student_count': 2,
-        'students': [
-          {
-            'first_name': 'Sophia',
-            'last_name': 'Williams',
-            'grade': 3,
-            'section': 'A',
-            'fetchers': ['Robert Williams'],
-            'drivers': ['Patricia Williams'],
-            'guardians': ['Robert Williams'],
-          },
-          {
-            'first_name': 'William',
-            'last_name': 'Williams',
-            'grade': 'Preschool',
-            'section': 'B',
-            'fetchers': ['Robert Williams'],
-            'drivers': ['Patricia Williams'],
-            'guardians': ['Robert Williams'],
-          },
-        ],
-      },
-      {
-        'id': 4,
-        'first_name': 'James',
-        'last_name': 'Brown',
-        'phone': '+1 (555) 456-7890',
-        'email': 'james.b@email.com',
-        'student_count': 1,
-        'students': [
-          {
-            'first_name': 'Olivia',
-            'last_name': 'Brown',
-            'grade': 4,
-            'section': 'A',
-            'fetchers': ['James Brown'],
-            'drivers': ['Mary Brown'],
-            'guardians': ['James Brown'],
-          },
-        ],
-      },
-    ];
+    try {
+      print('Fetching parents from database...');
+      
+      // First, fetch all parents
+      final parentsResponse = await supabase
+          .from('parents')
+          .select('*')
+          .eq('status', 'active');
 
-    setState(() {
-      parents = mockParents;
-      isLoading = false;
-    });
+      print('Parents response: $parentsResponse');
+
+      if (parentsResponse.isEmpty) {
+        print('No parents found in database');
+        setState(() {
+          parents = [];
+          isLoading = false;
+        });
+        return;
+      }
+
+      // Transform parents data and get student relationships
+      final List<Map<String, dynamic>> transformedParents = [];
+
+      for (final parentData in parentsResponse) {
+        print('Processing parent: ${parentData['fname']} ${parentData['lname']}');
+        
+        // Get students for this parent
+        final studentsResponse = await supabase
+            .from('parent_student')
+            .select('''
+              relationship_type,
+              is_primary,
+              students!inner(
+                id, fname, mname, lname, grade_level, section_id
+              )
+            ''')
+            .eq('parent_id', parentData['id']);
+
+        print('Students for parent ${parentData['id']}: $studentsResponse');
+
+        List<Map<String, dynamic>> studentsList = [];
+        
+        if (studentsResponse.isNotEmpty) {
+          for (final studentRelation in studentsResponse) {
+            final student = studentRelation['students'];
+            if (student != null) {
+              studentsList.add({
+                'id': student['id'],
+                'first_name': student['fname'],
+                'middle_name': student['mname'],
+                'last_name': student['lname'],
+                'grade': student['grade_level'],
+                'section': student['section_id'],
+                'relationship_type': studentRelation['relationship_type'],
+                'is_primary': studentRelation['is_primary'],
+              });
+            }
+          }
+        }
+
+        // Create parent object
+        final transformedParent = {
+          'id': parentData['id'],
+          'first_name': parentData['fname'],
+          'middle_name': parentData['mname'],
+          'last_name': parentData['lname'],
+          'phone': parentData['phone'],
+          'email': parentData['email'],
+          'address': parentData['address'],
+          'status': parentData['status'],
+          'students': studentsList,
+          'student_count': studentsList.length,
+        };
+
+        transformedParents.add(transformedParent);
+      }
+
+      print('Transformed parents: ${transformedParents.length}');
+
+      setState(() {
+        parents = transformedParents;
+        isLoading = false;
+      });
+    } catch (error) {
+      print('Error fetching parents: $error');
+      setState(() => isLoading = false);
+      _showErrorSnackBar('Error fetching parents: $error');
+    }
   }
 
   void _showParentDetails(Map<String, dynamic> parent) {
@@ -145,15 +133,94 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     });
   }
 
+  void _showAddParentModal() {
+    setState(() {
+      _editingParent = null;
+      _showAddEditModal = true;
+    });
+  }
+
+  void _showEditParentModal(Map<String, dynamic> parent) {
+    setState(() {
+      _editingParent = parent;
+      _showAddEditModal = true;
+    });
+  }
+
+  void _closeAddEditModal() {
+    setState(() {
+      _showAddEditModal = false;
+      _editingParent = null;
+    });
+  }
+
+  Future<void> _deleteParent(Map<String, dynamic> parent) async {
+    final confirm = await _showConfirmDialog(
+      'Delete Parent',
+      'Are you sure you want to delete ${parent['first_name']} ${parent['last_name']}? This action cannot be undone.',
+    );
+
+    if (confirm) {
+      try {
+        await supabase
+            .from('parents')
+            .update({'status': 'deleted'})
+            .eq('id', parent['id']);
+        
+        _showSuccessSnackBar('Parent deleted successfully');
+        _fetchParents();
+      } catch (error) {
+        _showErrorSnackBar('Error deleting parent: $error');
+      }
+    }
+  }
+
+  Future<bool> _showConfirmDialog(String title, String content) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFF2ECC71),
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Filter parents by search query
-    final filteredParents =
-        parents.where((parent) {
-          final fullName =
-              "${parent['first_name']} ${parent['last_name']}".toLowerCase();
-          return fullName.contains(_searchQuery.toLowerCase());
-        }).toList();
+    final filteredParents = parents.where((parent) {
+      final fullName = "${parent['first_name']} ${parent['last_name']}".toLowerCase();
+      return fullName.contains(_searchQuery.toLowerCase());
+    }).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F8F5),
@@ -185,12 +252,9 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                               color: Color(0xFF9E9E9E),
                             ),
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(
-                              vertical: 10.0,
-                            ),
+                            contentPadding: EdgeInsets.symmetric(vertical: 10.0),
                           ),
-                          onChanged:
-                              (val) => setState(() => _searchQuery = val),
+                          onChanged: (val) => setState(() => _searchQuery = val),
                         ),
                       ),
                     ),
@@ -214,16 +278,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                           elevation: 0,
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                         ),
-                        onPressed: () {
-                          // Add parent functionality
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Add parent functionality would go here',
-                              ),
-                            ),
-                          );
-                        },
+                        onPressed: _showAddParentModal,
                       ),
                     ),
                   ],
@@ -231,147 +286,217 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
                 const SizedBox(height: 24),
 
+                // Debug info
+                if (isLoading)
+                  const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF2ECC71),
+                    ),
+                  )
+                else
+                  Text(
+                    'Total parents: ${parents.length}, Filtered: ${filteredParents.length}',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
+
+                const SizedBox(height: 8),
+
                 // Parent Cards Grid
                 Expanded(
-                  child:
-                      isLoading
-                          ? const Center(
-                            child: CircularProgressIndicator(
-                              color: Color(0xFF2ECC71),
-                            ),
-                          )
-                          : filteredParents.isEmpty
-                          ? const Center(child: Text("No parents found"))
-                          : GridView.builder(
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 3,
-                                  crossAxisSpacing: 16.0,
-                                  mainAxisSpacing: 16.0,
-                                  childAspectRatio: 1.5,
-                                ),
-                            itemCount: filteredParents.length,
-                            itemBuilder: (context, index) {
-                              final parent = filteredParents[index];
-                              final fullName =
-                                  "${parent['first_name']} ${parent['last_name']}";
-                              final initial = parent['first_name'][0];
-
-                              return Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: const Color(0xFFE0E0E0),
-                                    width: 1,
+                  child: isLoading
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF2ECC71),
+                          ),
+                        )
+                      : filteredParents.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.people_outline,
+                                    size: 64,
+                                    color: Colors.grey[400],
                                   ),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(20.0),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      // Avatar with initial
-                                      CircleAvatar(
-                                        radius: 28,
-                                        backgroundColor: Colors.grey[300],
-                                        child: Text(
-                                          initial,
-                                          style: const TextStyle(
-                                            fontSize: 24,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    parents.isEmpty ? "No parents found in database" : "No parents match your search",
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  if (parents.isEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    TextButton(
+                                      onPressed: _showAddParentModal,
+                                      child: const Text('Add your first parent'),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            )
+                          : GridView.builder(
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 3,
+                                crossAxisSpacing: 16.0,
+                                mainAxisSpacing: 16.0,
+                                childAspectRatio: 1.3,
+                              ),
+                              itemCount: filteredParents.length,
+                              itemBuilder: (context, index) {
+                                final parent = filteredParents[index];
+                                final fullName = "${parent['first_name']} ${parent['last_name']}";
+                                final initial = parent['first_name'][0].toUpperCase();
 
-                                      // Name
-                                      Text(
-                                        fullName,
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.black87,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      const SizedBox(height: 4),
-
-                                      // Phone
-                                      Text(
-                                        parent['phone'],
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-
-                                      // Student count
-                                      Text(
-                                        "${parent['student_count']} Students",
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-
-                                      // View Details button
-                                      OutlinedButton(
-                                        onPressed:
-                                            () => _showParentDetails(parent),
-                                        style: OutlinedButton.styleFrom(
-                                          side: const BorderSide(
-                                            color: Color(0xFF2ECC71),
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              4,
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: const Color(0xFFE0E0E0),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        // Avatar with initial
+                                        CircleAvatar(
+                                          radius: 24,
+                                          backgroundColor: Colors.grey[300],
+                                          child: Text(
+                                            initial,
+                                            style: const TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.black87,
                                             ),
                                           ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 8,
+                                        ),
+                                        const SizedBox(height: 12),
+
+                                        // Name
+                                        Text(
+                                          fullName,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.black87,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+
+                                        // Phone
+                                        Text(
+                                          parent['phone'] ?? 'No phone',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 4),
+
+                                        // Student count
+                                        Text(
+                                          "${parent['student_count']} Students",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
                                           ),
                                         ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
+                                        const SizedBox(height: 8),
+
+                                        // Action buttons row
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                           children: [
-                                            const Text(
-                                              'View Details',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                color: Color(0xFF2ECC71),
+                                            // View Details button
+                                            Expanded(
+                                              child: OutlinedButton(
+                                                onPressed: () => _showParentDetails(parent),
+                                                style: OutlinedButton.styleFrom(
+                                                  side: const BorderSide(
+                                                    color: Color(0xFF2ECC71),
+                                                  ),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  padding: const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
+                                                  ),
+                                                ),
+                                                child: const Text(
+                                                  'View',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Color(0xFF2ECC71),
+                                                  ),
+                                                ),
                                               ),
                                             ),
                                             const SizedBox(width: 4),
-                                            Icon(
-                                              Icons.arrow_forward,
-                                              size: 16,
-                                              color:
-                                                  Theme.of(
-                                                    context,
-                                                  ).primaryColor,
+                                            // Edit button
+                                            IconButton(
+                                              onPressed: () => _showEditParentModal(parent),
+                                              icon: const Icon(
+                                                Icons.edit,
+                                                size: 16,
+                                                color: Colors.blue,
+                                              ),
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(),
+                                            ),
+                                            // Delete button
+                                            IconButton(
+                                              onPressed: () => _deleteParent(parent),
+                                              icon: const Icon(
+                                                Icons.delete,
+                                                size: 16,
+                                                color: Colors.red,
+                                              ),
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(),
                                             ),
                                           ],
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
-                          ),
+                                );
+                              },
+                            ),
                 ),
               ],
             ),
           ),
 
           // Parent Details Modal
-          if (_showDetailModal && _selectedParent != null)
-            _buildParentDetailModal(),
+          if (_showDetailModal && _selectedParent != null) _buildParentDetailModal(),
+
+          // Add/Edit Parent Modal
+          if (_showAddEditModal) AddEditParentModal(
+            parent: _editingParent,
+            onClose: _closeAddEditModal,
+            onSave: (parent) {
+              _closeAddEditModal();
+              _fetchParents();
+              _showSuccessSnackBar(
+                _editingParent == null 
+                  ? 'Parent added successfully'
+                  : 'Parent updated successfully'
+              );
+            },
+          ),
         ],
       ),
     );
@@ -381,7 +506,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     final parent = _selectedParent!;
     final students = parent['students'] as List;
     final fullName = "${parent['first_name']} ${parent['last_name']}";
-    final initial = parent['first_name'][0];
+    final initial = parent['first_name'][0].toUpperCase();
 
     return Container(
       color: Colors.black.withOpacity(0.5),
@@ -442,7 +567,15 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              parent['email'],
+                              parent['email'] ?? 'No email',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              parent['phone'] ?? 'No phone',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey[600],
@@ -476,133 +609,81 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
                 // Student list
                 Expanded(
-                  child: ListView.separated(
-                    itemCount: students.length,
-                    separatorBuilder:
-                        (context, index) => const Divider(height: 32),
-                    itemBuilder: (context, index) {
-                      final student = students[index];
-                      final studentName =
-                          "${student['first_name']} ${student['last_name']}";
-                      final studentInitial = student['first_name'][0];
-                      final grade = student['grade'];
-                      final section = student['section'];
+                  child: students.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No students assigned',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: students.length,
+                          separatorBuilder: (context, index) => const Divider(height: 32),
+                          itemBuilder: (context, index) {
+                            final student = students[index];
+                            final studentName = "${student['first_name']} ${student['last_name']}";
+                            final studentInitial = student['first_name'][0].toUpperCase();
+                            final grade = student['grade'];
+                            final section = student['section'];
 
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Student info row
-                          Row(
-                            children: [
-                              // Student initial
-                              CircleAvatar(
-                                radius: 18,
-                                backgroundColor: const Color(0xFFE8F5E9),
-                                child: Text(
-                                  studentInitial,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-
-                              // Student details
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    studentName,
+                            return Row(
+                              children: [
+                                // Student initial
+                                CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: const Color(0xFFE8F5E9),
+                                  child: Text(
+                                    studentInitial,
                                     style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.black87,
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '$grade - Section $section',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Fetchers, Drivers, Guardians
-                          _buildContactRow('Fetchers:', student['fetchers']),
-                          const SizedBox(height: 8),
-                          _buildContactRow('Drivers:', student['drivers']),
-                          const SizedBox(height: 8),
-                          _buildContactRow('Guardians:', student['guardians']),
-
-                          // View more link
-                          Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: TextButton.icon(
-                              onPressed: () {
-                                // View more functionality
-                              },
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                minimumSize: const Size(0, 0),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              icon: const Text(
-                                'View more',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF2ECC71),
                                 ),
-                              ),
-                              label: const Icon(
-                                Icons.arrow_forward,
-                                size: 16,
-                                color: Color(0xFF2ECC71),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
+                                const SizedBox(width: 16),
+
+                                // Student details
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        studentName,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Grade $grade - Section $section',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                      Text(
+                                        'Relationship: ${student['relationship_type']}',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
                 ),
               ],
             ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildContactRow(String label, List<dynamic> people) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 80,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            people.join(', '),
-            style: const TextStyle(fontSize: 13, color: Colors.black87),
-          ),
-        ),
-      ],
     );
   }
 }
