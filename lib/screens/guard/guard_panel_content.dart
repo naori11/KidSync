@@ -117,6 +117,25 @@ class Fetcher {
   }
 }
 
+// Activity model for Recent Activity page
+class Activity {
+  final String time;
+  final String studentName;
+  final String gradeClass;
+  final String status;
+  final String verifiedBy;
+  final DateTime timestamp;
+
+  Activity({
+    required this.time,
+    required this.studentName,
+    required this.gradeClass,
+    required this.status,
+    required this.verifiedBy,
+    required this.timestamp,
+  });
+}
+
 class GuardPanelContent extends StatefulWidget {
   const GuardPanelContent({super.key});
 
@@ -135,6 +154,55 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   DateTime? actionTimestamp;
   bool isLoadingStudent = false;
   bool isLoadingFetchers = false;
+
+  // Recent Activity page state
+  String searchQuery = '';
+  String selectedTimePeriod = 'Today';
+  final TextEditingController searchController = TextEditingController();
+
+  // Sample activities data
+  List<Activity> get sampleActivities => [
+    Activity(
+      time: '09:45 AM',
+      studentName: 'Sarah Johnson',
+      gradeClass: 'Kinder',
+      status: 'Checked In',
+      verifiedBy: 'Guardian',
+      timestamp: DateTime.now().subtract(Duration(hours: 2)),
+    ),
+    Activity(
+      time: '09:30 AM',
+      studentName: 'Michael Chen',
+      gradeClass: 'Grade 6',
+      status: 'Denied',
+      verifiedBy: 'Fetcher',
+      timestamp: DateTime.now().subtract(Duration(hours: 3)),
+    ),
+    Activity(
+      time: '09:15 AM',
+      studentName: 'Emily Brown',
+      gradeClass: 'Grade 1',
+      status: 'Checked Out',
+      verifiedBy: 'Parent',
+      timestamp: DateTime.now().subtract(Duration(hours: 4)),
+    ),
+    Activity(
+      time: '08:45 AM',
+      studentName: 'David Wilson',
+      gradeClass: 'Grade 3',
+      status: 'Checked In',
+      verifiedBy: 'Guardian',
+      timestamp: DateTime.now().subtract(Duration(hours: 5)),
+    ),
+    Activity(
+      time: '08:30 AM',
+      studentName: 'Lisa Garcia',
+      gradeClass: 'Grade 2',
+      status: 'Checked In',
+      verifiedBy: 'Parent',
+      timestamp: DateTime.now().subtract(Duration(hours: 6)),
+    ),
+  ];
 
   @override
   void initState() {
@@ -309,11 +377,11 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     });
   }
 
-  // Define navigation items
+  // Define navigation items (removed Scan RFID tab)
   List<_NavItem> get navItems => [
     _NavItem("Dashboard", Icons.dashboard_outlined),
     _NavItem("Student Verification", Icons.verified_outlined),
-    _NavItem("Scan RFID", Icons.credit_card),
+    _NavItem("Recent Activity", Icons.history),
     _NavItem("Logout", Icons.logout),
   ];
 
@@ -844,6 +912,417 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     );
   }
 
+  // New Recent Activity content
+  Widget _buildRecentActivityContent() {
+    // Filter activities based on search query
+    List<Activity> filteredActivities = sampleActivities.where((activity) {
+      return activity.studentName.toLowerCase().contains(searchQuery.toLowerCase());
+    }).toList();
+
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Text(
+            'Recent Activity',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          SizedBox(height: 24),
+
+          // Search and Filter Row
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 40,
+                  child: TextField(
+                    controller: searchController,
+                    onChanged: (value) {
+                      setState(() {
+                        searchQuery = value;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search activities...',
+                      prefixIcon: Icon(Icons.search, size: 20, color: Colors.grey[600]),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue, width: 1),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 16),
+              Container(
+                height: 40,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    // Filter functionality
+                  },
+                  icon: Icon(Icons.filter_list, size: 16),
+                  label: Text('Filter'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.grey[700],
+                    elevation: 1,
+                    side: BorderSide(color: Colors.grey[300]!),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          SizedBox(height: 24),
+
+          // Time Period Tabs
+          Row(
+            children: [
+              _buildTimePeriodTab('Today', selectedTimePeriod == 'Today'),
+              _buildTimePeriodTab('This Week', selectedTimePeriod == 'This Week'),
+              _buildTimePeriodTab('This Month', selectedTimePeriod == 'This Month'),
+            ],
+          ),
+
+          SizedBox(height: 24),
+
+          // Activities Table
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Column(
+                children: [
+                  // Table Header
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(8),
+                        topRight: Radius.circular(8),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(flex: 2, child: _tableHeader('Time')),
+                        Expanded(flex: 3, child: _tableHeader('Student Name')),
+                        Expanded(flex: 2, child: _tableHeader('Grade/Class')),
+                        Expanded(flex: 2, child: _tableHeader('Status')),
+                        Expanded(flex: 2, child: _tableHeader('Verified By')),
+                        Expanded(flex: 1, child: _tableHeader('Actions')),
+                      ],
+                    ),
+                  ),
+
+                  // Table Body
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: filteredActivities.length,
+                      itemBuilder: (context, index) {
+                        final activity = filteredActivities[index];
+                        return _buildActivityRow(activity, index);
+                      },
+                    ),
+                  ),
+
+                  // Table Footer
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      border: Border(top: BorderSide(color: Colors.grey[200]!)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Showing ${filteredActivities.length} of ${sampleActivities.length} entries',
+                          style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        ),
+                        Row(
+                          children: [
+                            IconButton(
+                              onPressed: null,
+                              icon: Icon(Icons.chevron_left, color: Colors.grey[400]),
+                              iconSize: 20,
+                            ),
+                            IconButton(
+                              onPressed: null,
+                              icon: Icon(Icons.chevron_right, color: Colors.grey[400]),
+                              iconSize: 20,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          SizedBox(height: 24),
+
+          // RFID Scanner Status
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SCANNERS',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                SizedBox(height: 16),
+                Container(
+                  height: 40,
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search by ID or Name...',
+                      prefixIcon: Icon(Icons.search, size: 20, color: Colors.grey[600]),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                  ),
+                ),
+                SizedBox(height: 16),
+                Row(
+                  children: [
+                    Text(
+                      'RFID Scanner Status',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    ),
+                    Spacer(),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Connected',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8),
+                Container(
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: FractionallySizedBox(
+                    widthFactor: 1.0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimePeriodTab(String title, bool isSelected) {
+    return Padding(
+      padding: EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            selectedTimePeriod = title;
+          });
+        },
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.green : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? Colors.green : Colors.grey[300]!,
+            ),
+          ),
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              color: isSelected ? Colors.white : Colors.grey[700],
+              fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _tableHeader(String title) {
+    return Text(
+      title,
+      style: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: Colors.grey[700],
+      ),
+    );
+  }
+
+  Widget _buildActivityRow(Activity activity, int index) {
+    Color statusColor;
+    Color statusBgColor;
+    
+    switch (activity.status) {
+      case 'Checked In':
+        statusColor = Colors.green[700]!;
+        statusBgColor = Colors.green[50]!;
+        break;
+      case 'Checked Out':
+        statusColor = Colors.blue[700]!;
+        statusBgColor = Colors.blue[50]!;
+        break;
+      case 'Denied':
+        statusColor = Colors.red[700]!;
+        statusBgColor = Colors.red[50]!;
+        break;
+      default:
+        statusColor = Colors.grey[700]!;
+        statusBgColor = Colors.grey[50]!;
+    }
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: index % 2 == 0 ? Colors.white : Colors.grey[25],
+        border: Border(bottom: BorderSide(color: Colors.grey[100]!, width: 1)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.grey[300],
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  activity.time,
+                  style: TextStyle(fontSize: 14, color: Colors.black87),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              activity.studentName,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              activity.gradeClass,
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusBgColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                activity.status,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: statusColor,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              activity.verifiedBy,
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: IconButton(
+              onPressed: () {
+                // Actions menu
+              },
+              icon: Icon(Icons.more_horiz, color: Colors.grey[600]),
+              iconSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Loading widget
   Widget _buildLoadingBox() {
     return Column(
@@ -1356,60 +1835,6 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     );
   }
 
-  // RFID scan content
-  Widget _buildScanRFIDContent() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Card(
-              elevation: 4,
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.credit_card, size: 80, color: Colors.blueGrey),
-                    SizedBox(height: 16),
-                    Text(
-                      'RFID Scanner',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Please scan an RFID card to verify a student',
-                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                    ),
-                    SizedBox(height: 32),
-                    ElevatedButton.icon(
-                      onPressed: simulateRFIDScan,
-                      icon: Icon(Icons.sync),
-                      label: Text('Test with Sample Data'),
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    TextButton.icon(
-                      onPressed: clearScan,
-                      icon: Icon(Icons.refresh),
-                      label: Text('Reset'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1476,7 +1901,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
       case 1:
         return _buildVerificationContent();
       case 2:
-        return _buildScanRFIDContent();
+        return _buildRecentActivityContent();
       default:
         return const SizedBox();
     }
@@ -1524,6 +1949,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
   @override
   void dispose() {
+    searchController.dispose();
     channel.sink.close();
     super.dispose();
   }
