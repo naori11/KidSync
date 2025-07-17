@@ -100,14 +100,18 @@ class Fetcher {
     this.isPrimary = false,
   });
 
-  factory Fetcher.fromParentData(Map<String, dynamic> parentData, Map<String, dynamic> relationshipData) {
+  factory Fetcher.fromParentData(
+    Map<String, dynamic> parentData,
+    Map<String, dynamic> relationshipData,
+  ) {
     final parentInfo = parentData;
     final fullName = '${parentInfo['fname']} ${parentInfo['lname']}';
-    
+
     return Fetcher(
       id: parentInfo['id'],
       name: fullName,
-      imageUrl: 'https://i.pravatar.cc/150?u=${parentInfo['id']}', // Placeholder image
+      imageUrl:
+          'https://i.pravatar.cc/150?u=${parentInfo['id']}', // Placeholder image
       relationship: relationshipData['relationship_type'] ?? 'Parent',
       contact: parentInfo['phone'] ?? 'No phone',
       email: parentInfo['email'] ?? 'No email',
@@ -160,67 +164,29 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   String selectedTimePeriod = 'Today';
   final TextEditingController searchController = TextEditingController();
 
-  // Sample activities data
-  List<Activity> get sampleActivities => [
-    Activity(
-      time: '09:45 AM',
-      studentName: 'Sarah Johnson',
-      gradeClass: 'Kinder',
-      status: 'Checked In',
-      verifiedBy: 'Guardian',
-      timestamp: DateTime.now().subtract(Duration(hours: 2)),
-    ),
-    Activity(
-      time: '09:30 AM',
-      studentName: 'Michael Chen',
-      gradeClass: 'Grade 6',
-      status: 'Denied',
-      verifiedBy: 'Fetcher',
-      timestamp: DateTime.now().subtract(Duration(hours: 3)),
-    ),
-    Activity(
-      time: '09:15 AM',
-      studentName: 'Emily Brown',
-      gradeClass: 'Grade 1',
-      status: 'Checked Out',
-      verifiedBy: 'Parent',
-      timestamp: DateTime.now().subtract(Duration(hours: 4)),
-    ),
-    Activity(
-      time: '08:45 AM',
-      studentName: 'David Wilson',
-      gradeClass: 'Grade 3',
-      status: 'Checked In',
-      verifiedBy: 'Guardian',
-      timestamp: DateTime.now().subtract(Duration(hours: 5)),
-    ),
-    Activity(
-      time: '08:30 AM',
-      studentName: 'Lisa Garcia',
-      gradeClass: 'Grade 2',
-      status: 'Checked In',
-      verifiedBy: 'Parent',
-      timestamp: DateTime.now().subtract(Duration(hours: 6)),
-    ),
-  ];
+  List<Activity> activities =
+      []; // Fetched from Supabase instead of sampleActivities
 
   @override
   void initState() {
     super.initState();
     // Initialize WebSocket channel
-    channel = HtmlWebSocketChannel.connect('wss://rfid-websocket-server.onrender.com');
+    channel = HtmlWebSocketChannel.connect(
+      'wss://rfid-websocket-server.onrender.com',
+    );
 
     // Listen for incoming RFID data
     channel.stream.listen((message) {
       print("RFID received: $message");
-      
+
       try {
         String? uid;
-        
+
         // Try to parse as JSON first
         try {
           final Map<String, dynamic> parsedMessage = json.decode(message);
-          if (parsedMessage['type'] == 'rfid_scan' && parsedMessage['uid'] != null) {
+          if (parsedMessage['type'] == 'rfid_scan' &&
+              parsedMessage['uid'] != null) {
             uid = parsedMessage['uid'];
           }
         } catch (jsonError) {
@@ -230,7 +196,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
             uid = rawData;
           }
         }
-        
+
         if (uid != null) {
           // Fetch real student data from database
           _fetchStudentByRFID(uid);
@@ -240,6 +206,32 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
         _showErrorNotification('Error processing RFID scan');
       }
     });
+    _fetchRecentActivities();
+  }
+
+  // Store scan record on every RFID scan ---
+  Future<void> _logScanRecord(
+    String rfidUid, {
+    String action = "scanned",
+    String? status,
+    String? verifiedBy,
+    String? notes,
+  }) async {
+    if (scannedStudent == null) return;
+    try {
+      await supabase.from('scan_records').insert({
+        'student_id': scannedStudent!.id,
+        'guard_id': user?.id, // Supabase auth UUID
+        'rfid_uid': rfidUid,
+        'scan_time': DateTime.now().toIso8601String(),
+        'action': action,
+        'verified_by': verifiedBy ?? '',
+        'notes': notes ?? '',
+        'status': status ?? '',
+      });
+    } catch (e) {
+      print('Error logging scan record: $e');
+    }
   }
 
   // Function to fetch student data from Supabase
@@ -253,41 +245,34 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     });
 
     try {
-      print('Fetching student with RFID UID: $rfidUid');
-      
-      final response = await supabase
-          .from('students')
-          .select()
-          .eq('rfid_uid', rfidUid)
-          .neq('status', 'deleted') // Include active and null status students
-          .maybeSingle();
+      final response =
+          await supabase
+              .from('students')
+              .select()
+              .eq('rfid_uid', rfidUid)
+              .neq('status', 'deleted')
+              .maybeSingle();
 
       if (response != null) {
         final student = Student.fromJson(response);
-        
         setState(() {
           scannedStudent = student;
           isLoadingStudent = false;
-          selectedIndex = 1; // Switch to verification tab
+          selectedIndex = 1;
         });
-        
-        print('Student found: ${student.fullName}');
-        
-        // Fetch authorized fetchers for this student
         await _fetchAuthorizedFetchers(student.id);
+        _fetchRecentActivities();
       } else {
         setState(() {
           isLoadingStudent = false;
         });
         _showErrorNotification('Student not found or inactive');
-        print('No student found with RFID UID: $rfidUid');
       }
     } catch (e) {
       setState(() {
         isLoadingStudent = false;
       });
       _showErrorNotification('Error fetching student data: ${e.toString()}');
-      print('Error fetching student: $e');
     }
   }
 
@@ -300,7 +285,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
     try {
       print('Fetching authorized fetchers for student ID: $studentId');
-      
+
       // Fetch parent-student relationships with parent information
       final response = await supabase
           .from('parent_student')
@@ -317,13 +302,18 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
       if (response.isNotEmpty) {
         final List<Fetcher> fetchersList = [];
-        
+
         for (final relationshipData in response) {
           final parentData = relationshipData['parents'];
-          
+
           // Only include active parents
-          if (parentData != null && (parentData['status'] == null || parentData['status'] == 'active')) {
-            final fetcher = Fetcher.fromParentData(parentData, relationshipData);
+          if (parentData != null &&
+              (parentData['status'] == null ||
+                  parentData['status'] == 'active')) {
+            final fetcher = Fetcher.fromParentData(
+              parentData,
+              relationshipData,
+            );
             fetchersList.add(fetcher);
             print('Added fetcher: ${fetcher.name} (${fetcher.relationship})');
           }
@@ -340,7 +330,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
           fetchers = fetchersList;
           isLoadingFetchers = false;
         });
-        
+
         print('Found ${fetchersList.length} authorized fetchers');
       } else {
         setState(() {
@@ -355,7 +345,9 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
         isLoadingFetchers = false;
         fetchers = [];
       });
-      _showErrorNotification('Error fetching authorized fetchers: ${e.toString()}');
+      _showErrorNotification(
+        'Error fetching authorized fetchers: ${e.toString()}',
+      );
       print('Error fetching authorized fetchers: $e');
     }
   }
@@ -411,9 +403,10 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
       // Show notification
       showNotification = true;
-      notificationMessage = approved
-          ? 'Pickup approved at $formattedTime'
-          : 'Pickup denied at $formattedTime';
+      notificationMessage =
+          approved
+              ? 'Pickup approved at $formattedTime'
+              : 'Pickup denied at $formattedTime';
       notificationColor = approved ? Colors.green : Colors.red;
       actionTimestamp = now;
     });
@@ -438,28 +431,93 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     });
   }
 
-  // Placeholder for saving pickup records (implement when you create pickup_records table)
+  // Save approval/denial to scan_records ---
   Future<void> _savePickupRecord(bool approved) async {
     if (scannedStudent == null) return;
-
     try {
-      // TODO: When you create a pickup_records table, save the record here
-      print('Saving pickup record: ${approved ? 'approved' : 'denied'} for student ${scannedStudent!.fullName}');
-      
-      // Example of what the table structure might look like:
-      /*
-      final record = {
+      final verifiedBy =
+          fetchers?.isNotEmpty == true
+              ? fetchers!.first.relationship
+              : "Unknown";
+      final action = approved ? "approved" : "denied";
+      final status = approved ? "Checked In" : "Denied";
+      await supabase.from('scan_records').insert({
         'student_id': scannedStudent!.id,
         'guard_id': user?.id,
-        'action': approved ? 'approved' : 'denied',
-        'timestamp': DateTime.now().toIso8601String(),
-        'notes': null,
-      };
-      
-      await supabase.from('pickup_records').insert(record);
-      */
+        'rfid_uid': scannedStudent!.rfidUid ?? '',
+        'scan_time': DateTime.now().toIso8601String(),
+        'action': action,
+        'verified_by': verifiedBy,
+        'status': status,
+        'notes': !approved ? "Denied by guard" : "",
+      });
+      _fetchRecentActivities();
     } catch (e) {
       print('Error saving pickup record: $e');
+    }
+  }
+
+  // --- NEW: Fetch recent activities from scan_records ---
+  Future<void> _fetchRecentActivities() async {
+    try {
+      // Filtering by time period (today/this week/this month)
+      DateTime now = DateTime.now();
+      DateTime start;
+      switch (selectedTimePeriod) {
+        case 'Today':
+          start = DateTime(now.year, now.month, now.day);
+          break;
+        case 'This Week':
+          start = now.subtract(Duration(days: now.weekday - 1));
+          break;
+        case 'This Month':
+          start = DateTime(now.year, now.month, 1);
+          break;
+        default:
+          start = DateTime(now.year, now.month, now.day);
+      }
+
+      final response = await supabase
+          .from('scan_records')
+          .select('''
+            scan_time, action, verified_by, status, notes,
+            students(id, fname, mname, lname, grade_level, section_id)
+          ''')
+          .gte('scan_time', start.toIso8601String())
+          .order('scan_time', ascending: false)
+          .limit(50);
+
+      List<Activity> fetched = [];
+      for (var record in response) {
+        final student = record['students'];
+        final scanTime = DateTime.parse(record['scan_time']);
+        final gradeClass =
+            student != null
+                ? (student['grade_level']?.toString() ?? "") +
+                    (student['section_id'] != null
+                        ? " - Section ${student['section_id']}"
+                        : "")
+                : "";
+        fetched.add(
+          Activity(
+            time:
+                "${scanTime.hour.toString().padLeft(2, '0')}:${scanTime.minute.toString().padLeft(2, '0')}",
+            studentName:
+                student != null
+                    ? "${student['fname']} ${student['mname'] ?? ''} ${student['lname']}"
+                    : "Unknown",
+            gradeClass: gradeClass,
+            status: record['status'] ?? record['action'],
+            verifiedBy: record['verified_by'] ?? "",
+            timestamp: scanTime,
+          ),
+        );
+      }
+      setState(() {
+        activities = fetched;
+      });
+    } catch (e) {
+      print('Error fetching activities: $e');
     }
   }
 
@@ -783,7 +841,10 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                         ),
                         if (fetchers != null && !isLoadingFetchers)
                           Container(
-                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.blue[50],
                               borderRadius: BorderRadius.circular(12),
@@ -879,13 +940,16 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
                     SizedBox(height: 16),
 
-                    if (scannedStudent != null && !isLoadingStudent && !isLoadingFetchers)
+                    if (scannedStudent != null &&
+                        !isLoadingStudent &&
+                        !isLoadingFetchers)
                       Column(
                         children: [
                           _buildActionButton(
-                            onPressed: (fetchers != null && fetchers!.isNotEmpty) 
-                                ? () => handleApproval(true)
-                                : null,
+                            onPressed:
+                                (fetchers != null && fetchers!.isNotEmpty)
+                                    ? () => handleApproval(true)
+                                    : null,
                             icon: Icons.check_circle_outline,
                             label: "Approve Pick-up",
                             color: Colors.green,
@@ -914,264 +978,266 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
   // New Recent Activity content
   Widget _buildRecentActivityContent() {
-    // Filter activities based on search query
-    List<Activity> filteredActivities = sampleActivities.where((activity) {
-      return activity.studentName.toLowerCase().contains(searchQuery.toLowerCase());
-    }).toList();
+    List<Activity> filteredActivities =
+        activities.where((activity) {
+          return activity.studentName.toLowerCase().contains(
+            searchQuery.toLowerCase(),
+          );
+        }).toList();
 
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
-          Text(
-            'Recent Activity',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          SizedBox(height: 24),
-
-          // Search and Filter Row
+          // Header row, tabs, search, filter unchanged...
           Row(
             children: [
-              Expanded(
-                child: Container(
-                  height: 40,
-                  child: TextField(
-                    controller: searchController,
-                    onChanged: (value) {
-                      setState(() {
-                        searchQuery = value;
-                      });
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'Search activities...',
-                      prefixIcon: Icon(Icons.search, size: 20, color: Colors.grey[600]),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.blue, width: 1),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                  ),
-                ),
+              _buildTimePeriodTab('Today', selectedTimePeriod == 'Today'),
+              _buildTimePeriodTab(
+                'This Week',
+                selectedTimePeriod == 'This Week',
               ),
-              SizedBox(width: 16),
-              Container(
-                height: 40,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    // Filter functionality
-                  },
-                  icon: Icon(Icons.filter_list, size: 16),
-                  label: Text('Filter'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.grey[700],
-                    elevation: 1,
-                    side: BorderSide(color: Colors.grey[300]!),
-                    shape: RoundedRectangleBorder(
+              _buildTimePeriodTab(
+                'This Month',
+                selectedTimePeriod == 'This Month',
+              ),
+              Spacer(),
+              SizedBox(
+                width: 250,
+                child: TextField(
+                  controller: searchController,
+                  onChanged: (value) => setState(() => searchQuery = value),
+                  decoration: InputDecoration(
+                    hintText: 'Search activities...',
+                    prefixIcon: Icon(
+                      Icons.search,
+                      size: 20,
+                      color: Colors.grey[600],
+                    ),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                 ),
               ),
-            ],
-          ),
-
-          SizedBox(height: 24),
-
-          // Time Period Tabs
-          Row(
-            children: [
-              _buildTimePeriodTab('Today', selectedTimePeriod == 'Today'),
-              _buildTimePeriodTab('This Week', selectedTimePeriod == 'This Week'),
-              _buildTimePeriodTab('This Month', selectedTimePeriod == 'This Month'),
-            ],
-          ),
-
-          SizedBox(height: 24),
-
-          // Activities Table
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey[200]!),
+              SizedBox(width: 16),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.grey[700],
+                  elevation: 0,
+                  side: BorderSide(color: Colors.grey[300]!),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () {},
+                icon: Icon(Icons.filter_list, size: 16),
+                label: Text('Filter'),
               ),
-              child: Column(
-                children: [
-                  // Table Header
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[50],
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(8),
-                        topRight: Radius.circular(8),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(flex: 2, child: _tableHeader('Time')),
-                        Expanded(flex: 3, child: _tableHeader('Student Name')),
-                        Expanded(flex: 2, child: _tableHeader('Grade/Class')),
-                        Expanded(flex: 2, child: _tableHeader('Status')),
-                        Expanded(flex: 2, child: _tableHeader('Verified By')),
-                        Expanded(flex: 1, child: _tableHeader('Actions')),
-                      ],
-                    ),
-                  ),
-
-                  // Table Body
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: filteredActivities.length,
-                      itemBuilder: (context, index) {
-                        final activity = filteredActivities[index];
-                        return _buildActivityRow(activity, index);
-                      },
-                    ),
-                  ),
-
-                  // Table Footer
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      border: Border(top: BorderSide(color: Colors.grey[200]!)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Showing ${filteredActivities.length} of ${sampleActivities.length} entries',
-                          style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                        ),
+            ],
+          ),
+          SizedBox(height: 24),
+          // Table header
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+            ),
+            child: Row(
+              children: [
+                _tableHeaderCell('Time', flex: 2),
+                _tableHeaderCell('Student Name', flex: 3),
+                _tableHeaderCell('Grade/Class', flex: 2),
+                _tableHeaderCell('Status', flex: 2),
+                _tableHeaderCell('Verified By', flex: 2),
+                _tableHeaderCell('Actions', flex: 1),
+              ],
+            ),
+          ),
+          Divider(height: 1, thickness: 1, color: Colors.grey[200]),
+          // Table body
+          Expanded(
+            child: ListView.separated(
+              itemCount: filteredActivities.length,
+              separatorBuilder:
+                  (context, i) =>
+                      Divider(height: 1, thickness: 1, color: Colors.grey[200]),
+              itemBuilder: (context, index) {
+                final activity = filteredActivities[index];
+                return Container(
+                  height: 56,
+                  alignment: Alignment.center,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _tableCell(
                         Row(
                           children: [
-                            IconButton(
-                              onPressed: null,
-                              icon: Icon(Icons.chevron_left, color: Colors.grey[400]),
-                              iconSize: 20,
+                            Icon(
+                              Icons.access_time,
+                              size: 16,
+                              color: Colors.grey[400],
                             ),
-                            IconButton(
-                              onPressed: null,
-                              icon: Icon(Icons.chevron_right, color: Colors.grey[400]),
-                              iconSize: 20,
+                            SizedBox(width: 8),
+                            Text(
+                              activity.time,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.black87,
+                              ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
+                        flex: 2,
+                      ),
+                      _tableCell(
+                        Text(
+                          activity.studentName,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        flex: 3,
+                      ),
+                      _tableCell(
+                        Text(
+                          activity.gradeClass,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        flex: 2,
+                      ),
+                      _tableCell(_statusChip(activity.status), flex: 2),
+                      _tableCell(
+                        Text(
+                          activity.verifiedBy,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        flex: 2,
+                      ),
+                      _tableCell(
+                        IconButton(
+                          icon: Icon(
+                            Icons.more_horiz,
+                            color: Colors.grey[600],
+                            size: 20,
+                          ),
+                          onPressed: () {},
+                        ),
+                        flex: 1,
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ),
-
-          SizedBox(height: 24),
-
-          // RFID Scanner Status
+          // Pagination/footer
           Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey[200]!),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'SCANNERS',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[700],
-                  ),
+                  'Showing ${filteredActivities.length} of ${activities.length} entries',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
-                SizedBox(height: 16),
-                Container(
-                  height: 40,
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Search by ID or Name...',
-                      prefixIcon: Icon(Icons.search, size: 20, color: Colors.grey[600]),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                  ),
-                ),
-                SizedBox(height: 16),
                 Row(
                   children: [
-                    Text(
-                      'RFID Scanner Status',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    IconButton(
+                      onPressed: null,
+                      icon: Icon(Icons.chevron_left, color: Colors.grey[400]),
+                      iconSize: 20,
                     ),
-                    Spacer(),
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.green[50],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'Connected',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.green[700],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                    IconButton(
+                      onPressed: null,
+                      icon: Icon(Icons.chevron_right, color: Colors.grey[400]),
+                      iconSize: 20,
                     ),
                   ],
-                ),
-                SizedBox(height: 8),
-                Container(
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                  child: FractionallySizedBox(
-                    widthFactor: 1.0,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _tableHeaderCell(String title, {int flex = 1}) {
+    return Expanded(
+      flex: flex,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
+        child: Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _tableCell(Widget child, {int flex = 1}) {
+    return Expanded(
+      flex: flex,
+      child: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _statusChip(String status) {
+    Color bg;
+    Color fg;
+    String label;
+    switch (status.toLowerCase()) {
+      case 'checked in':
+        bg = Color(0xFFEFFCF3);
+        fg = Color(0xFF38C976);
+        label = 'Checked In';
+        break;
+      case 'checked out':
+        bg = Color(0xFFF1F7FF);
+        fg = Color(0xFF2D6ADF);
+        label = 'Checked Out';
+        break;
+      case 'denied':
+        bg = Color(0xFFFFF0F0);
+        fg = Color(0xFFF25454);
+        label = 'Denied';
+        break;
+      default:
+        bg = Colors.grey[100]!;
+        fg = Colors.grey[700]!;
+        label = status;
+    }
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 13, color: fg, fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -1221,7 +1287,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   Widget _buildActivityRow(Activity activity, int index) {
     Color statusColor;
     Color statusBgColor;
-    
+
     switch (activity.status) {
       case 'Checked In':
         statusColor = Colors.green[700]!;
@@ -1361,13 +1427,15 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
   // Floating notification widget
   Widget _buildFloatingNotification() {
-    final formattedDate = actionTimestamp != null
-        ? "${actionTimestamp!.year}-${actionTimestamp!.month.toString().padLeft(2, '0')}-${actionTimestamp!.day.toString().padLeft(2, '0')}"
-        : '2025-07-15';
+    final formattedDate =
+        actionTimestamp != null
+            ? "${actionTimestamp!.year}-${actionTimestamp!.month.toString().padLeft(2, '0')}-${actionTimestamp!.day.toString().padLeft(2, '0')}"
+            : '2025-07-15';
 
-    final formattedTime = actionTimestamp != null
-        ? "${actionTimestamp!.hour.toString().padLeft(2, '0')}:${actionTimestamp!.minute.toString().padLeft(2, '0')}:${actionTimestamp!.second.toString().padLeft(2, '0')}"
-        : '12:33:55';
+    final formattedTime =
+        actionTimestamp != null
+            ? "${actionTimestamp!.hour.toString().padLeft(2, '0')}:${actionTimestamp!.minute.toString().padLeft(2, '0')}:${actionTimestamp!.second.toString().padLeft(2, '0')}"
+            : '12:33:55';
 
     return Positioned(
       top: 24,
@@ -1392,8 +1460,9 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                fetchStatus == 'approved' ? Icons.check_circle : 
-                (fetchStatus == 'denied' ? Icons.cancel : Icons.error),
+                fetchStatus == 'approved'
+                    ? Icons.check_circle
+                    : (fetchStatus == 'denied' ? Icons.cancel : Icons.error),
                 color: Colors.white,
                 size: 20,
               ),
@@ -1405,9 +1474,9 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                   Text(
                     fetchStatus == 'approved'
                         ? 'Pickup Approved'
-                        : fetchStatus == 'denied' 
-                          ? 'Pickup Denied'
-                          : 'Error',
+                        : fetchStatus == 'denied'
+                        ? 'Pickup Denied'
+                        : 'Error',
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -1605,7 +1674,11 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                       width: 150,
                       height: 150,
                       color: Colors.grey[300],
-                      child: Icon(Icons.person, size: 80, color: Colors.grey[600]),
+                      child: Icon(
+                        Icons.person,
+                        size: 80,
+                        color: Colors.grey[600],
+                      ),
                     );
                   },
                 ),
@@ -1730,7 +1803,11 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                     width: 64,
                     height: 64,
                     color: Colors.grey[300],
-                    child: Icon(Icons.person, size: 32, color: Colors.grey[600]),
+                    child: Icon(
+                      Icons.person,
+                      size: 32,
+                      color: Colors.grey[600],
+                    ),
                   );
                 },
               ),
@@ -1745,12 +1822,18 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                       Expanded(
                         child: Text(
                           fetcher.name,
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       if (fetcher.isPrimary)
                         Container(
-                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.blue[50],
                             borderRadius: BorderRadius.circular(4),
