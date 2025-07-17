@@ -17,7 +17,7 @@ class Student {
   final String address;
   final String? birthday;
   final String? gradeLevel;
-  final int? sectionId;
+  final String? sectionId;
   final String? gender;
   final String? status;
   final String? rfidUid;
@@ -46,7 +46,7 @@ class Student {
       lname: json['lname'],
       address: json['address'],
       birthday: json['birthday'],
-      gradeLevel: json['grade_level'],
+      gradeLevel: json['grade_level']?.toString(),
       sectionId: json['section_id'],
       gender: json['gender'],
       status: json['status'],
@@ -67,8 +67,7 @@ class Student {
 
   String get classSection {
     if (gradeLevel != null && sectionId != null) {
-      final sectionLetter = String.fromCharCode(64 + sectionId!); // A, B, C, etc.
-      return 'Grade $gradeLevel - Section $sectionLetter';
+      return 'Grade $gradeLevel - Section $sectionId';
     } else if (gradeLevel != null) {
       return 'Grade $gradeLevel';
     }
@@ -77,26 +76,45 @@ class Student {
 
   // Generate placeholder image URL (you can replace this with actual student photos later)
   String get imageUrl => 'https://i.pravatar.cc/150?u=$id';
-
-  // For now, we'll use a placeholder emergency contact
-  String get emergencyContact => '+1 (555) 123-4567'; // Will be from guardians table later
 }
 
-// Keep the existing Fetcher class for static data
+// Updated Fetcher class to include database fields
 class Fetcher {
+  final int id;
   final String name;
   final String imageUrl;
   final String relationship;
   final String contact;
+  final String email;
   final bool authorized;
+  final bool isPrimary;
 
   Fetcher({
+    required this.id,
     required this.name,
     required this.imageUrl,
     required this.relationship,
     required this.contact,
+    required this.email,
     this.authorized = true,
+    this.isPrimary = false,
   });
+
+  factory Fetcher.fromParentData(Map<String, dynamic> parentData, Map<String, dynamic> relationshipData) {
+    final parentInfo = parentData;
+    final fullName = '${parentInfo['fname']} ${parentInfo['lname']}';
+    
+    return Fetcher(
+      id: parentInfo['id'],
+      name: fullName,
+      imageUrl: 'https://i.pravatar.cc/150?u=${parentInfo['id']}', // Placeholder image
+      relationship: relationshipData['relationship_type'] ?? 'Parent',
+      contact: parentInfo['phone'] ?? 'No phone',
+      email: parentInfo['email'] ?? 'No email',
+      authorized: true, // All parents in database are considered authorized
+      isPrimary: relationshipData['is_primary'] ?? false,
+    );
+  }
 }
 
 class GuardPanelContent extends StatefulWidget {
@@ -116,6 +134,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   Color notificationColor = Colors.green;
   DateTime? actionTimestamp;
   bool isLoadingStudent = false;
+  bool isLoadingFetchers = false;
 
   @override
   void initState() {
@@ -172,23 +191,22 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
           .from('students')
           .select()
           .eq('rfid_uid', rfidUid)
-          .eq('status', 'Active') // Only fetch active students
+          .neq('status', 'deleted') // Include active and null status students
           .maybeSingle();
 
       if (response != null) {
         final student = Student.fromJson(response);
         
-        // Generate static fetchers for now (replace with database query later)
-        final staticFetchers = _generateStaticFetchers(student);
-        
         setState(() {
           scannedStudent = student;
-          fetchers = staticFetchers;
           isLoadingStudent = false;
           selectedIndex = 1; // Switch to verification tab
         });
         
         print('Student found: ${student.fullName}');
+        
+        // Fetch authorized fetchers for this student
+        await _fetchAuthorizedFetchers(student.id);
       } else {
         setState(() {
           isLoadingStudent = false;
@@ -205,22 +223,73 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     }
   }
 
-  // Generate static fetchers for now (will be replaced with database query)
-  List<Fetcher> _generateStaticFetchers(Student student) {
-    return [
-      Fetcher(
-        name: "Guardian 1", // Will be from database
-        imageUrl: "https://i.pravatar.cc/150?img=3",
-        relationship: "Parent",
-        contact: "+1 (555) 0123",
-      ),
-      Fetcher(
-        name: "Guardian 2", // Will be from database
-        imageUrl: "https://i.pravatar.cc/150?img=13",
-        relationship: "Guardian",
-        contact: "+1 (555) 0456",
-      ),
-    ];
+  // New function to fetch authorized fetchers from database
+  Future<void> _fetchAuthorizedFetchers(int studentId) async {
+    setState(() {
+      isLoadingFetchers = true;
+      fetchers = null;
+    });
+
+    try {
+      print('Fetching authorized fetchers for student ID: $studentId');
+      
+      // Fetch parent-student relationships with parent information
+      final response = await supabase
+          .from('parent_student')
+          .select('''
+            relationship_type,
+            is_primary,
+            parents!inner(
+              id, fname, mname, lname, phone, email, address, status
+            )
+          ''')
+          .eq('student_id', studentId);
+
+      print('Fetchers response: $response');
+
+      if (response.isNotEmpty) {
+        final List<Fetcher> fetchersList = [];
+        
+        for (final relationshipData in response) {
+          final parentData = relationshipData['parents'];
+          
+          // Only include active parents
+          if (parentData != null && (parentData['status'] == null || parentData['status'] == 'active')) {
+            final fetcher = Fetcher.fromParentData(parentData, relationshipData);
+            fetchersList.add(fetcher);
+            print('Added fetcher: ${fetcher.name} (${fetcher.relationship})');
+          }
+        }
+
+        // Sort fetchers: primary ones first, then by relationship type
+        fetchersList.sort((a, b) {
+          if (a.isPrimary && !b.isPrimary) return -1;
+          if (!a.isPrimary && b.isPrimary) return 1;
+          return a.relationship.compareTo(b.relationship);
+        });
+
+        setState(() {
+          fetchers = fetchersList;
+          isLoadingFetchers = false;
+        });
+        
+        print('Found ${fetchersList.length} authorized fetchers');
+      } else {
+        setState(() {
+          fetchers = [];
+          isLoadingFetchers = false;
+        });
+        print('No authorized fetchers found for student ID: $studentId');
+        _showErrorNotification('No authorized fetchers found for this student');
+      }
+    } catch (e) {
+      setState(() {
+        isLoadingFetchers = false;
+        fetchers = [];
+      });
+      _showErrorNotification('Error fetching authorized fetchers: ${e.toString()}');
+      print('Error fetching authorized fetchers: $e');
+    }
   }
 
   // Show error notification
@@ -260,6 +329,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
       fetchStatus = null;
       showNotification = false;
       isLoadingStudent = false;
+      isLoadingFetchers = false;
     });
   }
 
@@ -632,17 +702,57 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Authorized Fetchers',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Authorized Fetchers',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        if (fetchers != null && !isLoadingFetchers)
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${fetchers!.length} authorized',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.blue[700],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     SizedBox(height: 16),
 
-                    if (fetchers != null)
+                    if (isLoadingFetchers)
+                      Expanded(
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              CircularProgressIndicator(color: Colors.blue),
+                              SizedBox(height: 16),
+                              Text(
+                                'Loading authorized fetchers...',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else if (fetchers != null && fetchers!.isNotEmpty)
                       Expanded(
                         child: ListView.builder(
                           itemCount: fetchers!.length,
@@ -652,11 +762,44 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                           },
                         ),
                       )
+                    else if (fetchers != null && fetchers!.isEmpty)
+                      Expanded(
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.people_outline,
+                                size: 48,
+                                color: Colors.orange[300],
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'No authorized fetchers found',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.orange[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'This student has no registered parents or guardians.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
                     else
                       Expanded(
                         child: Center(
                           child: Text(
-                            isLoadingStudent ? 'Loading...' : 'No student scanned',
+                            'No student scanned',
                             style: TextStyle(
                               fontSize: 16,
                               color: Colors.grey[400],
@@ -668,11 +811,13 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
                     SizedBox(height: 16),
 
-                    if (scannedStudent != null && !isLoadingStudent)
+                    if (scannedStudent != null && !isLoadingStudent && !isLoadingFetchers)
                       Column(
                         children: [
                           _buildActionButton(
-                            onPressed: () => handleApproval(true),
+                            onPressed: (fetchers != null && fetchers!.isNotEmpty) 
+                                ? () => handleApproval(true)
+                                : null,
                             icon: Icons.check_circle_outline,
                             label: "Approve Pick-up",
                             color: Colors.green,
@@ -953,6 +1098,16 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   }
 
   Widget _buildStudentInfoBox() {
+    // Get emergency contact from first primary parent, or first parent if no primary
+    String emergencyContact = '—';
+    if (fetchers != null && fetchers!.isNotEmpty) {
+      final primaryParent = fetchers!.firstWhere(
+        (f) => f.isPrimary,
+        orElse: () => fetchers!.first,
+      );
+      emergencyContact = primaryParent.contact;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1051,7 +1206,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
             ),
           ),
           child: Text(
-            scannedStudent!.emergencyContact,
+            emergencyContact,
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
           ),
         ),
@@ -1106,9 +1261,31 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    fetcher.name,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          fetcher.name,
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      if (fetcher.isPrimary)
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'PRIMARY',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.blue[700],
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   SizedBox(height: 4),
                   Text(
@@ -1118,6 +1295,11 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                   SizedBox(height: 2),
                   Text(
                     'Contact: ${fetcher.contact}',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Email: ${fetcher.email}',
                     style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
                   SizedBox(height: 8),
@@ -1153,7 +1335,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   }
 
   Widget _buildActionButton({
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
     required IconData icon,
     required String label,
     required Color color,
@@ -1166,8 +1348,8 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
         icon: Icon(icon),
         label: Text(label),
         style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
+          backgroundColor: onPressed != null ? color : Colors.grey[300],
+          foregroundColor: onPressed != null ? Colors.white : Colors.grey[600],
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
