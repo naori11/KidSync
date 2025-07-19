@@ -457,33 +457,41 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     }
   }
 
-  // --- NEW: Fetch recent activities from scan_records ---
+  // Fetch recent activities from scan_records ---
   Future<void> _fetchRecentActivities() async {
     try {
       // Filtering by time period (today/this week/this month)
       DateTime now = DateTime.now();
       DateTime start;
+      DateTime end;
       switch (selectedTimePeriod) {
         case 'Today':
           start = DateTime(now.year, now.month, now.day);
+          end = start.add(Duration(days: 1));
           break;
         case 'This Week':
-          start = now.subtract(Duration(days: now.weekday - 1));
+          start = now.subtract(Duration(days: now.weekday - 1)); // Monday
+          start = DateTime(start.year, start.month, start.day);
+          end = start.add(Duration(days: 7));
           break;
         case 'This Month':
           start = DateTime(now.year, now.month, 1);
-          break;
+          end = (now.month < 12)
+                  ? DateTime(now.year, now.month + 1, 1)
+                  : DateTime(now.year + 1, 1, 1);
         default:
           start = DateTime(now.year, now.month, now.day);
+          end = start.add(Duration(days: 1));
       }
 
       final response = await supabase
           .from('scan_records')
           .select('''
-            scan_time, action, verified_by, status, notes,
-            students(id, fname, mname, lname, grade_level, section_id)
-          ''')
+        scan_time, action, verified_by, status, notes,
+        students(id, fname, mname, lname, grade_level, section_id)
+      ''')
           .gte('scan_time', start.toIso8601String())
+          .lt('scan_time', end.toIso8601String())
           .order('scan_time', ascending: false)
           .limit(50);
 
@@ -1250,6 +1258,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
           setState(() {
             selectedTimePeriod = title;
           });
+          _fetchRecentActivities();
         },
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
