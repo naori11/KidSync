@@ -159,6 +159,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   bool isLoadingStudent = false;
   bool isLoadingFetchers = false;
   bool isEntryMode = false;
+  bool isAwaitingDecision = false;
 
   // Recent Activity page state
   String searchQuery = '';
@@ -179,6 +180,14 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     // Listen for incoming RFID data
     channel.stream.listen((message) {
       print("RFID received: $message");
+
+      // BLOCK SCANS if a decision is pending in Exit Mode
+      if (!isEntryMode && isAwaitingDecision) {
+        _showErrorNotification(
+          'Please approve or deny the current pick-up before scanning another student.',
+        );
+        return; // Ignore new scans until decision is made or reset
+      }
 
       try {
         String? uid;
@@ -260,6 +269,8 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
           scannedStudent = student;
           isLoadingStudent = false;
           selectedIndex = 1;
+          // Only set block in EXIT mode
+          if (!isEntryMode) isAwaitingDecision = true;
         });
 
         await _fetchAuthorizedFetchers(student.id);
@@ -277,14 +288,16 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
             'notes': '',
           });
           _fetchRecentActivities();
-          // Auto-hide scanned student after 2 seconds
-          Future.delayed(Duration(seconds: 2), () {
+          // Auto-hide scanned student after 3 seconds
+          Future.delayed(Duration(seconds: 3), () {
             if (mounted && isEntryMode) clearScan();
           });
         }
       } else {
         setState(() {
           isLoadingStudent = false;
+          // Reset block if student not found in EXIT mode
+          if (!isEntryMode) isAwaitingDecision = false;
         });
         _showErrorNotification('Student not found or inactive');
       }
@@ -538,6 +551,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
       showNotification = false;
       isLoadingStudent = false;
       isLoadingFetchers = false;
+      isAwaitingDecision = false;
     });
   }
 
@@ -548,8 +562,6 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
     setState(() {
       fetchStatus = approved ? 'approved' : 'denied';
-
-      // Show notification
       showNotification = true;
       notificationMessage =
           approved
@@ -557,11 +569,11 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
               : 'Pickup denied at $formattedTime';
       notificationColor = approved ? Colors.green : Colors.red;
       actionTimestamp = now;
+      isAwaitingDecision = false;
     });
 
     _savePickupRecord(approved, denyReason: denyReason);
 
-    // Hide notification after a few seconds
     Future.delayed(Duration(seconds: 5), () {
       if (mounted) {
         setState(() {
@@ -570,7 +582,6 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
       }
     });
 
-    // Clear scan after some time
     Future.delayed(Duration(seconds: 3), () {
       if (mounted) {
         clearScan();
