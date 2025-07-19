@@ -127,7 +127,7 @@ class Activity {
   final String studentName;
   final String gradeClass;
   final String status;
-  final String verifiedBy;
+  final String reason;
   final DateTime timestamp;
 
   Activity({
@@ -135,7 +135,7 @@ class Activity {
     required this.studentName,
     required this.gradeClass,
     required this.status,
-    required this.verifiedBy,
+    required this.reason,
     required this.timestamp,
   });
 }
@@ -389,6 +389,134 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     });
   }
 
+  void _showDenyReasonDialog() async {
+    final reasons = [
+      'No valid ID presented',
+      'Not an authorized fetcher',
+      'Student requested not to leave',
+      'Other',
+    ];
+    String? selectedReason;
+    TextEditingController customReasonController = TextEditingController();
+    String? errorText;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              title: Text(
+                'Deny Pick-up - Reason',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: selectedReason,
+                    hint: Text('Select a reason'),
+                    items:
+                        reasons.map((reason) {
+                          return DropdownMenuItem(
+                            value: reason,
+                            child: Text(reason),
+                          );
+                        }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedReason = value;
+                        if (value != 'Other') {
+                          customReasonController.text = '';
+                        }
+                      });
+                    },
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  TextField(
+                    controller: customReasonController,
+                    decoration: InputDecoration(
+                      labelText: 'Custom reason',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      enabled: selectedReason == 'Other',
+                    ),
+                    minLines: 1,
+                    maxLines: 2,
+                    enabled: selectedReason == 'Other',
+                  ),
+                  if (errorText != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        errorText!,
+                        style: TextStyle(color: Colors.red, fontSize: 13),
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    String reasonToSave = '';
+                    if (selectedReason == null) {
+                      setState(() {
+                        errorText = "Please select a reason.";
+                      });
+                      return;
+                    } else if (selectedReason == 'Other') {
+                      if (customReasonController.text.trim().isEmpty) {
+                        setState(() {
+                          errorText = "Please provide a custom reason.";
+                        });
+                        return;
+                      }
+                      reasonToSave = customReasonController.text.trim();
+                    } else {
+                      reasonToSave = selectedReason!;
+                    }
+                    Navigator.pop(context, reasonToSave);
+                  },
+                  child: Text('Confirm'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((result) {
+      if (result != null && result is String && result.isNotEmpty) {
+        handleApproval(false, denyReason: result);
+      }
+    });
+  }
+
   // Define navigation items (removed Scan RFID tab)
   List<_NavItem> get navItems => [
     _NavItem("Dashboard", Icons.dashboard_outlined),
@@ -413,7 +541,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     });
   }
 
-  void handleApproval(bool approved) {
+  void handleApproval(bool approved, {String? denyReason}) {
     final now = DateTime.now();
     final formattedTime =
         "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
@@ -431,8 +559,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
       actionTimestamp = now;
     });
 
-    // TODO: Save the approval/denial to database
-    _savePickupRecord(approved);
+    _savePickupRecord(approved, denyReason: denyReason);
 
     // Hide notification after a few seconds
     Future.delayed(Duration(seconds: 5), () {
@@ -452,7 +579,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   }
 
   // Save approval/denial to scan_records ---
-  Future<void> _savePickupRecord(bool approved) async {
+  Future<void> _savePickupRecord(bool approved, {String? denyReason}) async {
     if (scannedStudent == null) return;
     try {
       final verifiedBy =
@@ -469,7 +596,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
         'action': action,
         'verified_by': verifiedBy,
         'status': status,
-        'notes': !approved ? "Denied by guard" : "",
+        'notes': !approved ? (denyReason ?? "Denied by guard") : "",
       });
       _fetchRecentActivities();
     } catch (e) {
@@ -543,6 +670,8 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
           statusMessage = "Activity";
         }
 
+        final reason = record['notes'] ?? '';
+
         fetched.add(
           Activity(
             time:
@@ -553,7 +682,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                     : "Unknown",
             gradeClass: gradeClass,
             status: statusMessage,
-            verifiedBy: record['verified_by'] ?? "",
+            reason: reason,
             timestamp: scanTime,
           ),
         );
@@ -1014,7 +1143,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                           ),
                           SizedBox(height: 12),
                           _buildActionButton(
-                            onPressed: () => handleApproval(false),
+                            onPressed: _showDenyReasonDialog,
                             icon: Icons.cancel_outlined,
                             label: "Deny Pick-up",
                             color: Colors.red,
@@ -1113,7 +1242,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                 _tableHeaderCell('Student Name', flex: 3),
                 _tableHeaderCell('Grade/Class', flex: 2),
                 _tableHeaderCell('Status', flex: 2),
-                _tableHeaderCell('Verified By', flex: 2),
+                _tableHeaderCell('Reason', flex: 2),
                 _tableHeaderCell('Actions', flex: 1),
               ],
             ),
@@ -1177,7 +1306,10 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                       _tableCell(_statusChip(activity.status), flex: 2),
                       _tableCell(
                         Text(
-                          activity.verifiedBy,
+                          activity.status == "Pickup Denied" &&
+                                  activity.reason.isNotEmpty
+                              ? activity.reason
+                              : '',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[600],
@@ -1431,7 +1563,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
           Expanded(
             flex: 2,
             child: Text(
-              activity.verifiedBy,
+              activity.reason,
               style: TextStyle(fontSize: 14, color: Colors.grey[600]),
             ),
           ),
