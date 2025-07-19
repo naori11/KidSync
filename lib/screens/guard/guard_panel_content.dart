@@ -527,6 +527,22 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                         ? " - Section ${student['section_id']}"
                         : "")
                 : "";
+
+        String statusMessage;
+        final action = (record['action'] ?? '').toString().toLowerCase();
+
+        if (action == 'entry') {
+          statusMessage = "Entry Recorded";
+        } else if (action == 'approved') {
+          statusMessage = "Pickup Approved";
+        } else if (action == 'denied') {
+          statusMessage = "Pickup Denied";
+        } else if (action == 'checked out') {
+          statusMessage = "Checked Out";
+        } else {
+          statusMessage = "Activity";
+        }
+
         fetched.add(
           Activity(
             time:
@@ -536,7 +552,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                     ? "${student['fname']} ${student['mname'] ?? ''} ${student['lname']}"
                     : "Unknown",
             gradeClass: gradeClass,
-            status: record['status'] ?? record['action'],
+            status: statusMessage,
             verifiedBy: record['verified_by'] ?? "",
             timestamp: scanTime,
           ),
@@ -1249,27 +1265,29 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   Widget _statusChip(String status) {
     Color bg;
     Color fg;
-    String label;
-    switch (status.toLowerCase()) {
-      case 'checked in':
-        bg = Color(0xFFEFFCF3);
-        fg = Color(0xFF38C976);
-        label = 'Checked In';
+    String label = status;
+
+    switch (status) {
+      case 'Entry Recorded':
+        bg = Color(0xFFE3F2FD); // Light Blue
+        fg = Color(0xFF1976D2); // Blue
         break;
-      case 'checked out':
-        bg = Color(0xFFF1F7FF);
-        fg = Color(0xFF2D6ADF);
-        label = 'Checked Out';
+      case 'Pickup Approved':
+        bg = Color(0xFFE8F5E9); // Light Green
+        fg = Color(0xFF388E3C); // Green
         break;
-      case 'denied':
-        bg = Color(0xFFFFF0F0);
-        fg = Color(0xFFF25454);
-        label = 'Denied';
+      case 'Pickup Denied':
+        bg = Color(0xFFFFEBEE); // Light Red
+        fg = Color(0xFFD32F2F); // Red
+        break;
+      case 'Checked Out':
+        bg = Color(0xFFF3E5F5); // Light Purple
+        fg = Color(0xFF7B1FA2); // Purple
         break;
       default:
-        bg = Colors.grey[100]!;
-        fg = Colors.grey[700]!;
-        label = status;
+        bg = Color(0xFFECEFF1); // Light Grey
+        fg = Color(0xFF455A64); // Grey
+        break;
     }
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
