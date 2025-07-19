@@ -158,6 +158,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   DateTime? actionTimestamp;
   bool isLoadingStudent = false;
   bool isLoadingFetchers = false;
+  bool isEntryMode = false;
 
   // Recent Activity page state
   String searchQuery = '';
@@ -260,8 +261,27 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
           isLoadingStudent = false;
           selectedIndex = 1;
         });
+
         await _fetchAuthorizedFetchers(student.id);
-        _fetchRecentActivities();
+
+        // ENTRY MODE: Log "Checked In" immediately and auto-hide
+        if (isEntryMode) {
+          await supabase.from('scan_records').insert({
+            'student_id': student.id,
+            'guard_id': user?.id,
+            'rfid_uid': student.rfidUid ?? '',
+            'scan_time': DateTime.now().toIso8601String(),
+            'action': 'entry',
+            'verified_by': 'RFID Entry',
+            'status': 'Checked In',
+            'notes': '',
+          });
+          _fetchRecentActivities();
+          // Auto-hide scanned student after 2 seconds
+          Future.delayed(Duration(seconds: 2), () {
+            if (mounted && isEntryMode) clearScan();
+          });
+        }
       } else {
         setState(() {
           isLoadingStudent = false;
@@ -476,7 +496,8 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
           break;
         case 'This Month':
           start = DateTime(now.year, now.month, 1);
-          end = (now.month < 12)
+          end =
+              (now.month < 12)
                   ? DateTime(now.year, now.month + 1, 1)
                   : DateTime(now.year + 1, 1, 1);
         default:
@@ -786,33 +807,44 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                             color: Colors.black87,
                           ),
                         ),
-                        // Simulate button for testing
-                        if (scannedStudent == null && !isLoadingStudent)
-                          TextButton.icon(
-                            onPressed: simulateRFIDScan,
-                            icon: Icon(Icons.developer_mode, size: 16),
-                            label: Text(
-                              'Test with Sample',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.grey[600],
-                              backgroundColor: Colors.grey[100],
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              visualDensity: VisualDensity.compact,
-                            ),
+                        // Mode Switch Button
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              isEntryMode = !isEntryMode;
+                              clearScan();
+                            });
+                          },
+                          icon: Icon(
+                            isEntryMode ? Icons.login : Icons.logout,
+                            size: 16,
                           ),
+                          label: Text(
+                            isEntryMode
+                                ? 'Switch to Exit Mode'
+                                : 'Switch to Entry Mode',
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor:
+                                isEntryMode ? Colors.blue : Colors.green,
+                            backgroundColor: Colors.grey[100],
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
                       ],
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Scan RFID card to verify student',
+                      isEntryMode
+                          ? 'Scan RFID card to check IN student'
+                          : 'Scan RFID card to verify student for EXIT',
                       style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                     ),
                     SizedBox(height: 24),
@@ -830,7 +862,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
               SizedBox(width: 24),
 
-              // Right side - Fetchers list
+              // Right side - Fetchers list and action buttons
               Expanded(
                 flex: 1,
                 child: Column(
@@ -948,9 +980,11 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
                     SizedBox(height: 16),
 
+                    // Approve/Deny buttons only in exit mode
                     if (scannedStudent != null &&
                         !isLoadingStudent &&
-                        !isLoadingFetchers)
+                        !isLoadingFetchers &&
+                        !isEntryMode)
                       Column(
                         children: [
                           _buildActionButton(
