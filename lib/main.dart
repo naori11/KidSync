@@ -4,7 +4,13 @@ import 'screens/login_screen.dart';
 import 'screens/guard/guard_panel.dart';
 import 'screens/admin/admin_panel.dart';
 import 'screens/set_password_screen.dart';
-import 'screens/signup_screen.dart';
+import 'screens/parent/parent_home.dart';
+import 'screens/parent/notifications.dart';
+import 'screens/parent/child_status.dart';
+import 'screens/parent/pickup_confirmation.dart';
+import 'screens/parent/fetcher_code_generator.dart';
+import 'screens/parent/profile.dart';
+import 'screens/parent/parent_login.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_strategy/url_strategy.dart'; // <--- IMPORT THIS (already present)
@@ -270,7 +276,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
       print(
         "[DEBUG] _handleNavigation: Session active (event: $event). Navigating based on role: $role",
       );
-  
+
       switch (role) {
         case 'Admin':
           if (currentRouteName != '/admin')
@@ -325,7 +331,14 @@ class _KidSyncAppState extends State<KidSyncApp> {
         '#/set-password': (_) => const SetPasswordScreen(),
         '/admin': (_) => const AdminPanel(),
         '/guard': (_) => GuardPanel(),
-        '/signup': (_) => const SignUpScreen(),
+        '/parent': (_) => const ParentHomeScreen(),
+        '/parent/login': (_) => const ParentLoginScreen(),
+        '/parent/notifications': (_) => const ParentNotificationsScreen(),
+        '/parent/child_status': (_) => const ChildStatusScreen(),
+        '/parent/pickup_confirmation': (_) => const PickupConfirmationScreen(),
+        '/parent/fetcher_code_generator':
+            (_) => const FetcherCodeGeneratorScreen(),
+        '/parent/profile': (_) => const ParentProfileScreen(),
       },
     );
   }
