@@ -388,12 +388,22 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   // Show error notification
   void _showErrorNotification(String message) {
     setState(() {
-      showNotification = true;
-      notificationMessage = message;
-      notificationColor = Colors.red;
+      showNotification = false; // Force close first to reset animation
+    });
+    // Delay to allow the widget to hide and then show again
+    Future.delayed(const Duration(milliseconds: 40), () {
+      if (!mounted) return;
+      setState(() {
+        showNotification = true;
+        notificationMessage = message;
+        notificationColor = Colors.red;
+        fetchStatus =
+            null; // Clear status so notification always shows the error
+      });
     });
 
-    Future.delayed(Duration(seconds: 5), () {
+    // Hide notification after a few seconds
+    Future.delayed(const Duration(seconds: 5), () {
       if (mounted) {
         setState(() {
           showNotification = false;
@@ -1634,21 +1644,21 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     final formattedDate =
         actionTimestamp != null
             ? "${actionTimestamp!.year}-${actionTimestamp!.month.toString().padLeft(2, '0')}-${actionTimestamp!.day.toString().padLeft(2, '0')}"
-            : '2025-07-15';
+            : '';
 
     final formattedTime =
         actionTimestamp != null
             ? "${actionTimestamp!.hour.toString().padLeft(2, '0')}:${actionTimestamp!.minute.toString().padLeft(2, '0')}:${actionTimestamp!.second.toString().padLeft(2, '0')}"
-            : '12:33:55';
+            : '';
 
     return Positioned(
       top: 24,
       right: 24,
       child: AnimatedOpacity(
         opacity: showNotification ? 1.0 : 0.0,
-        duration: Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 300),
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: notificationColor.withOpacity(0.9),
             borderRadius: BorderRadius.circular(8),
@@ -1664,54 +1674,59 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                fetchStatus == 'approved'
-                    ? Icons.check_circle
-                    : (fetchStatus == 'denied' ? Icons.cancel : Icons.error),
+                notificationColor == Colors.red
+                    ? Icons.error
+                    : (fetchStatus == 'approved'
+                        ? Icons.check_circle
+                        : (fetchStatus == 'denied'
+                            ? Icons.cancel
+                            : Icons.info)),
                 color: Colors.white,
                 size: 20,
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    fetchStatus == 'approved'
-                        ? 'Pickup Approved'
-                        : fetchStatus == 'denied'
-                        ? 'Pickup Denied'
-                        : 'Error',
-                    style: TextStyle(
+                    notificationMessage,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
                   ),
-                  SizedBox(height: 2),
-                  Text(
-                    '$formattedDate $formattedTime',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 12,
+                  if (notificationColor != Colors.red &&
+                      formattedDate.isNotEmpty)
+                    const SizedBox(height: 2),
+                  if (notificationColor != Colors.red &&
+                      formattedDate.isNotEmpty)
+                    Text(
+                      '$formattedDate $formattedTime',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
-                  Text(
-                    fetchStatus != null ? 'Record saved to database' : '',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 12,
+                  if (notificationColor != Colors.red && fetchStatus != null)
+                    Text(
+                      'Record saved to database',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
                 ],
               ),
-              SizedBox(width: 16),
+              const SizedBox(width: 16),
               InkWell(
                 onTap: () {
                   setState(() {
                     showNotification = false;
                   });
                 },
-                child: Icon(Icons.close, color: Colors.white70, size: 16),
+                child: const Icon(Icons.close, color: Colors.white70, size: 16),
               ),
             ],
           ),

@@ -166,7 +166,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     final formKey = GlobalKey<FormState>();
 
     // Role options based on schema constraint
-    final roleOptions = ['Parent', 'Teacher', 'Guard', 'Driver'];
+    final roleOptions = ['Parent', 'Guard', 'Driver', 'Admin'];
 
     print('Debug: selectedRole: $selectedRole'); // Debug print
 
@@ -324,9 +324,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 items: roleOptions.map((role) {
                                   IconData roleIcon;
                                   switch (role) {
-                                    case 'Parent':
-                                      roleIcon = Icons.family_restroom;
-                                      break;
                                     case 'Teacher':
                                       roleIcon = Icons.school;
                                       break;

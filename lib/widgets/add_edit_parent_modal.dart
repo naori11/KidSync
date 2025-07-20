@@ -3,14 +3,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AddEditParentModal extends StatefulWidget {
   final Map<String, dynamic>? parent;
-  final VoidCallback onClose;
-  final Function(Map<String, dynamic>) onSave;
-
+  // onClose: Close the modal (Navigator.pop(context) in parent recommended)
+  // onSave: Returns a Map<String, dynamic> containing all parent fields and studentsToLink
   const AddEditParentModal({
     super.key,
     this.parent,
-    required this.onClose,
-    required this.onSave,
   });
 
   @override
@@ -20,19 +17,19 @@ class AddEditParentModal extends StatefulWidget {
 class _AddEditParentModalState extends State<AddEditParentModal> {
   final _formKey = GlobalKey<FormState>();
   final supabase = Supabase.instance.client;
-  
+
   late TextEditingController _firstNameController;
   late TextEditingController _middleNameController;
   late TextEditingController _lastNameController;
   late TextEditingController _phoneController;
   late TextEditingController _emailController;
   late TextEditingController _addressController;
-  
+
   List<Map<String, dynamic>> availableStudents = [];
   List<Map<String, dynamic>> selectedStudents = [];
   bool isLoading = false;
   bool isLoadingStudents = false;
-  
+
   @override
   void initState() {
     super.initState();
@@ -47,7 +44,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
     _phoneController = TextEditingController(text: widget.parent?['phone'] ?? '');
     _emailController = TextEditingController(text: widget.parent?['email'] ?? '');
     _addressController = TextEditingController(text: widget.parent?['address'] ?? '');
-    
+
     // Initialize selected students if editing
     if (widget.parent != null && widget.parent!['students'] != null) {
       selectedStudents = List<Map<String, dynamic>>.from(widget.parent!['students']);
@@ -56,22 +53,16 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
 
   Future<void> _fetchAvailableStudents() async {
     setState(() => isLoadingStudents = true);
-    
+
     try {
-      print('Fetching available students...');
-      
-      // Fetch ALL students without status filter since status can be null
-      // Only exclude students with status = 'deleted' if that exists
+      // Fetch students that are not deleted (status != 'deleted')
       final response = await supabase
           .from('students')
           .select('id, fname, mname, lname, grade_level, section_id, status')
-          .neq('status', 'deleted'); // Only exclude deleted students
+          .neq('status', 'deleted');
 
-      print('Raw students response: $response');
-      print('Number of students found: ${response.length}');
-
-      if (response.isEmpty) {
-        print('No students found in database');
+      // If no students, set empty list
+      if (response == null || (response is List && response.isEmpty)) {
         setState(() {
           availableStudents = [];
           isLoadingStudents = false;
@@ -79,9 +70,8 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
         return;
       }
 
-      // Process all students (including those with null status)
-      final processedStudents = response.map<Map<String, dynamic>>((student) {
-        print('Processing student: ${student['fname']} ${student['lname']} (ID: ${student['id']})');
+      // Map response to expected student structure
+      final processedStudents = (response as List).map<Map<String, dynamic>>((student) {
         return {
           'id': student['id'],
           'first_name': student['fname'] ?? '',
@@ -93,98 +83,13 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
         };
       }).toList();
 
-      print('Processed students: ${processedStudents.length}');
-      for (var student in processedStudents) {
-        print('Student: ${student['first_name']} ${student['last_name']} - Grade: ${student['grade']} - Section: ${student['section']}');
-      }
-      
       setState(() {
         availableStudents = processedStudents;
         isLoadingStudents = false;
       });
-
-      print('Available students set in state: ${availableStudents.length}');
     } catch (error) {
-      print('Error fetching students: $error');
-      print('Error type: ${error.runtimeType}');
       setState(() => isLoadingStudents = false);
       _showErrorSnackBar('Error fetching students: $error');
-    }
-  }
-
-  Future<void> _saveParent() async {
-    if (!_formKey.currentState!.validate()) return;
-    
-    setState(() => isLoading = true);
-    
-    try {
-      final parentData = {
-        'fname': _firstNameController.text.trim(),
-        'mname': _middleNameController.text.trim().isEmpty ? null : _middleNameController.text.trim(),
-        'lname': _lastNameController.text.trim(),
-        'phone': _phoneController.text.trim(),
-        'email': _emailController.text.trim(),
-        'address': _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
-        'status': 'active',
-      };
-
-      print('Saving parent data: $parentData');
-
-      Map<String, dynamic> savedParent;
-      
-      if (widget.parent == null) {
-        // Create new parent
-        final response = await supabase
-            .from('parents')
-            .insert(parentData)
-            .select()
-            .single();
-        savedParent = response;
-        print('Created new parent: $savedParent');
-      } else {
-        // Update existing parent
-        final response = await supabase
-            .from('parents')
-            .update(parentData)
-            .eq('id', widget.parent!['id'])
-            .select()
-            .single();
-        savedParent = response;
-        print('Updated parent: $savedParent');
-      }
-
-      // Handle student relationships
-      final parentId = savedParent['id'];
-      
-      // Delete existing relationships if editing
-      if (widget.parent != null) {
-        await supabase
-            .from('parent_student')
-            .delete()
-            .eq('parent_id', parentId);
-        print('Deleted existing relationships for parent $parentId');
-      }
-      
-      // Insert new relationships
-      if (selectedStudents.isNotEmpty) {
-        final relationships = selectedStudents.map((student) => {
-          'parent_id': parentId,
-          'student_id': student['id'],
-          'relationship_type': student['relationship_type'] ?? 'parent',
-          'is_primary': student['is_primary'] ?? false,
-        }).toList();
-        
-        print('Inserting relationships: $relationships');
-        await supabase.from('parent_student').insert(relationships);
-        print('Inserted ${relationships.length} relationships');
-      }
-      
-      setState(() => isLoading = false);
-      widget.onSave(savedParent);
-    } catch (error) {
-      print('Error saving parent: $error');
-      setState(() => isLoading = false);
-      _showErrorSnackBar('Error saving parent: $error');
     }
   }
 
@@ -193,16 +98,13 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
       final existingIndex = selectedStudents.indexWhere((s) => s['id'] == student['id']);
       if (existingIndex >= 0) {
         selectedStudents.removeAt(existingIndex);
-        print('Removed student: ${student['first_name']} ${student['last_name']}');
       } else {
         selectedStudents.add({
           ...student,
           'relationship_type': 'parent',
           'is_primary': false,
         });
-        print('Added student: ${student['first_name']} ${student['last_name']}');
       }
-      print('Selected students count: ${selectedStudents.length}');
     });
   }
 
@@ -219,6 +121,24 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
         backgroundColor: Colors.red,
       ),
     );
+  }
+
+  void _saveParent() {
+    if (!_formKey.currentState!.validate()) return;
+    // Return to parent: all form fields, plus selectedStudents as studentsToLink
+    Navigator.of(context).pop({
+      'fname': _firstNameController.text.trim(),
+      'mname': _middleNameController.text.trim().isEmpty ? null : _middleNameController.text.trim(),
+      'lname': _lastNameController.text.trim(),
+      'phone': _phoneController.text.trim(),
+      'email': _emailController.text.trim(),
+      'address': _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
+      'studentsToLink': selectedStudents.map((student) => {
+        'student_id': student['id'],
+        'relationship_type': student['relationship_type'] ?? 'parent',
+        'is_primary': student['is_primary'] ?? false,
+      }).toList(),
+    });
   }
 
   @override
@@ -249,13 +169,12 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                     ),
                     IconButton(
                       icon: const Icon(Icons.close),
-                      onPressed: widget.onClose,
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
                   ],
                 ),
-                
                 const SizedBox(height: 24),
-                
+
                 // Form
                 Expanded(
                   child: Form(
@@ -273,7 +192,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          
+
                           // Name fields row
                           Row(
                             children: [
@@ -322,9 +241,9 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                               ),
                             ],
                           ),
-                          
+
                           const SizedBox(height: 16),
-                          
+
                           // Contact fields row
                           Row(
                             children: [
@@ -364,9 +283,9 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                               ),
                             ],
                           ),
-                          
+
                           const SizedBox(height: 16),
-                          
+
                           // Address field
                           TextFormField(
                             controller: _addressController,
@@ -376,9 +295,9 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                             ),
                             maxLines: 2,
                           ),
-                          
+
                           const SizedBox(height: 32),
-                          
+
                           // Student Selection Section
                           const Text(
                             'Select Students',
@@ -388,42 +307,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          
-                          // Debug info for students
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Debug Info:',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey[800],
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                Text(
-                                  'Loading: $isLoadingStudents',
-                                  style: TextStyle(color: Colors.grey[600], fontSize: 10),
-                                ),
-                                Text(
-                                  'Available students: ${availableStudents.length}',
-                                  style: TextStyle(color: Colors.grey[600], fontSize: 10),
-                                ),
-                                Text(
-                                  'Selected students: ${selectedStudents.length}',
-                                  style: TextStyle(color: Colors.grey[600], fontSize: 10),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          
+
                           // Available Students
                           if (isLoadingStudents)
                             const Center(
@@ -538,7 +422,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                     ),
                                     const SizedBox(height: 16),
                                   ],
-                                  
+
                                   // Available Students Header
                                   Container(
                                     alignment: Alignment.centerLeft,
@@ -548,7 +432,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  
+
                                   // Available Students List
                                   Expanded(
                                     child: Container(
@@ -568,13 +452,13 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                               itemBuilder: (context, index) {
                                                 final student = availableStudents[index];
                                                 final isSelected = selectedStudents.any((s) => s['id'] == student['id']);
-                                                
+
                                                 return ListTile(
                                                   dense: true,
                                                   leading: CircleAvatar(
                                                     radius: 16,
-                                                    backgroundColor: isSelected 
-                                                        ? const Color(0xFF2ECC71) 
+                                                    backgroundColor: isSelected
+                                                        ? const Color(0xFF2ECC71)
                                                         : Colors.grey.shade300,
                                                     child: Text(
                                                       (student['first_name'] ?? 'N')[0].toUpperCase(),
@@ -592,7 +476,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                     'Grade ${student['grade']} - Section ${student['section']}',
                                                     style: const TextStyle(fontSize: 12),
                                                   ),
-                                                  trailing: isSelected 
+                                                  trailing: isSelected
                                                       ? const Icon(Icons.check_circle, color: Color(0xFF2ECC71))
                                                       : const Icon(Icons.add_circle_outline, color: Colors.grey),
                                                   onTap: () => _toggleStudentSelection(student),
@@ -609,15 +493,14 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                     ),
                   ),
                 ),
-                
                 const SizedBox(height: 24),
-                
+
                 // Action buttons
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      onPressed: widget.onClose,
+                      onPressed: () => Navigator.of(context).pop(),
                       child: const Text('Cancel'),
                     ),
                     const SizedBox(width: 16),

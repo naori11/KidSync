@@ -32,7 +32,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     try {
       print('Fetching parents from database...');
       
-      // First, fetch all parents
+      // Fetch all active parents
       final parentsResponse = await supabase
           .from('parents')
           .select('*')
@@ -92,6 +92,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
         // Create parent object
         final transformedParent = {
           'id': parentData['id'],
+          'user_id': parentData['user_id'], // (Optional, if you add user_id column)
           'first_name': parentData['fname'],
           'middle_name': parentData['mname'],
           'last_name': parentData['lname'],
@@ -154,24 +155,168 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     });
   }
 
+  // New: Create parent account via Edge Function, then insert to parents table and parent_student
+  Future<void> _addParent({
+    required String fname,
+    String? mname,
+    required String lname,
+    required String email,
+    required String phone,
+    String? address,
+    required List<Map<String, dynamic>> studentsToLink, // [{studentId, relationship_type, is_primary}]
+  }) async {
+    try {
+      // 1. Call Edge Function to create Auth user and users table entry
+      final res = await supabase.functions.invoke(
+        'create_user',
+        body: {
+          'email': email,
+          'role': 'Parent',
+          'fname': fname,
+          'mname': mname,
+          'lname': lname,
+          'contact_number': phone,
+          'position': null,
+        },
+      );
+
+      final status = res.status;
+      final data = res.data;
+      if (status != 200) {
+        final errorMsg = (data is Map && data['error'] != null)
+            ? data['error']
+            : data.toString();
+        throw Exception(errorMsg);
+      }
+      final userId = data['id'];
+      if (userId == null) {
+        throw Exception('No user ID returned from user creation');
+      }
+
+      // 2. Insert to parents table (add user_id column to parents schema for easy reference if possible)
+      final parentInsert = await supabase.from('parents').insert({
+        'fname': fname,
+        'mname': mname,
+        'lname': lname,
+        'phone': phone,
+        'email': email,
+        'address': address,
+        'status': 'active',
+        'user_id': userId, // (Optional: add this column to parents table)
+      }).select().single();
+      final parentId = parentInsert['id'];
+
+      // 3. Link students
+      for (final studentLink in studentsToLink) {
+        await supabase.from('parent_student').insert({
+          'parent_id': parentId,
+          'student_id': studentLink['student_id'],
+          'relationship_type': studentLink['relationship_type'] ?? 'parent',
+          'is_primary': studentLink['is_primary'] ?? false,
+        });
+      }
+
+      _showSuccessSnackBar('Parent added successfully');
+      _fetchParents();
+    } catch (error) {
+      _showErrorSnackBar('Error adding parent: $error');
+    }
+  }
+
+  // New: Edit parent (update users table via edge function, then parents table, then update student relationships)
+  Future<void> _editParent({
+    required String userId, // Auth user UUID (from user_id column)
+    required int parentId,
+    required String fname,
+    String? mname,
+    required String lname,
+    required String email,
+    required String phone,
+    String? address,
+    required List<Map<String, dynamic>> studentsToLink, // [{studentId, relationship_type, is_primary}]
+  }) async {
+    try {
+      // 1. Update Auth user and users table via Edge Function
+      final res = await supabase.functions.invoke(
+        'edit_user',
+        body: {
+          'id': userId,
+          'email': email,
+          'role': 'Parent',
+          'fname': fname,
+          'mname': mname,
+          'lname': lname,
+          'contact_number': phone,
+          'position': null,
+        },
+      );
+      if (res.status != 200) {
+        final errorMsg = (res.data is Map && res.data['error'] != null)
+            ? res.data['error']
+            : res.data.toString();
+        throw Exception(errorMsg);
+      }
+
+      // 2. Update parents table
+      await supabase.from('parents').update({
+        'fname': fname,
+        'mname': mname,
+        'lname': lname,
+        'phone': phone,
+        'email': email,
+        'address': address,
+      }).eq('id', parentId);
+
+      // 3. Update student relationships: for simplicity, delete all and re-add
+      await supabase.from('parent_student').delete().eq('parent_id', parentId);
+      for (final studentLink in studentsToLink) {
+        await supabase.from('parent_student').insert({
+          'parent_id': parentId,
+          'student_id': studentLink['student_id'],
+          'relationship_type': studentLink['relationship_type'] ?? 'parent',
+          'is_primary': studentLink['is_primary'] ?? false,
+        });
+      }
+
+      _showSuccessSnackBar('Parent updated successfully');
+      _fetchParents();
+    } catch (error) {
+      _showErrorSnackBar('Error updating parent: $error');
+    }
+  }
+
+  // New: Delete parent (delete user via edge function, then update parent status)
   Future<void> _deleteParent(Map<String, dynamic> parent) async {
     final confirm = await _showConfirmDialog(
       'Delete Parent',
-      'Are you sure you want to delete ${parent['first_name']} ${parent['last_name']}? This action cannot be undone.',
+      'Are you sure you want to delete ${parent['first_name']} ${parent['last_name']}? This will remove their login and parent record.',
     );
 
-    if (confirm) {
-      try {
-        await supabase
-            .from('parents')
-            .update({'status': 'deleted'})
-            .eq('id', parent['id']);
-        
-        _showSuccessSnackBar('Parent deleted successfully');
-        _fetchParents();
-      } catch (error) {
-        _showErrorSnackBar('Error deleting parent: $error');
+    if (!confirm) return;
+
+    try {
+      // 1. Delete user from Auth and users table via edge function
+      final userId = parent['user_id'];
+      if (userId != null && userId.toString().isNotEmpty) {
+        final res = await supabase.functions.invoke(
+          'delete_user',
+          body: {'id': userId},
+        );
+        if (res.status != 200) {
+          final errorMsg = (res.data is Map && res.data['error'] != null)
+              ? res.data['error']
+              : res.data.toString();
+          throw Exception(errorMsg);
+        }
       }
+
+      // 2. Set parent record as deleted (or you can also delete the row if preferred)
+      await supabase.from('parents').update({'status': 'deleted'}).eq('id', parent['id']);
+
+      _showSuccessSnackBar('Parent deleted successfully');
+      _fetchParents();
+    } catch (error) {
+      _showErrorSnackBar('Error deleting parent: $error');
     }
   }
 
@@ -278,7 +423,28 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                           elevation: 0,
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                         ),
-                        onPressed: _showAddParentModal,
+                        onPressed: () async {
+                          // Show Add/Edit Modal using a custom widget
+                          final result = await showDialog<Map<String, dynamic>>(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (context) => AddEditParentModal(
+                              parent: null,
+                            ),
+                          );
+                          // If result is not null and has required fields, proceed to add
+                          if (result != null && result['fname'] != null && result['lname'] != null && result['email'] != null && result['phone'] != null) {
+                            await _addParent(
+                              fname: result['fname'],
+                              mname: result['mname'],
+                              lname: result['lname'],
+                              email: result['email'],
+                              phone: result['phone'],
+                              address: result['address'],
+                              studentsToLink: result['studentsToLink'] ?? [],
+                            );
+                          }
+                        },
                       ),
                     ),
                   ],
@@ -286,7 +452,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
                 const SizedBox(height: 24),
 
-                // Debug info
                 if (isLoading)
                   const Center(
                     child: CircularProgressIndicator(
@@ -447,7 +612,29 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                             const SizedBox(width: 4),
                                             // Edit button
                                             IconButton(
-                                              onPressed: () => _showEditParentModal(parent),
+                                              onPressed: () async {
+                                                // Show Add/Edit Modal with parent data
+                                                final result = await showDialog<Map<String, dynamic>>(
+                                                  context: context,
+                                                  barrierDismissible: false,
+                                                  builder: (context) => AddEditParentModal(
+                                                    parent: parent,
+                                                  ),
+                                                );
+                                                if (result != null && result['fname'] != null && result['lname'] != null && result['email'] != null && result['phone'] != null) {
+                                                  await _editParent(
+                                                    userId: parent['user_id'],
+                                                    parentId: parent['id'],
+                                                    fname: result['fname'],
+                                                    mname: result['mname'],
+                                                    lname: result['lname'],
+                                                    email: result['email'],
+                                                    phone: result['phone'],
+                                                    address: result['address'],
+                                                    studentsToLink: result['studentsToLink'] ?? [],
+                                                  );
+                                                }
+                                              },
                                               icon: const Icon(
                                                 Icons.edit,
                                                 size: 16,
@@ -483,20 +670,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
           // Parent Details Modal
           if (_showDetailModal && _selectedParent != null) _buildParentDetailModal(),
 
-          // Add/Edit Parent Modal
-          if (_showAddEditModal) AddEditParentModal(
-            parent: _editingParent,
-            onClose: _closeAddEditModal,
-            onSave: (parent) {
-              _closeAddEditModal();
-              _fetchParents();
-              _showSuccessSnackBar(
-                _editingParent == null 
-                  ? 'Parent added successfully'
-                  : 'Parent updated successfully'
-              );
-            },
-          ),
+          // Add/Edit Parent Modal (handled inline above)
         ],
       ),
     );
