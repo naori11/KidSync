@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_screen.dart';
 import 'screens/guard/guard_panel.dart';
 import 'screens/admin/admin_panel.dart';
+import 'screens/teacher/teacher_panel.dart';
+import 'screens/teacher/teacher_panel_content.dart';
 import 'screens/set_password_screen.dart';
 import 'screens/parent/parent_home.dart';
 import 'screens/parent/notifications.dart';
@@ -286,6 +288,10 @@ class _KidSyncAppState extends State<KidSyncApp> {
           if (currentRouteName != '/guard')
             navigator.pushReplacementNamed('/guard');
           break;
+        case 'Teacher':
+          if (currentRouteName != '/teacher')
+            navigator.pushReplacementNamed('/teacher');
+          break;
         default:
           print(
             "[DEBUG] _handleNavigation: Unknown role ('$role') or fallback. Navigating to LoginScreen.",
@@ -331,6 +337,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
         '#/set-password': (_) => const SetPasswordScreen(),
         '/admin': (_) => const AdminPanel(),
         '/guard': (_) => GuardPanel(),
+        '/teacher': (_) => const TeacherPanel(),
         '/parent': (_) => const ParentHomeScreen(),
         '/parent/login': (_) => const ParentLoginScreen(),
         '/parent/notifications': (_) => const ParentNotificationsScreen(),

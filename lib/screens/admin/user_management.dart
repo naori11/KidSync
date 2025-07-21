@@ -166,7 +166,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     final formKey = GlobalKey<FormState>();
 
     // Role options based on schema constraint
-    final roleOptions = ['Parent', 'Guard', 'Driver', 'Admin'];
+    final roleOptions = ['Parent', 'Guard', 'Teacher', 'Driver', 'Admin'];
 
     print('Debug: selectedRole: $selectedRole'); // Debug print
 
