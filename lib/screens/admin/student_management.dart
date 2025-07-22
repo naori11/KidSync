@@ -28,7 +28,9 @@ class StudentManagementPage extends StatefulWidget {
 class _StudentManagementPageState extends State<StudentManagementPage> {
   final supabase = Supabase.instance.client;
   List<Map<String, dynamic>> students = [];
+  List<Map<String, dynamic>> sections = [];
   bool isLoading = false;
+  bool isLoadingSections = false;
   String _searchQuery = '';
   String _sortOption = 'Name (A-Z)';
   String _classFilter = 'All Classes';
@@ -42,14 +44,27 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   @override
   void initState() {
     super.initState();
+    _fetchSections();
     _fetchStudents();
+  }
+
+  Future<void> _fetchSections() async {
+    setState(() => isLoadingSections = true);
+    final response = await supabase
+        .from('sections')
+        .select('id, name, grade_level');
+    setState(() {
+      sections = List<Map<String, dynamic>>.from(response);
+      isLoadingSections = false;
+    });
   }
 
   Future<void> _fetchStudents() async {
     setState(() => isLoading = true);
+    // Fetch students with joined section info
     final response = await supabase
         .from('students')
-        .select()
+        .select('*, sections(id, name, grade_level)')
         .order('lname', ascending: true);
     setState(() {
       students = List<Map<String, dynamic>>.from(response);
@@ -230,42 +245,49 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   }
 
   Future<void> _addOrEditStudent({Map<String, dynamic>? student}) async {
-    print('Debug: Student data received: $student'); // Debug print
+    // Load sections if not loaded
+    if (sections.isEmpty) await _fetchSections();
 
     // Form controllers
-    final fnameController = TextEditingController(text: student?['fname']?.toString() ?? '');
-    final mnameController = TextEditingController(text: student?['mname']?.toString() ?? '');
-    final lnameController = TextEditingController(text: student?['lname']?.toString() ?? '');
-    final addressController = TextEditingController(text: student?['address']?.toString() ?? '');
+    final fnameController = TextEditingController(
+      text: student?['fname']?.toString() ?? '',
+    );
+    final mnameController = TextEditingController(
+      text: student?['mname']?.toString() ?? '',
+    );
+    final lnameController = TextEditingController(
+      text: student?['lname']?.toString() ?? '',
+    );
+    final addressController = TextEditingController(
+      text: student?['address']?.toString() ?? '',
+    );
     final birthdayController = TextEditingController(
-      text: student?['birthday'] != null 
-        ? DateFormat('yyyy-MM-dd').format(DateTime.parse(student!['birthday'].toString()))
-        : ''
+      text:
+          student?['birthday'] != null
+              ? DateFormat(
+                'yyyy-MM-dd',
+              ).format(DateTime.parse(student!['birthday'].toString()))
+              : '',
     );
 
     // Form state variables - Aligned with schema
     String? selectedGender = student?['gender']?.toString();
-    
-    // Fix: grade_level is INTEGER in database
-    int? selectedGradeLevel;
-    if (student?['grade_level'] != null) {
-      final gradeValue = student!['grade_level'];
-      if (gradeValue is int) {
-        selectedGradeLevel = gradeValue;
-      } else if (gradeValue is String) {
-        selectedGradeLevel = int.tryParse(gradeValue);
+
+    String? selectedGradeLevel = student?['grade_level']?.toString();
+
+    // Now section_id is BIGINT, must select from sections list
+    int? selectedSectionId;
+    if (student?['section_id'] != null) {
+      if (student!['section_id'] is int) {
+        selectedSectionId = student['section_id'];
+      } else if (student['section_id'] is String) {
+        selectedSectionId = int.tryParse(student['section_id']);
       }
     }
-    
-    // Fix: section_id is VARCHAR (STRING) in database
-    String? selectedSectionId;
-    if (student?['section_id'] != null) {
-      selectedSectionId = student!['section_id'].toString();
-    }
-    
+
     String selectedStatus = student?['status']?.toString() ?? 'Active';
     String? rfidUID = student?['rfid_uid']?.toString();
-    
+
     DateTime? selectedBirthday;
     if (student?['birthday'] != null) {
       try {
@@ -280,16 +302,18 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
     // Gender options
     final genderOptions = ['Male', 'Female', 'Other'];
-    
+
     // Grade level options (integers to match database)
-    final gradeOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-    
-    // Section options (strings to match database)
-    final sectionOptions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-
-    print('Debug: selectedGradeLevel: $selectedGradeLevel (${selectedGradeLevel.runtimeType})'); // Debug print
-    print('Debug: selectedSectionId: $selectedSectionId (${selectedSectionId.runtimeType})'); // Debug print
-
+    final gradeOptions = [
+      'Preschool',
+      'Kinder',
+      'Grade 1',
+      'Grade 2',
+      'Grade 3',
+      'Grade 4',
+      'Grade 5',
+      'Grade 6',
+    ];
     await showDialog(
       context: context,
       builder: (context) {
@@ -318,7 +342,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                         // Personal Information Section
                         _buildSectionHeader('Personal Information'),
                         const SizedBox(height: 16),
-                        
+
                         // Name fields row
                         Row(
                           children: [
@@ -384,13 +408,17 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   Icons.wc,
                                   isRequired: true,
                                 ),
-                                value: genderOptions.contains(selectedGender) ? selectedGender : null,
-                                items: genderOptions.map((gender) {
-                                  return DropdownMenuItem(
-                                    value: gender,
-                                    child: Text(gender),
-                                  );
-                                }).toList(),
+                                value:
+                                    genderOptions.contains(selectedGender)
+                                        ? selectedGender
+                                        : null,
+                                items:
+                                    genderOptions.map((gender) {
+                                      return DropdownMenuItem(
+                                        value: gender,
+                                        child: Text(gender),
+                                      );
+                                    }).toList(),
                                 onChanged: (value) {
                                   setDialogState(() {
                                     selectedGender = value;
@@ -417,14 +445,22 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                     onPressed: () async {
                                       final picked = await showDatePicker(
                                         context: context,
-                                        initialDate: selectedBirthday ?? DateTime.now().subtract(const Duration(days: 365 * 10)),
+                                        initialDate:
+                                            selectedBirthday ??
+                                            DateTime.now().subtract(
+                                              const Duration(days: 365 * 10),
+                                            ),
                                         firstDate: DateTime(1990),
                                         lastDate: DateTime.now(),
                                         builder: (context, child) {
                                           return Theme(
                                             data: Theme.of(context).copyWith(
-                                              colorScheme: Theme.of(context).colorScheme.copyWith(
-                                                primary: const Color(0xFF2ECC71),
+                                              colorScheme: Theme.of(
+                                                context,
+                                              ).colorScheme.copyWith(
+                                                primary: const Color(
+                                                  0xFF2ECC71,
+                                                ),
                                               ),
                                             ),
                                             child: child!,
@@ -434,7 +470,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                       if (picked != null) {
                                         setDialogState(() {
                                           selectedBirthday = picked;
-                                          birthdayController.text = DateFormat('yyyy-MM-dd').format(picked);
+                                          birthdayController.text = DateFormat(
+                                            'yyyy-MM-dd',
+                                          ).format(picked);
                                         });
                                       }
                                     },
@@ -480,22 +518,28 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                         Row(
                           children: [
                             Expanded(
-                              child: DropdownButtonFormField<int>(
+                              child: DropdownButtonFormField<String>(
                                 decoration: _buildInputDecoration(
                                   'Grade Level',
                                   Icons.school,
                                   isRequired: true,
                                 ),
-                                value: gradeOptions.contains(selectedGradeLevel) ? selectedGradeLevel : null,
-                                items: gradeOptions.map((grade) {
-                                  return DropdownMenuItem(
-                                    value: grade,
-                                    child: Text('Grade $grade'),
-                                  );
-                                }).toList(),
+                                value:
+                                    gradeOptions.contains(selectedGradeLevel)
+                                        ? selectedGradeLevel
+                                        : null,
+                                items:
+                                    gradeOptions.map((grade) {
+                                      return DropdownMenuItem(
+                                        value: grade,
+                                        child: Text(grade),
+                                      );
+                                    }).toList(),
                                 onChanged: (value) {
                                   setDialogState(() {
                                     selectedGradeLevel = value;
+                                    selectedSectionId =
+                                        null; // Reset section when grade changes
                                   });
                                 },
                                 validator: (value) {
@@ -508,19 +552,30 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: DropdownButtonFormField<String>(
+                              child: DropdownButtonFormField<int>(
                                 decoration: _buildInputDecoration(
                                   'Section',
                                   Icons.class_,
                                   isRequired: true,
                                 ),
-                                value: sectionOptions.contains(selectedSectionId) ? selectedSectionId : null,
-                                items: sectionOptions.map((section) {
-                                  return DropdownMenuItem(
-                                    value: section,
-                                    child: Text('Section $section'),
-                                  );
-                                }).toList(),
+                                value: selectedSectionId,
+                                items:
+                                    sections
+                                        .where(
+                                          (s) =>
+                                              selectedGradeLevel == null ||
+                                              s['grade_level'] ==
+                                                  selectedGradeLevel,
+                                        )
+                                        .map((section) {
+                                          return DropdownMenuItem<int>(
+                                            value: section['id'],
+                                            child: Text(
+                                              '${section['name']} (${section['grade_level']})',
+                                            ),
+                                          );
+                                        })
+                                        .toList(),
                                 onChanged: (value) {
                                   setDialogState(() {
                                     selectedSectionId = value;
@@ -550,7 +605,11 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                               value: 'Active',
                               child: Row(
                                 children: [
-                                  Icon(Icons.check_circle, color: Colors.green, size: 16),
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: Colors.green,
+                                    size: 16,
+                                  ),
                                   SizedBox(width: 8),
                                   Text('Active'),
                                 ],
@@ -560,7 +619,11 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                               value: 'Inactive',
                               child: Row(
                                 children: [
-                                  Icon(Icons.cancel, color: Colors.red, size: 16),
+                                  Icon(
+                                    Icons.cancel,
+                                    color: Colors.red,
+                                    size: 16,
+                                  ),
                                   SizedBox(width: 8),
                                   Text('Inactive'),
                                 ],
@@ -612,15 +675,22 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
                                     color: Colors.green[50],
-                                    border: Border.all(color: Colors.green[200]!),
+                                    border: Border.all(
+                                      color: Colors.green[200]!,
+                                    ),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
                                         children: [
-                                          Icon(Icons.check_circle, color: Colors.green[600], size: 16),
+                                          Icon(
+                                            Icons.check_circle,
+                                            color: Colors.green[600],
+                                            size: 16,
+                                          ),
                                           const SizedBox(width: 6),
                                           const Text(
                                             'RFID Card Assigned',
@@ -649,10 +719,19 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   children: [
                                     Expanded(
                                       child: OutlinedButton.icon(
-                                        icon: const Icon(Icons.contactless, size: 16),
-                                        label: const Text('Scan New Card', style: TextStyle(fontSize: 12)),
+                                        icon: const Icon(
+                                          Icons.contactless,
+                                          size: 16,
+                                        ),
+                                        label: const Text(
+                                          'Scan New Card',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
                                         onPressed: () async {
-                                          final newUID = await _showRFIDScanDialog(context);
+                                          final newUID =
+                                              await _showRFIDScanDialog(
+                                                context,
+                                              );
                                           if (newUID != null) {
                                             setDialogState(() {
                                               rfidUID = newUID;
@@ -660,13 +739,20 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                           }
                                         },
                                         style: OutlinedButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
                                         ),
                                       ),
                                     ),
                                     const SizedBox(width: 8),
                                     IconButton(
-                                      icon: const Icon(Icons.clear, color: Colors.red, size: 18),
+                                      icon: const Icon(
+                                        Icons.clear,
+                                        color: Colors.red,
+                                        size: 18,
+                                      ),
                                       tooltip: 'Remove RFID',
                                       onPressed: () {
                                         setDialogState(() {
@@ -683,12 +769,18 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
                                     color: Colors.orange[50],
-                                    border: Border.all(color: Colors.orange[200]!),
+                                    border: Border.all(
+                                      color: Colors.orange[200]!,
+                                    ),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Row(
                                     children: [
-                                      Icon(Icons.warning, color: Colors.orange[600], size: 16),
+                                      Icon(
+                                        Icons.warning,
+                                        color: Colors.orange[600],
+                                        size: 16,
+                                      ),
                                       const SizedBox(width: 8),
                                       const Text(
                                         'No RFID card assigned',
@@ -704,15 +796,25 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                 SizedBox(
                                   width: double.infinity,
                                   child: ElevatedButton.icon(
-                                    icon: const Icon(Icons.contactless, size: 16),
-                                    label: const Text('Scan RFID Card', style: TextStyle(fontSize: 12)),
+                                    icon: const Icon(
+                                      Icons.contactless,
+                                      size: 16,
+                                    ),
+                                    label: const Text(
+                                      'Scan RFID Card',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF2ECC71),
                                       foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
                                     ),
                                     onPressed: () async {
-                                      final newUID = await _showRFIDScanDialog(context);
+                                      final newUID = await _showRFIDScanDialog(
+                                        context,
+                                      );
                                       if (newUID != null) {
                                         setDialogState(() {
                                           rfidUID = newUID;
@@ -739,26 +841,32 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2ECC71),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
                   ),
                   onPressed: () async {
                     if (formKey.currentState!.validate()) {
                       try {
-                        // Create payload with proper data types matching schema
                         final payload = {
                           'fname': fnameController.text.trim(),
-                          'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                          'mname':
+                              mnameController.text.trim().isEmpty
+                                  ? null
+                                  : mnameController.text.trim(),
                           'lname': lnameController.text.trim(),
                           'gender': selectedGender,
                           'address': addressController.text.trim(),
-                          'birthday': birthdayController.text.isEmpty ? null : birthdayController.text,
-                          'grade_level': selectedGradeLevel, // INTEGER
-                          'section_id': selectedSectionId, // VARCHAR (STRING)
+                          'birthday':
+                              birthdayController.text.isEmpty
+                                  ? null
+                                  : birthdayController.text,
+                          'grade_level': selectedGradeLevel,
+                          'section_id': selectedSectionId, // Now BIGINT
                           'status': selectedStatus,
                           'rfid_uid': rfidUID?.isEmpty == true ? null : rfidUID,
                         };
-
-                        print('Debug: Payload to be sent: $payload'); // Debug print
 
                         if (student == null) {
                           await supabase.from('students').insert(payload);
@@ -778,7 +886,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                             SnackBar(
                               content: Row(
                                 children: [
-                                  const Icon(Icons.check_circle, color: Colors.white),
+                                  const Icon(
+                                    Icons.check_circle,
+                                    color: Colors.white,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     student == null
@@ -793,7 +904,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                           );
                         }
                       } catch (e) {
-                        print('Debug: Error saving student: $e'); // Debug print
                         // Show error message
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -802,7 +912,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                 children: [
                                   const Icon(Icons.error, color: Colors.white),
                                   const SizedBox(width: 8),
-                                  Expanded(child: Text('Error: ${e.toString()}')),
+                                  Expanded(
+                                    child: Text('Error: ${e.toString()}'),
+                                  ),
                                 ],
                               ),
                               backgroundColor: Colors.red,
@@ -863,7 +975,11 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   }
 
   // Helper method to build consistent input decoration
-  InputDecoration _buildInputDecoration(String label, IconData icon, {bool isRequired = false}) {
+  InputDecoration _buildInputDecoration(
+    String label,
+    IconData icon, {
+    bool isRequired = false,
+  }) {
     return InputDecoration(
       labelText: isRequired ? '$label *' : label,
       prefixIcon: Icon(icon, size: 20),
@@ -886,10 +1002,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       filled: true,
       fillColor: Colors.grey[50],
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      labelStyle: TextStyle(
-        color: Colors.grey[600],
-        fontSize: 14,
-      ),
+      labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
     );
   }
 
@@ -921,7 +1034,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               children: [
                 const Icon(Icons.error, color: Colors.white),
                 const SizedBox(width: 8),
-                Expanded(child: Text('Error deleting student: ${e.toString()}')),
+                Expanded(
+                  child: Text('Error deleting student: ${e.toString()}'),
+                ),
               ],
             ),
             backgroundColor: Colors.red,
@@ -947,18 +1062,20 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     final isAdmin = user?.userMetadata?['role'] == 'Admin';
 
     // Apply filters
-    var filteredStudents = students.where((s) {
-      final name = "${s['fname']} ${s['lname']}".toLowerCase();
-      final classMatch = _classFilter == 'All Classes' ||
-          s['grade_level']?.toString() ==
-              _classFilter.replaceAll(RegExp(r'Grade '), '');
-      final statusMatch = _statusFilter == 'All Status' ||
-          (s['status'] ?? 'Active') == _statusFilter;
+    var filteredStudents =
+        students.where((s) {
+          final name = "${s['fname']} ${s['lname']}".toLowerCase();
+          final classMatch =
+              _classFilter == 'All Classes' ||
+              s['grade_level']?.toString() == _classFilter;
+          final statusMatch =
+              _statusFilter == 'All Status' ||
+              (s['status'] ?? 'Active') == _statusFilter;
 
-      return name.contains(_searchQuery.toLowerCase()) &&
-          classMatch &&
-          statusMatch;
-    }).toList();
+          return name.contains(_searchQuery.toLowerCase()) &&
+              classMatch &&
+              statusMatch;
+        }).toList();
 
     // Apply sorting
     if (_sortOption == 'Name (A-Z)') {
@@ -987,9 +1104,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
     // Get current page items
     final int startIndex = (_currentPage - 1) * _itemsPerPage;
-    final int endIndex = startIndex + _itemsPerPage > filteredStudents.length
-        ? filteredStudents.length
-        : startIndex + _itemsPerPage;
+    final int endIndex =
+        startIndex + _itemsPerPage > filteredStudents.length
+            ? filteredStudents.length
+            : startIndex + _itemsPerPage;
 
     final List<Map<String, dynamic>> currentPageItems =
         filteredStudents.length > startIndex
@@ -1000,8 +1118,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     final List<String> classOptions = ['All Classes'];
     for (var student in students) {
       final grade = student['grade_level']?.toString();
-      if (grade != null && !classOptions.contains('Grade $grade')) {
-        classOptions.add('Grade $grade');
+      if (grade != null && !classOptions.contains(grade)) {
+        classOptions.add(grade);
       }
     }
 
@@ -1039,10 +1157,11 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(vertical: 10.0),
                     ),
-                    onChanged: (val) => setState(() {
-                      _searchQuery = val;
-                      _currentPage = 1; // Reset to first page on new search
-                    }),
+                    onChanged:
+                        (val) => setState(() {
+                          _searchQuery = val;
+                          _currentPage = 1; // Reset to first page on new search
+                        }),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -1121,12 +1240,13 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       child: DropdownButton<String>(
                         value: _classFilter,
                         icon: const Icon(Icons.keyboard_arrow_down),
-                        items: classOptions.map((String item) {
-                          return DropdownMenuItem(
-                            value: item,
-                            child: Text(item),
-                          );
-                        }).toList(),
+                        items:
+                            classOptions.map((String item) {
+                              return DropdownMenuItem(
+                                value: item,
+                                child: Text(item),
+                              );
+                            }).toList(),
                         onChanged: (String? newValue) {
                           setState(() {
                             _classFilter = newValue!;
@@ -1149,16 +1269,17 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       child: DropdownButton<String>(
                         value: _statusFilter,
                         icon: const Icon(Icons.keyboard_arrow_down),
-                        items: <String>[
-                          'All Status',
-                          'Active',
-                          'Inactive',
-                        ].map<DropdownMenuItem<String>>((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
+                        items:
+                            <String>[
+                              'All Status',
+                              'Active',
+                              'Inactive',
+                            ].map<DropdownMenuItem<String>>((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value),
+                              );
+                            }).toList(),
                         onChanged: (String? newValue) {
                           setState(() {
                             _statusFilter = newValue!;
@@ -1181,17 +1302,18 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       child: DropdownButton<String>(
                         value: _sortOption,
                         icon: const Icon(Icons.keyboard_arrow_down),
-                        items: <String>[
-                          'Name (A-Z)',
-                          'Name (Z-A)',
-                          'Date (Asc)',
-                          'Date (Desc)',
-                        ].map<DropdownMenuItem<String>>((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text("Sort by: $value"),
-                          );
-                        }).toList(),
+                        items:
+                            <String>[
+                              'Name (A-Z)',
+                              'Name (Z-A)',
+                              'Date (Asc)',
+                              'Date (Desc)',
+                            ].map<DropdownMenuItem<String>>((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text("Sort by: $value"),
+                              );
+                            }).toList(),
                         onChanged: (String? newValue) {
                           setState(() {
                             _sortOption = newValue!;
@@ -1207,7 +1329,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
             const SizedBox(height: 16),
 
             // Table content
-            if (isLoading)
+            if (isLoading || isLoadingSections)
               const Expanded(
                 child: Center(
                   child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
@@ -1271,18 +1393,19 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                     "${student['fname'] ?? ''} ${student['lname'] ?? ''}";
                                 final String studentId =
                                     "STU${student['id'].toString().padLeft(3, '0')}";
-                                
-                                // Fix: Handle section_id as string for display
-                                final sectionId = student['section_id']?.toString();
-                                final String className = sectionId != null 
-                                    ? "Grade ${student['grade_level'] ?? ''}$sectionId"
-                                    : "Grade ${student['grade_level'] ?? ''}";
-                                
+
+                                // Show section info from joined section
+                                final section = student['sections'];
+                                final String className =
+                                    section != null
+                                        ? "${section['name']} (${section['grade_level']})"
+                                        : "N/A";
+
                                 final enrollmentDate =
                                     student['created_at'] != null
                                         ? DateFormat('yyyy-MM-dd').format(
-                                            DateTime.parse(student['created_at']),
-                                          )
+                                          DateTime.parse(student['created_at']),
+                                        )
                                         : "N/A";
                                 final status = student['status'] ?? 'Active';
 
@@ -1394,18 +1517,21 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                             vertical: 4,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: status == 'Active'
-                                                ? const Color(0xFFE8F5E9)
-                                                : const Color(0xFFFFEBEE),
-                                            borderRadius:
-                                                BorderRadius.circular(4),
+                                            color:
+                                                status == 'Active'
+                                                    ? const Color(0xFFE8F5E9)
+                                                    : const Color(0xFFFFEBEE),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
                                           ),
                                           child: Text(
                                             status,
                                             style: TextStyle(
-                                              color: status == 'Active'
-                                                  ? const Color(0xFF2E7D32)
-                                                  : const Color(0xFFC62828),
+                                              color:
+                                                  status == 'Active'
+                                                      ? const Color(0xFF2E7D32)
+                                                      : const Color(0xFFC62828),
                                               fontWeight: FontWeight.w500,
                                               fontSize: 12,
                                             ),
@@ -1430,69 +1556,94 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                             } else if (value == 'delete') {
                                               showDialog(
                                                 context: context,
-                                                builder: (ctx) => AlertDialog(
-                                                  title: const Row(
-                                                    children: [
-                                                      Icon(Icons.warning, color: Colors.red),
-                                                      SizedBox(width: 8),
-                                                      Text('Confirm Delete'),
-                                                    ],
-                                                  ),
-                                                  content: Text(
-                                                    'Are you sure you want to delete ${student['fname']} ${student['lname']}? This action cannot be undone.',
-                                                  ),
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () =>
-                                                          Navigator.pop(ctx),
-                                                      child: const Text('Cancel'),
-                                                    ),
-                                                    ElevatedButton(
-                                                      style: ElevatedButton
-                                                          .styleFrom(
-                                                        backgroundColor:
-                                                            Colors.red,
+                                                builder:
+                                                    (ctx) => AlertDialog(
+                                                      title: const Row(
+                                                        children: [
+                                                          Icon(
+                                                            Icons.warning,
+                                                            color: Colors.red,
+                                                          ),
+                                                          SizedBox(width: 8),
+                                                          Text(
+                                                            'Confirm Delete',
+                                                          ),
+                                                        ],
                                                       ),
-                                                      onPressed: () {
-                                                        Navigator.pop(ctx);
-                                                        _deleteStudent(
-                                                          student['id'],
-                                                        );
-                                                      },
-                                                      child: const Text(
-                                                        'Delete',
-                                                        style: TextStyle(
-                                                          color: Colors.white,
+                                                      content: Text(
+                                                        'Are you sure you want to delete ${student['fname']} ${student['lname']}? This action cannot be undone.',
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed:
+                                                              () =>
+                                                                  Navigator.pop(
+                                                                    ctx,
+                                                                  ),
+                                                          child: const Text(
+                                                            'Cancel',
+                                                          ),
                                                         ),
-                                                      ),
+                                                        ElevatedButton(
+                                                          style:
+                                                              ElevatedButton.styleFrom(
+                                                                backgroundColor:
+                                                                    Colors.red,
+                                                              ),
+                                                          onPressed: () {
+                                                            Navigator.pop(ctx);
+                                                            _deleteStudent(
+                                                              student['id'],
+                                                            );
+                                                          },
+                                                          child: const Text(
+                                                            'Delete',
+                                                            style: TextStyle(
+                                                              color:
+                                                                  Colors.white,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
-                                                  ],
-                                                ),
                                               );
                                             }
                                           },
-                                          itemBuilder: (context) => [
-                                            const PopupMenuItem(
-                                              value: 'edit',
-                                              child: Row(
-                                                children: [
-                                                  Icon(Icons.edit, size: 16),
-                                                  SizedBox(width: 8),
-                                                  Text('Edit'),
-                                                ],
-                                              ),
-                                            ),
-                                            const PopupMenuItem(
-                                              value: 'delete',
-                                              child: Row(
-                                                children: [
-                                                  Icon(Icons.delete, size: 16, color: Colors.red),
-                                                  SizedBox(width: 8),
-                                                  Text('Delete', style: TextStyle(color: Colors.red)),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
+                                          itemBuilder:
+                                              (context) => [
+                                                const PopupMenuItem(
+                                                  value: 'edit',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.edit,
+                                                        size: 16,
+                                                      ),
+                                                      SizedBox(width: 8),
+                                                      Text('Edit'),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const PopupMenuItem(
+                                                  value: 'delete',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.delete,
+                                                        size: 16,
+                                                        color: Colors.red,
+                                                      ),
+                                                      SizedBox(width: 8),
+                                                      Text(
+                                                        'Delete',
+                                                        style: TextStyle(
+                                                          color: Colors.red,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
                                         ),
                                       ),
                                     ),
@@ -1526,12 +1677,14 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                               // Previous button
                               IconButton(
                                 icon: const Icon(Icons.chevron_left),
-                                onPressed: _currentPage > 1
-                                    ? () => setState(() => _currentPage--)
-                                    : null,
-                                color: _currentPage > 1
-                                    ? const Color(0xFF666666)
-                                    : const Color(0xFFCCCCCC),
+                                onPressed:
+                                    _currentPage > 1
+                                        ? () => setState(() => _currentPage--)
+                                        : null,
+                                color:
+                                    _currentPage > 1
+                                        ? const Color(0xFF666666)
+                                        : const Color(0xFFCCCCCC),
                               ),
 
                               // Page numbers
@@ -1543,23 +1696,27 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                         i <= _currentPage + 1))
                                   Container(
                                     margin: const EdgeInsets.symmetric(
-                                        horizontal: 4),
+                                      horizontal: 4,
+                                    ),
                                     width: 32,
                                     height: 32,
                                     decoration: BoxDecoration(
-                                      color: i == _currentPage
-                                          ? const Color(0xFF2ECC71)
-                                          : Colors.transparent,
+                                      color:
+                                          i == _currentPage
+                                              ? const Color(0xFF2ECC71)
+                                              : Colors.transparent,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: TextButton(
-                                      onPressed: () =>
-                                          setState(() => _currentPage = i),
+                                      onPressed:
+                                          () =>
+                                              setState(() => _currentPage = i),
                                       style: TextButton.styleFrom(
                                         padding: EdgeInsets.zero,
-                                        foregroundColor: i == _currentPage
-                                            ? Colors.white
-                                            : const Color(0xFF666666),
+                                        foregroundColor:
+                                            i == _currentPage
+                                                ? Colors.white
+                                                : const Color(0xFF666666),
                                       ),
                                       child: Text(
                                         i.toString(),
@@ -1570,20 +1727,23 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                 else if (i == _currentPage - 2 ||
                                     i == _currentPage + 2)
                                   const Padding(
-                                    padding:
-                                        EdgeInsets.symmetric(horizontal: 4),
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
                                     child: Text('...'),
                                   ),
 
                               // Next button
                               IconButton(
                                 icon: const Icon(Icons.chevron_right),
-                                onPressed: _currentPage < _totalPages
-                                    ? () => setState(() => _currentPage++)
-                                    : null,
-                                color: _currentPage < _totalPages
-                                    ? const Color(0xFF666666)
-                                    : const Color(0xFFCCCCCC),
+                                onPressed:
+                                    _currentPage < _totalPages
+                                        ? () => setState(() => _currentPage++)
+                                        : null,
+                                color:
+                                    _currentPage < _totalPages
+                                        ? const Color(0xFF666666)
+                                        : const Color(0xFFCCCCCC),
                               ),
                             ],
                           ),

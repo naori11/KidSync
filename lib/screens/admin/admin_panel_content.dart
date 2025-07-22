@@ -4,6 +4,7 @@ import 'user_management.dart';
 import 'parent_guardian.dart';
 import 'attendance.dart';
 import 'audit_logs.dart';
+import 'section_management.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 final supabase = Supabase.instance.client;
@@ -46,6 +47,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     super.initState();
     navItems = [
       _NavItem("Dashboard", Icons.dashboard_outlined, const SizedBox()),
+      _NavItem("Section Management", Icons.list_alt_outlined, const SectionManagementPage()),
       _NavItem(
         "Student Management",
         Icons.people_outline,
