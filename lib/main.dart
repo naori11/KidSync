@@ -292,6 +292,10 @@ class _KidSyncAppState extends State<KidSyncApp> {
           if (currentRouteName != '/teacher')
             navigator.pushReplacementNamed('/teacher');
           break;
+        case 'Parent':
+          if (currentRouteName != '/parent')
+            navigator.pushReplacementNamed('/parent');
+          break;
         default:
           print(
             "[DEBUG] _handleNavigation: Unknown role ('$role') or fallback. Navigating to LoginScreen.",
