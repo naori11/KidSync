@@ -17,7 +17,7 @@ class Student {
   final String address;
   final String? birthday;
   final String? gradeLevel;
-  final String? sectionId;
+  final int? sectionId;
   final String? gender;
   final String? status;
   final String? rfidUid;
