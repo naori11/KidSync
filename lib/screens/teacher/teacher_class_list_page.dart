@@ -1,63 +1,120 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class TeacherClassListPage extends StatelessWidget {
-  const TeacherClassListPage({super.key});
+class TeacherClassListPage extends StatefulWidget {
+  final void Function(int sectionId, String sectionName)? onViewAttendance;
+  const TeacherClassListPage({super.key, this.onViewAttendance});
+
+  @override
+  State<TeacherClassListPage> createState() => _TeacherClassListPageState();
+}
+
+class _TeacherClassListPageState extends State<TeacherClassListPage> {
+  final supabase = Supabase.instance.client;
+  String? teacherId;
+  List<Map<String, dynamic>> assignedSections = [];
+  Map<int, List<Map<String, dynamic>>> sectionStudents = {};
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClassList();
+  }
+
+  Future<void> _loadClassList() async {
+    setState(() => isLoading = true);
+
+    final user = supabase.auth.currentUser;
+    teacherId = user?.id;
+
+    if (teacherId == null) {
+      setState(() => isLoading = false);
+      return;
+    }
+
+    final sectionAssignments = await supabase
+        .from('section_teachers')
+        .select(
+          'id, section_id, subject, assigned_at, sections(id, name, grade_level, schedule)',
+        )
+        .eq('teacher_id', teacherId!);
+
+    assignedSections = List<Map<String, dynamic>>.from(sectionAssignments);
+
+    sectionStudents.clear();
+    for (final assignment in assignedSections) {
+      final section = assignment['sections'];
+      if (section == null) continue;
+      final students = await supabase
+          .from('students')
+          .select('id, fname, lname, rfid_uid')
+          .eq('section_id', section['id']);
+      sectionStudents[section['id']] = List<Map<String, dynamic>>.from(
+        students,
+      );
+    }
+
+    setState(() => isLoading = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F8F5),
-      body: Row(
-        children: [
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      body:
+          isLoading
+              ? const Center(
+                child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
+              )
+              : Row(
                 children: [
-                  const Text(
-                    "My Classes",
-                    style: TextStyle(
-                      fontSize: 23,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "My Classes",
+                            style: TextStyle(
+                              fontSize: 23,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Column(
+                            children: [
+                              for (final assignment in assignedSections)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 12.0),
+                                  child: _ClassListCard(
+                                    title: assignment['sections']['name'],
+                                    time:
+                                        assignment['sections']['schedule'] ??
+                                        "--",
+                                    students:
+                                        sectionStudents[assignment['sections']['id']]
+                                            ?.length ??
+                                        0,
+                                    status: "Ongoing",
+                                    statusColor: const Color(0xFF2ECC71),
+                                    onPressed: () {
+                                      widget.onViewAttendance?.call(
+                                        assignment['sections']['id'],
+                                        assignment['sections']['name'],
+                                      );
+                                    },
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  Column(
-                    children: [
-                      _ClassListCard(
-                        title: "Mathematics 101",
-                        time: "09:00 AM - 10:30 AM",
-                        students: 25,
-                        status: "Ongoing",
-                        statusColor: const Color(0xFF2ECC71),
-                        onPressed: () {},
-                      ),
-                      const SizedBox(height: 12),
-                      _ClassListCard(
-                        title: "Physics Advanced",
-                        time: "11:00 AM - 12:30 PM",
-                        students: 20,
-                        status: "Ongoing",
-                        statusColor: const Color(0xFF2ECC71),
-                        onPressed: () {},
-                      ),
-                      const SizedBox(height: 12),
-                      _ClassListCard(
-                        title: "Chemistry Lab",
-                        time: "01:30 PM - 03:30 PM",
-                        students: 22,
-                        status: "Upcoming",
-                        statusColor: Colors.orange,
-                        onPressed: () {},
-                      ),
-                    ],
                   ),
                 ],
               ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -94,7 +151,10 @@ class _ClassListCard extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
@@ -137,7 +197,10 @@ class _ClassListCard extends StatelessWidget {
                   ),
                   elevation: 0,
                 ),
-                child: const Text("View Details", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                child: const Text(
+                  "View Details",
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                ),
               ),
             ),
           ],
