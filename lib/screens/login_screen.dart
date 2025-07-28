@@ -54,9 +54,19 @@ class _LoginScreenState extends State<LoginScreen> {
           default:
             throw Exception("Unknown role: $role");
         }
-      } catch (e) {
+      } on AuthException catch (e) {
+        // Supabase specific authentication errors
+        print('Supabase Auth error: ${e.message}');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Login failed: ${e.toString()}")),
+          const SnackBar(
+            content: Text("Invalid email or password. Please try again."),
+          ),
+        );
+      } catch (e) {
+        // Other errors (could be network, parsing, etc)
+        print('Login error: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Login failed. Please try again.")),
         );
       }
     }
