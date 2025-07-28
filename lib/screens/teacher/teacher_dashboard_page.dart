@@ -13,7 +13,15 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   String? teacherId;
   List<Map<String, dynamic>> assignedSections = [];
   Map<int, List<Map<String, dynamic>>> sectionStudents = {};
+  Map<int, Map<String, int>> sectionAttendanceStats =
+      {}; // sectionId -> {present, attendance}
+  Map<int, Map<int, String>> sectionStudentStatus =
+      {}; // sectionId -> {studentId: status}
   bool isLoading = true;
+
+  // Pagination state for each section
+  Map<int, int> sectionPage = {}; // sectionId -> currentPage (1-based)
+  static const int studentsPerPage = 10;
 
   @override
   void initState() {
@@ -24,7 +32,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   Future<void> _loadDashboard() async {
     setState(() => isLoading = true);
 
-    // Get current teacher's id
     final user = supabase.auth.currentUser;
     teacherId = user?.id;
 
@@ -43,21 +50,98 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
     assignedSections = List<Map<String, dynamic>>.from(sectionAssignments);
 
-    // For each section, fetch students
     sectionStudents.clear();
+    sectionAttendanceStats.clear();
+    sectionStudentStatus.clear();
+    sectionPage.clear();
+
+    final nowUtc = DateTime.now().toUtc();
+    final todayStart = DateTime.utc(
+      nowUtc.year,
+      nowUtc.month,
+      nowUtc.day,
+      0,
+      0,
+      0,
+    );
+    final todayEnd = DateTime.utc(
+      nowUtc.year,
+      nowUtc.month,
+      nowUtc.day,
+      23,
+      59,
+      59,
+    );
+
     for (final assignment in assignedSections) {
       final section = assignment['sections'];
       if (section == null) continue;
+
+      // Fetch students for this section
       final students = await supabase
           .from('students')
           .select('id, fname, lname, rfid_uid')
           .eq('section_id', section['id']);
-      sectionStudents[section['id']] = List<Map<String, dynamic>>.from(
-        students,
-      );
+      final studentsList = List<Map<String, dynamic>>.from(students);
+      sectionStudents[section['id']] = studentsList;
+      sectionPage[section['id']] = 1; // start from page 1
+
+      final studentIds = studentsList.map((s) => s['id'] as int).toList();
+      if (studentIds.isEmpty) {
+        sectionAttendanceStats[section['id']] = {'present': 0, 'attendance': 0};
+        sectionStudentStatus[section['id']] = {};
+        continue;
+      }
+
+      // Fetch all scan_records for today with action='entry'
+      final scanRecords = await supabase
+          .from('scan_records')
+          .select('student_id, scan_time, action')
+          .inFilter('student_id', studentIds)
+          .eq('action', 'entry')
+          .gte('scan_time', todayStart.toIso8601String())
+          .lte('scan_time', todayEnd.toIso8601String());
+
+      // Map: studentId -> hasEntryToday
+      final Set<int> presentIds = {};
+      if (scanRecords is List) {
+        for (final record in scanRecords) {
+          final int sid = record['student_id'];
+          presentIds.add(sid);
+        }
+      }
+
+      // Attendance stats
+      int presentCount = 0;
+      Map<int, String> statusMap = {};
+      for (final student in studentsList) {
+        final int sid = student['id'];
+        if (presentIds.contains(sid)) {
+          presentCount++;
+          statusMap[sid] = "Present";
+        } else {
+          statusMap[sid] = "Absent";
+        }
+      }
+      int attendancePercent =
+          studentsList.isEmpty
+              ? 0
+              : ((presentCount / studentsList.length) * 100).round();
+
+      sectionAttendanceStats[section['id']] = {
+        'present': presentCount,
+        'attendance': attendancePercent,
+      };
+      sectionStudentStatus[section['id']] = statusMap;
     }
 
     setState(() => isLoading = false);
+  }
+
+  void _setSectionPage(int sectionId, int page) {
+    setState(() {
+      sectionPage[sectionId] = page;
+    });
   }
 
   @override
@@ -132,11 +216,18 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
                               physics: const BouncingScrollPhysics(),
-                              itemCount: assignedSections.length,
+                              itemCount:
+                                  assignedSections.length > 3
+                                      ? 3
+                                      : assignedSections.length,
                               separatorBuilder:
                                   (_, __) => const SizedBox(width: 16),
                               itemBuilder: (context, idx) {
                                 final assignment = assignedSections[idx];
+                                final sectionId = assignment['sections']['id'];
+                                final attendanceStats =
+                                    sectionAttendanceStats[sectionId] ??
+                                    {'present': 0, 'attendance': 0};
                                 return SizedBox(
                                   width:
                                       MediaQuery.of(context).size.width / 3 -
@@ -150,13 +241,10 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                                         "Ongoing", // You can make this dynamic later
                                     statusColor: const Color(0xFF2ECC71),
                                     students:
-                                        sectionStudents[assignment['sections']['id']]
-                                            ?.length ??
-                                        0,
-                                    present:
-                                        0, // Add attendance logic if available
+                                        sectionStudents[sectionId]?.length ?? 0,
+                                    present: attendanceStats['present'] ?? 0,
                                     attendance:
-                                        0, // Add attendance logic if available
+                                        attendanceStats['attendance'] ?? 0,
                                     onPressed: () {
                                       showDialog(
                                         context: context,
@@ -172,12 +260,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                                                       assignment['sections']['name'],
                                                   students: [
                                                     for (final student
-                                                        in sectionStudents[assignment['sections']['id']] ??
+                                                        in sectionStudents[sectionId] ??
                                                             [])
                                                       _StudentRowData(
                                                         "${student['fname']} ${student['lname']}",
                                                         "https://randomuser.me/api/portraits/lego/1.jpg",
-                                                        "Unknown", // Add attendance status if available
+                                                        sectionStudentStatus[sectionId]?[student['id']] ??
+                                                            "Absent",
                                                       ),
                                                   ],
                                                 ),
@@ -194,7 +283,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
                           // Student list for first section/class (as example)
                           if (assignedSections.isNotEmpty)
-                            _ClassStudentList(
+                            _ClassStudentListPaginated(
                               classTitle:
                                   assignedSections[0]['sections']['name'],
                               students: [
@@ -204,9 +293,18 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                                   _StudentRowData(
                                     "${student['fname']} ${student['lname']}",
                                     "https://randomuser.me/api/portraits/lego/1.jpg",
-                                    "Unknown",
+                                    sectionStudentStatus[assignedSections[0]['sections']['id']]?[student['id']] ??
+                                        "Absent",
                                   ),
                               ],
+                              currentPage:
+                                  sectionPage[assignedSections[0]['sections']['id']] ??
+                                  1,
+                              onPageChanged:
+                                  (page) => _setSectionPage(
+                                    assignedSections[0]['sections']['id'],
+                                    page,
+                                  ),
                             ),
                         ],
                       ),
@@ -218,7 +316,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   }
 }
 
-// Do NOT wrap in Expanded when using inside a horizontally scrolling ListView
+// Class Card (unchanged aside from actual values passed in)
 class _ClassCard extends StatelessWidget {
   final String title;
   final String time;
@@ -294,12 +392,20 @@ class _ClassCard extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 "Present $present",
-                style: TextStyle(fontSize: 13, color: Colors.blue[700]),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.green[700],
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               const SizedBox(width: 10),
               Text(
                 "Attendance $attendance%",
-                style: TextStyle(fontSize: 13, color: Colors.green[700]),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.green[700],
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               const Spacer(),
               SizedBox(
@@ -328,6 +434,185 @@ class _ClassCard extends StatelessWidget {
   }
 }
 
+// Paginated student list widget
+class _ClassStudentListPaginated extends StatefulWidget {
+  final String classTitle;
+  final List<_StudentRowData> students;
+  final int currentPage;
+  final void Function(int page) onPageChanged;
+
+  const _ClassStudentListPaginated({
+    required this.classTitle,
+    required this.students,
+    required this.currentPage,
+    required this.onPageChanged,
+  });
+
+  @override
+  State<_ClassStudentListPaginated> createState() =>
+      _ClassStudentListPaginatedState();
+}
+
+class _ClassStudentListPaginatedState
+    extends State<_ClassStudentListPaginated> {
+  static const int studentsPerPage = 10;
+
+  @override
+  Widget build(BuildContext context) {
+    int totalEntries = widget.students.length;
+    int totalPages = (totalEntries / studentsPerPage).ceil();
+    int page = widget.currentPage.clamp(1, totalPages == 0 ? 1 : totalPages);
+
+    int start = (page - 1) * studentsPerPage;
+    int end = (start + studentsPerPage).clamp(0, totalEntries);
+
+    List<_StudentRowData> pageStudents = widget.students.sublist(start, end);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Text(
+                widget.classTitle,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            // List of students
+            ListView.separated(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: pageStudents.length,
+              separatorBuilder: (_, __) => const Divider(height: 0),
+              itemBuilder: (context, idx) {
+                final s = pageStudents[idx];
+                final isPresent = s.status == "Present";
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundImage: NetworkImage(s.avatarUrl),
+                  ),
+                  title: Text(
+                    s.name,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color:
+                                  isPresent
+                                      ? const Color(0xFF2ECC71)
+                                      : Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            isPresent ? "Present" : "Absent",
+                            style: TextStyle(
+                              color:
+                                  isPresent
+                                      ? const Color(0xFF2ECC71)
+                                      : Colors.red,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            // Pagination
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 5),
+              child: Row(
+                children: [
+                  Text(
+                    "Showing ${totalEntries == 0 ? 0 : (start + 1)} to $end of $totalEntries entries",
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed:
+                        page > 1 ? () => widget.onPageChanged(page - 1) : null,
+                    icon: const Icon(Icons.chevron_left, size: 18),
+                  ),
+                  for (int p = 1; p <= totalPages; p++)
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            page == p
+                                ? const Color(0xFF2ECC71)
+                                : Colors.transparent,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: GestureDetector(
+                        onTap: () => widget.onPageChanged(p),
+                        child: Text(
+                          "$p",
+                          style: TextStyle(
+                            color: page == p ? Colors.white : Colors.black87,
+                            fontWeight:
+                                page == p ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+                  IconButton(
+                    onPressed:
+                        page < totalPages
+                            ? () => widget.onPageChanged(page + 1)
+                            : null,
+                    icon: const Icon(Icons.chevron_right, size: 18),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// For backwards compatibility
+class _StudentRowData {
+  final String name;
+  final String avatarUrl;
+  final String status;
+  _StudentRowData(this.name, this.avatarUrl, this.status);
+}
+
+// The original _ClassStudentList (for dialog) remains unchanged, using the same logic for status color as in the paginated list.
 class _ClassStudentList extends StatelessWidget {
   final String classTitle;
   final List<_StudentRowData> students;
@@ -364,6 +649,7 @@ class _ClassStudentList extends StatelessWidget {
               separatorBuilder: (_, __) => const Divider(height: 0),
               itemBuilder: (context, idx) {
                 final s = students[idx];
+                final isPresent = s.status == "Present";
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: CircleAvatar(
@@ -379,134 +665,42 @@ class _ClassStudentList extends StatelessWidget {
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (s.status == "Present")
-                        Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF2ECC71),
-                                shape: BoxShape.circle,
-                              ),
+                      Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color:
+                                  isPresent
+                                      ? const Color(0xFF2ECC71)
+                                      : Colors.red,
+                              shape: BoxShape.circle,
                             ),
-                            const SizedBox(width: 5),
-                            const Text(
-                              "Present",
-                              style: TextStyle(
-                                color: Color(0xFF2ECC71),
-                                fontWeight: FontWeight.w500,
-                                fontSize: 13,
-                              ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            isPresent ? "Present" : "Absent",
+                            style: TextStyle(
+                              color:
+                                  isPresent
+                                      ? const Color(0xFF2ECC71)
+                                      : Colors.red,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13,
                             ),
-                          ],
-                        )
-                      else
-                        Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            const Text(
-                              "Absent",
-                              style: TextStyle(
-                                color: Colors.red,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 );
               },
             ),
-            // Pagination
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 5),
-              child: Row(
-                children: [
-                  Text(
-                    "Showing 1 to 5 of 50 entries",
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () {},
-                    icon: const Icon(Icons.chevron_left, size: 18),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2ECC71),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      "1",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 5),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 2,
-                    ),
-                    child: const Text(
-                      "2",
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontWeight: FontWeight.normal,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 5),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 2,
-                    ),
-                    child: const Text(
-                      "3",
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontWeight: FontWeight.normal,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () {},
-                    icon: const Icon(Icons.chevron_right, size: 18),
-                  ),
-                ],
-              ),
-            ),
+            // Pagination (optional for dialog list, not implemented here)
           ],
         ),
       ),
     );
   }
-}
-
-class _StudentRowData {
-  final String name;
-  final String avatarUrl;
-  final String status;
-  _StudentRowData(this.name, this.avatarUrl, this.status);
 }
