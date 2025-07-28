@@ -28,16 +28,19 @@ class ParentHomeScreen extends StatelessWidget {
       _NavItem('Fetchers', Icons.group, 'fetchers'),
       _NavItem('Notifications', Icons.notifications_none, 'notifications'),
     ];
-    return _ParentHomeTabs(navItems: navItems, primaryColor: primaryColor);
+    return _ParentHomeTabs(navItems: navItems, primaryColor: primaryColor, logout: _logout);
   }
 }
 
 class _ParentHomeTabs extends StatefulWidget {
   final List<_NavItem> navItems;
   final Color primaryColor;
+  final Future<void> Function(BuildContext) logout;
+  
   const _ParentHomeTabs({
     required this.navItems,
     required this.primaryColor,
+    required this.logout,
     Key? key,
   }) : super(key: key);
 
@@ -167,6 +170,18 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                           color: Colors.grey[700],
                           size: isMobile ? 14 : 18,
                         ),
+                      ),
+                      SizedBox(width: isMobile ? 4 : 8),
+                      IconButton(
+                        icon: Icon(
+                          Icons.logout,
+                          size: isMobile ? 20 : 26,
+                        ),
+                        color: Colors.grey[700],
+                        onPressed: () => widget.logout(context),
+                        tooltip: 'Logout',
+                        padding: EdgeInsets.zero,
+                        constraints: BoxConstraints(),
                       ),
                     ],
                   ),
