@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'student_management.dart';
 import 'user_management.dart';
 import 'parent_guardian.dart';
-import 'attendance.dart';
 import 'audit_logs.dart';
 import 'section_management.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -48,14 +47,9 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     navItems = [
       _NavItem("Dashboard", Icons.dashboard_outlined, const SizedBox()),
       _NavItem("Section Management", Icons.list_alt_outlined, const SectionManagementPage()),
-      _NavItem(
-        "Student Management",
-        Icons.people_outline,
-        StudentManagementPage(),
-      ),
+      _NavItem("Student Management", Icons.people_outline, StudentManagementPage()),
       _NavItem("User Management", Icons.person_outline, UserManagementPage()),
       _NavItem("Parent/Guardian", Icons.family_restroom, ParentGuardianPage()),
-      _NavItem("Attendance", Icons.calendar_today_outlined, AttendancePage()),
       _NavItem("Audit Logs", Icons.description_outlined, AuditLogsPage()),
       _NavItem("Logout", Icons.logout, null),
     ];
