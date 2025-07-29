@@ -48,37 +48,91 @@ class _TeacherClassManagementPageState
 
   Future<void> _loadAttendanceGrid() async {
     setState(() => isLoading = true);
-
+    // 1. Fetch all students in this section
     final studentList = await supabase
         .from('students')
         .select('id, fname, lname, rfid_uid')
         .eq('section_id', widget.sectionId);
 
+    // 2. Collect student IDs
+    final studentIds = [for (final s in studentList) s['id'] as int];
+    if (studentIds.isEmpty) {
+      students = [];
+      setState(() => isLoading = false);
+      return;
+    }
+
+    // 3. Fetch scan_records for all students in this section (limit to last 30 days for performance)
+    final since = DateTime.now().subtract(const Duration(days: 30));
+    final scanRecords = await supabase
+        .from('scan_records')
+        .select('id, student_id, scan_time, action, status')
+        .inFilter('student_id', studentIds)
+        .gte('scan_time', since.toIso8601String())
+        .order('scan_time', ascending: false);
+
+    // 4. Map studentId to their scanRecords
+    final Map<int, List<Map<String, dynamic>>> recordsByStudent = {};
+    for (final s in studentIds) {
+      recordsByStudent[s] = [];
+    }
+    for (final record in scanRecords) {
+      final sid = record['student_id'] as int;
+      recordsByStudent[sid]?.add(record);
+    }
+
+    // 5. Today's date
+    final now = DateTime.now().toUtc();
+    final today = DateTime.utc(now.year, now.month, now.day);
+
+    // 6. Compute attendance info for each student
     students = [];
     int i = 0;
     for (final student in studentList) {
-      final scanRecords = await supabase
-          .from('scan_records')
-          .select('scan_time, status')
-          .eq('student_id', student['id'])
-          .order('scan_time', ascending: false)
-          .limit(30);
+      final sid = student['id'] as int;
+      final List<Map<String, dynamic>> scans = recordsByStudent[sid] ?? [];
 
-      int presentDays =
-          scanRecords.where((r) => r['status'] == 'Present').length;
-      int totalDays = scanRecords.length > 0 ? scanRecords.length : 1;
-      int attendanceRate = ((presentDays / totalDays) * 100).round();
-      String lastAttendance =
-          scanRecords.isNotEmpty
-              ? DateFormat("MMM d, yyyy").format(
-                DateTime.tryParse(scanRecords.first['scan_time']) ??
-                    DateTime.now(),
-              )
-              : 'None';
-      String status =
-          scanRecords.isNotEmpty
-              ? scanRecords.first['status'] ?? 'Absent'
-              : 'Absent';
+      // Attendance Days: group by date
+      final daysPresent = <String, bool>{};
+      String lastAttendance = 'None';
+      String status = 'Absent';
+
+      // Get the most recent scan (for lastAttendance)
+      if (scans.isNotEmpty) {
+        final latestScan = scans.first;
+        lastAttendance = DateFormat(
+          "MMM d, yyyy",
+        ).format(DateTime.tryParse(latestScan['scan_time']) ?? DateTime.now());
+      }
+
+      // For attendance rate: count unique days with entry/check-in
+      for (final r in scans) {
+        final scanTime = DateTime.tryParse(r['scan_time']);
+        if (scanTime == null) continue;
+        final action = r['action']?.toString().toLowerCase();
+        // Accept entry/check-in as present
+        if (action == 'entry') {
+          final dayStr = DateFormat('yyyy-MM-dd').format(scanTime.toUtc());
+          daysPresent[dayStr] = true;
+        }
+      }
+
+      int attendanceRate =
+          scans.isEmpty
+              ? 0
+              : ((daysPresent.length / 30) * 100).round().clamp(0, 100);
+
+      // Status: Present if entry today, Absent otherwise
+      final hasEntryToday = scans.any((r) {
+        final scanTime = DateTime.tryParse(r['scan_time']);
+        final action = r['action']?.toString().toLowerCase();
+        return action == 'entry' &&
+            scanTime != null &&
+            scanTime.toUtc().year == today.year &&
+            scanTime.toUtc().month == today.month &&
+            scanTime.toUtc().day == today.day;
+      });
+      status = hasEntryToday ? 'Present' : 'Absent';
 
       students.add({
         'id': student['id'],
