@@ -23,24 +23,26 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
   }
 
   Future<void> _loadClassList() async {
-    setState(() => isLoading = true);
+  setState(() => isLoading = true);
 
-    final user = supabase.auth.currentUser;
-    teacherId = user?.id;
+  final user = supabase.auth.currentUser;
+  teacherId = user?.id;
 
-    if (teacherId == null) {
-      setState(() => isLoading = false);
-      return;
-    }
+  if (teacherId == null) {
+    setState(() => isLoading = false);
+    // Optionally show a message to the user here
+    return;
+  }
 
+  try {
     final sectionAssignments = await supabase
         .from('section_teachers')
         .select(
-          'id, section_id, subject, assigned_at, sections(id, name, grade_level, schedule)',
+          'id, section_id, subject, assigned_at, sections(id, name, schedule)' // use only existing columns!
         )
         .eq('teacher_id', teacherId!);
 
-    assignedSections = List<Map<String, dynamic>>.from(sectionAssignments);
+    assignedSections = List<Map<String, dynamic>>.from(sectionAssignments ?? []);
 
     sectionStudents.clear();
     for (final assignment in assignedSections) {
@@ -50,70 +52,82 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
           .from('students')
           .select('id, fname, lname, rfid_uid')
           .eq('section_id', section['id']);
-      sectionStudents[section['id']] = List<Map<String, dynamic>>.from(
-        students,
-      );
+      if (students == null) {
+        sectionStudents[section['id']] = [];
+        continue;
+      }
+      sectionStudents[section['id']] = List<Map<String, dynamic>>.from(students);
     }
-
-    setState(() => isLoading = false);
+  } catch (e) {
+    print("Supabase error: $e");
+    // Optionally show error message to user
   }
+
+  setState(() => isLoading = false);
+}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F8F5),
+      backgroundColor: const Color(0xF7F9FCFF),
       body:
           isLoading
               ? const Center(
                 child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
               )
-              : Row(
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "My Classes",
-                            style: TextStyle(
-                              fontSize: 23,
-                              fontWeight: FontWeight.bold,
-                            ),
+              : SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 32, 0, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(32, 0, 32, 0),
+                        child: Text(
+                          "My Classes",
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF222B45),
                           ),
-                          const SizedBox(height: 24),
-                          Column(
-                            children: [
-                              for (final assignment in assignedSections)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 12.0),
-                                  child: _ClassListCard(
-                                    title: assignment['sections']['name'],
-                                    time:
-                                        assignment['sections']['schedule'] ??
-                                        "--",
-                                    students:
-                                        sectionStudents[assignment['sections']['id']]
-                                            ?.length ??
-                                        0,
-                                    status: "Ongoing",
-                                    statusColor: const Color(0xFF2ECC71),
-                                    onPressed: () {
-                                      widget.onViewAttendance?.call(
-                                        assignment['sections']['id'],
-                                        assignment['sections']['name'],
-                                      );
-                                    },
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 18),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Column(
+                          children: [
+                            for (final assignment in assignedSections)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 18.0),
+                                child: _ClassListCard(
+                                  title: assignment['sections']['name'],
+                                  time:
+                                      assignment['sections']['schedule'] ??
+                                      "--",
+                                  students:
+                                      sectionStudents[assignment['sections']['id']]
+                                          ?.length ??
+                                      0,
+                                  // Example: status could be "Ongoing", "Upcoming", etc. Use your own logic if needed.
+                                  status:
+                                      assignment['sections']['status'] ??
+                                      "Ongoing",
+                                  onPressed: () {
+                                    widget.onViewAttendance?.call(
+                                      assignment['sections']['id'],
+                                      assignment['sections']['name'],
+                                    );
+                                  },
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
     );
   }
@@ -124,27 +138,55 @@ class _ClassListCard extends StatelessWidget {
   final String time;
   final int students;
   final String status;
-  final Color statusColor;
   final VoidCallback onPressed;
   const _ClassListCard({
     required this.title,
     required this.time,
     required this.students,
     required this.status,
-    required this.statusColor,
     required this.onPressed,
   });
+
+  Color getStatusColor() {
+    switch (status.toLowerCase()) {
+      case "ongoing":
+        return const Color(0xFF19AE61); // green
+      case "upcoming":
+        return const Color(0xFFFFA726); // orange
+      case "completed":
+        return const Color(0xFF2E3A59); // muted/gray
+      default:
+        return const Color(0xFF19AE61);
+    }
+  }
+
+  Color getStatusBgColor() {
+    switch (status.toLowerCase()) {
+      case "ongoing":
+        return const Color(0xFFD9FBE8); // light green
+      case "upcoming":
+        return const Color(0xFFFFF3E0); // light orange
+      case "completed":
+        return const Color(0xFFE4E9F2);
+      default:
+        return const Color(0xFFD9FBE8);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Card(
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      color: Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
         width: double.infinity,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            // Main info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -154,53 +196,67 @@ class _ClassListCard extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
+                      color: Color(0xFF222B45),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 7),
                   Text(
                     time,
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF8F9BB3),
+                    ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 7),
                   Text(
                     "Total Students: $students",
-                    style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF8F9BB3),
+                    ),
                   ),
                 ],
               ),
             ),
+            // Status
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              margin: const EdgeInsets.only(right: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 3),
               decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.13),
-                borderRadius: BorderRadius.circular(12),
+                color: getStatusBgColor(),
+                borderRadius: BorderRadius.circular(18),
               ),
               child: Text(
                 status,
                 style: TextStyle(
-                  color: statusColor,
-                  fontWeight: FontWeight.w500,
+                  color: getStatusColor(),
+                  fontWeight: FontWeight.w600,
                   fontSize: 13,
                 ),
               ),
             ),
-            const SizedBox(width: 20),
+            // View Details
             SizedBox(
-              height: 34,
+              height: 36,
               child: ElevatedButton(
                 onPressed: onPressed,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2563EB),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(7),
                   ),
                   elevation: 0,
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 0,
+                  ),
                 ),
-                child: const Text(
-                  "View Details",
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                ),
+                child: const Text("View Details"),
               ),
             ),
           ],

@@ -1,6 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// Sample avatars if you want to mock or add real photos.
+const _avatarImages = [
+  "https://randomuser.me/api/portraits/women/1.jpg",
+  "https://randomuser.me/api/portraits/men/2.jpg",
+  "https://randomuser.me/api/portraits/women/3.jpg",
+  "https://randomuser.me/api/portraits/men/4.jpg",
+  "https://randomuser.me/api/portraits/women/5.jpg",
+];
+
 class TeacherDashboardPage extends StatefulWidget {
   const TeacherDashboardPage({super.key});
 
@@ -13,15 +22,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   String? teacherId;
   List<Map<String, dynamic>> assignedSections = [];
   Map<int, List<Map<String, dynamic>>> sectionStudents = {};
-  Map<int, Map<String, int>> sectionAttendanceStats =
-      {}; // sectionId -> {present, attendance}
-  Map<int, Map<int, String>> sectionStudentStatus =
-      {}; // sectionId -> {studentId: status}
+  Map<int, Map<String, int>> sectionAttendanceStats = {};
+  Map<int, Map<int, String>> sectionStudentStatus = {};
   bool isLoading = true;
 
   // Pagination state for each section
   Map<int, int> sectionPage = {}; // sectionId -> currentPage (1-based)
-  static const int studentsPerPage = 10;
+  static const int studentsPerPage = 5;
 
   @override
   void initState() {
@@ -40,7 +47,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       return;
     }
 
-    // Fetch assigned sections for this teacher
     final sectionAssignments = await supabase
         .from('section_teachers')
         .select(
@@ -77,14 +83,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       final section = assignment['sections'];
       if (section == null) continue;
 
-      // Fetch students for this section
       final students = await supabase
           .from('students')
           .select('id, fname, lname, rfid_uid')
           .eq('section_id', section['id']);
       final studentsList = List<Map<String, dynamic>>.from(students);
       sectionStudents[section['id']] = studentsList;
-      sectionPage[section['id']] = 1; // start from page 1
+      sectionPage[section['id']] = 1;
 
       final studentIds = studentsList.map((s) => s['id'] as int).toList();
       if (studentIds.isEmpty) {
@@ -93,7 +98,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         continue;
       }
 
-      // Fetch all scan_records for today with action='entry'
       final scanRecords = await supabase
           .from('scan_records')
           .select('student_id, scan_time, action')
@@ -102,7 +106,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           .gte('scan_time', todayStart.toIso8601String())
           .lte('scan_time', todayEnd.toIso8601String());
 
-      // Map: studentId -> hasEntryToday
       final Set<int> presentIds = {};
       if (scanRecords is List) {
         for (final record in scanRecords) {
@@ -111,7 +114,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         }
       }
 
-      // Attendance stats
       int presentCount = 0;
       Map<int, String> statusMap = {};
       for (final student in studentsList) {
@@ -144,128 +146,156 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     });
   }
 
+  String getTodayLabel() {
+    final now = DateTime.now();
+    final date =
+        "${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][now.weekday - 1]}, "
+        "${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][now.month - 1]} ${now.day}";
+    return date;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F8F5),
+      backgroundColor: const Color(0xF7F9FCFF),
       body:
           isLoading
               ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
+                child: CircularProgressIndicator(color: Color(0xFF2563EB)),
               )
-              : Row(
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Header Row
-                          Row(
-                            children: [
-                              const Text(
-                                "Today's Classes",
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
+              : SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 32, 0, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(32, 0, 32, 0),
+                        child: Row(
+                          children: [
+                            Text(
+                              "Today's Classes",
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF222B45),
                               ),
-                              const Spacer(),
-                              Container(
-                                height: 40,
-                                width: 260,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: const Color(0xFFE0E0E0),
+                            ),
+                            const SizedBox(width: 14),
+                            Icon(
+                              Icons.calendar_today,
+                              size: 19,
+                              color: Color(0xFF8F9BB3),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              getTodayLabel(),
+                              style: const TextStyle(
+                                fontSize: 15,
+                                color: Color(0xFF8F9BB3),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const Spacer(),
+                            SizedBox(
+                              width: 260,
+                              child: TextField(
+                                decoration: InputDecoration(
+                                  hintText: "Search students...",
+                                  hintStyle: const TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF8F9BB3),
+                                  ),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  prefixIcon: const Icon(
+                                    Icons.search,
+                                    color: Color(0xFF8F9BB3),
+                                    size: 20,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 0,
+                                    horizontal: 0,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE4E9F2),
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE4E9F2),
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF2563EB),
+                                    ),
                                   ),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.search,
-                                      size: 20,
-                                      color: Colors.grey[600],
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Expanded(
-                                      child: TextField(
-                                        decoration: InputDecoration(
-                                          hintText: 'Search students...',
-                                          border: InputBorder.none,
-                                          isDense: true,
-                                        ),
-                                        style: TextStyle(fontSize: 14),
-                                      ),
-                                    ),
-                                  ],
-                                ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
 
-                          // Top class cards (dynamically, max 3 visible, horizontally scrollable)
-                          SizedBox(
-                            height: 120,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              physics: const BouncingScrollPhysics(),
-                              itemCount:
-                                  assignedSections.length > 3
-                                      ? 3
-                                      : assignedSections.length,
-                              separatorBuilder:
-                                  (_, __) => const SizedBox(width: 16),
-                              itemBuilder: (context, idx) {
-                                final assignment = assignedSections[idx];
-                                final sectionId = assignment['sections']['id'];
-                                final attendanceStats =
-                                    sectionAttendanceStats[sectionId] ??
-                                    {'present': 0, 'attendance': 0};
-                                return SizedBox(
-                                  width:
-                                      MediaQuery.of(context).size.width / 3 -
-                                      40, // Fits 3 cards
+                      // Classes Cards
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Row(
+                          children: [
+                            for (final assignment in assignedSections)
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(right: 16.0),
                                   child: _ClassCard(
                                     title: assignment['sections']['name'],
                                     time:
                                         assignment['sections']['schedule'] ??
                                         "--",
                                     status:
-                                        "Ongoing", // You can make this dynamic later
-                                    statusColor: const Color(0xFF2ECC71),
+                                        assignment['sections']['status'] ??
+                                        "Ongoing",
                                     students:
-                                        sectionStudents[sectionId]?.length ?? 0,
-                                    present: attendanceStats['present'] ?? 0,
+                                        sectionStudents[assignment['sections']['id']]
+                                            ?.length ??
+                                        0,
+                                    present:
+                                        sectionAttendanceStats[assignment['sections']['id']]?['present'] ??
+                                        0,
                                     attendance:
-                                        attendanceStats['attendance'] ?? 0,
+                                        sectionAttendanceStats[assignment['sections']['id']]?['attendance'] ??
+                                        0,
                                     onPressed: () {
                                       showDialog(
                                         context: context,
                                         builder:
                                             (_) => AlertDialog(
-                                              title: Text(
-                                                "Students for ${assignment['sections']['name']}",
-                                              ),
+                                              contentPadding:
+                                                  const EdgeInsets.all(0),
+                                              backgroundColor:
+                                                  Colors.transparent,
+                                              elevation: 0,
                                               content: SizedBox(
-                                                width: 400,
-                                                child: _ClassStudentList(
+                                                width: 540,
+                                                child: _ClassStudentListModal(
                                                   classTitle:
                                                       assignment['sections']['name'],
                                                   students: [
                                                     for (final student
-                                                        in sectionStudents[sectionId] ??
+                                                        in sectionStudents[assignment['sections']['id']] ??
                                                             [])
                                                       _StudentRowData(
                                                         "${student['fname']} ${student['lname']}",
-                                                        "https://randomuser.me/api/portraits/lego/1.jpg",
-                                                        sectionStudentStatus[sectionId]?[student['id']] ??
+                                                        _avatarImages[student['id'] %
+                                                            _avatarImages
+                                                                .length],
+                                                        sectionStudentStatus[assignment['sections']['id']]?[student['id']] ??
                                                             "Absent",
                                                       ),
                                                   ],
@@ -275,57 +305,60 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                                       );
                                     },
                                   ),
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 32),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 28),
 
-                          // --- Multiple section student lists ---
-                          Expanded(
-                            child: ListView.separated(
-                              itemCount: assignedSections.length,
-                              separatorBuilder:
-                                  (_, __) => const SizedBox(height: 16),
-                              itemBuilder: (context, idx) {
-                                final assignment = assignedSections[idx];
-                                final sectionId = assignment['sections']['id'];
-                                return _ClassStudentListPaginated(
+                      // Class student lists (paged)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        child: Column(
+                          children: [
+                            for (final assignment in assignedSections)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 22.0),
+                                child: _ClassStudentListPaginated(
                                   classTitle: assignment['sections']['name'],
                                   students: [
                                     for (final student
-                                        in sectionStudents[sectionId] ?? [])
+                                        in sectionStudents[assignment['sections']['id']] ??
+                                            [])
                                       _StudentRowData(
                                         "${student['fname']} ${student['lname']}",
-                                        "https://randomuser.me/api/portraits/lego/1.jpg",
-                                        sectionStudentStatus[sectionId]?[student['id']] ??
+                                        _avatarImages[student['id'] %
+                                            _avatarImages.length],
+                                        sectionStudentStatus[assignment['sections']['id']]?[student['id']] ??
                                             "Absent",
                                       ),
                                   ],
-                                  currentPage: sectionPage[sectionId] ?? 1,
+                                  currentPage:
+                                      sectionPage[assignment['sections']['id']] ??
+                                      1,
                                   onPageChanged:
-                                      (page) =>
-                                          _setSectionPage(sectionId, page),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
+                                      (page) => _setSectionPage(
+                                        assignment['sections']['id'],
+                                        page,
+                                      ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
     );
   }
 }
 
-// Class Card (unchanged aside from actual values passed in)
 class _ClassCard extends StatelessWidget {
   final String title;
   final String time;
   final String status;
-  final Color statusColor;
   final int students;
   final int present;
   final int attendance;
@@ -334,105 +367,247 @@ class _ClassCard extends StatelessWidget {
     required this.title,
     required this.time,
     required this.status,
-    required this.statusColor,
     required this.students,
     required this.present,
     required this.attendance,
     required this.onPressed,
   });
 
+  Color getStatusColor() {
+    switch (status.toLowerCase()) {
+      case "completed":
+        return const Color(0xFF19AE61);
+      case "ongoing":
+        return const Color(0xFF2563EB);
+      case "upcoming":
+        return const Color(0xFFFFA726);
+      default:
+        return const Color(0xFF2563EB);
+    }
+  }
+
+  Color getStatusBgColor() {
+    switch (status.toLowerCase()) {
+      case "completed":
+        return const Color(0xFFD9FBE8);
+      case "ongoing":
+        return const Color(0xFFE8F1FF);
+      case "upcoming":
+        return const Color(0xFFFFF3E0);
+      default:
+        return const Color(0xFFE8F1FF);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 120,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 13,
+    return Card(
+      margin: EdgeInsets.zero,
+      color: Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title & Status
+            Row(
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: Color(0xFF222B45),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(time, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-          const Spacer(),
-          Row(
-            children: [
-              Text(
-                "Total Students $students",
-                style: const TextStyle(fontSize: 13, color: Colors.black87),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                "Present $present",
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.green[700],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                "Attendance $attendance%",
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.green[700],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const Spacer(),
-              SizedBox(
-                height: 34,
-                child: ElevatedButton(
-                  onPressed: onPressed,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: getStatusBgColor(),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Text(
+                    status[0].toUpperCase() + status.substring(1),
+                    style: TextStyle(
+                      color: getStatusColor(),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
                     ),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    "View Details",
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            Text(
+              time,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF8F9BB3)),
+            ),
+            const SizedBox(height: 7),
+            Row(
+              children: [
+                Text(
+                  "Total Students $students",
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF222B45),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  "Present $present",
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF19AE61),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  "Attendance $attendance%",
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF2563EB),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                SizedBox(
+                  height: 36,
+                  child: ElevatedButton(
+                    onPressed: onPressed,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      elevation: 0,
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 0,
+                      ),
+                    ),
+                    child: const Text("View Details"),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// For dialog "View Details" modal
+class _ClassStudentListModal extends StatelessWidget {
+  final String classTitle;
+  final List<_StudentRowData> students;
+  const _ClassStudentListModal({
+    required this.classTitle,
+    required this.students,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Container(
+        padding: const EdgeInsets.all(0),
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(32, 22, 32, 0),
+              child: Text(
+                classTitle,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ],
-          ),
-        ],
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(32, 2, 32, 0),
+              child: Text(
+                "Current Class Students",
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF8F9BB3),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            ListView.separated(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: students.length,
+              separatorBuilder: (_, __) => const Divider(height: 0),
+              itemBuilder: (context, idx) {
+                final s = students[idx];
+                final isPresent = s.status == "Present";
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundImage: NetworkImage(s.avatarUrl),
+                  ),
+                  title: Text(
+                    s.name,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color:
+                              isPresent
+                                  ? const Color(0xFF19AE61)
+                                  : const Color(0xFFEB5757),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        isPresent ? "Present" : "Absent",
+                        style: TextStyle(
+                          color:
+                              isPresent
+                                  ? const Color(0xFF19AE61)
+                                  : const Color(0xFFEB5757),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
     );
   }
@@ -459,7 +634,7 @@ class _ClassStudentListPaginated extends StatefulWidget {
 
 class _ClassStudentListPaginatedState
     extends State<_ClassStudentListPaginated> {
-  static const int studentsPerPage = 10;
+  static const int studentsPerPage = 5;
 
   @override
   Widget build(BuildContext context) {
@@ -474,28 +649,36 @@ class _ClassStudentListPaginatedState
 
     return Card(
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(0),
+        padding: const EdgeInsets.only(top: 18, left: 32, right: 32, bottom: 0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Text(
-                widget.classTitle,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
+            Text(
+              widget.classTitle,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF222B45),
               ),
             ),
-            // List of students
+            const SizedBox(height: 3),
+            const Text(
+              "Current Class Students",
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF8F9BB3),
+              ),
+            ),
+            const SizedBox(height: 5),
             ListView.separated(
               shrinkWrap: true,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: EdgeInsets.zero,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: pageStudents.length,
               separatorBuilder: (_, __) => const Divider(height: 0),
@@ -517,32 +700,28 @@ class _ClassStudentListPaginatedState
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color:
-                                  isPresent
-                                      ? const Color(0xFF2ECC71)
-                                      : Colors.red,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            isPresent ? "Present" : "Absent",
-                            style: TextStyle(
-                              color:
-                                  isPresent
-                                      ? const Color(0xFF2ECC71)
-                                      : Colors.red,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color:
+                              isPresent
+                                  ? const Color(0xFF19AE61)
+                                  : const Color(0xFFEB5757),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        isPresent ? "Present" : "Absent",
+                        style: TextStyle(
+                          color:
+                              isPresent
+                                  ? const Color(0xFF19AE61)
+                                  : const Color(0xFFEB5757),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
@@ -551,52 +730,21 @@ class _ClassStudentListPaginatedState
             ),
             // Pagination
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 5),
+              padding: const EdgeInsets.symmetric(vertical: 16),
               child: Row(
                 children: [
                   Text(
                     "Showing ${totalEntries == 0 ? 0 : (start + 1)} to $end of $totalEntries entries",
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF8F9BB3),
+                    ),
                   ),
                   const Spacer(),
-                  IconButton(
-                    onPressed:
-                        page > 1 ? () => widget.onPageChanged(page - 1) : null,
-                    icon: const Icon(Icons.chevron_left, size: 18),
-                  ),
-                  for (int p = 1; p <= totalPages; p++)
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color:
-                            page == p
-                                ? const Color(0xFF2ECC71)
-                                : Colors.transparent,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: GestureDetector(
-                        onTap: () => widget.onPageChanged(p),
-                        child: Text(
-                          "$p",
-                          style: TextStyle(
-                            color: page == p ? Colors.white : Colors.black87,
-                            fontWeight:
-                                page == p ? FontWeight.bold : FontWeight.normal,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ),
-                  IconButton(
-                    onPressed:
-                        page < totalPages
-                            ? () => widget.onPageChanged(page + 1)
-                            : null,
-                    icon: const Icon(Icons.chevron_right, size: 18),
+                  _ClassStudentListPagination(
+                    totalPages: totalPages,
+                    currentPage: page,
+                    onPageChanged: widget.onPageChanged,
                   ),
                 ],
               ),
@@ -608,103 +756,97 @@ class _ClassStudentListPaginatedState
   }
 }
 
-// For backwards compatibility
+class _ClassStudentListPagination extends StatelessWidget {
+  final int totalPages;
+  final int currentPage;
+  final void Function(int) onPageChanged;
+  const _ClassStudentListPagination({
+    required this.totalPages,
+    required this.currentPage,
+    required this.onPageChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (totalPages <= 1) return const SizedBox();
+    List<Widget> pages = [];
+    for (int i = 1; i <= totalPages; i++) {
+      if (i == 1 ||
+          i == totalPages ||
+          (i >= currentPage - 1 && i <= currentPage + 1)) {
+        pages.add(
+          GestureDetector(
+            onTap: () => onPageChanged(i),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color:
+                    currentPage == i
+                        ? const Color(0xFF2563EB)
+                        : Colors.transparent,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color:
+                      currentPage == i
+                          ? const Color(0xFF2563EB)
+                          : const Color(0xFFE4E9F2),
+                ),
+              ),
+              child: Text(
+                "$i",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color:
+                      currentPage == i ? Colors.white : const Color(0xFF222B45),
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        );
+      } else if (i == currentPage - 2 || i == currentPage + 2) {
+        pages.add(
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 2),
+            child: Text("...", style: TextStyle(color: Color(0xFF8F9BB3))),
+          ),
+        );
+      }
+    }
+    return Row(
+      children: [
+        TextButton(
+          onPressed:
+              currentPage > 1 ? () => onPageChanged(currentPage - 1) : null,
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 7),
+            foregroundColor: const Color(0xFF2563EB),
+            textStyle: const TextStyle(fontSize: 14),
+          ),
+          child: const Text("Previous"),
+        ),
+        ...pages,
+        TextButton(
+          onPressed:
+              currentPage < totalPages
+                  ? () => onPageChanged(currentPage + 1)
+                  : null,
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 7),
+            foregroundColor: const Color(0xFF2563EB),
+            textStyle: const TextStyle(fontSize: 14),
+          ),
+          child: const Text("Next"),
+        ),
+      ],
+    );
+  }
+}
+
 class _StudentRowData {
   final String name;
   final String avatarUrl;
   final String status;
   _StudentRowData(this.name, this.avatarUrl, this.status);
-}
-
-// The original _ClassStudentList (for dialog) remains unchanged, using the same logic for status color as in the paginated list.
-class _ClassStudentList extends StatelessWidget {
-  final String classTitle;
-  final List<_StudentRowData> students;
-  const _ClassStudentList({required this.classTitle, required this.students});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Text(
-                classTitle,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            // List of students
-            ListView.separated(
-              shrinkWrap: true,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: students.length,
-              separatorBuilder: (_, __) => const Divider(height: 0),
-              itemBuilder: (context, idx) {
-                final s = students[idx];
-                final isPresent = s.status == "Present";
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundImage: NetworkImage(s.avatarUrl),
-                  ),
-                  title: Text(
-                    s.name,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color:
-                                  isPresent
-                                      ? const Color(0xFF2ECC71)
-                                      : Colors.red,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            isPresent ? "Present" : "Absent",
-                            style: TextStyle(
-                              color:
-                                  isPresent
-                                      ? const Color(0xFF2ECC71)
-                                      : Colors.red,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-            // Pagination (optional for dialog list, not implemented here)
-          ],
-        ),
-      ),
-    );
-  }
 }
