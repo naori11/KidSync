@@ -281,31 +281,35 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                           ),
                           const SizedBox(height: 32),
 
-                          // Student list for first section/class (as example)
-                          if (assignedSections.isNotEmpty)
-                            _ClassStudentListPaginated(
-                              classTitle:
-                                  assignedSections[0]['sections']['name'],
-                              students: [
-                                for (final student
-                                    in sectionStudents[assignedSections[0]['sections']['id']] ??
-                                        [])
-                                  _StudentRowData(
-                                    "${student['fname']} ${student['lname']}",
-                                    "https://randomuser.me/api/portraits/lego/1.jpg",
-                                    sectionStudentStatus[assignedSections[0]['sections']['id']]?[student['id']] ??
-                                        "Absent",
-                                  ),
-                              ],
-                              currentPage:
-                                  sectionPage[assignedSections[0]['sections']['id']] ??
-                                  1,
-                              onPageChanged:
-                                  (page) => _setSectionPage(
-                                    assignedSections[0]['sections']['id'],
-                                    page,
-                                  ),
+                          // --- Multiple section student lists ---
+                          Expanded(
+                            child: ListView.separated(
+                              itemCount: assignedSections.length,
+                              separatorBuilder:
+                                  (_, __) => const SizedBox(height: 16),
+                              itemBuilder: (context, idx) {
+                                final assignment = assignedSections[idx];
+                                final sectionId = assignment['sections']['id'];
+                                return _ClassStudentListPaginated(
+                                  classTitle: assignment['sections']['name'],
+                                  students: [
+                                    for (final student
+                                        in sectionStudents[sectionId] ?? [])
+                                      _StudentRowData(
+                                        "${student['fname']} ${student['lname']}",
+                                        "https://randomuser.me/api/portraits/lego/1.jpg",
+                                        sectionStudentStatus[sectionId]?[student['id']] ??
+                                            "Absent",
+                                      ),
+                                  ],
+                                  currentPage: sectionPage[sectionId] ?? 1,
+                                  onPageChanged:
+                                      (page) =>
+                                          _setSectionPage(sectionId, page),
+                                );
+                              },
                             ),
+                          ),
                         ],
                       ),
                     ),
