@@ -31,7 +31,6 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
     navItems = [
       _TeacherNavItem("Dashboard", Icons.dashboard),
       _TeacherNavItem("Class list", Icons.list_alt),
-      _TeacherNavItem("Attendance", Icons.fact_check),
       _TeacherNavItem("Logout", Icons.logout),
     ];
   }
