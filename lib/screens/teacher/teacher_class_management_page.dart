@@ -1,5 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
+
+const _avatarImages = [
+  "https://randomuser.me/api/portraits/women/1.jpg",
+  "https://randomuser.me/api/portraits/men/2.jpg",
+  "https://randomuser.me/api/portraits/women/3.jpg",
+  "https://randomuser.me/api/portraits/men/4.jpg",
+  "https://randomuser.me/api/portraits/women/5.jpg",
+];
 
 class TeacherClassManagementPage extends StatefulWidget {
   final int sectionId;
@@ -25,6 +34,11 @@ class _TeacherClassManagementPageState
   final supabase = Supabase.instance.client;
   List<Map<String, dynamic>> students = [];
   bool isLoading = true;
+  int currentPage = 1;
+  static const int rowsPerPage = 5;
+  String searchQuery = "";
+  String sortBy = "Last Name";
+  bool sortAsc = true;
 
   @override
   void initState() {
@@ -41,6 +55,7 @@ class _TeacherClassManagementPageState
         .eq('section_id', widget.sectionId);
 
     students = [];
+    int i = 0;
     for (final student in studentList) {
       final scanRecords = await supabase
           .from('scan_records')
@@ -51,13 +66,14 @@ class _TeacherClassManagementPageState
 
       int presentDays =
           scanRecords.where((r) => r['status'] == 'Present').length;
-      int absentDays = scanRecords.where((r) => r['status'] == 'Absent').length;
-      int lateDays = scanRecords.where((r) => r['status'] == 'Late').length;
       int totalDays = scanRecords.length > 0 ? scanRecords.length : 1;
       int attendanceRate = ((presentDays / totalDays) * 100).round();
       String lastAttendance =
           scanRecords.isNotEmpty
-              ? scanRecords.first['scan_time'].toString().split(' ')[0]
+              ? DateFormat("MMM d, yyyy").format(
+                DateTime.tryParse(scanRecords.first['scan_time']) ??
+                    DateTime.now(),
+              )
               : 'None';
       String status =
           scanRecords.isNotEmpty
@@ -67,192 +83,358 @@ class _TeacherClassManagementPageState
       students.add({
         'id': student['id'],
         'rfid_uid': student['rfid_uid'] ?? 'N/A',
-        'name': "${student['fname']} ${student['lname']}",
+        'fname': student['fname'],
+        'lname': student['lname'],
+        'avatar': _avatarImages[i % _avatarImages.length],
         'attendanceRate': attendanceRate,
         'lastAttendance': lastAttendance,
         'status': status,
       });
+      i++;
     }
 
     setState(() => isLoading = false);
   }
 
+  List<Map<String, dynamic>> get _filteredSortedStudents {
+    List<Map<String, dynamic>> filtered =
+        students.where((student) {
+          final name = "${student['fname']} ${student['lname']}".toLowerCase();
+          return searchQuery.isEmpty ||
+              name.contains(searchQuery.toLowerCase());
+        }).toList();
+
+    filtered.sort((a, b) {
+      int res;
+      switch (sortBy) {
+        case "Last Name":
+          res = (a['lname'] as String).compareTo(b['lname'] as String);
+          break;
+        case "Attendance Rate":
+          res = (b['attendanceRate'] as int).compareTo(
+            a['attendanceRate'] as int,
+          );
+          break;
+        default:
+          res = (a['lname'] as String).compareTo(b['lname'] as String);
+      }
+      return sortAsc ? res : -res;
+    });
+
+    return filtered;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final totalRows = _filteredSortedStudents.length;
+    final totalPages = (totalRows / rowsPerPage).ceil();
+    final studentsToShow =
+        _filteredSortedStudents
+            .skip((currentPage - 1) * rowsPerPage)
+            .take(rowsPerPage)
+            .toList();
+
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: Row(
+      backgroundColor: const Color(0xF7F9FCFF),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
+          // Header Section: Title, Export, Print, X button
+          Padding(
+            padding: const EdgeInsets.fromLTRB(32, 24, 32, 0),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                // Section name and header
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 8),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          if (widget.onBack != null)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 12.0),
-                              child: IconButton(
-                                icon: const Icon(
-                                  Icons.arrow_back_ios_new_rounded,
-                                  size: 20,
-                                  color: Color(0xFF7C8DB5),
-                                ),
-                                onPressed: widget.onBack,
-                                tooltip: 'Back',
-                                splashRadius: 20,
-                                alignment: Alignment.center,
-                              ),
-                            ),
-                          Text(
-                            "${widget.sectionName} / Class Management",
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF222B45),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        widget.sectionName,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF8F9BB3),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        "Class Management",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF222B45),
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
+                // Export/Print
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.download_outlined, size: 18),
+                  label: const Text("Export List"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Color(0xFF2E3A59),
+                    side: const BorderSide(color: Color(0xFFE4E9F2)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  onPressed: () {},
+                ),
+                const SizedBox(width: 10),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.print, size: 18),
+                  label: const Text("Print Report"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Color(0xFF2E3A59),
+                    side: const BorderSide(color: Color(0xFFE4E9F2)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  onPressed: () {},
+                ),
+                const SizedBox(width: 12),
+                IconButton(
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 26,
+                    color: Color(0xFF8F9BB3),
+                  ),
+                  tooltip: 'Close',
+                  splashRadius: 22,
+                  onPressed:
+                      widget.onBack ?? () => Navigator.of(context).maybePop(),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          // Search, Sort, View toggle
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Row(
+              children: [
+                // Search box
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                        border: Border.all(color: Color(0xFFF1F1F4)),
-                      ),
-                      child: Column(
-                        children: [
-                          Container(
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFF9FAFB),
-                              borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(14),
-                              ),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 28,
-                              vertical: 18,
-                            ),
-                            child: Row(
-                              children: const [
-                                SizedBox(
-                                  width: 90,
-                                  child: Text(
-                                    "Student ID",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 15,
-                                      color: Color(0xFF222B45),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 160,
-                                  child: Text(
-                                    "Student Name",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 15,
-                                      color: Color(0xFF222B45),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 120,
-                                  child: Text(
-                                    "Attendance Rate",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 15,
-                                      color: Color(0xFF222B45),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 140,
-                                  child: Text(
-                                    "Last Attendance",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 15,
-                                      color: Color(0xFF222B45),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 100,
-                                  child: Text(
-                                    "Status",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 15,
-                                      color: Color(0xFF222B45),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 100,
-                                  child: Text(
-                                    "Actions",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 15,
-                                      color: Color(0xFF222B45),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (isLoading)
-                            const Padding(
-                              padding: EdgeInsets.all(32),
-                              child: Center(child: CircularProgressIndicator()),
-                            )
-                          else
-                            ...List.generate(students.length, (index) {
-                              final student = students[index];
-                              return _StudentTableRow(
-                                id: student['rfid_uid'],
-                                name: student['name'],
-                                attendanceRate: student['attendanceRate'],
-                                lastAttendance: student['lastAttendance'],
-                                status: student['status'],
-                                onView:
-                                    () => widget.onStudentView?.call(
-                                      student['id'],
-                                      student['name'],
-                                    ),
-                                isEven: index % 2 == 0,
-                              );
-                            }),
-                        ],
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: Color(0xFFE4E9F2)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: TextField(
+                      onChanged:
+                          (v) => setState(() {
+                            searchQuery = v;
+                            currentPage = 1;
+                          }),
+                      style: const TextStyle(fontSize: 15),
+                      decoration: InputDecoration(
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: Color(0xFF8F9BB3),
+                        ),
+                        hintText: "Search students...",
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                        ),
                       ),
                     ),
                   ),
                 ),
+                const SizedBox(width: 12),
+                // Sort by dropdown
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: Color(0xFFE4E9F2)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: sortBy,
+                      borderRadius: BorderRadius.circular(8),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF2E3A59),
+                        fontSize: 13,
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: "Last Name",
+                          child: Text("Sort by: Last Name"),
+                        ),
+                        DropdownMenuItem(
+                          value: "Attendance Rate",
+                          child: Text("Sort by: Attendance Rate"),
+                        ),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) setState(() => sortBy = v);
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // View toggles (not functional, just for show)
+                ToggleButtons(
+                  borderRadius: BorderRadius.circular(8),
+                  color: Color(0xFF8F9BB3),
+                  selectedColor: Color(0xFF222B45),
+                  fillColor: Color(0xFFEDF1F7),
+                  constraints: const BoxConstraints(
+                    minWidth: 38,
+                    minHeight: 38,
+                  ),
+                  isSelected: const [true, false],
+                  onPressed: (_) {},
+                  children: const [
+                    Icon(Icons.table_rows_rounded, size: 20),
+                    Icon(Icons.grid_view_rounded, size: 20),
+                  ],
+                ),
               ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          // Table
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                color: Colors.white,
+                margin: EdgeInsets.zero,
+                elevation: 0,
+                child: Column(
+                  children: [
+                    // Table Header
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        top: 18,
+                        left: 16,
+                        right: 16,
+                        bottom: 8,
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: const [
+                          _TableHeader(
+                            "Student ID",
+                            flex: 2,
+                            alignment: Alignment.centerLeft,
+                          ),
+                          _TableHeader(
+                            "Student Name",
+                            flex: 3,
+                            alignment: Alignment.centerLeft,
+                          ),
+                          _TableHeader(
+                            "Last Name",
+                            flex: 2,
+                            alignment: Alignment.centerLeft,
+                          ),
+                          _TableHeader(
+                            "Attendance Rate",
+                            flex: 3,
+                            alignment: Alignment.centerLeft,
+                          ),
+                          _TableHeader(
+                            "Last Attendance",
+                            flex: 3,
+                            alignment: Alignment.centerLeft,
+                          ),
+                          _TableHeader(
+                            "Status",
+                            flex: 2,
+                            alignment: Alignment.centerLeft,
+                          ),
+                          _TableHeader(
+                            "Actions",
+                            flex: 2,
+                            alignment: Alignment.centerLeft,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (isLoading)
+                      const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else
+                      Expanded(
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          itemCount: studentsToShow.length,
+                          itemBuilder: (context, index) {
+                            final student = studentsToShow[index];
+                            return _StudentTableRow(
+                              id: student['rfid_uid'],
+                              fname: student['fname'],
+                              lname: student['lname'],
+                              avatar: student['avatar'],
+                              attendanceRate: student['attendanceRate'],
+                              lastAttendance: student['lastAttendance'],
+                              status: student['status'],
+                              onView:
+                                  () => widget.onStudentView?.call(
+                                    student['id'],
+                                    "${student['fname']} ${student['lname']}",
+                                  ),
+                              isEven: index % 2 == 0,
+                            );
+                          },
+                        ),
+                      ),
+                    // Pagination + entry count
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            "Showing ${(totalRows == 0 ? 0 : ((currentPage - 1) * rowsPerPage + 1))} to ${(totalRows == 0 ? 0 : ((currentPage * rowsPerPage).clamp(1, totalRows)))} of $totalRows students",
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF8F9BB3),
+                            ),
+                          ),
+                          const Spacer(),
+                          _Pagination(
+                            totalPages: totalPages,
+                            currentPage: currentPage,
+                            onPageChanged:
+                                (p) => setState(() => currentPage = p),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
@@ -261,9 +443,39 @@ class _TeacherClassManagementPageState
   }
 }
 
+class _TableHeader extends StatelessWidget {
+  final String text;
+  final int flex;
+  final Alignment alignment;
+  const _TableHeader(
+    this.text, {
+    this.flex = 1,
+    this.alignment = Alignment.centerLeft,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      flex: flex,
+      child: Align(
+        alignment: alignment,
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+            color: Color(0xFF2E3A59),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _StudentTableRow extends StatelessWidget {
   final String id;
-  final String name;
+  final String fname;
+  final String lname;
+  final String avatar;
   final int attendanceRate;
   final String lastAttendance;
   final String status;
@@ -271,7 +483,9 @@ class _StudentTableRow extends StatelessWidget {
   final bool isEven;
   const _StudentTableRow({
     required this.id,
-    required this.name,
+    required this.fname,
+    required this.lname,
+    required this.avatar,
     required this.attendanceRate,
     required this.lastAttendance,
     required this.status,
@@ -283,102 +497,219 @@ class _StudentTableRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final present = status == "Present";
     return Container(
-      decoration: BoxDecoration(
-        color: isEven ? const Color(0xFFF9FAFB) : Colors.white,
-        border: const Border(
-          bottom: BorderSide(color: Color(0xFFF1F1F4), width: 1),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
-      margin: EdgeInsets.zero,
+      color: isEven ? const Color(0xFFF7F9FC) : Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          SizedBox(
-            width: 90,
-            child: Text(id, style: const TextStyle(fontSize: 13)),
+          // Student ID
+          Expanded(
+            flex: 2,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(id, style: const TextStyle(fontSize: 14)),
+            ),
           ),
-          SizedBox(
-            width: 160,
-            child: Text(
-              name,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF222B45),
+          // Student Name with avatar
+          Expanded(
+            flex: 3,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundImage: NetworkImage(avatar),
+                    radius: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    fname,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF222B45),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          SizedBox(
-            width: 120,
-            child: Row(
-              children: [
-                Expanded(
-                  child: LinearProgressIndicator(
-                    value: attendanceRate / 100,
-                    minHeight: 6,
-                    backgroundColor: Colors.grey[200],
-                    color: present ? Color(0xFF19AE61) : Colors.red,
-                  ),
+          // Last Name
+          Expanded(
+            flex: 2,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                lname,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w400,
+                  color: Color(0xFF222B45),
                 ),
-                const SizedBox(width: 5),
-                Text("$attendanceRate%", style: const TextStyle(fontSize: 13)),
-              ],
+              ),
             ),
           ),
-          SizedBox(
-            width: 140,
-            child: Text(lastAttendance, style: const TextStyle(fontSize: 13)),
-          ),
-          SizedBox(
-            width: 100,
-            child: Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: present ? Color(0xFF19AE61) : Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 5),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color:
-                        present
-                            ? const Color(0xFF19AE61).withOpacity(0.12)
-                            : Colors.red.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    status,
-                    style: TextStyle(
-                      color: present ? Color(0xFF19AE61) : Colors.red,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                      letterSpacing: 0.1,
+          // Attendance Rate
+          Expanded(
+            flex: 3,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: attendanceRate / 100,
+                      minHeight: 7,
+                      backgroundColor: Colors.grey[200],
+                      color: const Color(0xFF19AE61),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Text(
+                    "$attendanceRate%",
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          SizedBox(
-            width: 100,
-            child: TextButton(
-              onPressed: onView,
-              child: Text(
-                "View Details",
-                style: TextStyle(color: Color(0xFF19AE61), fontSize: 13),
+          // Last Attendance
+          Expanded(
+            flex: 3,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(lastAttendance, style: const TextStyle(fontSize: 14)),
+            ),
+          ),
+          // Status
+          Expanded(
+            flex: 2,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color:
+                      present
+                          ? const Color(0xFFD9FBE8)
+                          : const Color(0xFFFBE9E9),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Text(
+                  present ? "Present" : "Absent",
+                  style: TextStyle(
+                    color:
+                        present
+                            ? const Color(0xFF19AE61)
+                            : const Color(0xFFEB5757),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Actions
+          Expanded(
+            flex: 2,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: GestureDetector(
+                onTap: onView,
+                child: const Text(
+                  "View Details",
+                  style: TextStyle(
+                    color: Color(0xFF2563EB),
+                    decoration: TextDecoration.underline,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                  ),
+                ),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _Pagination extends StatelessWidget {
+  final int totalPages;
+  final int currentPage;
+  final void Function(int) onPageChanged;
+  const _Pagination({
+    required this.totalPages,
+    required this.currentPage,
+    required this.onPageChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (totalPages <= 1) return const SizedBox();
+    List<Widget> pages = [];
+    for (int i = 1; i <= totalPages; i++) {
+      if (i == 1 ||
+          i == totalPages ||
+          (i >= currentPage - 1 && i <= currentPage + 1)) {
+        pages.add(
+          GestureDetector(
+            onTap: () => onPageChanged(i),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color:
+                    currentPage == i
+                        ? const Color(0xFF2563EB)
+                        : Colors.transparent,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                "$i",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color:
+                      currentPage == i ? Colors.white : const Color(0xFF222B45),
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        );
+      } else if (i == currentPage - 2 || i == currentPage + 2) {
+        pages.add(
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 2),
+            child: Text("...", style: TextStyle(color: Color(0xFF8F9BB3))),
+          ),
+        );
+      }
+    }
+    return Row(
+      children: [
+        IconButton(
+          onPressed:
+              currentPage > 1 ? () => onPageChanged(currentPage - 1) : null,
+          icon: const Icon(Icons.chevron_left, size: 20),
+          color: const Color(0xFF222B45),
+        ),
+        ...pages,
+        IconButton(
+          onPressed:
+              currentPage < totalPages
+                  ? () => onPageChanged(currentPage + 1)
+                  : null,
+          icon: const Icon(Icons.chevron_right, size: 20),
+          color: const Color(0xFF222B45),
+        ),
+      ],
     );
   }
 }
