@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'notifications.dart';
 
 class ParentHomeScreen extends StatelessWidget {
   const ParentHomeScreen({Key? key}) : super(key: key);
@@ -21,25 +22,42 @@ class ParentHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color primaryColor = const Color(0xFF19AE61);
+    final Color primaryColor = const Color(0xFF2ECC71); // Match admin UI
+    final Color highlightGreen = const Color.fromARGB(
+      255,
+      76,
+      175,
+      80,
+    ); // For highlights, match admin
+    final Color cardBackground = Colors.white;
+    final Color mainText = Colors.black87;
+    final Color secondaryText =
+        Colors.grey[600] ?? Colors.grey; // Ensure non-nullable
     final List<_NavItem> navItems = [
       _NavItem('Dashboard', Icons.dashboard, 'dashboard'),
       _NavItem('Pick-up/Drop-off', Icons.directions_car, 'pickup'),
       _NavItem('Fetchers', Icons.group, 'fetchers'),
-      _NavItem('Notifications', Icons.notifications_none, 'notifications'),
+      // Removed Notifications from bottom nav
     ];
-    return _ParentHomeTabs(navItems: navItems, primaryColor: primaryColor, logout: _logout);
+    return _ParentHomeTabs(
+      navItems: navItems,
+      primaryColor: primaryColor,
+      secondaryText: secondaryText,
+      logout: _logout,
+    );
   }
 }
 
 class _ParentHomeTabs extends StatefulWidget {
   final List<_NavItem> navItems;
   final Color primaryColor;
+  final Color secondaryText;
   final Future<void> Function(BuildContext) logout;
-  
+
   const _ParentHomeTabs({
     required this.navItems,
     required this.primaryColor,
+    required this.secondaryText,
     required this.logout,
     Key? key,
   }) : super(key: key);
@@ -50,6 +68,22 @@ class _ParentHomeTabs extends StatefulWidget {
 
 class _ParentHomeTabsState extends State<_ParentHomeTabs> {
   int selectedIndex = 0;
+  bool showNotifications = false;
+  bool showProfile = false;
+
+  void _toggleNotifications() {
+    setState(() {
+      showNotifications = !showNotifications;
+      if (showNotifications) showProfile = false;
+    });
+  }
+
+  void _toggleProfile() {
+    setState(() {
+      showProfile = !showProfile;
+      if (showProfile) showNotifications = false;
+    });
+  }
 
   Widget _fetcherRow(
     String name,
@@ -105,78 +139,174 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 500;
+    final Color blue = const Color(0xFF007AFF);
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(isMobile ? 100 : 120),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            double navBarHeight = isMobile ? 54 : 72;
-            double navIconSize =
-                constraints.maxWidth < 350 ? 18 : (isMobile ? 24 : 32);
-            double navFontSize =
-                constraints.maxWidth < 350 ? 11 : (isMobile ? 14 : 18);
-            double navMinWidth =
-                constraints.maxWidth < 350 ? 70 : (isMobile ? 90 : 140);
-            double navPaddingH =
-                constraints.maxWidth < 350 ? 8 : (isMobile ? 14 : 32);
-            double navPaddingV =
-                constraints.maxWidth < 350 ? 6 : (isMobile ? 10 : 18);
-            double navUnderline =
-                constraints.maxWidth < 350 ? 3 : (isMobile ? 4 : 6);
-            double topRowHeight = isMobile ? 44 : 56;
-            return Column(
-              children: [
-                Container(
-                  color: Colors.white,
-                  height: topRowHeight,
-                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 24),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        height: isMobile ? 24 : 32,
-                        width: isMobile ? 24 : 32,
-                        child: Image.asset(
-                          'assets/logo.png',
-                          fit: BoxFit.contain,
-                          errorBuilder:
-                              (context, error, stackTrace) => Icon(
-                                Icons.school,
-                                color: widget.primaryColor,
-                                size: isMobile ? 18 : 28,
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              // Top Bar
+              Container(
+                color: Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      height: 32,
+                      width: 32,
+                      child: Image.asset(
+                        'assets/logo.png',
+                        fit: BoxFit.contain,
+                        errorBuilder:
+                            (context, error, stackTrace) => Icon(
+                              Icons.school,
+                              color: widget.primaryColor,
+                              size: 28,
+                            ),
+                      ),
+                    ),
+                    Spacer(),
+                    // Notification Bell
+                    GestureDetector(
+                      onTap: _toggleNotifications,
+                      child: Stack(
+                        children: [
+                          Icon(
+                            Icons.notifications_none,
+                            color: Colors.grey[700],
+                            size: 28,
+                          ),
+                          // Example badge
+                          Positioned(
+                            right: 0,
+                            top: 2,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
                               ),
-                        ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const Spacer(),
-                      IconButton(
-                        icon: Icon(
-                          Icons.notifications_none,
-                          size: isMobile ? 20 : 26,
-                        ),
-                        color: Colors.grey[700],
-                        onPressed: () {
-                          setState(() => selectedIndex = 3);
-                        },
-                        tooltip: 'Notifications',
-                        padding: EdgeInsets.zero,
-                        constraints: BoxConstraints(),
-                      ),
-                      SizedBox(width: isMobile ? 4 : 8),
-                      CircleAvatar(
+                    ),
+                    SizedBox(width: 16),
+                    GestureDetector(
+                      onTap: _toggleProfile,
+                      child: CircleAvatar(
                         backgroundColor: Colors.grey[200],
-                        radius: isMobile ? 12 : 16,
+                        radius: 16,
                         child: Icon(
                           Icons.person,
                           color: Colors.grey[700],
-                          size: isMobile ? 14 : 18,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Main Content
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    child: _buildTabContent(
+                      selectedIndex,
+                      widget.primaryColor,
+                      isMobile,
+                    ),
+                  ),
+                ),
+              ),
+              // Bottom Navigation Bar
+              Container(
+                color: Colors.white,
+                padding: EdgeInsets.only(top: 4, bottom: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: List.generate(3, (i) {
+                    // Only 3 icons now
+                    final item = widget.navItems[i];
+                    final bool selected = i == selectedIndex;
+                    return IconButton(
+                      icon: Icon(
+                        item.icon,
+                        color:
+                            selected
+                                ? widget.primaryColor
+                                : widget.secondaryText,
+                        size: 28,
+                      ),
+                      onPressed: () {
+                        setState(() => selectedIndex = i);
+                      },
+                    );
+                  }),
+                ),
+              ),
+            ],
+          ),
+          // Notification Popover
+          if (showNotifications)
+            Positioned(
+              top: 56,
+              right: 56,
+              child: Material(
+                elevation: 8,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 280,
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Notifications',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      // Example notifications
+                      ...List.generate(
+                        3,
+                        (i) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.circle,
+                                color:
+                                    i == 0
+                                        ? widget.primaryColor
+                                        : Colors.grey[400],
+                                size: 10,
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Notification message # {i + 1}',
+                                  style: TextStyle(fontSize: 14),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       SizedBox(width: isMobile ? 4 : 8),
                       IconButton(
-                        icon: Icon(
-                          Icons.logout,
-                          size: isMobile ? 20 : 26,
-                        ),
+                        icon: Icon(Icons.logout, size: isMobile ? 20 : 26),
                         color: Colors.grey[700],
                         onPressed: () => widget.logout(context),
                         tooltip: 'Logout',
@@ -186,89 +316,86 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                     ],
                   ),
                 ),
-                Container(
-                  color: Colors.white,
-                  height: navBarHeight,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: List.generate(widget.navItems.length, (i) {
-                        final item = widget.navItems[i];
-                        final bool selected = i == selectedIndex;
-                        return MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() => selectedIndex = i);
-                            },
-                            child: Container(
-                              constraints: BoxConstraints(
-                                minWidth: navMinWidth,
-                              ),
-                              padding: EdgeInsets.symmetric(
-                                horizontal: navPaddingH,
-                                vertical: navPaddingV,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color:
-                                        selected
-                                            ? widget.primaryColor
-                                            : Colors.transparent,
-                                    width: navUnderline,
-                                  ),
-                                ),
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    item.icon,
-                                    color:
-                                        selected
-                                            ? widget.primaryColor
-                                            : Colors.grey[700],
-                                    size: navIconSize,
-                                  ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    item.label,
-                                    style: TextStyle(
-                                      color:
-                                          selected
-                                              ? widget.primaryColor
-                                              : Colors.grey[700],
-                                      fontWeight:
-                                          selected
-                                              ? FontWeight.w700
-                                              : FontWeight.normal,
-                                      fontSize: navFontSize,
-                                    ),
-                                  ),
-                                ],
-                              ),
+              ),
+            ),
+          // Profile Popover
+          if (showProfile)
+            Positioned(
+              top: 56,
+              right: 16,
+              child: Material(
+                elevation: 8,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 240,
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: Colors.grey[200],
+                            radius: 20,
+                            child: Icon(
+                              Icons.person,
+                              color: Colors.grey[700],
+                              size: 22,
                             ),
                           ),
-                        );
-                      }),
-                    ),
+                          SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Parent Name',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              Text(
+                                'parent@email.com',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16),
+                      Divider(),
+                      SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: Icon(Icons.logout),
+                          label: Text('Logout'),
+                          onPressed: () {
+                            widget.logout(context);
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            );
-          },
-        ),
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 4 : 16,
-            vertical: isMobile ? 6 : 12,
-          ),
-          child: _buildTabContent(selectedIndex, widget.primaryColor, isMobile),
-        ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -342,8 +469,9 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                         Expanded(
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryColor,
-                              foregroundColor: Colors.white,
+                              backgroundColor:
+                                  primaryColor, // Green for primary button
+                              foregroundColor: Colors.white, // White text
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -363,8 +491,11 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                         Expanded(
                           child: OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: primaryColor,
-                              side: BorderSide(color: primaryColor),
+                              foregroundColor:
+                                  primaryColor, // Green for outlined button text
+                              side: BorderSide(
+                                color: primaryColor,
+                              ), // Green border
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
