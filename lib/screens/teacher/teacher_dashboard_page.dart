@@ -36,6 +36,65 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     _loadDashboard();
   }
 
+  // Utility to nicely format schedule for a section-teacher assignment
+  String formatSchedule(Map<String, dynamic> assignment) {
+    final days =
+        assignment['days'] is List
+            ? (assignment['days'] as List).join(', ')
+            : (assignment['days']?.toString() ?? '');
+    final startTime = assignment['start_time'] ?? '';
+    final endTime = assignment['end_time'] ?? '';
+    if (days.isEmpty || startTime.isEmpty || endTime.isEmpty) {
+      return "--";
+    }
+    return "$days | $startTime - $endTime";
+  }
+
+  String computeSectionStatus(Map<String, dynamic> assignment) {
+    final days =
+        assignment['days'] is List
+            ? (assignment['days'] as List).cast<String>()
+            : (assignment['days']?.toString() ?? '')
+                .split(',')
+                .map((e) => e.trim())
+                .toList();
+    final startTimeStr = assignment['start_time'] ?? '';
+    final endTimeStr = assignment['end_time'] ?? '';
+    if (days.isEmpty || startTimeStr.isEmpty || endTimeStr.isEmpty)
+      return "Upcoming";
+
+    // Get today's day abbreviation, e.g., "Mon"
+    final now = DateTime.now();
+    final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final todayAbbrev = weekDays[now.weekday - 1];
+
+    if (!days.contains(todayAbbrev)) return "Upcoming";
+
+    // Parse time strings as today
+    final startTimeParts = startTimeStr.split(':');
+    final endTimeParts = endTimeStr.split(':');
+    if (startTimeParts.length < 2 || endTimeParts.length < 2) return "Upcoming";
+
+    final start = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      int.parse(startTimeParts[0]),
+      int.parse(startTimeParts[1]),
+    );
+    final end = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      int.parse(endTimeParts[0]),
+      int.parse(endTimeParts[1]),
+    );
+
+    if (now.isBefore(start)) return "Upcoming";
+    if (now.isAfter(end)) return "Completed";
+    return "Ongoing";
+  }
+
   Future<void> _loadDashboard() async {
     setState(() => isLoading = true);
 
@@ -47,10 +106,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       return;
     }
 
+    // Fetch schedule fields from section_teachers
     final sectionAssignments = await supabase
         .from('section_teachers')
         .select(
-          'id, section_id, subject, assigned_at, sections(id, name, grade_level, schedule)',
+          'id, section_id, subject, days, start_time, end_time, assigned_at, sections(id, name, grade_level)',
         )
         .eq('teacher_id', teacherId!);
 
@@ -255,12 +315,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                                   padding: const EdgeInsets.only(right: 16.0),
                                   child: _ClassCard(
                                     title: assignment['sections']['name'],
-                                    time:
-                                        assignment['sections']['schedule'] ??
-                                        "--",
-                                    status:
-                                        assignment['sections']['status'] ??
-                                        "Ongoing",
+                                    // Use formatted schedule string
+                                    time: formatSchedule(assignment),
+                                    status: computeSectionStatus(assignment),
                                     students:
                                         sectionStudents[assignment['sections']['id']]
                                             ?.length ??
@@ -286,6 +343,12 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                                                 child: _ClassStudentListModal(
                                                   classTitle:
                                                       assignment['sections']['name'],
+                                                  schedule: formatSchedule(
+                                                    assignment,
+                                                  ),
+                                                  subject:
+                                                      assignment['subject'] ??
+                                                      '',
                                                   students: [
                                                     for (final student
                                                         in sectionStudents[assignment['sections']['id']] ??
@@ -322,6 +385,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                                 padding: const EdgeInsets.only(bottom: 22.0),
                                 child: _ClassStudentListPaginated(
                                   classTitle: assignment['sections']['name'],
+                                  schedule: formatSchedule(assignment),
+                                  subject: assignment['subject'] ?? '',
                                   students: [
                                     for (final student
                                         in sectionStudents[assignment['sections']['id']] ??
@@ -380,7 +445,7 @@ class _ClassCard extends StatelessWidget {
       case "ongoing":
         return const Color(0xFF2563EB);
       case "upcoming":
-        return const Color(0xFFFFA726);
+        return const Color(0xFF8F9BB3); 
       default:
         return const Color(0xFF2563EB);
     }
@@ -393,7 +458,7 @@ class _ClassCard extends StatelessWidget {
       case "ongoing":
         return const Color(0xFFE8F1FF);
       case "upcoming":
-        return const Color(0xFFFFF3E0);
+        return const Color(0xFFF2F3F5);
       default:
         return const Color(0xFFE8F1FF);
     }
@@ -513,9 +578,13 @@ class _ClassCard extends StatelessWidget {
 // For dialog "View Details" modal
 class _ClassStudentListModal extends StatelessWidget {
   final String classTitle;
+  final String schedule;
+  final String subject;
   final List<_StudentRowData> students;
   const _ClassStudentListModal({
     required this.classTitle,
+    required this.schedule,
+    required this.subject,
     required this.students,
   });
 
@@ -539,6 +608,34 @@ class _ClassStudentListModal extends StatelessWidget {
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
                 ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(32, 4, 32, 0),
+              child: Row(
+                children: [
+                  if (subject.isNotEmpty)
+                    Text(
+                      subject,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2563EB),
+                      ),
+                    ),
+                  if (subject.isNotEmpty) const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      schedule,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF8F9BB3),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ),
             const Padding(
@@ -616,12 +713,16 @@ class _ClassStudentListModal extends StatelessWidget {
 // Paginated student list widget
 class _ClassStudentListPaginated extends StatefulWidget {
   final String classTitle;
+  final String schedule;
+  final String subject;
   final List<_StudentRowData> students;
   final int currentPage;
   final void Function(int page) onPageChanged;
 
   const _ClassStudentListPaginated({
     required this.classTitle,
+    required this.schedule,
+    required this.subject,
     required this.students,
     required this.currentPage,
     required this.onPageChanged,
@@ -657,14 +758,40 @@ class _ClassStudentListPaginatedState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            Text(
-              widget.classTitle,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF222B45),
-              ),
+            // Header with schedule
+            Row(
+              children: [
+                Text(
+                  widget.classTitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF222B45),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                if (widget.subject.isNotEmpty)
+                  Text(
+                    widget.subject,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2563EB),
+                    ),
+                  ),
+                if (widget.subject.isNotEmpty) const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    widget.schedule,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF8F9BB3),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 3),
             const Text(

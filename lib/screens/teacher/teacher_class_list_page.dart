@@ -22,49 +22,110 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
     _loadClassList();
   }
 
-  Future<void> _loadClassList() async {
-  setState(() => isLoading = true);
-
-  final user = supabase.auth.currentUser;
-  teacherId = user?.id;
-
-  if (teacherId == null) {
-    setState(() => isLoading = false);
-    // Optionally show a message to the user here
-    return;
-  }
-
-  try {
-    final sectionAssignments = await supabase
-        .from('section_teachers')
-        .select(
-          'id, section_id, subject, assigned_at, sections(id, name, schedule)' // use only existing columns!
-        )
-        .eq('teacher_id', teacherId!);
-
-    assignedSections = List<Map<String, dynamic>>.from(sectionAssignments ?? []);
-
-    sectionStudents.clear();
-    for (final assignment in assignedSections) {
-      final section = assignment['sections'];
-      if (section == null) continue;
-      final students = await supabase
-          .from('students')
-          .select('id, fname, lname, rfid_uid')
-          .eq('section_id', section['id']);
-      if (students == null) {
-        sectionStudents[section['id']] = [];
-        continue;
-      }
-      sectionStudents[section['id']] = List<Map<String, dynamic>>.from(students);
+  // Utility to format schedule
+  String formatSchedule(Map<String, dynamic> assignment) {
+    final days =
+        assignment['days'] is List
+            ? (assignment['days'] as List).join(', ')
+            : (assignment['days']?.toString() ?? '');
+    final startTime = assignment['start_time'] ?? '';
+    final endTime = assignment['end_time'] ?? '';
+    if (days.isEmpty || startTime.isEmpty || endTime.isEmpty) {
+      return "--";
     }
-  } catch (e) {
-    print("Supabase error: $e");
-    // Optionally show error message to user
+    return "$days | $startTime - $endTime";
   }
 
-  setState(() => isLoading = false);
-}
+  // Compute status string: Upcoming, Ongoing, Completed
+  String computeSectionStatus(Map<String, dynamic> assignment) {
+    final days =
+        assignment['days'] is List
+            ? (assignment['days'] as List).cast<String>()
+            : (assignment['days']?.toString() ?? '')
+                .split(',')
+                .map((e) => e.trim())
+                .toList();
+    final startTimeStr = assignment['start_time'] ?? '';
+    final endTimeStr = assignment['end_time'] ?? '';
+    if (days.isEmpty || startTimeStr.isEmpty || endTimeStr.isEmpty)
+      return "Upcoming";
+
+    final now = DateTime.now();
+    final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final todayAbbrev = weekDays[now.weekday - 1];
+
+    if (!days.contains(todayAbbrev)) return "Upcoming";
+
+    final startTimeParts = startTimeStr.split(':');
+    final endTimeParts = endTimeStr.split(':');
+    if (startTimeParts.length < 2 || endTimeParts.length < 2) return "Upcoming";
+
+    final start = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      int.parse(startTimeParts[0]),
+      int.parse(startTimeParts[1]),
+    );
+    final end = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      int.parse(endTimeParts[0]),
+      int.parse(endTimeParts[1]),
+    );
+
+    if (now.isBefore(start)) return "Upcoming";
+    if (now.isAfter(end)) return "Completed";
+    return "Ongoing";
+  }
+
+  Future<void> _loadClassList() async {
+    setState(() => isLoading = true);
+
+    final user = supabase.auth.currentUser;
+    teacherId = user?.id;
+
+    if (teacherId == null) {
+      setState(() => isLoading = false);
+      return;
+    }
+
+    try {
+      // Fetch schedule fields from section_teachers
+      final sectionAssignments = await supabase
+          .from('section_teachers')
+          .select(
+            'id, section_id, subject, days, start_time, end_time, assigned_at, sections(id, name)',
+          )
+          .eq('teacher_id', teacherId!);
+
+      assignedSections = List<Map<String, dynamic>>.from(
+        sectionAssignments ?? [],
+      );
+
+      sectionStudents.clear();
+      for (final assignment in assignedSections) {
+        final section = assignment['sections'];
+        if (section == null) continue;
+        final students = await supabase
+            .from('students')
+            .select('id, fname, lname, rfid_uid')
+            .eq('section_id', section['id']);
+        if (students == null) {
+          sectionStudents[section['id']] = [];
+          continue;
+        }
+        sectionStudents[section['id']] = List<Map<String, dynamic>>.from(
+          students,
+        );
+      }
+    } catch (e) {
+      print("Supabase error: $e");
+    }
+
+    setState(() => isLoading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,17 +164,12 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
                                 padding: const EdgeInsets.only(bottom: 18.0),
                                 child: _ClassListCard(
                                   title: assignment['sections']['name'],
-                                  time:
-                                      assignment['sections']['schedule'] ??
-                                      "--",
+                                  time: formatSchedule(assignment),
                                   students:
                                       sectionStudents[assignment['sections']['id']]
                                           ?.length ??
                                       0,
-                                  // Example: status could be "Ongoing", "Upcoming", etc. Use your own logic if needed.
-                                  status:
-                                      assignment['sections']['status'] ??
-                                      "Ongoing",
+                                  status: computeSectionStatus(assignment),
                                   onPressed: () {
                                     widget.onViewAttendance?.call(
                                       assignment['sections']['id'],
@@ -150,26 +206,26 @@ class _ClassListCard extends StatelessWidget {
   Color getStatusColor() {
     switch (status.toLowerCase()) {
       case "ongoing":
-        return const Color(0xFF19AE61); // green
+        return const Color(0xFF2563EB); // blue
       case "upcoming":
-        return const Color(0xFFFFA726); // orange
+        return const Color(0xFF8F9BB3); // gray
       case "completed":
-        return const Color(0xFF2E3A59); // muted/gray
+        return const Color(0xFF19AE61); // green
       default:
-        return const Color(0xFF19AE61);
+        return const Color(0xFF2563EB);
     }
   }
 
   Color getStatusBgColor() {
     switch (status.toLowerCase()) {
       case "ongoing":
-        return const Color(0xFFD9FBE8); // light green
+        return const Color(0xFFE8F1FF); // light blue
       case "upcoming":
-        return const Color(0xFFFFF3E0); // light orange
+        return const Color(0xFFF2F3F5); // light gray
       case "completed":
-        return const Color(0xFFE4E9F2);
+        return const Color(0xFFD9FBE8); // light green
       default:
-        return const Color(0xFFD9FBE8);
+        return const Color(0xFFE8F1FF);
     }
   }
 
