@@ -545,7 +545,6 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     _NavItem("Dashboard", Icons.dashboard_outlined),
     _NavItem("Student Verification", Icons.verified_outlined),
     _NavItem("Recent Activity", Icons.history),
-    _NavItem("Logout", Icons.logout),
   ];
 
   void simulateRFIDScan() {
@@ -2184,6 +2183,13 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                     },
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 24.0),
+                  child: _buildNavItem(
+                    _NavItem("Logout", Icons.logout),
+                    navItems.length,
+                  ),
+                ),
               ],
             ),
           ),
@@ -2213,9 +2219,48 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
     final bool isSelected = selectedIndex == index;
 
     return InkWell(
-      onTap: () {
+      onTap: () async {
         if (item.label == "Logout") {
-          _handleLogout(context);
+          final shouldLogout = await showDialog<bool>(
+            context: context,
+            builder:
+                (context) => AlertDialog(
+                  backgroundColor: Colors.white,
+                  title: Text(
+                    'Confirm Logout',
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  content: Text(
+                    'Are you sure you want to logout?',
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(color: Colors.black),
+                      ),
+                    ),
+                    TextButton(
+                      style: ButtonStyle(
+                        foregroundColor:
+                            MaterialStateProperty.resolveWith<Color>((states) {
+                              if (states.contains(MaterialState.hovered)) {
+                                return Color(0xFF19AE61);
+                              }
+                              return Colors.black;
+                            }),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: Text('Logout'),
+                    ),
+                  ],
+                ),
+          );
+          if (shouldLogout == true) {
+            _handleLogout(context);
+          }
         } else {
           setState(() => selectedIndex = index);
         }

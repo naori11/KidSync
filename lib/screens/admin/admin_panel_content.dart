@@ -46,12 +46,19 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     super.initState();
     navItems = [
       _NavItem("Dashboard", Icons.dashboard_outlined, const SizedBox()),
-      _NavItem("Section Management", Icons.list_alt_outlined, const SectionManagementPage()),
-      _NavItem("Student Management", Icons.people_outline, StudentManagementPage()),
+      _NavItem(
+        "Section Management",
+        Icons.list_alt_outlined,
+        const SectionManagementPage(),
+      ),
+      _NavItem(
+        "Student Management",
+        Icons.people_outline,
+        StudentManagementPage(),
+      ),
       _NavItem("User Management", Icons.person_outline, UserManagementPage()),
       _NavItem("Parent/Guardian", Icons.family_restroom, ParentGuardianPage()),
       _NavItem("Audit Logs", Icons.description_outlined, AuditLogsPage()),
-      _NavItem("Logout", Icons.logout, null),
     ];
   }
 
@@ -421,7 +428,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           // Sidebar Navigation
           Container(
             width: 180,
-            color: Colors.white,
+            color: const Color.fromARGB(255, 255, 255, 255),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -460,6 +467,14 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                     },
                   ),
                 ),
+                // In the sidebar ListView.builder, after the Expanded ListView, add the logout button at the bottom
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 24.0),
+                  child: _buildNavItem(
+                    _NavItem("Logout", Icons.logout, null),
+                    navItems.length,
+                  ),
+                ),
               ],
             ),
           ),
@@ -480,10 +495,49 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     final bool isSelected = selectedIndex == index;
 
     return InkWell(
-      onTap: () {
+      onTap: () async {
         // If it's the logout button
         if (item.label == "Logout") {
-          _handleLogout(context);
+          final shouldLogout = await showDialog<bool>(
+            context: context,
+            builder:
+                (context) => AlertDialog(
+                  backgroundColor: Colors.white,
+                  title: Text(
+                    'Confirm Logout',
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  content: Text(
+                    'Are you sure you want to logout?',
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(color: Colors.black),
+                      ),
+                    ),
+                    TextButton(
+                      style: ButtonStyle(
+                        foregroundColor:
+                            MaterialStateProperty.resolveWith<Color>((states) {
+                              if (states.contains(MaterialState.hovered)) {
+                                return Color(0xFF19AE61);
+                              }
+                              return Colors.black;
+                            }),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: Text('Logout'),
+                    ),
+                  ],
+                ),
+          );
+          if (shouldLogout == true) {
+            _handleLogout(context);
+          }
         } else {
           setState(() => selectedIndex = index);
         }

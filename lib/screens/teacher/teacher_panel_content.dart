@@ -7,7 +7,8 @@ import 'teacher_student_attendance_calendar_page.dart';
 
 class TeacherPanelContent extends StatefulWidget {
   final String userName;
-  const TeacherPanelContent({Key? key, required this.userName}) : super(key: key);
+  const TeacherPanelContent({Key? key, required this.userName})
+    : super(key: key);
 
   @override
   State<TeacherPanelContent> createState() => _TeacherPanelContentState();
@@ -31,7 +32,6 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
     navItems = [
       _TeacherNavItem("Dashboard", Icons.dashboard),
       _TeacherNavItem("Class list", Icons.list_alt),
-      _TeacherNavItem("Logout", Icons.logout),
     ];
   }
 
@@ -81,9 +81,48 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
   Widget _buildNavItem(_TeacherNavItem item, int index) {
     final bool isSelected = selectedIndex == index && subPage == null;
     return InkWell(
-      onTap: () {
+      onTap: () async {
         if (item.label == "Logout") {
-          _handleLogout(context);
+          final shouldLogout = await showDialog<bool>(
+            context: context,
+            builder:
+                (context) => AlertDialog(
+                  backgroundColor: Colors.white,
+                  title: Text(
+                    'Confirm Logout',
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  content: Text(
+                    'Are you sure you want to logout?',
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(color: Colors.black),
+                      ),
+                    ),
+                    TextButton(
+                      style: ButtonStyle(
+                        foregroundColor:
+                            MaterialStateProperty.resolveWith<Color>((states) {
+                              if (states.contains(MaterialState.hovered)) {
+                                return Color(0xFF19AE61);
+                              }
+                              return Colors.black;
+                            }),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: Text('Logout'),
+                    ),
+                  ],
+                ),
+          );
+          if (shouldLogout == true) {
+            _handleLogout(context);
+          }
         } else {
           setState(() {
             selectedIndex = index;
@@ -105,7 +144,11 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            Icon(item.icon, color: isSelected ? Colors.white : Colors.grey[600], size: 20),
+            Icon(
+              item.icon,
+              color: isSelected ? Colors.white : Colors.grey[600],
+              size: 20,
+            ),
             const SizedBox(width: 12),
             Text(
               item.label,
@@ -149,9 +192,7 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
       case 0:
         return const TeacherDashboardPage();
       case 1:
-        return TeacherClassListPage(
-          onViewAttendance: _showAttendancePage,
-        );
+        return TeacherClassListPage(onViewAttendance: _showAttendancePage);
       case 2:
         // Attendance is handled via subPage logic
         return const SizedBox();
@@ -201,6 +242,13 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
                       }
                       return _buildNavItem(item, index);
                     },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 24.0),
+                  child: _buildNavItem(
+                    _TeacherNavItem("Logout", Icons.logout),
+                    navItems.length,
                   ),
                 ),
               ],
