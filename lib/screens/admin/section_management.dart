@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SectionManagementPage extends StatefulWidget {
@@ -250,18 +251,106 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     Map<String, dynamic>? assignment,
   }) async {
     final formKey = GlobalKey<FormState>();
-    String? selectedSubject = assignment?['subject'];
-    dynamic selectedTeacherId =
-        assignment?['users']?['id'] ?? assignment?['teacher_id'];
-    final subjectController = TextEditingController(
-      text: selectedSubject ?? '',
-    );
+
+    // Initialize controllers and state variables
+    final subjectController = TextEditingController();
+    String? selectedSubject;
+    dynamic selectedTeacherId;
+    List<String> selectedDays = [];
+    TimeOfDay? startTime;
+    TimeOfDay? endTime;
+
+    final List<String> daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    // Populate data if editing existing assignment
+    if (assignment != null) {
+      // Subject
+      selectedSubject = assignment['subject'];
+      subjectController.text = selectedSubject ?? '';
+
+      // Teacher ID - handle nested user data
+      if (assignment['users'] != null && assignment['users']['id'] != null) {
+        selectedTeacherId = assignment['users']['id'];
+      } else if (assignment['teacher_id'] != null) {
+        selectedTeacherId = assignment['teacher_id'];
+      }
+
+      // Days - handle different formats
+      if (assignment['days'] != null) {
+        final daysData = assignment['days'];
+        if (daysData is List) {
+          selectedDays = List<String>.from(daysData);
+        } else if (daysData is String) {
+          try {
+            // Remove brackets and quotes, then split
+            final cleanedDays =
+                daysData
+                    .replaceAll(RegExp(r'[\{\}\[\]"]'), '')
+                    .split(',')
+                    .map((s) => s.trim())
+                    .where((s) => s.isNotEmpty)
+                    .toList();
+            selectedDays = cleanedDays;
+          } catch (e) {
+            print('Error parsing days: $e');
+            selectedDays = [];
+          }
+        }
+      }
+
+      // Start Time
+      if (assignment['start_time'] != null) {
+        final startTimeStr = assignment['start_time'].toString();
+        if (startTimeStr.isNotEmpty && startTimeStr != 'null') {
+          try {
+            final timeParts = startTimeStr.split(':');
+            if (timeParts.length >= 2) {
+              final hour = int.parse(timeParts[0]);
+              final minute = int.parse(timeParts[1]);
+              startTime = TimeOfDay(hour: hour, minute: minute);
+            }
+          } catch (e) {
+            print('Error parsing start time: $e');
+          }
+        }
+      }
+
+      // End Time
+      if (assignment['end_time'] != null) {
+        final endTimeStr = assignment['end_time'].toString();
+        if (endTimeStr.isNotEmpty && endTimeStr != 'null') {
+          try {
+            final timeParts = endTimeStr.split(':');
+            if (timeParts.length >= 2) {
+              final hour = int.parse(timeParts[0]);
+              final minute = int.parse(timeParts[1]);
+              endTime = TimeOfDay(hour: hour, minute: minute);
+            }
+          } catch (e) {
+            print('Error parsing end time: $e');
+          }
+        }
+      }
+    }
+
+    // Debug print to see what data we're working with
+    print('Assignment data: $assignment');
+    print('Selected days: $selectedDays');
+    print('Start time: $startTime');
+    print('End time: $endTime');
+    print('Selected teacher ID: $selectedTeacherId');
 
     await showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            // Helper function to format time display
+            String formatTimeDisplay(TimeOfDay? time) {
+              if (time == null) return '';
+              return time.format(context);
+            }
+
             return AlertDialog(
               title: Row(
                 children: [
@@ -283,12 +372,13 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                 ],
               ),
               content: SizedBox(
-                width: 350,
+                width: 400,
                 child: Form(
                   key: formKey,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Subject Field
                       TextFormField(
                         controller: subjectController,
                         decoration: InputDecoration(
@@ -313,8 +403,11 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                 (value == null || value.trim().isEmpty)
                                     ? 'Subject required'
                                     : null,
+                        onChanged: (value) => selectedSubject = value,
                       ),
                       const SizedBox(height: 16),
+
+                      // Teacher Dropdown
                       DropdownButtonFormField<dynamic>(
                         decoration: InputDecoration(
                           labelText: 'Teacher *',
@@ -331,22 +424,229 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                         ),
                         value: selectedTeacherId,
                         items:
-                            teachers
-                                .map(
-                                  (t) => DropdownMenuItem(
-                                    value: t['id'],
-                                    child: Text(
-                                      '${t['fname']} ${t['lname']}',
-                                      style: const TextStyle(fontSize: 15),
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                        onChanged:
-                            (value) =>
-                                setDialogState(() => selectedTeacherId = value),
+                            teachers.map((teacher) {
+                              return DropdownMenuItem(
+                                value: teacher['id'],
+                                child: Text(
+                                  '${teacher['fname']} ${teacher['lname']}',
+                                  style: const TextStyle(fontSize: 15),
+                                ),
+                              );
+                            }).toList(),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            selectedTeacherId = value;
+                          });
+                        },
                         validator:
                             (value) => value == null ? 'Select teacher' : null,
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Days Section
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Schedule Days *',
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(8),
+                          color: Colors.grey[50],
+                        ),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children:
+                              daysOfWeek.map((day) {
+                                final isSelected = selectedDays.contains(day);
+                                return InkWell(
+                                  onTap: () {
+                                    setDialogState(() {
+                                      if (isSelected) {
+                                        selectedDays.remove(day);
+                                      } else {
+                                        selectedDays.add(day);
+                                      }
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          isSelected
+                                              ? const Color(0xFF2ECC71)
+                                              : Colors.white,
+                                      border: Border.all(
+                                        color:
+                                            isSelected
+                                                ? const Color(0xFF2ECC71)
+                                                : Colors.grey[300]!,
+                                      ),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      day,
+                                      style: TextStyle(
+                                        color:
+                                            isSelected
+                                                ? Colors.white
+                                                : Colors.grey[700],
+                                        fontWeight:
+                                            isSelected
+                                                ? FontWeight.w600
+                                                : FontWeight.normal,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Time Section
+                      Row(
+                        children: [
+                          // Start Time
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Start Time *',
+                                  style: TextStyle(
+                                    color: Colors.grey[700],
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                InkWell(
+                                  onTap: () async {
+                                    final picked = await showTimePicker(
+                                      context: context,
+                                      initialTime:
+                                          startTime ??
+                                          const TimeOfDay(hour: 8, minute: 0),
+                                    );
+                                    if (picked != null) {
+                                      setDialogState(() {
+                                        startTime = picked;
+                                      });
+                                    }
+                                  },
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: Colors.grey[300]!,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      color: Colors.grey[50],
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.access_time, size: 20),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          startTime != null
+                                              ? formatTimeDisplay(startTime)
+                                              : 'Select start time',
+                                          style: TextStyle(
+                                            color:
+                                                startTime != null
+                                                    ? const Color(0xFF333333)
+                                                    : Colors.grey[600],
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+
+                          // End Time
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'End Time *',
+                                  style: TextStyle(
+                                    color: Colors.grey[700],
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                InkWell(
+                                  onTap: () async {
+                                    final picked = await showTimePicker(
+                                      context: context,
+                                      initialTime:
+                                          endTime ??
+                                          const TimeOfDay(hour: 9, minute: 0),
+                                    );
+                                    if (picked != null) {
+                                      setDialogState(() {
+                                        endTime = picked;
+                                      });
+                                    }
+                                  },
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: Colors.grey[300]!,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      color: Colors.grey[50],
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.access_time, size: 20),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          endTime != null
+                                              ? formatTimeDisplay(endTime)
+                                              : 'Select end time',
+                                          style: TextStyle(
+                                            color:
+                                                endTime != null
+                                                    ? const Color(0xFF333333)
+                                                    : Colors.grey[600],
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -355,29 +655,159 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2ECC71),
                     foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
                   ),
                   onPressed: () async {
-                    if (formKey.currentState!.validate()) {
+                    // Validation
+                    if (!formKey.currentState!.validate()) return;
+
+                    if (selectedDays.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please select at least one day.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (startTime == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please select start time.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (endTime == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please select end time.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+
+                    // Check for scheduling conflicts
+                    try {
+                      final existingAssignments = await supabase
+                          .from('section_teachers')
+                          .select('id, days, start_time, end_time')
+                          .eq('teacher_id', selectedTeacherId)
+                          .neq('id', assignment?['id'] ?? 0);
+
+                      bool hasConflict = false;
+                      for (final other in existingAssignments) {
+                        final otherDays = List<String>.from(
+                          other['days'] ?? [],
+                        );
+
+                        // Check if there's any day overlap
+                        if (otherDays.any((d) => selectedDays.contains(d))) {
+                          // Parse other assignment times
+                          final otherStartParts = other['start_time'].split(
+                            ':',
+                          );
+                          final otherEndParts = other['end_time'].split(':');
+
+                          final otherStartMinutes =
+                              int.parse(otherStartParts[0]) * 60 +
+                              int.parse(otherStartParts[1]);
+                          final otherEndMinutes =
+                              int.parse(otherEndParts[0]) * 60 +
+                              int.parse(otherEndParts[1]);
+
+                          final newStartMinutes =
+                              startTime!.hour * 60 + startTime!.minute;
+                          final newEndMinutes =
+                              endTime!.hour * 60 + endTime!.minute;
+
+                          // Check for time overlap
+                          if (newStartMinutes < otherEndMinutes &&
+                              newEndMinutes > otherStartMinutes) {
+                            hasConflict = true;
+                            break;
+                          }
+                        }
+                      }
+
+                      if (hasConflict) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Schedule conflict: Teacher is already assigned at that time.',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+
+                      // Format time for database (HH:MM:SS format)
+                      String formatTimeForDB(TimeOfDay time) {
+                        return '${time.hour.toString().padLeft(2, '0')}:'
+                            '${time.minute.toString().padLeft(2, '0')}:00';
+                      }
+
+                      // Prepare payload
                       final payload = {
                         'section_id': sectionId,
                         'teacher_id': selectedTeacherId,
                         'subject': subjectController.text.trim(),
+                        'days': selectedDays,
+                        'start_time': formatTimeForDB(startTime!),
+                        'end_time': formatTimeForDB(endTime!),
                       };
+
+                      // Insert or update
                       if (assignment == null) {
                         await supabase.from('section_teachers').insert(payload);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Teacher assignment added successfully!',
+                            ),
+                            backgroundColor: Color(0xFF2ECC71),
+                          ),
+                        );
                       } else {
                         await supabase
                             .from('section_teachers')
                             .update(payload)
                             .eq('id', assignment['id']);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Teacher assignment updated successfully!',
+                            ),
+                            backgroundColor: Color(0xFF2ECC71),
+                          ),
+                        );
                       }
+
                       Navigator.pop(context);
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: ${e.toString()}'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
                     }
                   },
                   child: Row(
@@ -402,6 +832,8 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
         );
       },
     );
+
+    // Clean up
     subjectController.dispose();
   }
 
