@@ -168,10 +168,9 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
     if (subPage == "attendance" &&
         selectedSectionId != null &&
         selectedSectionName != null) {
-      return TeacherClassManagementPage(
+      return TeacherSectionAttendancePage(
         sectionId: selectedSectionId!,
         sectionName: selectedSectionName!,
-        onStudentView: _showStudentCalendarPage,
         onBack: _goBackToClassList,
       );
     }

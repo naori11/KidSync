@@ -25,10 +25,15 @@ class TeacherStudentAttendanceCalendarPage extends StatefulWidget {
 class _TeacherStudentAttendanceCalendarPageState
     extends State<TeacherStudentAttendanceCalendarPage> {
   final supabase = Supabase.instance.client;
-  Map<DateTime, Map<String, dynamic>> scanRecordsByDate = {};
+  Map<DateTime, List<Map<String, dynamic>>> scanRecordsByDate = {};
   bool isLoading = true;
   String? errorMessage;
   DateTime selectedMonth = DateTime.now();
+
+  // Schedule info
+  List<String> classDays = [];
+  String? classStartTime;
+  String? classEndTime;
 
   // For statistics
   int totalPresent = 0;
@@ -40,17 +45,37 @@ class _TeacherStudentAttendanceCalendarPageState
   @override
   void initState() {
     super.initState();
-    _loadCalendar();
+    _loadScheduleAndCalendar();
   }
 
-  Future<void> _loadCalendar() async {
+  Future<void> _loadScheduleAndCalendar() async {
     setState(() {
       isLoading = true;
       errorMessage = null;
     });
 
     try {
-      // Fetch all records for the month
+      // 1. Fetch schedule info from section_teachers for this section & student
+      final teacherAssignment =
+          await supabase
+              .from('section_teachers')
+              .select('days, start_time, end_time')
+              .eq('section_id', widget.sectionId)
+              .maybeSingle();
+
+      if (teacherAssignment != null) {
+        classDays =
+            teacherAssignment['days'] is List
+                ? (teacherAssignment['days'] as List).cast<String>()
+                : (teacherAssignment['days']?.toString() ?? '')
+                    .split(',')
+                    .map((e) => e.trim())
+                    .toList();
+        classStartTime = teacherAssignment['start_time'];
+        classEndTime = teacherAssignment['end_time'];
+      }
+
+      // 2. Fetch all scan_records for the student for the month
       final startOfMonth = DateTime(selectedMonth.year, selectedMonth.month, 1);
       final endOfMonth = DateTime(
         selectedMonth.year,
@@ -69,12 +94,13 @@ class _TeacherStudentAttendanceCalendarPageState
           .lte('scan_time', endOfMonth.toIso8601String())
           .order('scan_time', ascending: true);
 
+      // Group all scan records by date (multiple entries per day possible)
       scanRecordsByDate.clear();
       for (final rec in records) {
         final dt = DateTime.tryParse(rec['scan_time'] ?? "");
         if (dt != null) {
           final date = DateTime(dt.year, dt.month, dt.day);
-          scanRecordsByDate[date] = rec;
+          scanRecordsByDate.putIfAbsent(date, () => []).add(rec);
         }
       }
 
@@ -83,22 +109,25 @@ class _TeacherStudentAttendanceCalendarPageState
       final lastDay = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
       for (int i = 1; i <= lastDay.day; i++) {
         final date = DateTime(selectedMonth.year, selectedMonth.month, i);
-        final rec = scanRecordsByDate[date];
-        if (rec != null && rec['status'] != null) {
-          switch (rec['status']) {
-            case "Present":
-              totalPresent++;
-              break;
-            case "Absent":
-              totalAbsent++;
-              break;
-            case "Late":
-              totalLate++;
-              break;
-            case "Excused":
-              totalExcused++;
-              break;
-          }
+        final records = scanRecordsByDate[date];
+        String? dayStatus;
+        if (records != null && records.isNotEmpty) {
+          // Use the first record's status for summary (customize as needed)
+          dayStatus = records.first['status'];
+        }
+        switch (dayStatus) {
+          case "Present":
+            totalPresent++;
+            break;
+          case "Absent":
+            totalAbsent++;
+            break;
+          case "Late":
+            totalLate++;
+            break;
+          case "Excused":
+            totalExcused++;
+            break;
         }
         totalDays++;
       }
@@ -113,29 +142,70 @@ class _TeacherStudentAttendanceCalendarPageState
     setState(() {
       selectedMonth = DateTime(selectedMonth.year, selectedMonth.month - 1, 1);
     });
-    _loadCalendar();
+    _loadScheduleAndCalendar();
   }
 
   void _nextMonth() {
     setState(() {
       selectedMonth = DateTime(selectedMonth.year, selectedMonth.month + 1, 1);
     });
-    _loadCalendar();
+    _loadScheduleAndCalendar();
   }
 
-  Color statusDotColor(String? status) {
-    switch (status) {
-      case "Present":
-        return const Color(0xFF19AE61);
-      case "Absent":
-        return const Color(0xFFEB5757);
-      case "Late":
-        return const Color(0xFFFFA726);
-      case "Excused":
-        return const Color(0xFF2563EB);
-      default:
-        return const Color(0xFFBDBDBD);
+  // Helper: returns true if class is scheduled on this date
+  bool isClassDay(DateTime date) {
+    final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final abbrev = weekDays[date.weekday - 1];
+    return classDays.contains(abbrev);
+  }
+
+  // Helper: returns class start/end as DateTime for a day
+  DateTime? classStartDateTime(DateTime date) {
+    if (classStartTime == null) return null;
+    final parts = classStartTime!.split(':');
+    if (parts.length < 2) return null;
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+    );
+  }
+
+  DateTime? classEndDateTime(DateTime date) {
+    if (classEndTime == null) return null;
+    final parts = classEndTime!.split(':');
+    if (parts.length < 2) return null;
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+    );
+  }
+
+  // Dot color based on actual scan and class sched
+  Color scanDotColor(DateTime date, Map<String, dynamic> scan) {
+    // If not a class day, show gray
+    if (!isClassDay(date)) return const Color(0xFFBDBDBD);
+
+    final status = scan['status'];
+    if (status == "Excused") return const Color(0xFF2563EB);
+    if (status == "Absent") return const Color(0xFFEB5757);
+
+    // Check time for Present/Late
+    final scanTime = DateTime.tryParse(scan['scan_time'] ?? "");
+    final start = classStartDateTime(date);
+    if (scanTime != null && start != null) {
+      if (scanTime.isBefore(start.add(const Duration(minutes: 1)))) {
+        return const Color(0xFF19AE61); // Present (on time)
+      } else {
+        return const Color(0xFFFFA726); // Late
+      }
     }
+    return const Color(0xFF19AE61); // Default: Present
   }
 
   Widget _attendanceLegend() {
@@ -281,17 +351,7 @@ class _TeacherStudentAttendanceCalendarPageState
                 ? DateTime(selectedMonth.year, selectedMonth.month, cellDay)
                 : DateTime(2000);
 
-        final rec = inMonth ? scanRecordsByDate[cellDate] : null;
-        final status =
-            rec != null
-                ? (rec['status'] ?? "No Data")
-                : (inMonth ? "No Data" : "");
-
-        // Demo: Show two static times as in your screenshot
-        final times = [
-          "08:30 AM",
-          "03:30 PM",
-        ]; // static for now; can be dynamic if your database supports multiple scan times/day
+        final records = inMonth ? scanRecordsByDate[cellDate] : null;
 
         dayCells.add(
           Expanded(
@@ -305,10 +365,10 @@ class _TeacherStudentAttendanceCalendarPageState
                           borderRadius: BorderRadius.circular(11),
                           border: Border.all(
                             color:
-                                status == "No Data"
+                                isClassDay(cellDate)
                                     ? const Color(0xFFEDF1F7)
-                                    : statusDotColor(status).withOpacity(0.8),
-                            width: status == "No Data" ? 1.0 : 1.5,
+                                    : const Color(0xFFF3F6FA),
+                            width: 1.0,
                           ),
                           boxShadow: [
                             BoxShadow(
@@ -333,48 +393,76 @@ class _TeacherStudentAttendanceCalendarPageState
                                     fontWeight: FontWeight.bold,
                                     fontSize: 15,
                                     color:
-                                        status == "No Data"
-                                            ? Color(0xFF8F9BB3)
-                                            : Color(0xFF2E3A59),
+                                        isClassDay(cellDate)
+                                            ? const Color(0xFF2E3A59)
+                                            : const Color(0xFFBDBDBD),
                                   ),
                                 ),
                                 const SizedBox(width: 6),
-                                if (status != "No Data")
-                                  Container(
-                                    width: 10,
-                                    height: 10,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: statusDotColor(status),
-                                    ),
-                                  ),
+                                if (records != null && records.isNotEmpty)
+                                  ...records
+                                      .take(2)
+                                      .map(
+                                        (scan) => Container(
+                                          width: 10,
+                                          height: 10,
+                                          margin: const EdgeInsets.only(
+                                            left: 1.5,
+                                            right: 1.5,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: scanDotColor(cellDate, scan),
+                                          ),
+                                        ),
+                                      ),
                               ],
                             ),
                             const SizedBox(height: 7),
-                            ...times.map(
-                              (t) => Padding(
-                                padding: const EdgeInsets.only(bottom: 2.5),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(
-                                      Icons.access_time,
-                                      size: 14,
-                                      color: Color(0xFF8F9BB3),
-                                    ),
-                                    const SizedBox(width: 5),
-                                    Text(
-                                      t,
-                                      style: const TextStyle(
-                                        fontSize: 13,
+                            if (records != null && records.isNotEmpty)
+                              ...records.take(2).map((scan) {
+                                String scanTimeStr = scan['scan_time'] ?? "";
+                                DateTime? scanTime = DateTime.tryParse(
+                                  scanTimeStr,
+                                );
+                                String timeDisplay =
+                                    scanTime != null
+                                        ? DateFormat.jm().format(scanTime)
+                                        : "";
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 2.5),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.access_time,
+                                        size: 14,
                                         color: Color(0xFF8F9BB3),
-                                        fontWeight: FontWeight.w400,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        timeDisplay,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF8F9BB3),
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              })
+                            else if (isClassDay(cellDate))
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 2.5),
+                                child: Text(
+                                  "No Data",
+                                  style: TextStyle(
+                                    color: const Color(0xFFBDBDBD),
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ),
-                            ),
                           ],
                         ),
                       )
@@ -409,183 +497,191 @@ class _TeacherStudentAttendanceCalendarPageState
     final monthLabel = DateFormat.yMMMM().format(selectedMonth);
     return Scaffold(
       backgroundColor: const Color(0xF7F9FCFF),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(0, 32, 0, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Page header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(32, 0, 32, 0),
-                child: Row(
-                  children: [
-                    if (widget.onBack != null)
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back),
-                        onPressed: widget.onBack,
-                        tooltip: "Back",
-                      ),
-                    Text(
-                      "${widget.sectionName} / ",
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF8F9BB3),
-                      ),
+      resizeToAvoidBottomInset:
+          false, // Prevents resizing on keyboard open (optional)
+      body: SizedBox.expand(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header row with X button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(32, 32, 32, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    "${widget.sectionName} / ",
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF8F9BB3),
                     ),
-                    const Text(
-                      "Attendance",
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF222B45),
-                      ),
+                  ),
+                  const Text(
+                    "Attendance",
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF222B45),
                     ),
-                  ],
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      size: 28,
+                      color: Color(0xFF8F9BB3),
+                    ),
+                    tooltip: "Close",
+                    splashRadius: 22,
+                    onPressed:
+                        widget.onBack ?? () => Navigator.of(context).maybePop(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Student info card
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Card(
+                color: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 22,
+                  ),
+                  width: double.infinity,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Avatar
+                      CircleAvatar(
+                        backgroundColor: const Color(0xFFEDF1F7),
+                        radius: 32,
+                        child: const Icon(
+                          Icons.person,
+                          size: 38,
+                          color: Color(0xFF8F9BB3),
+                        ),
+                      ),
+                      const SizedBox(width: 22),
+                      // Name, grade and id
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.studentName,
+                              style: const TextStyle(
+                                fontSize: 21,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF222B45),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Grade 8-A", // Static for now; replace with dynamic if available
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w400,
+                                color: Color(0xFF8F9BB3),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "Student ID: #ST2024001", // Static for now; replace with actual if available
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF8F9BB3),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Attendance stats
+                      _attendanceStats(),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
-              // Student info card
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Card(
-                  color: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 28,
-                      vertical: 22,
+            ),
+            const SizedBox(height: 22),
+            // Calendar controls row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Row(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEDF1F7),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    width: double.infinity,
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Avatar
-                        CircleAvatar(
-                          backgroundColor: const Color(0xFFEDF1F7),
-                          radius: 32,
-                          child: const Icon(
-                            Icons.person,
-                            size: 38,
-                            color: Color(0xFF8F9BB3),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.chevron_left,
+                            color: Color(0xFF2563EB),
+                          ),
+                          onPressed: _prevMonth,
+                        ),
+                        Text(
+                          monthLabel,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF2E3A59),
                           ),
                         ),
-                        const SizedBox(width: 22),
-                        // Name, grade and id
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.studentName,
-                                style: const TextStyle(
-                                  fontSize: 21,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF222B45),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                "Grade 8-A", // Static for now; replace with dynamic if available
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w400,
-                                  color: Color(0xFF8F9BB3),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                "Student ID: #ST2024001", // Static for now; replace with actual if available
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF8F9BB3),
-                                ),
-                              ),
-                            ],
+                        IconButton(
+                          icon: const Icon(
+                            Icons.chevron_right,
+                            color: Color(0xFF2563EB),
                           ),
+                          onPressed: _nextMonth,
                         ),
-                        // Attendance stats
-                        _attendanceStats(),
                       ],
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 22),
-              // Calendar controls row
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Row(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEDF1F7),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.chevron_left,
-                              color: Color(0xFF2563EB),
-                            ),
-                            onPressed: _prevMonth,
-                          ),
-                          Text(
-                            monthLabel,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF2E3A59),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.chevron_right,
-                              color: Color(0xFF2563EB),
-                            ),
-                            onPressed: _nextMonth,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    SizedBox(
-                      height: 38,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.add, size: 19),
-                        label: const Text("Mark  Excuse"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
-                          foregroundColor: Colors.white,
-                          textStyle: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 0,
-                          ),
+                  const SizedBox(width: 14),
+                  SizedBox(
+                    height: 38,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.add, size: 19),
+                      label: const Text("Mark  Excuse"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        textStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
                         ),
-                        onPressed: () {}, // Static for now
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 0,
+                        ),
                       ),
+                      onPressed: () {}, // Static for now
                     ),
-                    const Spacer(),
-                    _attendanceLegend(),
-                  ],
-                ),
+                  ),
+                  const Spacer(),
+                  _attendanceLegend(),
+                ],
               ),
-              const SizedBox(height: 12),
-              // Attendance calendar
-              Padding(
+            ),
+            const SizedBox(height: 12),
+            // Attendance calendar
+            Expanded(
+              child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32),
                 child:
                     isLoading
@@ -606,9 +702,9 @@ class _TeacherStudentAttendanceCalendarPageState
                         )
                         : _attendanceCalendar(),
               ),
-              const SizedBox(height: 32),
-            ],
-          ),
+            ),
+            const SizedBox(height: 24),
+          ],
         ),
       ),
     );

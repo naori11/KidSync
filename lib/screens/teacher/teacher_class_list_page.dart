@@ -96,7 +96,7 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
       final sectionAssignments = await supabase
           .from('section_teachers')
           .select(
-            'id, section_id, subject, days, start_time, end_time, assigned_at, sections(id, name)',
+            'id, section_id, subject, days, start_time, end_time, assigned_at, sections(id, name, grade_level)',
           )
           .eq('teacher_id', teacherId!);
 
@@ -134,7 +134,7 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
       body:
           isLoading
               ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
+                child: CircularProgressIndicator(color: Color(0xFF2563EB)),
               )
               : SingleChildScrollView(
                 child: Padding(
@@ -162,13 +162,18 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
                             for (final assignment in assignedSections)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 18.0),
-                                child: _ClassListCard(
+                                child: _SectionListCard(
                                   title: assignment['sections']['name'],
+                                  subject: assignment['subject'] ?? '',
                                   time: formatSchedule(assignment),
                                   students:
                                       sectionStudents[assignment['sections']['id']]
                                           ?.length ??
                                       0,
+                                  gradeLevel:
+                                      assignment['sections']['grade_level']
+                                          ?.toString() ??
+                                      '',
                                   status: computeSectionStatus(assignment),
                                   onPressed: () {
                                     widget.onViewAttendance?.call(
@@ -189,28 +194,32 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
   }
 }
 
-class _ClassListCard extends StatelessWidget {
+class _SectionListCard extends StatelessWidget {
   final String title;
+  final String subject;
   final String time;
   final int students;
   final String status;
+  final String gradeLevel;
   final VoidCallback onPressed;
-  const _ClassListCard({
+  const _SectionListCard({
     required this.title,
+    required this.subject,
     required this.time,
     required this.students,
+    required this.gradeLevel,
     required this.status,
     required this.onPressed,
   });
 
   Color getStatusColor() {
     switch (status.toLowerCase()) {
+      case "completed":
+        return const Color(0xFF19AE61); // green
       case "ongoing":
         return const Color(0xFF2563EB); // blue
       case "upcoming":
         return const Color(0xFF8F9BB3); // gray
-      case "completed":
-        return const Color(0xFF19AE61); // green
       default:
         return const Color(0xFF2563EB);
     }
@@ -218,12 +227,12 @@ class _ClassListCard extends StatelessWidget {
 
   Color getStatusBgColor() {
     switch (status.toLowerCase()) {
+      case "completed":
+        return const Color(0xFFD9FBE8); // light green
       case "ongoing":
         return const Color(0xFFE8F1FF); // light blue
       case "upcoming":
         return const Color(0xFFF2F3F5); // light gray
-      case "completed":
-        return const Color(0xFFD9FBE8); // light green
       default:
         return const Color(0xFFE8F1FF);
     }
@@ -237,25 +246,61 @@ class _ClassListCard extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
         width: double.infinity,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Main info
+            // Class info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF222B45),
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: Color(0xFF222B45),
+                        ),
+                      ),
+                      if (subject.isNotEmpty) ...[
+                        const SizedBox(width: 10),
+                        Text(
+                          subject,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2563EB),
+                          ),
+                        ),
+                      ],
+                      if (gradeLevel.isNotEmpty) ...[
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Color(0xFFE8F1FF),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Text(
+                            "Grade $gradeLevel",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF2563EB),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: 7),
+                  const SizedBox(height: 5),
                   Text(
                     time,
                     style: const TextStyle(
@@ -263,57 +308,64 @@ class _ClassListCard extends StatelessWidget {
                       color: Color(0xFF8F9BB3),
                     ),
                   ),
-                  const SizedBox(height: 7),
+                  const SizedBox(height: 5),
                   Text(
                     "Total Students: $students",
                     style: const TextStyle(
                       fontSize: 13,
-                      color: Color(0xFF8F9BB3),
+                      color: Color(0xFF2563EB),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
             ),
-            // Status
-            Container(
-              margin: const EdgeInsets.only(right: 24),
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 3),
-              decoration: BoxDecoration(
-                color: getStatusBgColor(),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Text(
-                status,
-                style: TextStyle(
-                  color: getStatusColor(),
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-            // View Details
-            SizedBox(
-              height: 36,
-              child: ElevatedButton(
-                onPressed: onPressed,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  elevation: 0,
-                  textStyle: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
+            // Status badge and button right-aligned
+            Row(
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(right: 12),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 22,
-                    vertical: 0,
+                    horizontal: 12,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: getStatusBgColor(),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Text(
+                    status[0].toUpperCase() + status.substring(1),
+                    style: TextStyle(
+                      color: getStatusColor(),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
-                child: const Text("View Details"),
-              ),
+                SizedBox(
+                  height: 36,
+                  child: ElevatedButton(
+                    onPressed: onPressed,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      elevation: 0,
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 0,
+                      ),
+                    ),
+                    child: const Text("View Details"),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
