@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+// Import your summary page (make sure to adjust the import path as needed)
+import 'teacher_section_attendance_summary.dart';
+import 'teacher_student_attendance_calendar_page.dart'; // for drilldown, if you want to navigate to student calendar
 
 class TeacherClassListPage extends StatefulWidget {
   final void Function(int sectionId, String sectionName)? onViewAttendance;
-  const TeacherClassListPage({super.key, this.onViewAttendance});
+  final void Function(int sectionId, String sectionName)? onViewSummary;
+  const TeacherClassListPage({
+    super.key,
+    this.onViewAttendance,
+    this.onViewSummary,
+  });
 
   @override
   State<TeacherClassListPage> createState() => _TeacherClassListPageState();
@@ -127,6 +135,36 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
     setState(() => isLoading = false);
   }
 
+  void _openSummary(int sectionId, String sectionName) {
+    if (widget.onViewSummary != null) {
+      widget.onViewSummary!(sectionId, sectionName);
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (context) => TeacherSectionAttendanceSummaryPage(
+              sectionId: sectionId,
+              sectionName: sectionName,
+              onViewStudentCalendar: (studentId, studentName) {
+                // Drilldown: Open student attendance calendar page
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder:
+                        (context) => TeacherStudentAttendanceCalendarPage(
+                          studentId: studentId,
+                          studentName: studentName,
+                          sectionId: sectionId,
+                          sectionName: sectionName,
+                        ),
+                  ),
+                );
+              },
+            ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -175,8 +213,14 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
                                           ?.toString() ??
                                       '',
                                   status: computeSectionStatus(assignment),
-                                  onPressed: () {
+                                  onViewAttendance: () {
                                     widget.onViewAttendance?.call(
+                                      assignment['sections']['id'],
+                                      assignment['sections']['name'],
+                                    );
+                                  },
+                                  onViewSummary: () {
+                                    _openSummary(
                                       assignment['sections']['id'],
                                       assignment['sections']['name'],
                                     );
@@ -201,7 +245,8 @@ class _SectionListCard extends StatelessWidget {
   final int students;
   final String status;
   final String gradeLevel;
-  final VoidCallback onPressed;
+  final VoidCallback onViewAttendance;
+  final VoidCallback onViewSummary;
   const _SectionListCard({
     required this.title,
     required this.subject,
@@ -209,7 +254,8 @@ class _SectionListCard extends StatelessWidget {
     required this.students,
     required this.gradeLevel,
     required this.status,
-    required this.onPressed,
+    required this.onViewAttendance,
+    required this.onViewSummary,
   });
 
   Color getStatusColor() {
@@ -344,25 +390,60 @@ class _SectionListCard extends StatelessWidget {
                 ),
                 SizedBox(
                   height: 36,
-                  child: ElevatedButton(
-                    onPressed: onPressed,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(7),
+                  child: Row(
+                    children: [
+                      ElevatedButton(
+                        onPressed: onViewAttendance,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          elevation: 0,
+                          textStyle: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 0,
+                          ),
+                        ),
+                        child: const Text("Attendance"),
                       ),
-                      elevation: 0,
-                      textStyle: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: onViewSummary,
+                        icon: const Icon(
+                          Icons.bar_chart,
+                          size: 16,
+                          color: Color(0xFF2563EB),
+                        ),
+                        label: const Text(
+                          "Summary",
+                          style: TextStyle(color: Color(0xFF2563EB)),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Color(0xFF2563EB),
+                          side: const BorderSide(
+                            color: Color(0xFF2563EB),
+                            width: 1.1,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 13,
+                            vertical: 0,
+                          ),
+                        ),
                       ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 0,
-                      ),
-                    ),
-                    child: const Text("View Details"),
+                    ],
                   ),
                 ),
               ],
