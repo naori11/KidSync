@@ -648,31 +648,6 @@ class _TeacherStudentAttendanceCalendarPageState
                       ],
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  SizedBox(
-                    height: 38,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.add, size: 19),
-                      label: const Text("Mark  Excuse"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
-                        foregroundColor: Colors.white,
-                        textStyle: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 0,
-                        ),
-                      ),
-                      onPressed: () {}, // Static for now
-                    ),
-                  ),
                   const Spacer(),
                   _attendanceLegend(),
                 ],
