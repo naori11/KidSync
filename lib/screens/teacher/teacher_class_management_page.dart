@@ -26,10 +26,15 @@ class _TeacherSectionAttendancePageState
   List<Map<String, dynamic>> students = [];
   Map<int, Map<String, dynamic>> todayAttendance = {};
   Map<int, Map<String, dynamic>> todayScan = {};
+  
+  // Add these new variables for local state management
+  Map<int, Map<String, dynamic>> pendingAttendance = {};
+  bool hasUnsavedChanges = false;
+  
   bool isLoading = true;
   bool isSubmitting = false;
   String filterStatus = "All";
-  int lateThresholdMinutes = 10; // Default, can be adjusted
+  int lateThresholdMinutes = 10;
 
   // Section schedule
   List<String> classDays = [];
@@ -215,120 +220,81 @@ class _TeacherSectionAttendancePageState
     if (!attendanceActive) return;
     final user = supabase.auth.currentUser;
     if (user == null) return;
+    
     final today = DateTime.now();
     final todayDateStr =
         "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
-    await supabase.from('section_attendance').upsert({
-      'section_id': widget.sectionId,
-      'student_id': studentId,
-      'date': todayDateStr,
-      'status': status,
-      'marked_by': user.id,
-      'marked_at': DateTime.now().toIso8601String(),
-      'notes': notes,
+    
+    // Store in local state instead of database
+    setState(() {
+      pendingAttendance[studentId] = {
+        'section_id': widget.sectionId,
+        'student_id': studentId,
+        'date': todayDateStr,
+        'status': status,
+        'marked_by': user.id,
+        'marked_at': DateTime.now().toIso8601String(),
+        'notes': notes,
+      };
+      hasUnsavedChanges = true;
     });
-    await _loadAttendanceData();
   }
 
   Future<void> _undoAttendance(int studentId) async {
     if (!attendanceActive) return;
-    final today = DateTime.now();
-    final todayDateStr =
-        "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
-    await supabase
-        .from('section_attendance')
-        .delete()
-        .eq('section_id', widget.sectionId)
-        .eq('student_id', studentId)
-        .eq('date', todayDateStr);
-    await _loadAttendanceData();
+    
+    setState(() {
+      pendingAttendance.remove(studentId);
+      // Check if there are any remaining changes
+      hasUnsavedChanges = pendingAttendance.isNotEmpty;
+    });
   }
 
   Future<void> _markAllPresent() async {
     if (!attendanceActive) return;
     final confirm = await showDialog<bool>(
       context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text("Mark All as Present"),
-            content: const Text(
-              "Are you sure you want to mark all students as Present (or Late if past threshold)?",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text("Cancel"),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text("Mark All"),
-              ),
-            ],
+      builder: (ctx) => AlertDialog(
+        title: const Text("Mark All as Present"),
+        content: const Text(
+          "Are you sure you want to mark all students as Present (or Late if past threshold)?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text("Cancel"),
           ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text("Mark All"),
+          ),
+        ],
+      ),
     );
     if (confirm != true) return;
+    
     for (final stu in students) {
-      if (todayAttendance[stu['id']] == null) {
+      final currentAttendance = _getCurrentAttendanceStatus(stu['id']);
+      if (currentAttendance == "Absent") {
         await _handleMarkPresent(stu['id']);
       }
     }
-    await _loadAttendanceData();
   }
 
-  Future<void> _handleMarkPresent(int studentId) async {
-    if (!attendanceActive) return;
-    final now = DateTime.now();
-    String status = "Present";
-    // For normal sections, use late logic. For testing, always "Present".
-    if (!isTestingSection) {
-      if (classStartTime == null) return; // Defensive: should not happen
-      final threshold = classStartTime!.add(
-        Duration(minutes: lateThresholdMinutes),
-      );
-      if (now.isAfter(threshold)) {
-        status = "Late";
-      }
+  // Add helper method to get current attendance status (including pending changes)
+  String _getCurrentAttendanceStatus(int studentId) {
+    if (pendingAttendance.containsKey(studentId)) {
+      return pendingAttendance[studentId]!['status'];
     }
-    await _markAttendance(studentId, status);
+    final att = todayAttendance[studentId];
+    return att != null ? att['status'] : "Absent";
   }
 
-  Future<void> _handleMarkExcused(int studentId) async {
-    if (!attendanceActive) return;
-    final notes = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        String note = '';
-        return AlertDialog(
-          title: const Text("Mark as Excused"),
-          content: TextField(
-            autofocus: true,
-            decoration: const InputDecoration(labelText: "Reason / Notes"),
-            onChanged: (val) => note = val,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text("Cancel"),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(note),
-              child: const Text("Excuse"),
-            ),
-          ],
-        );
-      },
-    );
-    if (notes != null && notes.trim().isNotEmpty) {
-      await _markAttendance(studentId, "Excused", notes: notes.trim());
-    }
-  }
-
-  // --- Attendance summary ---
+  // Modified summary method to include pending changes
   Map<String, int> _getSummary() {
     int present = 0, late = 0, absent = 0, excused = 0, total = students.length;
     for (final s in students) {
-      final att = todayAttendance[s['id']];
-      final status = att != null ? att['status'] : null;
+      final status = _getCurrentAttendanceStatus(s['id']);
       if (status == "Present")
         present++;
       else if (status == "Late")
@@ -347,64 +313,213 @@ class _TeacherSectionAttendancePageState
     };
   }
 
-  // --- Filtering ---
+  // Modified filtered students to use current status
   List<Map<String, dynamic>> get _filteredStudents {
     if (filterStatus == "All") return students;
     return students.where((s) {
-      final att = todayAttendance[s['id']];
-      final status = att != null ? att['status'] : "Absent";
+      final status = _getCurrentAttendanceStatus(s['id']);
       return status == filterStatus;
     }).toList();
   }
 
-  // --- Export CSV ---
-  Future<void> _exportCSV() async {
-    // Generate CSV string
-    final buffer = StringBuffer();
-    buffer.writeln("Student ID,First Name,Last Name,RFID UID,Status,Notes");
-    for (final s in students) {
-      final att = todayAttendance[s['id']];
-      final status = att != null ? att['status'] : "Absent";
-      final notes = att != null && att['notes'] != null ? att['notes'] : "";
-      buffer.writeln(
-        '"${s['id']}","${s['fname']}","${s['lname']}","${s['rfid_uid'] ?? ''}","$status","$notes"',
+  // Modified submit method to save all pending changes
+  Future<void> _submitAttendance() async {
+    if (!attendanceActive || isSubmitting || pendingAttendance.isEmpty) return;
+    
+    setState(() => isSubmitting = true);
+    
+    try {
+      // Submit all pending attendance records
+      for (final attendance in pendingAttendance.values) {
+        await supabase.from('section_attendance').upsert(attendance);
+      }
+      
+      // Clear pending changes and reload data
+      setState(() {
+        pendingAttendance.clear();
+        hasUnsavedChanges = false;
+      });
+      
+      await _loadAttendanceData();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Attendance submitted successfully!"),
+          backgroundColor: Colors.green,
+        ),
       );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error submitting attendance: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => isSubmitting = false);
     }
-    // Save/export logic...
-    await showDialog(
-      context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text("CSV Generated"),
-            content: const Text(
-              "The CSV has been generated. Implement file download/share as needed.",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text("OK"),
-              ),
-            ],
-          ),
-    );
   }
 
-  String? _nextSessionCountdown() {
-    // Only show if today is a class day and class is not active yet
-    if (isTestingSection) return null;
-    if (classStartTime == null || classDays.isEmpty) return null;
-    final now = DateTime.now();
-    final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final todayAbbrev = weekDays[now.weekday - 1];
-    if (classDays.contains(todayAbbrev) && now.isBefore(classStartTime!)) {
-      final diff = classStartTime!.difference(now);
-      if (diff.inSeconds > 0) {
-        final h = diff.inHours;
-        final m = diff.inMinutes % 60;
-        final s = diff.inSeconds % 60;
-        return "${h > 0 ? '$h h ' : ''}${m.toString().padLeft(2, '0')} min ${s.toString().padLeft(2, '0')} s";
+  // Handle mark present (determines if late based on time)
+  Future<void> _handleMarkPresent(int studentId) async {
+    if (!attendanceActive) return;
+    
+    String status = "Present";
+    
+    // Check if it should be marked as late
+    if (classStartTime != null) {
+      final now = DateTime.now();
+      final lateThreshold = classStartTime!.add(Duration(minutes: lateThresholdMinutes));
+      if (now.isAfter(lateThreshold)) {
+        status = "Late";
       }
     }
+    
+    await _markAttendance(studentId, status);
+  }
+
+  // Handle mark excused
+  Future<void> _handleMarkExcused(int studentId) async {
+    if (!attendanceActive) return;
+    
+    final TextEditingController notesController = TextEditingController();
+    
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Mark as Excused"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Add a note for this excused absence (optional):"),
+            const SizedBox(height: 12),
+            TextField(
+              controller: notesController,
+              decoration: const InputDecoration(
+                hintText: "Reason for excuse...",
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text("Mark Excused"),
+          ),
+        ],
+      ),
+    );
+    
+    if (result == true) {
+      await _markAttendance(
+        studentId, 
+        "Excused", 
+        notes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+      );
+    }
+  }
+
+  // Export CSV function
+  Future<void> _exportCSV() async {
+    try {
+      // Create CSV content
+      final List<List<String>> csvData = [
+        ['Student Name', 'RFID Status', 'Attendance Status', 'Time'],
+      ];
+      
+      for (final student in students) {
+        final scan = todayScan[student['id']];
+        final status = _getCurrentAttendanceStatus(student['id']);
+        final scanTime = scan != null 
+            ? DateFormat("h:mm a").format(DateTime.parse(scan['scan_time']))
+            : 'Not tapped';
+        
+        csvData.add([
+          '${student['fname']} ${student['lname']}',
+          scan != null ? 'Tapped' : 'Not tapped',
+          status,
+          scanTime,
+        ]);
+      }
+      
+      // Convert to CSV string
+      String csvString = csvData.map((row) => row.join(',')).join('\n');
+      
+      // For web, you would typically download the file
+      // For now, just show a success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("CSV export functionality would be implemented here"),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error exporting CSV: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Calculate countdown to next session
+  String? _nextSessionCountdown() {
+    if (classStartTime == null || !classDays.isNotEmpty) return null;
+    
+    final now = DateTime.now();
+    
+    // If we're before today's class time
+    if (classStartTime != null && now.isBefore(classStartTime!)) {
+      final difference = classStartTime!.difference(now);
+      
+      if (difference.inHours > 0) {
+        return "${difference.inHours}h ${difference.inMinutes.remainder(60)}m";
+      } else {
+        return "${difference.inMinutes}m";
+      }
+    }
+    
+    // Find next class day
+    final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final currentDayIndex = now.weekday - 1;
+    
+    // Look for next class day in the week
+    for (int i = 1; i <= 7; i++) {
+      final nextDayIndex = (currentDayIndex + i) % 7;
+      final nextDayAbbrev = weekDays[nextDayIndex];
+      
+      if (classDays.contains(nextDayAbbrev)) {
+        final nextClassDate = now.add(Duration(days: i));
+        final nextClassTime = DateTime(
+          nextClassDate.year,
+          nextClassDate.month,
+          nextClassDate.day,
+          startTime!.hour,
+          startTime!.minute,
+        );
+        
+        final difference = nextClassTime.difference(now);
+        final days = difference.inDays;
+        final hours = difference.inHours.remainder(24);
+        final minutes = difference.inMinutes.remainder(60);
+        
+        if (days > 0) {
+          return "${days}d ${hours}h ${minutes}m";
+        } else if (hours > 0) {
+          return "${hours}h ${minutes}m";
+        } else {
+          return "${minutes}m";
+        }
+      }
+    }
+    
     return null;
   }
 
@@ -439,13 +554,37 @@ class _TeacherSectionAttendancePageState
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                widget.sectionName,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF8F9BB3),
-                                  fontWeight: FontWeight.w600,
-                                ),
+                              Row(
+                                children: [
+                                  Text(
+                                    widget.sectionName,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Color(0xFF8F9BB3),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  // Add unsaved changes indicator
+                                  if (hasUnsavedChanges) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade100,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: Colors.orange.shade300),
+                                      ),
+                                      child: Text(
+                                        "Unsaved Changes",
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.orange.shade700,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                               const SizedBox(height: 2),
                               const Text(
@@ -774,11 +913,7 @@ class _TeacherSectionAttendancePageState
                                         itemCount: _filteredStudents.length,
                                         itemBuilder: (ctx, idx) {
                                           final s = _filteredStudents[idx];
-                                          final att = todayAttendance[s['id']];
-                                          final status =
-                                              att != null
-                                                  ? att['status']
-                                                  : "Absent";
+                                          final status = _getCurrentAttendanceStatus(s['id']); // Use this instead
                                           final scan = todayScan[s['id']];
                                           final tapped = scan != null;
                                           final scanTime =
@@ -953,28 +1088,26 @@ class _TeacherSectionAttendancePageState
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32),
                     child: ElevatedButton.icon(
-                      icon: const Icon(Icons.done_all),
+                      icon: isSubmitting 
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Icon(Icons.done_all),
                       label: Text(
                         isSubmitting ? "Submitting..." : "Submit Attendance",
                       ),
-                      onPressed:
-                          attendanceActive && !isSubmitting
-                              ? () async {
-                                setState(() => isSubmitting = true);
-                                // Optionally lock attendance or show confirmation
-                                await Future.delayed(
-                                  const Duration(seconds: 1),
-                                );
-                                setState(() => isSubmitting = false);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Attendance submitted!"),
-                                  ),
-                                );
-                              }
-                              : null,
+                      onPressed: attendanceActive && !isSubmitting && hasUnsavedChanges
+                          ? _submitAttendance
+                          : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
+                        backgroundColor: hasUnsavedChanges 
+                            ? const Color(0xFF2563EB) 
+                            : Colors.grey,
                         foregroundColor: Colors.white,
                         textStyle: const TextStyle(
                           fontSize: 16,
