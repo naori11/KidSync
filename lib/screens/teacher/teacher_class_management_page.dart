@@ -839,40 +839,13 @@ class _TeacherSectionAttendancePageState
                                                 // Student Name
                                                 Expanded(
                                                   flex: 4,
-                                                  child: GestureDetector(
-                                                    onTap: () {
-                                                      Navigator.of(
-                                                        context,
-                                                      ).push(
-                                                        MaterialPageRoute(
-                                                          builder:
-                                                              (
-                                                                context,
-                                                              ) => TeacherStudentAttendanceCalendarPage(
-                                                                studentId:
-                                                                    s['id'],
-                                                                studentName:
-                                                                    "${s['fname']} ${s['lname']}",
-                                                                sectionId:
-                                                                    widget
-                                                                        .sectionId,
-                                                                sectionName:
-                                                                    widget
-                                                                        .sectionName,
-                                                              ),
-                                                        ),
-                                                      );
-                                                    },
-                                                    child: Text(
-                                                      "${s['fname']} ${s['lname']}",
-                                                      style: const TextStyle(
-                                                        fontSize: 15,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: Color(
-                                                          0xFF222B45,
-                                                        ),
-                                                      ),
+                                                  child: Text(
+                                                    "${s['fname']} ${s['lname']}",
+                                                    style: const TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Color(0xFF222B45),
                                                     ),
                                                   ),
                                                 ),
