@@ -4,6 +4,7 @@ import 'teacher_dashboard_page.dart';
 import 'teacher_class_list_page.dart';
 import 'teacher_class_management_page.dart';
 import 'teacher_student_attendance_calendar_page.dart';
+import 'teacher_section_attendance_summary.dart';
 
 class TeacherPanelContent extends StatefulWidget {
   final String userName;
@@ -18,7 +19,8 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
   int selectedIndex = 0;
 
   // Subpage navigation state
-  String? subPage; // "attendance", "calendar"
+  // subPage: "attendance" (daily attendance marking), "calendar" (student attendance history), "summary" (attendance statistics)
+  String? subPage;
   int? selectedSectionId;
   String? selectedSectionName;
   int? selectedStudentId;
@@ -45,11 +47,22 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
     });
   }
 
+  void _showSummaryPage(int sectionId, String sectionName) {
+    setState(() {
+      subPage = "summary";
+      selectedSectionId = sectionId;
+      selectedSectionName = sectionName;
+      selectedStudentId = null;
+      selectedStudentName = null;
+    });
+  }
+
   void _showStudentCalendarPage(int studentId, String studentName) {
     setState(() {
       subPage = "calendar";
       selectedStudentId = studentId;
       selectedStudentName = studentName;
+      // section info should be retained
     });
   }
 
@@ -165,6 +178,7 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
   }
 
   Widget _getContentForIndex(int index) {
+    // Subpages first
     if (subPage == "attendance" &&
         selectedSectionId != null &&
         selectedSectionName != null) {
@@ -172,6 +186,16 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
         sectionId: selectedSectionId!,
         sectionName: selectedSectionName!,
         onBack: _goBackToClassList,
+      );
+    }
+    if (subPage == "summary" &&
+        selectedSectionId != null &&
+        selectedSectionName != null) {
+      return TeacherSectionAttendanceSummaryPage(
+        sectionId: selectedSectionId!,
+        sectionName: selectedSectionName!,
+        onBack: _goBackToClassList,
+        onViewStudentCalendar: _showStudentCalendarPage,
       );
     }
     if (subPage == "calendar" &&
@@ -187,13 +211,17 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
         onBack: _goBackToClassList,
       );
     }
+    // Main nav items
     switch (index) {
       case 0:
         return const TeacherDashboardPage();
       case 1:
-        return TeacherClassListPage(onViewAttendance: _showAttendancePage);
+        return TeacherClassListPage(
+          onViewAttendance: _showAttendancePage,
+          onViewSummary: _showSummaryPage,
+        );
       case 2:
-        // Attendance is handled via subPage logic
+        // Management or other pages
         return const SizedBox();
       default:
         return const SizedBox();
