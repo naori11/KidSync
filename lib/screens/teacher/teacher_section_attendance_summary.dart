@@ -35,6 +35,11 @@ class _TeacherSectionAttendanceSummaryPageState
   Map<int, Map<String, int>> studentAttendanceStats =
       {}; // studentId -> {present, absent, late, excused, total}
 
+  int totalPresent = 0;
+  int totalLate = 0;
+  int totalAbsent = 0;
+  int totalExcused = 0;
+
   @override
   void initState() {
     super.initState();
@@ -45,6 +50,10 @@ class _TeacherSectionAttendanceSummaryPageState
     setState(() {
       isLoading = true;
       errorMessage = null;
+      totalPresent = 0;
+      totalLate = 0;
+      totalAbsent = 0;
+      totalExcused = 0;
     });
 
     try {
@@ -98,6 +107,24 @@ class _TeacherSectionAttendanceSummaryPageState
         else if (status == 'excused')
           stats['excused'] = (stats['excused'] ?? 0) + 1;
       }
+
+      // 4. Compute totals for summary row
+      totalPresent = studentAttendanceStats.values.fold(
+        0,
+        (sum, stat) => sum + (stat['present'] ?? 0),
+      );
+      totalAbsent = studentAttendanceStats.values.fold(
+        0,
+        (sum, stat) => sum + (stat['absent'] ?? 0),
+      );
+      totalLate = studentAttendanceStats.values.fold(
+        0,
+        (sum, stat) => sum + (stat['late'] ?? 0),
+      );
+      totalExcused = studentAttendanceStats.values.fold(
+        0,
+        (sum, stat) => sum + (stat['excused'] ?? 0),
+      );
     } catch (e) {
       errorMessage = "Error loading data: $e";
     }
@@ -119,6 +146,55 @@ class _TeacherSectionAttendanceSummaryPageState
     _loadData();
   }
 
+  Widget _buildSummaryStats() {
+    TextStyle labelStyle = const TextStyle(
+      fontSize: 14,
+      color: Color(0xFF8F9BB3),
+    );
+    return Card(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+      elevation: 1,
+      margin: const EdgeInsets.only(bottom: 20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 18),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            _statColumn("Present", totalPresent, const Color(0xFF19AE61)),
+            const SizedBox(width: 28),
+            _statColumn("Late", totalLate, const Color(0xFFF59E42)),
+            const SizedBox(width: 28),
+            _statColumn("Absent", totalAbsent, const Color(0xFFE14D4D)),
+            const SizedBox(width: 28),
+            _statColumn("Excused", totalExcused, const Color(0xFF2563EB)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statColumn(String label, int value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "$value",
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 14, color: Color(0xFF8F9BB3)),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final monthLabel = DateFormat.yMMMM().format(selectedMonth);
@@ -131,57 +207,38 @@ class _TeacherSectionAttendanceSummaryPageState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Row
+            // Header Section
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 if (widget.onBack != null)
                   Padding(
                     padding: const EdgeInsets.only(right: 12),
-                    child: TextButton.icon(
-                      onPressed: widget.onBack,
+                    child: IconButton(
                       icon: const Icon(
-                        Icons.chevron_left,
+                        Icons.arrow_back,
                         color: Color(0xFF222B45),
                       ),
-                      label: const Text(
-                        "Back",
-                        style: TextStyle(
-                          color: Color(0xFF222B45),
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
-                        ),
-                      ),
-                      style: TextButton.styleFrom(
-                        backgroundColor: const Color(0xFFF2F3F5),
+                      onPressed: widget.onBack,
+                      tooltip: "Back",
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
+                        padding: const EdgeInsets.all(8),
                       ),
                     ),
                   ),
                 Text(
-                  "Attendance Summary",
+                  widget.sectionName,
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF222B45),
                   ),
                 ),
-                const SizedBox(width: 16),
-                Text(
-                  widget.sectionName,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2563EB),
-                  ),
-                ),
-                const Spacer(),
+                const SizedBox(width: 24),
                 // Month navigation
                 Container(
                   decoration: BoxDecoration(
@@ -228,8 +285,11 @@ class _TeacherSectionAttendanceSummaryPageState
                 ),
               ],
             ),
-            const SizedBox(height: 26),
-            // Main Card/Table
+            const SizedBox(height: 6),
+            // Attendance stats summary row
+            _buildSummaryStats(),
+
+            // Table Card
             Card(
               color: Colors.white,
               shape: RoundedRectangleBorder(
@@ -237,15 +297,15 @@ class _TeacherSectionAttendanceSummaryPageState
               ),
               elevation: 1,
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 18,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
                 child:
                     isLoading
-                        ? const Center(
-                          child: CircularProgressIndicator(
-                            color: Color(0xFF2563EB),
+                        ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 60.0),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF2563EB),
+                            ),
                           ),
                         )
                         : (errorMessage != null
@@ -263,14 +323,18 @@ class _TeacherSectionAttendanceSummaryPageState
                                 Container(
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF2F6FF),
-                                    borderRadius: BorderRadius.circular(8),
+                                    borderRadius: BorderRadius.only(
+                                      topLeft: Radius.circular(12),
+                                      topRight: Radius.circular(12),
+                                    ),
                                   ),
                                   padding: const EdgeInsets.symmetric(
-                                    vertical: 8,
+                                    vertical: 12,
+                                    horizontal: 36,
                                   ),
                                   child: Row(
                                     children: [
-                                      _th("Name", flex: 3),
+                                      _th("Student", flex: 3),
                                       _th("Present"),
                                       _th("Late"),
                                       _th("Absent"),
@@ -279,8 +343,32 @@ class _TeacherSectionAttendanceSummaryPageState
                                     ],
                                   ),
                                 ),
-                                for (final s in students)
-                                  InkWell(
+                                if (students.isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 38,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        "No students found in this section.",
+                                        style: TextStyle(
+                                          color: Colors.grey[500],
+                                          fontSize: 15,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ...students.map((s) {
+                                  final stat =
+                                      studentAttendanceStats[s['id']] ?? {};
+                                  final total = stat['total'] ?? 0;
+                                  final present = stat['present'] ?? 0;
+                                  final pct =
+                                      total > 0
+                                          ? ((present / total) * 100).round()
+                                          : 0;
+                                  return InkWell(
                                     onTap:
                                         widget.onViewStudentCalendar != null
                                             ? () =>
@@ -300,7 +388,8 @@ class _TeacherSectionAttendanceSummaryPageState
                                         ),
                                       ),
                                       padding: const EdgeInsets.symmetric(
-                                        vertical: 11,
+                                        vertical: 13,
+                                        horizontal: 36,
                                       ),
                                       child: Row(
                                         children: [
@@ -309,60 +398,27 @@ class _TeacherSectionAttendanceSummaryPageState
                                             flex: 3,
                                             link: true,
                                           ),
-                                          _td(
-                                            "${studentAttendanceStats[s['id']]?['present'] ?? 0}",
-                                          ),
-                                          _td(
-                                            "${studentAttendanceStats[s['id']]?['late'] ?? 0}",
-                                          ),
-                                          _td(
-                                            "${studentAttendanceStats[s['id']]?['absent'] ?? 0}",
-                                          ),
-                                          _td(
-                                            "${studentAttendanceStats[s['id']]?['excused'] ?? 0}",
-                                          ),
-                                          _td(() {
-                                            final stats =
-                                                studentAttendanceStats[s['id']] ??
-                                                {};
-                                            final total = stats['total'] ?? 0;
-                                            final present =
-                                                stats['present'] ?? 0;
-                                            final pct =
-                                                total > 0
-                                                    ? ((present / total) * 100)
-                                                        .round()
-                                                    : 0;
-                                            return "$pct%";
-                                          }()),
+                                          _td("${stat['present'] ?? 0}"),
+                                          _td("${stat['late'] ?? 0}"),
+                                          _td("${stat['absent'] ?? 0}"),
+                                          _td("${stat['excused'] ?? 0}"),
+                                          _td("$pct%"),
                                         ],
                                       ),
                                     ),
-                                  ),
-                                if (students.isEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 32,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        "No students found in this section.",
-                                        style: TextStyle(
-                                          color: Colors.grey[500],
-                                          fontSize: 15,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                                  );
+                                }),
                               ],
                             )),
               ),
             ),
             const SizedBox(height: 18),
-            const Text(
-              "Tap a student's name to view detailed calendar.",
-              style: TextStyle(fontSize: 13, color: Color(0xFF8F9BB3)),
+            const Padding(
+              padding: EdgeInsets.only(left: 4),
+              child: Text(
+                "Tap a student's name to view detailed calendar.",
+                style: TextStyle(fontSize: 13, color: Color(0xFF8F9BB3)),
+              ),
             ),
           ],
         ),
