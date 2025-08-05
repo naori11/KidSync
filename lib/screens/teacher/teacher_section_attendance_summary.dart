@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'teacher_student_attendance_calendar_page.dart';
+
 class TeacherSectionAttendanceSummaryPage extends StatefulWidget {
   final int sectionId;
   final String sectionName;
@@ -32,8 +34,7 @@ class _TeacherSectionAttendanceSummaryPageState
   bool isLoading = true;
   String? errorMessage;
   List<Map<String, dynamic>> students = [];
-  Map<int, Map<String, int>> studentAttendanceStats =
-      {}; // studentId -> {present, absent, late, excused, total}
+  Map<int, Map<String, int>> studentAttendanceStats = {};
 
   int totalPresent = 0;
   int totalLate = 0;
@@ -57,7 +58,6 @@ class _TeacherSectionAttendanceSummaryPageState
     });
 
     try {
-      // 1. Fetch all students in the section
       final studentRows = await supabase
           .from('students')
           .select('id, fname, lname')
@@ -66,7 +66,6 @@ class _TeacherSectionAttendanceSummaryPageState
 
       students = List<Map<String, dynamic>>.from(studentRows ?? []);
 
-      // 2. Fetch all attendance records for these students for the selected month
       final startOfMonth = DateTime(selectedMonth.year, selectedMonth.month, 1);
       final endOfMonth = DateTime(
         selectedMonth.year,
@@ -81,7 +80,6 @@ class _TeacherSectionAttendanceSummaryPageState
           .gte('date', DateFormat('yyyy-MM-dd').format(startOfMonth))
           .lte('date', DateFormat('yyyy-MM-dd').format(endOfMonth));
 
-      // 3. Aggregate per student
       studentAttendanceStats.clear();
       for (final s in students) {
         studentAttendanceStats[s['id'] as int] = {
@@ -108,7 +106,6 @@ class _TeacherSectionAttendanceSummaryPageState
           stats['excused'] = (stats['excused'] ?? 0) + 1;
       }
 
-      // 4. Compute totals for summary row
       totalPresent = studentAttendanceStats.values.fold(
         0,
         (sum, stat) => sum + (stat['present'] ?? 0),
@@ -147,25 +144,21 @@ class _TeacherSectionAttendanceSummaryPageState
   }
 
   Widget _buildSummaryStats() {
-    TextStyle labelStyle = const TextStyle(
-      fontSize: 14,
-      color: Color(0xFF8F9BB3),
-    );
     return Card(
       color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
-      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
       margin: const EdgeInsets.only(bottom: 20),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 18),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
             _statColumn("Present", totalPresent, const Color(0xFF19AE61)),
             const SizedBox(width: 28),
-            _statColumn("Late", totalLate, const Color(0xFFF59E42)),
+            _statColumn("Late", totalLate, const Color(0xFFFFA726)),
             const SizedBox(width: 28),
-            _statColumn("Absent", totalAbsent, const Color(0xFFE14D4D)),
+            _statColumn("Absent", totalAbsent, const Color(0xFFEB5757)),
             const SizedBox(width: 28),
             _statColumn("Excused", totalExcused, const Color(0xFF2563EB)),
           ],
@@ -189,9 +182,49 @@ class _TeacherSectionAttendanceSummaryPageState
         const SizedBox(height: 2),
         Text(
           label,
-          style: const TextStyle(fontSize: 14, color: Color(0xFF8F9BB3)),
+          style: const TextStyle(
+            fontSize: 14,
+            color: Color(0xFF8F9BB3),
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
+    );
+  }
+
+  void _showStudentAttendanceCalendar(int studentId, String studentName) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(20),
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            height: MediaQuery.of(context).size.height * 0.9,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F9FC),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: TeacherStudentAttendanceCalendarPage(
+              studentId: studentId,
+              studentName: studentName,
+              sectionId: widget.sectionId,
+              sectionName: widget.sectionName,
+              onBack: () => Navigator.of(context).pop(),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -200,10 +233,10 @@ class _TeacherSectionAttendanceSummaryPageState
     final monthLabel = DateFormat.yMMMM().format(selectedMonth);
 
     return Container(
-      color: const Color(0xF7F9FCFF),
+      color: const Color(0xFFF7F9FC),
       width: double.infinity,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 32),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -212,28 +245,26 @@ class _TeacherSectionAttendanceSummaryPageState
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 if (widget.onBack != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 12),
+                  Container(
+                    margin: const EdgeInsets.only(right: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F7FA),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     child: IconButton(
                       icon: const Icon(
-                        Icons.arrow_back,
-                        color: Color(0xFF222B45),
+                        Icons.arrow_back_rounded,
+                        color: Color(0xFF8F9BB3),
+                        size: 24,
                       ),
                       onPressed: widget.onBack,
                       tooltip: "Back",
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        padding: const EdgeInsets.all(8),
-                      ),
                     ),
                   ),
                 Text(
                   widget.sectionName,
                   style: const TextStyle(
-                    fontSize: 22,
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF222B45),
                   ),
@@ -243,14 +274,7 @@ class _TeacherSectionAttendanceSummaryPageState
                 Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+                    color: const Color(0xFFEDF1F7),
                   ),
                   child: Row(
                     children: [
@@ -266,9 +290,9 @@ class _TeacherSectionAttendanceSummaryPageState
                       Text(
                         monthLabel,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 16,
-                          color: Color(0xFF2563EB),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                          color: Color(0xFF2E3A59),
                         ),
                       ),
                       IconButton(
@@ -285,7 +309,8 @@ class _TeacherSectionAttendanceSummaryPageState
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 20),
+
             // Attendance stats summary row
             _buildSummaryStats(),
 
@@ -293,9 +318,9 @@ class _TeacherSectionAttendanceSummaryPageState
             Card(
               color: Colors.white,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
               ),
-              elevation: 1,
+              elevation: 2,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
                 child:
@@ -329,8 +354,8 @@ class _TeacherSectionAttendanceSummaryPageState
                                     ),
                                   ),
                                   padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                    horizontal: 36,
+                                    vertical: 16,
+                                    horizontal: 24,
                                   ),
                                   child: Row(
                                     children: [
@@ -346,13 +371,13 @@ class _TeacherSectionAttendanceSummaryPageState
                                 if (students.isEmpty)
                                   Padding(
                                     padding: const EdgeInsets.symmetric(
-                                      vertical: 38,
+                                      vertical: 40,
                                     ),
                                     child: Center(
                                       child: Text(
                                         "No students found in this section.",
                                         style: TextStyle(
-                                          color: Colors.grey[500],
+                                          color: Color(0xFF8F9BB3),
                                           fontSize: 15,
                                           fontStyle: FontStyle.italic,
                                         ),
@@ -370,13 +395,10 @@ class _TeacherSectionAttendanceSummaryPageState
                                           : 0;
                                   return InkWell(
                                     onTap:
-                                        widget.onViewStudentCalendar != null
-                                            ? () =>
-                                                widget.onViewStudentCalendar!(
-                                                  s['id'] as int,
-                                                  "${s['fname']} ${s['lname']}",
-                                                )
-                                            : null,
+                                        () => _showStudentAttendanceCalendar(
+                                          s['id'] as int,
+                                          "${s['fname']} ${s['lname']}",
+                                        ),
                                     borderRadius: BorderRadius.circular(8),
                                     child: Container(
                                       decoration: BoxDecoration(
@@ -388,8 +410,8 @@ class _TeacherSectionAttendanceSummaryPageState
                                         ),
                                       ),
                                       padding: const EdgeInsets.symmetric(
-                                        vertical: 13,
-                                        horizontal: 36,
+                                        vertical: 16,
+                                        horizontal: 24,
                                       ),
                                       child: Row(
                                         children: [
@@ -412,12 +434,16 @@ class _TeacherSectionAttendanceSummaryPageState
                             )),
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 16),
             const Padding(
               padding: EdgeInsets.only(left: 4),
               child: Text(
                 "Tap a student's name to view detailed calendar.",
-                style: TextStyle(fontSize: 13, color: Color(0xFF8F9BB3)),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF8F9BB3),
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ],
@@ -433,7 +459,7 @@ class _TeacherSectionAttendanceSummaryPageState
       style: const TextStyle(
         color: Color(0xFF2563EB),
         fontWeight: FontWeight.bold,
-        fontSize: 15,
+        fontSize: 14,
       ),
     ),
   );
@@ -447,9 +473,9 @@ class _TeacherSectionAttendanceSummaryPageState
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: link ? const Color(0xFF2563EB) : const Color(0xFF222B45),
-          fontWeight: link ? FontWeight.w600 : FontWeight.normal,
+          fontWeight: link ? FontWeight.w600 : FontWeight.w500,
           decoration: link ? TextDecoration.underline : TextDecoration.none,
-          fontSize: 14.5,
+          fontSize: 14,
         ),
       ),
     ),
