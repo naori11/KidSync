@@ -39,6 +39,9 @@ dependencies:
   intl: ^0.20.2
   flutter_web_plugins:
     sdk: flutter
+  image_picker: ^1.0.4
+  http: ^1.1.0
+  mime: ^1.0.4
 
 dev_dependencies:
   flutter_test:

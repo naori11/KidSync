@@ -5,6 +5,9 @@ import 'package:kidsync/widgets/role_protection.dart';
 import 'package:intl/intl.dart';
 import 'package:web_socket_channel/html.dart';
 import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
+import 'dart:html' as html; // Add this for web file handling
 
 class StudentManagementPageAdmin extends StatelessWidget {
   const StudentManagementPageAdmin({super.key});
@@ -35,11 +38,19 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   String _sortOption = 'Name (A-Z)';
   String _classFilter = 'All Classes';
   String _statusFilter = 'All Status';
+  Set<int> _selectedStudents = <int>{};
+  bool _selectAll = false;
+  Uint8List? _selectedImageBytes;
 
   // For pagination
   int _currentPage = 1;
   int _itemsPerPage = 5;
   int _totalPages = 1;
+
+  // For image uploads
+  String? _selectedImagePath;
+  String? _currentImageUrl;
+  bool _isUploadingImage = false;
 
   @override
   void initState() {
@@ -245,6 +256,14 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   }
 
   Future<void> _addOrEditStudent({Map<String, dynamic>? student}) async {
+    // Reset image state when opening dialog
+    setState(() {
+      _selectedImagePath = null;
+      _selectedImageBytes = null;
+      _currentImageUrl = null;
+      _isUploadingImage = false;
+    });
+
     // Load sections if not loaded
     if (sections.isEmpty) await _fetchSections();
 
@@ -827,6 +846,150 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                             ],
                           ),
                         ),
+                        const SizedBox(height: 24),
+
+                        // Profile Image Section - CORRECTED
+                        _buildSectionHeader('Profile Image'),
+                        const SizedBox(height: 16),
+                        Center(
+                          child: Column(
+                            children: [
+                              // Display current image or placeholder
+                              GestureDetector(
+                                onTap: _pickImage,
+                                child: Container(
+                                  width: 120,
+                                  height: 120,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(60),
+                                    border: Border.all(
+                                      color: const Color(0xFF2ECC71),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child:
+                                      _selectedImagePath != null
+                                          ? Image.network(
+                                            _selectedImagePath!,
+                                            width: 120,
+                                            height: 120,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (
+                                              context,
+                                              error,
+                                              stackTrace,
+                                            ) {
+                                              // If selected image fails to load, try to load it as a file path for web
+                                              return FutureBuilder<Uint8List>(
+                                                future: () async {
+                                                  final response = await html
+                                                      .HttpRequest.request(
+                                                    _selectedImagePath!,
+                                                  );
+                                                  return Uint8List.fromList(
+                                                    response.response.codeUnits,
+                                                  );
+                                                }(),
+                                                builder: (context, snapshot) {
+                                                  if (snapshot.hasData) {
+                                                    return Image.memory(
+                                                      snapshot.data!,
+                                                      width: 120,
+                                                      height: 120,
+                                                      fit: BoxFit.cover,
+                                                    );
+                                                  }
+                                                  return const Icon(
+                                                    Icons.person,
+                                                    size: 60,
+                                                    color: Colors.grey,
+                                                  );
+                                                },
+                                              );
+                                            },
+                                          )
+                                          : (student?['profile_image_url'] !=
+                                                  null &&
+                                              student!['profile_image_url']
+                                                  .toString()
+                                                  .isNotEmpty)
+                                          ? Image.network(
+                                            student!['profile_image_url'],
+                                            width: 120,
+                                            height: 120,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (
+                                              context,
+                                              error,
+                                              stackTrace,
+                                            ) {
+                                              return const Icon(
+                                                Icons.person,
+                                                size: 60,
+                                                color: Colors.grey,
+                                              );
+                                            },
+                                          )
+                                          : const Icon(
+                                            Icons.person,
+                                            size: 60,
+                                            color: Colors.grey,
+                                          ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              // Upload/Remove buttons
+                              if (_selectedImagePath != null) ...[
+                                ElevatedButton.icon(
+                                  onPressed:
+                                      _isUploadingImage
+                                          ? null
+                                          : () {
+                                            _clearSelectedImage();
+                                          },
+                                  icon:
+                                      _isUploadingImage
+                                          ? const SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                          : const Icon(Icons.clear),
+                                  label: Text(
+                                    _isUploadingImage
+                                        ? 'Processing...'
+                                        : 'Remove Image',
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                ),
+                              ] else ...[
+                                ElevatedButton.icon(
+                                  onPressed: _pickImage,
+                                  icon: const Icon(Icons.upload),
+                                  label: const Text('Upload Photo'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF2ECC71),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -849,6 +1012,89 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   onPressed: () async {
                     if (formKey.currentState!.validate()) {
                       try {
+                        // Start with showing loading state
+                        setDialogState(() {
+                          _isUploadingImage = true;
+                        });
+
+                        String? imageUrl =
+                            _currentImageUrl ?? student?['profile_image_url'];
+
+                        // Handle image upload if there's a selected image
+                        if (_selectedImagePath != null) {
+                          // First, create/update the student to get the ID for image naming
+                          final tempPayload = {
+                            'fname': fnameController.text.trim(),
+                            'mname':
+                                mnameController.text.trim().isEmpty
+                                    ? null
+                                    : mnameController.text.trim(),
+                            'lname': lnameController.text.trim(),
+                            'gender': selectedGender,
+                            'address': addressController.text.trim(),
+                            'birthday':
+                                birthdayController.text.isEmpty
+                                    ? null
+                                    : birthdayController.text,
+                            'grade_level': selectedGradeLevel,
+                            'section_id': selectedSectionId,
+                            'status': selectedStatus,
+                            'rfid_uid':
+                                rfidUID?.isEmpty == true ? null : rfidUID,
+                            'profile_image_url':
+                                student?['profile_image_url'], // Keep existing for now
+                          };
+
+                          int studentId;
+                          if (student == null) {
+                            // Insert new student first to get ID
+                            final response =
+                                await supabase
+                                    .from('students')
+                                    .insert(tempPayload)
+                                    .select('id')
+                                    .single();
+                            studentId = response['id'];
+                          } else {
+                            studentId = student['id'];
+                          }
+
+                          // Now upload the image with the student ID
+                          final XFile imageFile = XFile(_selectedImagePath!);
+                          final uploadedUrl = await _uploadImageToSupabase(
+                            imageFile,
+                            studentId,
+                          );
+
+                          if (uploadedUrl != null) {
+                            imageUrl = uploadedUrl;
+
+                            // Delete old image if updating and there was a previous image
+                            if (student != null &&
+                                student['profile_image_url'] != null &&
+                                student['profile_image_url']
+                                    .toString()
+                                    .isNotEmpty) {
+                              await _deleteImageFromSupabase(
+                                student['profile_image_url'],
+                              );
+                            }
+                          } else {
+                            // Upload failed, show error but don't prevent saving
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Image upload failed, but student data was saved',
+                                  ),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                            }
+                          }
+                        }
+
+                        // Final payload with image URL
                         final payload = {
                           'fname': fnameController.text.trim(),
                           'mname':
@@ -863,19 +1109,45 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   ? null
                                   : birthdayController.text,
                           'grade_level': selectedGradeLevel,
-                          'section_id': selectedSectionId, // Now BIGINT
+                          'section_id': selectedSectionId,
                           'status': selectedStatus,
                           'rfid_uid': rfidUID?.isEmpty == true ? null : rfidUID,
+                          'profile_image_url': imageUrl,
                         };
 
                         if (student == null) {
-                          await supabase.from('students').insert(payload);
+                          // If we already inserted above (for image upload), update with image URL
+                          if (_selectedImagePath != null) {
+                            final response =
+                                await supabase
+                                    .from('students')
+                                    .select('id')
+                                    .eq('fname', payload['fname'] ?? '')
+                                    .eq('lname', payload['lname'] ?? '')
+                                    .single();
+                            await supabase
+                                .from('students')
+                                .update(payload)
+                                .eq('id', response['id']);
+                          } else {
+                            // No image, just insert normally
+                            await supabase.from('students').insert(payload);
+                          }
                         } else {
+                          // Update existing student
                           await supabase
                               .from('students')
                               .update(payload)
                               .eq('id', student['id']);
                         }
+
+                        // Reset state variables
+                        setState(() {
+                          _selectedImagePath = null;
+                          _selectedImageBytes = null; 
+                          _currentImageUrl = null;
+                          _isUploadingImage = false;
+                        });
 
                         Navigator.pop(context);
                         _fetchStudents();
@@ -904,6 +1176,11 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                           );
                         }
                       } catch (e) {
+                        // Reset upload state on error
+                        setDialogState(() {
+                          _isUploadingImage = false;
+                        });
+
                         // Show error message
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -947,6 +1224,215 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     lnameController.dispose();
     addressController.dispose();
     birthdayController.dispose();
+  }
+  // Add these methods to your _StudentManagementPageState class
+
+  void _toggleSelectAll(List<Map<String, dynamic>> currentPageItems) {
+    setState(() {
+      if (_selectAll) {
+        _selectedStudents.clear();
+      } else {
+        _selectedStudents = currentPageItems.map((s) => s['id'] as int).toSet();
+      }
+      _selectAll = !_selectAll;
+    });
+  }
+
+  void _toggleStudentSelection(
+    int studentId,
+    List<Map<String, dynamic>> currentPageItems,
+  ) {
+    setState(() {
+      if (_selectedStudents.contains(studentId)) {
+        _selectedStudents.remove(studentId);
+      } else {
+        _selectedStudents.add(studentId);
+      }
+
+      // Update select all state
+      _selectAll = _selectedStudents.length == currentPageItems.length;
+    });
+  }
+
+  void _exportSelectedStudents() {
+    final selectedData =
+        students.where((s) => _selectedStudents.contains(s['id'])).toList();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Exporting ${selectedData.length} selected students...'),
+        backgroundColor: const Color(0xFF2ECC71),
+      ),
+    );
+
+    // TODO: Implement actual export functionality
+  }
+
+  void _showBulkEditDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Row(
+              children: [
+                const Icon(Icons.edit, color: Color(0xFF2ECC71)),
+                const SizedBox(width: 8),
+                Text('Bulk Edit ${_selectedStudents.length} Students'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Select fields to update for ${_selectedStudents.length} selected students:',
+                ),
+                const SizedBox(height: 16),
+                // Add bulk edit options here
+                CheckboxListTile(
+                  title: const Text('Grade Level'),
+                  value: false,
+                  onChanged: (value) {},
+                ),
+                CheckboxListTile(
+                  title: const Text('Status'),
+                  value: false,
+                  onChanged: (value) {},
+                ),
+                CheckboxListTile(
+                  title: const Text('Section'),
+                  value: false,
+                  onChanged: (value) {},
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // TODO: Implement bulk edit
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Bulk edit functionality coming soon...'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2ECC71),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Apply Changes'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _confirmBulkDelete() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.warning, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Confirm Bulk Delete'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Are you sure you want to delete ${_selectedStudents.length} selected students?',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'This action cannot be undone and will permanently remove all selected student records, including:',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                const Padding(
+                  padding: EdgeInsets.only(left: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '• Student profiles and data',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      Text(
+                        '• Attendance records',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      Text('• Profile images', style: TextStyle(fontSize: 12)),
+                      Text(
+                        '• RFID card assignments',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await _performBulkDelete();
+                },
+                child: Text('Delete ${_selectedStudents.length} Students'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Future<void> _performBulkDelete() async {
+    try {
+      // Delete in batches to avoid overwhelming the database
+      final selectedIds = _selectedStudents.toList();
+
+      for (int i = 0; i < selectedIds.length; i += 10) {
+        final batch = selectedIds.skip(i).take(10).toList();
+        await supabase.from('students').delete().inFilter('id', batch);
+      }
+
+      setState(() {
+        _selectedStudents.clear();
+        _selectAll = false;
+      });
+
+      _fetchStudents(); // Refresh the list
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Successfully deleted ${selectedIds.length} students'),
+          backgroundColor: const Color(0xFF2ECC71),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error deleting students: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   // Helper method to build section headers
@@ -1054,6 +1540,190 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  // Image picker function - CORRECTED
+  Future<void> _pickImage() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        // For web, we need to read the bytes immediately
+        final bytes = await image.readAsBytes();
+
+        // Validate file size (max 5MB)
+        if (bytes.length > 5 * 1024 * 1024) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Image size must be less than 5MB'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+
+        // Validate file type
+        if (_validateImageBytes(bytes, image.name)) {
+          setState(() {
+            _selectedImagePath = image.name; // Store the name for reference
+            _selectedImageBytes = bytes; // Store the actual bytes
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Image validation function - CORRECTED
+  bool _validateImageBytes(Uint8List bytes, String fileName) {
+    // Check file extension
+    final String extension = fileName.toLowerCase().split('.').last;
+    const List<String> allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+
+    if (!allowedExtensions.contains(extension)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Only JPG, PNG, and WebP images are allowed'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return false;
+    }
+
+    // Basic file signature validation for common formats
+    if (bytes.length < 8) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid image file'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  // Upload image to Supabase Storage - CORRECTED
+  Future<String?> _uploadImageToSupabase(XFile image, int studentId) async {
+    try {
+      setState(() => _isUploadingImage = true);
+
+      // Use the stored bytes instead of reading from path
+      Uint8List imageBytes;
+      if (_selectedImageBytes != null) {
+        imageBytes = _selectedImageBytes!;
+      } else {
+        imageBytes = await image.readAsBytes();
+      }
+
+      // Generate unique filename
+      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final String extension = image.name.split('.').last.toLowerCase();
+      final String fileName = 'student_${studentId}_$timestamp.$extension';
+
+      print('Uploading image: $fileName, Size: ${imageBytes.length} bytes');
+
+      // Upload to Supabase Storage
+      final String uploadPath = await supabase.storage
+          .from('student-profiles')
+          .uploadBinary(fileName, imageBytes);
+
+      print('Upload successful: $uploadPath');
+
+      // Get public URL
+      final String publicUrl = supabase.storage
+          .from('student-profiles')
+          .getPublicUrl(fileName);
+
+      print('Public URL: $publicUrl');
+
+      return publicUrl;
+    } catch (e) {
+      print('Upload error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return null;
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingImage = false);
+      }
+    }
+  }
+
+  // Delete image from Supabase Storage - CORRECTED
+  Future<void> _deleteImageFromSupabase(String imageUrl) async {
+    try {
+      // Extract filename from URL
+      final Uri uri = Uri.parse(imageUrl);
+      final String fileName = uri.pathSegments.last;
+
+      await supabase.storage.from('student-profiles').remove([fileName]);
+    } catch (e) {
+      print('Error deleting image: $e');
+      // Don't show error to user as this is a cleanup operation
+    }
+  }
+
+  // Clear selected image
+  void _clearSelectedImage() {
+    setState(() {
+      _selectedImagePath = null;
+      _selectedImageBytes = null;
+    });
+  }
+
+  // Helper method to calculate time ago from enrollment date
+  String _getTimeAgo(String enrollmentDate) {
+    try {
+      final enrollmentDateTime = DateTime.parse(enrollmentDate);
+      final now = DateTime.now();
+      final difference = now.difference(enrollmentDateTime);
+
+      if (difference.inDays >= 365) {
+        final years = (difference.inDays / 365).floor();
+        return '$years year${years > 1 ? 's' : ''} ago';
+      } else if (difference.inDays >= 30) {
+        final months = (difference.inDays / 30).floor();
+        return '$months month${months > 1 ? 's' : ''} ago';
+      } else if (difference.inDays > 0) {
+        return '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes} minute${difference.inMinutes > 1 ? 's' : ''} ago';
+      } else {
+        return 'Just now';
+      }
+    } catch (e) {
+      return '';
+    }
   }
 
   @override
@@ -1328,6 +1998,83 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
             const SizedBox(height: 16),
 
+            // Add this right before your table (after the filter row and SizedBox)
+
+            // Bulk Actions Bar (show when students are selected)
+            if (_selectedStudents.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2ECC71).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFF2ECC71).withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle,
+                      color: const Color(0xFF2ECC71),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      '${_selectedStudents.length} student${_selectedStudents.length == 1 ? '' : 's'} selected',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2ECC71),
+                      ),
+                    ),
+                    const Spacer(),
+
+                    // Bulk action buttons
+                    TextButton.icon(
+                      icon: const Icon(Icons.download, size: 16),
+                      label: const Text('Export Selected'),
+                      onPressed: _exportSelectedStudents,
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF2ECC71),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    TextButton.icon(
+                      icon: const Icon(Icons.edit, size: 16),
+                      label: const Text('Bulk Edit'),
+                      onPressed: _showBulkEditDialog,
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF2ECC71),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    if (isAdmin) ...[
+                      TextButton.icon(
+                        icon: const Icon(Icons.delete, size: 16),
+                        label: const Text('Delete Selected'),
+                        onPressed: _confirmBulkDelete,
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.red,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+
+                    TextButton(
+                      onPressed:
+                          () => setState(() => _selectedStudents.clear()),
+                      child: const Text('Clear Selection'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             // Table content
             if (isLoading || isLoadingSections)
               const Expanded(
@@ -1348,7 +2095,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                             border: Border.all(color: const Color(0xFFEEEEEE)),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Table(
+                          child:
+                          // Replace your entire Table widget (around line 2080) with this corrected version:
+                          Table(
                             border: TableBorder(
                               horizontalInside: BorderSide(
                                 color: Colors.grey[200]!,
@@ -1356,15 +2105,16 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                               ),
                             ),
                             columnWidths: const {
-                              0: FlexColumnWidth(0.8), // ID
-                              1: FlexColumnWidth(1.5), // Name
-                              2: FlexColumnWidth(0.8), // Class
-                              3: FlexColumnWidth(0.8), // Gender
-                              4: FlexColumnWidth(1.2), // Contact
-                              5: FlexColumnWidth(1.2), // Email
-                              6: FlexColumnWidth(1.0), // Enrollment
-                              7: FlexColumnWidth(0.8), // Status
-                              8: FlexColumnWidth(0.5), // Actions
+                              0: FlexColumnWidth(0.5), // Checkbox
+                              1: FlexColumnWidth(0.8), // Student ID
+                              2: FlexColumnWidth(2.0), // Name + Image
+                              3: FlexColumnWidth(1.0), // Class
+                              4: FlexColumnWidth(0.8), // Gender
+                              5: FlexColumnWidth(1.2), // Contact
+                              6: FlexColumnWidth(1.4), // Email
+                              7: FlexColumnWidth(1.0), // Enrollment
+                              8: FlexColumnWidth(0.8), // Status
+                              9: FlexColumnWidth(0.6), // Actions
                             },
                             defaultVerticalAlignment:
                                 TableCellVerticalAlignment.middle,
@@ -1374,33 +2124,46 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                 decoration: BoxDecoration(
                                   color: Colors.grey[50],
                                 ),
-                                children: const [
-                                  TableHeaderCell(text: 'Student ID'),
-                                  TableHeaderCell(text: 'Student Name'),
-                                  TableHeaderCell(text: 'Class'),
-                                  TableHeaderCell(text: 'Gender'),
-                                  TableHeaderCell(text: 'Contact Number'),
-                                  TableHeaderCell(text: 'Email'),
-                                  TableHeaderCell(text: 'Enrollment Date'),
-                                  TableHeaderCell(text: 'Status'),
-                                  TableHeaderCell(text: 'Actions'),
+                                children: [
+                                  // Select all checkbox
+                                  TableCell(
+                                    child: Container(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Checkbox(
+                                        value: _selectAll,
+                                        onChanged:
+                                            (value) => _toggleSelectAll(
+                                              currentPageItems,
+                                            ),
+                                        activeColor: const Color(0xFF2ECC71),
+                                      ),
+                                    ),
+                                  ),
+                                  const TableHeaderCell(text: 'Student ID'),
+                                  const TableHeaderCell(text: 'Student Name'),
+                                  const TableHeaderCell(text: 'Class'),
+                                  const TableHeaderCell(text: 'Gender'),
+                                  const TableHeaderCell(text: 'Contact Number'),
+                                  const TableHeaderCell(text: 'Email'),
+                                  const TableHeaderCell(
+                                    text: 'Enrollment Date',
+                                  ),
+                                  const TableHeaderCell(text: 'Status'),
+                                  const TableHeaderCell(text: 'Actions'),
                                 ],
                               ),
 
-                              // Table data rows
+                              // Table data rows - CORRECTED STRUCTURE
                               ...currentPageItems.map((student) {
                                 final fullName =
                                     "${student['fname'] ?? ''} ${student['lname'] ?? ''}";
                                 final String studentId =
                                     "STU${student['id'].toString().padLeft(3, '0')}";
-
-                                // Show section info from joined section
                                 final section = student['sections'];
                                 final String className =
                                     section != null
                                         ? "${section['name']} (${section['grade_level']})"
                                         : "N/A";
-
                                 final enrollmentDate =
                                     student['created_at'] != null
                                         ? DateFormat('yyyy-MM-dd').format(
@@ -1408,13 +2171,43 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                         )
                                         : "N/A";
                                 final status = student['status'] ?? 'Active';
+                                final profileImageUrl =
+                                    student['profile_image_url']?.toString();
 
                                 return TableRow(
-                                  decoration: const BoxDecoration(
-                                    color: Colors.white,
+                                  decoration: BoxDecoration(
+                                    color:
+                                        _selectedStudents.contains(
+                                              student['id'],
+                                            )
+                                            ? const Color(
+                                              0xFF2ECC71,
+                                            ).withOpacity(0.1)
+                                            : Colors.white,
                                   ),
                                   children: [
-                                    // Student ID
+                                    // 1. Selection checkbox
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Checkbox(
+                                          value: _selectedStudents.contains(
+                                            student['id'],
+                                          ),
+                                          onChanged:
+                                              (value) =>
+                                                  _toggleStudentSelection(
+                                                    student['id'],
+                                                    currentPageItems,
+                                                  ),
+                                          activeColor: const Color(0xFF2ECC71),
+                                        ),
+                                      ),
+                                    ),
+
+                                    // 2. Student ID
                                     TableCell(
                                       verticalAlignment:
                                           TableCellVerticalAlignment.middle,
@@ -1426,90 +2219,160 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                           style: const TextStyle(
                                             fontWeight: FontWeight.w500,
                                             color: Color(0xFF555555),
+                                            fontSize: 13,
                                           ),
                                         ),
                                       ),
                                     ),
 
-                                    // Student name
+                                    // 3. Student name WITH PROFILE IMAGE
                                     TableCell(
                                       verticalAlignment:
                                           TableCellVerticalAlignment.middle,
                                       child: Container(
                                         alignment: Alignment.centerLeft,
                                         padding: const EdgeInsets.all(16),
-                                        child: Text(
-                                          fullName,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                            color: Color(0xFF333333),
-                                          ),
+                                        child: Row(
+                                          children: [
+                                            // Profile Image
+                                            Container(
+                                              width: 40,
+                                              height: 40,
+                                              decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                                border: Border.all(
+                                                  color: const Color(
+                                                    0xFF2ECC71,
+                                                  ).withOpacity(0.3),
+                                                  width: 2,
+                                                ),
+                                              ),
+                                              child: ClipOval(
+                                                child:
+                                                    _selectedImageBytes != null
+                                                        ? Image.memory(
+                                                          _selectedImageBytes!,
+                                                          width: 120,
+                                                          height: 120,
+                                                          fit: BoxFit.cover,
+                                                        )
+                                                        : (student?['profile_image_url'] !=
+                                                                null &&
+                                                            student!['profile_image_url']
+                                                                .toString()
+                                                                .isNotEmpty)
+                                                        ? Image.network(
+                                                          student!['profile_image_url'],
+                                                          width: 120,
+                                                          height: 120,
+                                                          fit: BoxFit.cover,
+                                                          errorBuilder: (
+                                                            context,
+                                                            error,
+                                                            stackTrace,
+                                                          ) {
+                                                            return const Icon(
+                                                              Icons.person,
+                                                              size: 60,
+                                                              color:
+                                                                  Colors.grey,
+                                                            );
+                                                          },
+                                                          loadingBuilder: (
+                                                            context,
+                                                            child,
+                                                            loadingProgress,
+                                                          ) {
+                                                            if (loadingProgress ==
+                                                                null)
+                                                              return child;
+                                                            return Container(
+                                                              width: 120,
+                                                              height: 120,
+                                                              color:
+                                                                  Colors
+                                                                      .grey[200],
+                                                              child: const Center(
+                                                                child: CircularProgressIndicator(
+                                                                  color: Color(
+                                                                    0xFF2ECC71,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            );
+                                                          },
+                                                        )
+                                                        : const Icon(
+                                                          Icons.person,
+                                                          size: 60,
+                                                          color: Colors.grey,
+                                                        ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            // Student Name
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  Text(
+                                                    fullName,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Color(0xFF333333),
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                  if (student['rfid_uid'] !=
+                                                          null &&
+                                                      student['rfid_uid']
+                                                          .toString()
+                                                          .isNotEmpty) ...[
+                                                    const SizedBox(height: 2),
+                                                    Row(
+                                                      children: [
+                                                        Icon(
+                                                          Icons.contactless,
+                                                          size: 12,
+                                                          color:
+                                                              Colors.green[600],
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 4,
+                                                        ),
+                                                        Text(
+                                                          'RFID: ${student['rfid_uid'].toString().substring(0, 8)}...',
+                                                          style: TextStyle(
+                                                            fontSize: 11,
+                                                            color:
+                                                                Colors
+                                                                    .green[600],
+                                                            fontWeight:
+                                                                FontWeight.w500,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
 
-                                    // Class
+                                    // 4. Class
                                     TableCell(
                                       verticalAlignment:
                                           TableCellVerticalAlignment.middle,
                                       child: Container(
                                         alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Text(className),
-                                      ),
-                                    ),
-
-                                    // Gender
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Text(student['gender'] ?? 'N/A'),
-                                      ),
-                                    ),
-
-                                    // Contact number
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Text(
-                                          student['contact_number'] ?? 'N/A',
-                                        ),
-                                      ),
-                                    ),
-
-                                    // Email
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Text(student['email'] ?? 'N/A'),
-                                      ),
-                                    ),
-
-                                    // Enrollment date
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Text(enrollmentDate),
-                                      ),
-                                    ),
-
-                                    // Status
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Padding(
                                         padding: const EdgeInsets.all(16),
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
@@ -1517,37 +2380,259 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                             vertical: 4,
                                           ),
                                           decoration: BoxDecoration(
-                                            color:
-                                                status == 'Active'
-                                                    ? const Color(0xFFE8F5E9)
-                                                    : const Color(0xFFFFEBEE),
+                                            color: const Color(
+                                              0xFF2ECC71,
+                                            ).withOpacity(0.1),
                                             borderRadius: BorderRadius.circular(
-                                              4,
+                                              12,
                                             ),
                                           ),
                                           child: Text(
-                                            status,
-                                            style: TextStyle(
-                                              color:
-                                                  status == 'Active'
-                                                      ? const Color(0xFF2E7D32)
-                                                      : const Color(0xFFC62828),
-                                              fontWeight: FontWeight.w500,
+                                            className,
+                                            style: const TextStyle(
                                               fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                              color: Color(0xFF2ECC71),
                                             ),
-                                            textAlign: TextAlign.center,
                                           ),
                                         ),
                                       ),
                                     ),
 
-                                    // Actions
+                                    // 5. Gender
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Container(
+                                        alignment: Alignment.centerLeft,
+                                        padding: const EdgeInsets.all(16),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              student['gender'] == 'Male'
+                                                  ? Icons.male
+                                                  : student['gender'] ==
+                                                      'Female'
+                                                  ? Icons.female
+                                                  : Icons.person,
+                                              size: 16,
+                                              color:
+                                                  student['gender'] == 'Male'
+                                                      ? Colors.blue[600]
+                                                      : student['gender'] ==
+                                                          'Female'
+                                                      ? Colors.pink[600]
+                                                      : Colors.grey[600],
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              student['gender'] ?? 'N/A',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+
+                                    // 6. Contact number
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Container(
+                                        alignment: Alignment.centerLeft,
+                                        padding: const EdgeInsets.all(16),
+                                        child:
+                                            student['contact_number'] != null &&
+                                                    student['contact_number']
+                                                        .toString()
+                                                        .isNotEmpty
+                                                ? Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.phone,
+                                                      size: 14,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      student['contact_number'],
+                                                      style: const TextStyle(
+                                                        fontSize: 13,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                )
+                                                : Text(
+                                                  'N/A',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: Colors.grey[500],
+                                                    fontStyle: FontStyle.italic,
+                                                  ),
+                                                ),
+                                      ),
+                                    ),
+
+                                    // 7. Email
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Container(
+                                        alignment: Alignment.centerLeft,
+                                        padding: const EdgeInsets.all(16),
+                                        child:
+                                            student['email'] != null &&
+                                                    student['email']
+                                                        .toString()
+                                                        .isNotEmpty
+                                                ? Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.email,
+                                                      size: 14,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Expanded(
+                                                      child: Text(
+                                                        student['email'],
+                                                        style: const TextStyle(
+                                                          fontSize: 13,
+                                                        ),
+                                                        overflow:
+                                                            TextOverflow
+                                                                .ellipsis,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                )
+                                                : Text(
+                                                  'N/A',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: Colors.grey[500],
+                                                    fontStyle: FontStyle.italic,
+                                                  ),
+                                                ),
+                                      ),
+                                    ),
+
+                                    // 8. Enrollment date
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Container(
+                                        alignment: Alignment.centerLeft,
+                                        padding: const EdgeInsets.all(16),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              enrollmentDate,
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            if (enrollmentDate != 'N/A') ...[
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                _getTimeAgo(enrollmentDate),
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+
+                                    // 9. Status
+                                    TableCell(
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color:
+                                                status == 'Active'
+                                                    ? const Color(0xFFE8F5E9)
+                                                    : const Color(0xFFFFEBEE),
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                            border: Border.all(
+                                              color:
+                                                  status == 'Active'
+                                                      ? const Color(0xFF4CAF50)
+                                                      : const Color(0xFFE57373),
+                                              width: 1,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                width: 6,
+                                                height: 6,
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      status == 'Active'
+                                                          ? const Color(
+                                                            0xFF4CAF50,
+                                                          )
+                                                          : const Color(
+                                                            0xFFE57373,
+                                                          ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(3),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                status,
+                                                style: TextStyle(
+                                                  color:
+                                                      status == 'Active'
+                                                          ? const Color(
+                                                            0xFF2E7D32,
+                                                          )
+                                                          : const Color(
+                                                            0xFFC62828,
+                                                          ),
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+
+                                    // 10. Actions
                                     TableCell(
                                       verticalAlignment:
                                           TableCellVerticalAlignment.middle,
                                       child: Center(
                                         child: PopupMenuButton<String>(
-                                          icon: const Icon(Icons.more_vert),
+                                          icon: Icon(
+                                            Icons.more_vert,
+                                            color: Colors.grey[600],
+                                          ),
+                                          iconSize: 20,
                                           onSelected: (value) {
                                             if (value == 'edit') {
                                               _addOrEditStudent(
@@ -1570,8 +2655,81 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                                           ),
                                                         ],
                                                       ),
-                                                      content: Text(
-                                                        'Are you sure you want to delete ${student['fname']} ${student['lname']}? This action cannot be undone.',
+                                                      content: Column(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            'Are you sure you want to delete ${student['fname']} ${student['lname']}?',
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w500,
+                                                                ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 8,
+                                                          ),
+                                                          const Text(
+                                                            'This action cannot be undone and will permanently remove:',
+                                                            style: TextStyle(
+                                                              fontSize: 13,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 8,
+                                                          ),
+                                                          Padding(
+                                                            padding:
+                                                                const EdgeInsets.only(
+                                                                  left: 16,
+                                                                ),
+                                                            child: Column(
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .start,
+                                                              children: [
+                                                                const Text(
+                                                                  '• Student profile and data',
+                                                                  style:
+                                                                      TextStyle(
+                                                                        fontSize:
+                                                                            12,
+                                                                      ),
+                                                                ),
+                                                                const Text(
+                                                                  '• Attendance records',
+                                                                  style:
+                                                                      TextStyle(
+                                                                        fontSize:
+                                                                            12,
+                                                                      ),
+                                                                ),
+                                                                const Text(
+                                                                  '• Profile image',
+                                                                  style:
+                                                                      TextStyle(
+                                                                        fontSize:
+                                                                            12,
+                                                                      ),
+                                                                ),
+                                                                if (student['rfid_uid'] !=
+                                                                    null)
+                                                                  const Text(
+                                                                    '• RFID card assignment',
+                                                                    style: TextStyle(
+                                                                      fontSize:
+                                                                          12,
+                                                                    ),
+                                                                  ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ],
                                                       ),
                                                       actions: [
                                                         TextButton(
@@ -1589,6 +2747,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                                               ElevatedButton.styleFrom(
                                                                 backgroundColor:
                                                                     Colors.red,
+                                                                foregroundColor:
+                                                                    Colors
+                                                                        .white,
                                                               ),
                                                           onPressed: () {
                                                             Navigator.pop(ctx);
@@ -1597,11 +2758,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                                             );
                                                           },
                                                           child: const Text(
-                                                            'Delete',
-                                                            style: TextStyle(
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
+                                                            'Delete Student',
                                                           ),
                                                         ),
                                                       ],
@@ -1618,31 +2775,35 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                                       Icon(
                                                         Icons.edit,
                                                         size: 16,
-                                                      ),
-                                                      SizedBox(width: 8),
-                                                      Text('Edit'),
-                                                    ],
-                                                  ),
-                                                ),
-                                                const PopupMenuItem(
-                                                  value: 'delete',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(
-                                                        Icons.delete,
-                                                        size: 16,
-                                                        color: Colors.red,
-                                                      ),
-                                                      SizedBox(width: 8),
-                                                      Text(
-                                                        'Delete',
-                                                        style: TextStyle(
-                                                          color: Colors.red,
+                                                        color: Color(
+                                                          0xFF2ECC71,
                                                         ),
                                                       ),
+                                                      SizedBox(width: 8),
+                                                      Text('Edit Student'),
                                                     ],
                                                   ),
                                                 ),
+                                                if (isAdmin)
+                                                  const PopupMenuItem(
+                                                    value: 'delete',
+                                                    child: Row(
+                                                      children: [
+                                                        Icon(
+                                                          Icons.delete,
+                                                          size: 16,
+                                                          color: Colors.red,
+                                                        ),
+                                                        SizedBox(width: 8),
+                                                        Text(
+                                                          'Delete Student',
+                                                          style: TextStyle(
+                                                            color: Colors.red,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
                                               ],
                                         ),
                                       ),
@@ -1656,98 +2817,306 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       ),
                     ),
 
-                    // Pagination
+                    // Enhanced Pagination with more controls
                     Padding(
                       padding: const EdgeInsets.only(top: 16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // "Showing x to y of z entries"
-                          Text(
-                            'Showing ${currentPageItems.isEmpty ? 0 : startIndex + 1} to ${endIndex} of ${filteredStudents.length} entries',
-                            style: const TextStyle(
-                              color: Color(0xFF666666),
-                              fontSize: 12,
-                            ),
-                          ),
-
-                          // Pagination controls
-                          Row(
-                            children: [
-                              // Previous button
-                              IconButton(
-                                icon: const Icon(Icons.chevron_left),
-                                onPressed:
-                                    _currentPage > 1
-                                        ? () => setState(() => _currentPage--)
-                                        : null,
-                                color:
-                                    _currentPage > 1
-                                        ? const Color(0xFF666666)
-                                        : const Color(0xFFCCCCCC),
-                              ),
-
-                              // Page numbers
-                              for (int i = 1; i <= _totalPages; i++)
-                                if (i == _currentPage ||
-                                    i == 1 ||
-                                    i == _totalPages ||
-                                    (i >= _currentPage - 1 &&
-                                        i <= _currentPage + 1))
-                                  Container(
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 4,
-                                    ),
-                                    width: 32,
-                                    height: 32,
-                                    decoration: BoxDecoration(
-                                      color:
-                                          i == _currentPage
-                                              ? const Color(0xFF2ECC71)
-                                              : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: TextButton(
-                                      onPressed:
-                                          () =>
-                                              setState(() => _currentPage = i),
-                                      style: TextButton.styleFrom(
-                                        padding: EdgeInsets.zero,
-                                        foregroundColor:
-                                            i == _currentPage
-                                                ? Colors.white
-                                                : const Color(0xFF666666),
-                                      ),
-                                      child: Text(
-                                        i.toString(),
-                                        style: const TextStyle(fontSize: 14),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey[200]!),
+                        ),
+                        child: Column(
+                          children: [
+                            // Items per page selector and info
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // Items per page selector
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'Show:',
+                                      style: TextStyle(
+                                        color: Color(0xFF666666),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                  )
-                                else if (i == _currentPage - 2 ||
-                                    i == _currentPage + 2)
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 4,
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: Colors.grey[300]!,
+                                        ),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: DropdownButtonHideUnderline(
+                                        child: DropdownButton<int>(
+                                          value: _itemsPerPage,
+                                          items:
+                                              [5, 10, 25, 50, 100].map((
+                                                int value,
+                                              ) {
+                                                return DropdownMenuItem<int>(
+                                                  value: value,
+                                                  child: Text('$value entries'),
+                                                );
+                                              }).toList(),
+                                          onChanged: (int? newValue) {
+                                            setState(() {
+                                              _itemsPerPage = newValue!;
+                                              _currentPage =
+                                                  1; // Reset to first page
+                                            });
+                                          },
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF666666),
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                    child: Text('...'),
+                                  ],
+                                ),
+
+                                // Total entries info
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
                                   ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(
+                                      0xFF2ECC71,
+                                    ).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: const Color(
+                                        0xFF2ECC71,
+                                      ).withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.people,
+                                        size: 16,
+                                        color: const Color(0xFF2ECC71),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Total: ${filteredStudents.length} students',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF2ECC71),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
 
-                              // Next button
-                              IconButton(
-                                icon: const Icon(Icons.chevron_right),
-                                onPressed:
-                                    _currentPage < _totalPages
-                                        ? () => setState(() => _currentPage++)
-                                        : null,
-                                color:
-                                    _currentPage < _totalPages
-                                        ? const Color(0xFF666666)
-                                        : const Color(0xFFCCCCCC),
+                            // Pagination info and controls
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // "Showing x to y of z entries"
+                                Text(
+                                  'Showing ${currentPageItems.isEmpty ? 0 : startIndex + 1} to $endIndex of ${filteredStudents.length} entries',
+                                  style: const TextStyle(
+                                    color: Color(0xFF666666),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+
+                                // Enhanced pagination controls
+                                Row(
+                                  children: [
+                                    // First page button
+                                    IconButton(
+                                      icon: const Icon(Icons.first_page),
+                                      onPressed:
+                                          _currentPage > 1
+                                              ? () => setState(
+                                                () => _currentPage = 1,
+                                              )
+                                              : null,
+                                      color:
+                                          _currentPage > 1
+                                              ? const Color(0xFF666666)
+                                              : const Color(0xFFCCCCCC),
+                                      tooltip: 'First page',
+                                    ),
+
+                                    // Previous button
+                                    IconButton(
+                                      icon: const Icon(Icons.chevron_left),
+                                      onPressed:
+                                          _currentPage > 1
+                                              ? () =>
+                                                  setState(() => _currentPage--)
+                                              : null,
+                                      color:
+                                          _currentPage > 1
+                                              ? const Color(0xFF666666)
+                                              : const Color(0xFFCCCCCC),
+                                      tooltip: 'Previous page',
+                                    ),
+
+                                    // Page input field for quick navigation
+                                    Container(
+                                      width: 80,
+                                      height: 32,
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                      ),
+                                      child: TextFormField(
+                                        initialValue: _currentPage.toString(),
+                                        textAlign: TextAlign.center,
+                                        keyboardType: TextInputType.number,
+                                        style: const TextStyle(fontSize: 14),
+                                        decoration: InputDecoration(
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                vertical: 8,
+                                              ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            borderSide: BorderSide(
+                                              color: Colors.grey[300]!,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            borderSide: const BorderSide(
+                                              color: Color(0xFF2ECC71),
+                                            ),
+                                          ),
+                                        ),
+                                        onFieldSubmitted: (value) {
+                                          final page = int.tryParse(value);
+                                          if (page != null &&
+                                              page >= 1 &&
+                                              page <= _totalPages) {
+                                            setState(() => _currentPage = page);
+                                          }
+                                        },
+                                      ),
+                                    ),
+
+                                    Text(
+                                      'of $_totalPages',
+                                      style: const TextStyle(
+                                        color: Color(0xFF666666),
+                                        fontSize: 13,
+                                      ),
+                                    ),
+
+                                    // Next button
+                                    IconButton(
+                                      icon: const Icon(Icons.chevron_right),
+                                      onPressed:
+                                          _currentPage < _totalPages
+                                              ? () =>
+                                                  setState(() => _currentPage++)
+                                              : null,
+                                      color:
+                                          _currentPage < _totalPages
+                                              ? const Color(0xFF666666)
+                                              : const Color(0xFFCCCCCC),
+                                      tooltip: 'Next page',
+                                    ),
+
+                                    // Last page button
+                                    IconButton(
+                                      icon: const Icon(Icons.last_page),
+                                      onPressed:
+                                          _currentPage < _totalPages
+                                              ? () => setState(
+                                                () =>
+                                                    _currentPage = _totalPages,
+                                              )
+                                              : null,
+                                      color:
+                                          _currentPage < _totalPages
+                                              ? const Color(0xFF666666)
+                                              : const Color(0xFFCCCCCC),
+                                      tooltip: 'Last page',
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+
+                            // Quick page jumper (for large datasets)
+                            if (_totalPages > 10) ...[
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Text(
+                                    'Quick jump: ',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF666666),
+                                    ),
+                                  ),
+                                  ...List.generate(
+                                    (_totalPages / 10).ceil().clamp(1, 5),
+                                    (index) {
+                                      final pageGroup = (index + 1) * 10;
+                                      final actualPage =
+                                          pageGroup > _totalPages
+                                              ? _totalPages
+                                              : pageGroup;
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 2,
+                                        ),
+                                        child: TextButton(
+                                          onPressed:
+                                              () => setState(
+                                                () => _currentPage = actualPage,
+                                              ),
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            minimumSize: Size.zero,
+                                            foregroundColor: const Color(
+                                              0xFF2ECC71,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '$actualPage',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
                               ),
                             ],
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ],
