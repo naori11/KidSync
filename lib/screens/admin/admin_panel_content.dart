@@ -87,6 +87,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: ListView(
+        shrinkWrap: true,
         children: [
           // Header Section
           Text(
@@ -147,7 +148,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: CustomPaint(
-                    size: Size.infinite,
+                    size: const Size(double.infinity, 180),
                     painter: LineChartPainter(),
                   ),
                 ),
@@ -423,70 +424,84 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Row(
-        children: [
-          // Sidebar Navigation
-          Container(
-            width: 180,
-            color: const Color.fromARGB(255, 255, 255, 255),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // App title
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
-                  child: Text(
-                    "KidSync",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return Row(
+            children: [
+              // Sidebar Navigation
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return Container(
+                    width:
+                        constraints.maxWidth < 400
+                            ? 80
+                            : 180, // Responsive width
+                    color: const Color.fromARGB(255, 255, 255, 255),
+                    child: SafeArea(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // App title
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+                            child: Text(
+                              "KidSync",
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+
+                          // Navigation items
+                          Expanded(
+                            child: ListView.builder(
+                              itemCount: navItems.length,
+                              padding: EdgeInsets.zero,
+                              shrinkWrap: true,
+                              itemBuilder: (context, index) {
+                                final item = navItems[index];
+
+                                // Add extra spacing before logout
+                                if (item.label == "Logout" && index > 0) {
+                                  return Column(
+                                    children: [
+                                      SizedBox(height: 16),
+                                      _buildNavItem(item, index),
+                                    ],
+                                  );
+                                }
+
+                                return _buildNavItem(item, index);
+                              },
+                            ),
+                          ),
+                          // Logout button at the bottom
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 24.0),
+                            child: _buildNavItem(
+                              _NavItem("Logout", Icons.logout, null),
+                              navItems.length,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
+              ),
 
-                // Navigation items
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: navItems.length,
-                    padding: EdgeInsets.zero,
-                    itemBuilder: (context, index) {
-                      final item = navItems[index];
-
-                      // Add extra spacing before logout
-                      if (item.label == "Logout" && index > 0) {
-                        return Column(
-                          children: [
-                            SizedBox(height: 16),
-                            _buildNavItem(item, index),
-                          ],
-                        );
-                      }
-
-                      return _buildNavItem(item, index);
-                    },
-                  ),
-                ),
-                // In the sidebar ListView.builder, after the Expanded ListView, add the logout button at the bottom
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24.0),
-                  child: _buildNavItem(
-                    _NavItem("Logout", Icons.logout, null),
-                    navItems.length,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Main Content
-          Expanded(
-            child:
-                selectedIndex == 0
-                    ? _buildDashboard()
-                    : navItems[selectedIndex].page ?? const SizedBox(),
-          ),
-        ],
+              // Main Content
+              Expanded(
+                child:
+                    selectedIndex == 0
+                        ? _buildDashboard()
+                        : navItems[selectedIndex].page ?? const SizedBox(),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
