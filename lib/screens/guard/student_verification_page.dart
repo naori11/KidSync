@@ -18,15 +18,20 @@ class StudentVerificationPage extends StatefulWidget {
 class _StudentVerificationPageState extends State<StudentVerificationPage> {
   Student? scannedStudent;
   List<Fetcher>? fetchers;
-  String? fetchStatus; // "approved", "denied", or null
+  String? fetchStatus;
   bool showNotification = false;
   String notificationMessage = '';
   Color notificationColor = Colors.green;
   DateTime? actionTimestamp;
   bool isLoadingStudent = false;
   bool isLoadingFetchers = false;
-  bool isEntryMode = false;
-  bool isAwaitingDecision = false;
+
+  // Remove isEntryMode and isAwaitingDecision - replaced with auto detection
+  String? currentAction; // 'entry' or 'exit'
+  bool isScheduleValidationEnabled = true;
+  bool isOverrideMode = false;
+  String? scheduleValidationMessage;
+  TimeOfDay? lastClassEndTime;
 
   late HtmlWebSocketChannel channel;
 
@@ -41,14 +46,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     // Listen for incoming RFID data
     channel.stream.listen((message) {
       print("RFID received: $message");
-
-      // BLOCK SCANS if a decision is pending in Exit Mode
-      if (!isEntryMode && isAwaitingDecision) {
-        _showErrorNotification(
-          'Please approve or deny the current pick-up before scanning another student.',
-        );
-        return; // Ignore new scans until decision is made or reset
-      }
 
       try {
         String? uid;
@@ -85,7 +82,163 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     super.dispose();
   }
 
-  // Function to fetch student data from Supabase
+  // Check today's attendance status to determine entry/exit
+  Future<String> _checkTodayAttendanceStatus(int studentId) async {
+    final today = DateTime.now();
+    final startOfDay = DateTime(today.year, today.month, today.day);
+    final endOfDay = startOfDay.add(Duration(days: 1));
+
+    try {
+      final response = await supabase
+          .from('scan_records')
+          .select('action, scan_time')
+          .eq('student_id', studentId)
+          .gte('scan_time', startOfDay.toIso8601String())
+          .lt('scan_time', endOfDay.toIso8601String())
+          .order('scan_time', ascending: true);
+
+      if (response.isEmpty) {
+        return 'entry'; // No records today, this is entry
+      }
+
+      // Check the latest record
+      final records = response as List;
+      final latestRecord = records.last;
+      final latestAction = latestRecord['action'];
+
+      if (latestAction == 'entry') {
+        return 'exit'; // Last action was entry, so this should be exit
+      } else {
+        return 'entry'; // Last action was exit/denied, so this should be entry
+      }
+    } catch (e) {
+      print('Error checking attendance status: $e');
+      return 'entry'; // Default to entry on error
+    }
+  }
+
+  // Enhanced exit validation with specific time-based rules
+  Future<Map<String, dynamic>> _checkClassSchedule(Student student) async {
+    try {
+      final now = DateTime.now();
+      final today = _getCurrentDayName();
+      final currentTime = TimeOfDay.fromDateTime(now);
+
+      print('Checking schedule for section_id: ${student.sectionId}, day: $today');
+
+      // Query the section_teachers table for today's classes
+      if (student.sectionId == null) {
+        return {'canExit': true, 'message': null, 'exitType': 'regular'};
+      }
+      
+      final response = await supabase
+          .from('section_teachers')
+          .select('end_time, subject, start_time')
+          .eq('section_id', student.sectionId!)
+          .contains('days', [today])
+          .order('end_time', ascending: false);
+
+      print('Schedule response: $response');
+
+      if (response.isNotEmpty) {
+        // Get the last class of the day
+        final lastClass = response.first;
+        final endTimeStr = lastClass['end_time']; // Format: "HH:MM:SS"
+        final subjectName = lastClass['subject'];
+
+        if (endTimeStr != null) {
+          final endTime = _parseTimeString(endTimeStr);
+          final minutesUntilEnd = _getMinutesDifference(currentTime, endTime);
+
+          print('Current time: ${_formatTime(currentTime)}');
+          print('Last class ends: ${_formatTime(endTime)}');
+          print('Minutes until end: $minutesUntilEnd');
+
+          // Exit validation logic based on your requirements
+          if (minutesUntilEnd > 120) {
+            // Very Early Exit (2+ hours before last class)
+            return {
+              'canExit': false,
+              'message': 'Very early dismissal requested. Last class ($subjectName) ends at ${_formatTime(endTime)}',
+              'lastClassEndTime': endTime,
+              'subject': subjectName,
+              'exitType': 'very_early',
+              'requiresReason': true,
+            };
+          } else if (minutesUntilEnd > 30) {
+            // Early Exit (30+ minutes before last class)
+            return {
+              'canExit': false,
+              'message': 'Early dismissal requested. Last class ($subjectName) ends at ${_formatTime(endTime)}',
+              'lastClassEndTime': endTime,
+              'subject': subjectName,
+              'exitType': 'early',
+              'requiresReason': false,
+            };
+          } else if (minutesUntilEnd > 15) {
+            // Near End Time (15-30 minutes before last class)
+            return {
+              'canExit': true,
+              'message': 'Approved near-end dismissal. Last class ($subjectName) ends at ${_formatTime(endTime)}',
+              'exitType': 'near_end',
+              'subject': subjectName,
+            };
+          } else if (minutesUntilEnd > 0) {
+            // Within 15 minutes of last class
+            return {
+              'canExit': true,
+              'message': 'Approved dismissal. Last class ($subjectName) ends soon at ${_formatTime(endTime)}',
+              'exitType': 'within_15min',
+              'subject': subjectName,
+            };
+          }
+        }
+      }
+
+      // Regular dismissal (after last class or no classes today)
+      return {
+        'canExit': true,
+        'message': null,
+        'exitType': 'regular'
+      };
+    } catch (e) {
+      print('Error checking schedule: $e');
+      return {
+        'canExit': true,
+        'message': null,
+        'exitType': 'error'
+      };
+    }
+  }
+
+  // Helper method to calculate minutes difference between two times
+  int _getMinutesDifference(TimeOfDay current, TimeOfDay target) {
+    final currentMinutes = current.hour * 60 + current.minute;
+    final targetMinutes = target.hour * 60 + target.minute;
+    return targetMinutes - currentMinutes;
+  }
+
+  // Helper method to format TimeOfDay to string
+  String _formatTime(TimeOfDay time) {
+    return "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
+  }
+
+  // Helper method to parse time string to TimeOfDay
+  TimeOfDay _parseTimeString(String timeStr) {
+    final parts = timeStr.split(':');
+    final hour = int.parse(parts[0]);
+    final minute = int.parse(parts[1]);
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
+  // Helper method to get current day name
+  String _getCurrentDayName() {
+    final now = DateTime.now();
+    final dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return dayNames[now.weekday % 7];
+  }
+
+  // Modified fetch student method - simplified entry handling
   Future<void> _fetchStudentByRFID(String rfidUid) async {
     setState(() {
       isLoadingStudent = true;
@@ -93,57 +246,63 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       fetchers = null;
       fetchStatus = null;
       showNotification = false;
+      currentAction = null;
+      scheduleValidationMessage = null;
+      isOverrideMode = false;
+      lastClassEndTime = null;
     });
 
     try {
-      final response =
-          await supabase
-              .from('students')
-              .select()
-              .eq('rfid_uid', rfidUid)
-              .neq('status', 'deleted')
-              .maybeSingle();
+      final response = await supabase
+          .from('students')
+          .select('*, sections!inner(name)')
+          .eq('rfid_uid', rfidUid)
+          .neq('status', 'deleted')
+          .maybeSingle();
 
       if (response != null) {
         final student = Student.fromJson(response);
+
+        // Determine if this should be entry or exit
+        final action = await _checkTodayAttendanceStatus(student.id);
+
         setState(() {
           scannedStudent = student;
+          currentAction = action;
           isLoadingStudent = false;
-          // Only set block in EXIT mode
-          if (!isEntryMode) isAwaitingDecision = true;
         });
 
-        // Only fetch fetchers in exit mode
-        if (!isEntryMode) {
-          await _fetchAuthorizedFetchers(student.id);
-        }
-
-        // ENTRY MODE: Log "Checked In" immediately and auto-hide
-        if (isEntryMode) {
-          await supabase.from('scan_records').insert({
-            'student_id': student.id,
-            'guard_id': user?.id,
-            'rfid_uid': student.rfidUid ?? '',
-            'scan_time': DateTime.now().toIso8601String(),
-            'action': 'entry',
-            'verified_by': 'RFID Entry',
-            'status': 'Checked In',
-            'notes': '',
-          });
-
-          // Show success notification for entry mode
-          _showSuccessNotification('Student checked in successfully');
-
-          // Auto-hide scanned student after 3 seconds
-          Future.delayed(Duration(seconds: 3), () {
-            if (mounted && isEntryMode) clearScan();
-          });
+        if (action == 'entry') {
+          // Entry: Always allow for elementary students
+          await _processEntry(student);
+        } else {
+          // Exit: Apply schedule validation
+          if (isScheduleValidationEnabled && !isOverrideMode) {
+            final scheduleCheck = await _checkClassSchedule(student);
+            
+            if (!scheduleCheck['canExit']) {
+              setState(() {
+                scheduleValidationMessage = scheduleCheck['message'];
+                lastClassEndTime = scheduleCheck['lastClassEndTime'];
+              });
+              
+              // Show different UI based on exit type
+              final exitType = scheduleCheck['exitType'];
+              if (exitType == 'very_early') {
+                // Very early exit requires reason selection
+                _showVeryEarlyExitDialog(scheduleCheck);
+              } else {
+                // Regular early exit just needs override confirmation
+                return; // This will show the schedule blocked layout
+              }
+              return;
+            }
+          }
+          await _processExit(student);
         }
       } else {
         setState(() {
           isLoadingStudent = false;
-          // Reset block if student not found in EXIT mode
-          if (!isEntryMode) isAwaitingDecision = false;
         });
         _showErrorNotification('Student not found or inactive');
       }
@@ -153,6 +312,40 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       });
       _showErrorNotification('Error fetching student data: ${e.toString()}');
     }
+  }
+
+  // Process entry (immediate check-in)
+  Future<void> _processEntry(Student student) async {
+    try {
+      await supabase.from('scan_records').insert({
+        'student_id': student.id,
+        'guard_id': user?.id,
+        'rfid_uid': student.rfidUid ?? '',
+        'scan_time': DateTime.now().toIso8601String(),
+        'action': 'entry',
+        'verified_by': 'RFID Entry',
+        'status': 'Checked In',
+        'notes': 'Automatic entry via RFID scan',
+      });
+
+      _showSuccessNotification('Student checked in successfully');
+
+      // Auto-hide after 3 seconds
+      Future.delayed(Duration(seconds: 3), () {
+        if (mounted) clearScan();
+      });
+    } catch (e) {
+      _showErrorNotification('Error recording entry: ${e.toString()}');
+    }
+  }
+
+  // Process exit (show fetchers and require approval)
+  Future<void> _processExit(Student student) async {
+    setState(() {
+      isLoadingFetchers = true;
+    });
+
+    await _fetchAuthorizedFetchers(student.id);
   }
 
   // Function to fetch authorized fetchers from database
@@ -231,6 +424,360 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     }
   }
 
+  // Show override dialog for early dismissal
+  void _showOverrideDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.warning, color: Colors.orange, size: 28),
+                SizedBox(width: 12),
+                Text(
+                  'Early Dismissal Override',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.schedule,
+                            color: Colors.orange[700],
+                            size: 20,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Schedule Conflict',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        scheduleValidationMessage ??
+                            'Classes are still in session.',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'Student Information:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                SizedBox(height: 8),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 25,
+                      backgroundImage: NetworkImage(scannedStudent!.imageUrl),
+                      onBackgroundImageError: (_, __) {},
+                      child:
+                          scannedStudent!.imageUrl.isEmpty
+                              ? Icon(Icons.person)
+                              : null,
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            scannedStudent!.fullName,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            scannedStudent!.classSection,
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red[200]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info, color: Colors.red[700], size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'This will log an early dismissal override in the system.',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.red[700],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  clearScan();
+                },
+                child: Text('Cancel'),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    isOverrideMode = true;
+                  });
+                  _processExit(scannedStudent!);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text('Allow Early Exit'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // New dialog for very early exits that require a reason
+  void _showVeryEarlyExitDialog(Map<String, dynamic> scheduleCheck) {
+    final reasons = [
+      'Medical appointment',
+      'Family emergency',
+      'Early pickup requested by parent',
+      'Student illness',
+      'Other',
+    ];
+    String? selectedReason;
+    TextEditingController customReasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.red, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Very Early Dismissal',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.schedule, color: Colors.red[700], size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Schedule Alert',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      scheduleValidationMessage ?? 'Very early dismissal (2+ hours before last class)',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+              
+              Text(
+                'Reason for Early Dismissal:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              SizedBox(height: 8),
+              
+              DropdownButtonFormField<String>(
+                value: selectedReason,
+                hint: Text('Select a reason'),
+                items: reasons.map((reason) {
+                  return DropdownMenuItem(
+                    value: reason,
+                    child: Text(reason),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedReason = value;
+                    if (value != 'Other') {
+                      customReasonController.text = '';
+                    }
+                  });
+                },
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+              
+              if (selectedReason == 'Other') ...[
+                SizedBox(height: 16),
+                TextField(
+                  controller: customReasonController,
+                  decoration: InputDecoration(
+                    labelText: 'Please specify reason',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  minLines: 2,
+                  maxLines: 3,
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                clearScan();
+              },
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                String reasonToSave = '';
+                if (selectedReason == null) {
+                  // Show error
+                  return;
+                } else if (selectedReason == 'Other') {
+                  if (customReasonController.text.trim().isEmpty) {
+                    // Show error
+                    return;
+                  }
+                  reasonToSave = customReasonController.text.trim();
+                } else {
+                  reasonToSave = selectedReason!;
+                }
+                
+                Navigator.pop(context);
+                setState(() {
+                  isOverrideMode = true;
+                  scheduleValidationMessage = reasonToSave; // Store the reason
+                });
+                _processExit(scannedStudent!);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Allow Very Early Exit'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Modified save pickup record to include override information
+  Future<void> _savePickupRecord(bool approved, {String? denyReason}) async {
+    if (scannedStudent == null) return;
+    try {
+      final verifiedBy =
+          fetchers?.isNotEmpty == true
+              ? fetchers!.first.relationship
+              : "Unknown";
+      final action = approved ? "exit" : "denied";
+      final status = approved ? "Checked Out" : "Denied";
+
+      String notes = "";
+      if (!approved) {
+        notes = denyReason ?? "Denied by guard";
+      } else if (isOverrideMode) {
+        // Check what type of override this was
+        if (scheduleValidationMessage != null) {
+          if (scheduleValidationMessage!.contains('Very early')) {
+            notes = "Very early dismissal override (2+ hours) - Reason: ${scheduleValidationMessage}";
+          } else {
+            notes = "Early dismissal override - ${scheduleValidationMessage}";
+          }
+        } else {
+          notes = "Early dismissal override - Schedule validation bypassed";
+        }
+      } else {
+        notes = "Regular exit after class hours";
+      }
+
+      await supabase.from('scan_records').insert({
+        'student_id': scannedStudent!.id,
+        'guard_id': user?.id,
+        'rfid_uid': scannedStudent!.rfidUid ?? '',
+        'scan_time': DateTime.now().toIso8601String(),
+        'action': action,
+        'verified_by': verifiedBy,
+        'status': status,
+        'notes': notes,
+      });
+    } catch (e) {
+      print('Error saving pickup record: $e');
+    }
+  }
+
   // Show error notification
   void _showErrorNotification(String message) {
     setState(() {
@@ -287,7 +834,10 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       showNotification = false;
       isLoadingStudent = false;
       isLoadingFetchers = false;
-      isAwaitingDecision = false;
+      currentAction = null;
+      scheduleValidationMessage = null;
+      isOverrideMode = false;
+      lastClassEndTime = null;
     });
   }
 
@@ -301,11 +851,12 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       showNotification = true;
       notificationMessage =
           approved
-              ? 'Pickup approved at $formattedTime'
+              ? (isOverrideMode
+                  ? 'Early dismissal approved at $formattedTime'
+                  : 'Pickup approved at $formattedTime')
               : 'Pickup denied at $formattedTime';
       notificationColor = approved ? Colors.green : Colors.red;
       actionTimestamp = now;
-      isAwaitingDecision = false;
     });
 
     _savePickupRecord(approved, denyReason: denyReason);
@@ -323,31 +874,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         clearScan();
       }
     });
-  }
-
-  // Save approval/denial to scan_records
-  Future<void> _savePickupRecord(bool approved, {String? denyReason}) async {
-    if (scannedStudent == null) return;
-    try {
-      final verifiedBy =
-          fetchers?.isNotEmpty == true
-              ? fetchers!.first.relationship
-              : "Unknown";
-      final action = approved ? "approved" : "denied";
-      final status = approved ? "Checked Out" : "Denied";
-      await supabase.from('scan_records').insert({
-        'student_id': scannedStudent!.id,
-        'guard_id': user?.id,
-        'rfid_uid': scannedStudent!.rfidUid ?? '',
-        'scan_time': DateTime.now().toIso8601String(),
-        'action': action,
-        'verified_by': verifiedBy,
-        'status': status,
-        'notes': !approved ? (denyReason ?? "Denied by guard") : "",
-      });
-    } catch (e) {
-      print('Error saving pickup record: $e');
-    }
   }
 
   void _showDenyReasonDialog() async {
@@ -510,7 +1036,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         // Main content - full screen
         Padding(
           padding: const EdgeInsets.all(24.0),
-          child: isEntryMode ? _buildEntryModeLayout() : _buildExitModeLayout(),
+          child: _buildMainContent(),
         ),
 
         // Debug controls in upper right corner
@@ -520,7 +1046,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // Mode Switch Button
+              // Schedule validation toggle
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -536,22 +1062,27 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                 child: TextButton.icon(
                   onPressed: () {
                     setState(() {
-                      isEntryMode = !isEntryMode;
-                      clearScan();
+                      isScheduleValidationEnabled =
+                          !isScheduleValidationEnabled;
                     });
                   },
                   icon: Icon(
-                    isEntryMode ? Icons.logout : Icons.login,
+                    isScheduleValidationEnabled
+                        ? Icons.schedule
+                        : Icons.schedule_outlined,
                     size: 16,
                   ),
                   label: Text(
-                    isEntryMode
-                        ? 'Switch to Exit Mode'
-                        : 'Switch to Entry Mode',
+                    isScheduleValidationEnabled
+                        ? 'Disable Schedule Check'
+                        : 'Enable Schedule Check',
                     style: TextStyle(fontSize: 14),
                   ),
                   style: TextButton.styleFrom(
-                    foregroundColor: isEntryMode ? Colors.green : Colors.blue,
+                    foregroundColor:
+                        isScheduleValidationEnabled
+                            ? Colors.green
+                            : Colors.grey,
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                 ),
@@ -591,7 +1122,21 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     );
   }
 
-  // Consistent "before scan" widget for both modes
+  Widget _buildMainContent() {
+    if (currentAction == 'entry') {
+      return _buildEntryModeLayout();
+    } else if (currentAction == 'exit') {
+      if (scheduleValidationMessage != null) {
+        return _buildScheduleBlockedLayout();
+      } else {
+        return _buildExitModeLayout();
+      }
+    } else {
+      return _buildBeforeScanWidget();
+    }
+  }
+
+  // Updated before scan widget to show AUTO MODE
   Widget _buildBeforeScanWidget() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -611,14 +1156,10 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                 Container(
                   padding: EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: isEntryMode ? Colors.blue[50] : Colors.green[50],
+                    color: Colors.blue[50],
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    Icons.contact_page,
-                    size: 48,
-                    color: isEntryMode ? Colors.blue : Colors.green,
-                  ),
+                  child: Icon(Icons.contact_page, size: 48, color: Colors.blue),
                 ),
                 SizedBox(height: 24),
                 Text(
@@ -631,9 +1172,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                 ),
                 SizedBox(height: 8),
                 Text(
-                  isEntryMode
-                      ? 'Students can tap their card to check in'
-                      : 'Students can tap their card for pickup verification',
+                  'System will automatically detect entry or exit',
                   style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   textAlign: TextAlign.center,
                 ),
@@ -641,28 +1180,20 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isEntryMode ? Colors.blue[100] : Colors.green[100],
+                    color: Colors.blue[100],
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        isEntryMode ? Icons.login : Icons.logout,
-                        size: 16,
-                        color:
-                            isEntryMode ? Colors.blue[700] : Colors.green[700],
-                      ),
+                      Icon(Icons.auto_mode, size: 16, color: Colors.blue[700]),
                       SizedBox(width: 8),
                       Text(
-                        isEntryMode ? 'ENTRY MODE' : 'EXIT MODE',
+                        'AUTO MODE',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color:
-                              isEntryMode
-                                  ? Colors.blue[700]
-                                  : Colors.green[700],
+                          color: Colors.blue[700],
                         ),
                       ),
                     ],
@@ -690,7 +1221,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isEntryMode ? 'Entry Information' : 'Exit Information',
+                    'Exit Schedule Rules',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -698,50 +1229,33 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                     ),
                   ),
                   SizedBox(height: 16),
-
-                  if (isEntryMode) ...[
-                    _buildInfoItem(
-                      Icons.schedule,
-                      'Quick Check-in',
-                      'Students scan and are immediately checked in',
-                      Colors.blue,
-                    ),
-                    SizedBox(height: 16),
-                    _buildInfoItem(
-                      Icons.verified,
-                      'Automatic Recording',
-                      'Entry time is automatically logged in the system',
-                      Colors.blue,
-                    ),
-                    SizedBox(height: 16),
-                    _buildInfoItem(
-                      Icons.notifications,
-                      'Instant Confirmation',
-                      'Students see immediate confirmation of check-in',
-                      Colors.blue,
-                    ),
-                  ] else ...[
-                    _buildInfoItem(
-                      Icons.people,
-                      'Fetcher Verification',
-                      'System will show authorized pickup persons',
-                      Colors.green,
-                    ),
-                    SizedBox(height: 16),
-                    _buildInfoItem(
-                      Icons.security,
-                      'Manual Approval',
-                      'Guard must approve or deny each pickup request',
-                      Colors.green,
-                    ),
-                    SizedBox(height: 16),
-                    _buildInfoItem(
-                      Icons.assignment,
-                      'Record Keeping',
-                      'All pickup decisions are logged with reasons',
-                      Colors.green,
-                    ),
-                  ],
+                  _buildInfoItem(
+                    Icons.login,
+                    'Entry - Always Allowed',
+                    'Students can enter at any time during school hours',
+                    Colors.green,
+                  ),
+                  SizedBox(height: 16),
+                  _buildInfoItem(
+                    Icons.warning,
+                    'Very Early Exit (2+ hrs)',
+                    'Requires override with reason selection',
+                    Colors.red,
+                  ),
+                  SizedBox(height: 16),
+                  _buildInfoItem(
+                    Icons.schedule,
+                    'Early Exit (30+ min)',
+                    'Requires guard override confirmation',
+                    Colors.orange,
+                  ),
+                  SizedBox(height: 16),
+                  _buildInfoItem(
+                    Icons.check_circle,
+                    'Near End/Regular',
+                    'Allowed without restrictions',
+                    Colors.blue,
+                  ),
                 ],
               ),
             ),
@@ -790,6 +1304,245 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           ),
         ),
       ],
+    );
+  }
+
+  // New layout for schedule-blocked exits
+  Widget _buildScheduleBlockedLayout() {
+    return Center(
+      child: Container(
+        constraints: BoxConstraints(maxWidth: 700),
+        padding: EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.orange[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.schedule, size: 40, color: Colors.orange[600]),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Early Dismissal Required',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange[800],
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Classes are still in session',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.orange[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            SizedBox(height: 24),
+
+            // Schedule info
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info, color: Colors.blue[600], size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Schedule Information',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.blue[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    scheduleValidationMessage ??
+                        'Classes are still in session.',
+                    style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                  ),
+                ],
+              ),
+            ),
+
+            SizedBox(height: 24),
+
+            // Student info
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(11),
+                      child: Image.network(
+                        scannedStudent!.imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: Colors.grey[200],
+                            child: Icon(
+                              Icons.person,
+                              size: 40,
+                              color: Colors.grey[500],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 20),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          scannedStudent!.fullName,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          scannedStudent!.classSection,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange[50],
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.orange[200]!),
+                          ),
+                          child: Text(
+                            'Requesting Early Exit',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange[700],
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            SizedBox(height: 32),
+
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: clearScan,
+                    icon: Icon(Icons.cancel),
+                    label: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[600],
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _showOverrideDialog,
+                    icon: Icon(Icons.exit_to_app),
+                    label: Text(
+                      'Allow Early Exit',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1386,7 +2139,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.green[700],
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
