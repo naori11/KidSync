@@ -453,7 +453,6 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                               ),
                             ),
                           ),
-
                           // Navigation items
                           Expanded(
                             child: ListView.builder(
@@ -462,7 +461,6 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                               shrinkWrap: true,
                               itemBuilder: (context, index) {
                                 final item = navItems[index];
-
                                 // Add extra spacing before logout
                                 if (item.label == "Logout" && index > 0) {
                                   return Column(
@@ -472,7 +470,6 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                                     ],
                                   );
                                 }
-
                                 return _buildNavItem(item, index);
                               },
                             ),
@@ -565,6 +562,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
         margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               item.icon,
@@ -572,12 +570,15 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
               size: 20,
             ),
             const SizedBox(width: 12),
-            Text(
-              item.label,
-              style: TextStyle(
-                fontSize: 14,
-                color: isSelected ? Colors.white : Colors.grey[800],
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            Expanded(
+              child: Text(
+                item.label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isSelected ? Colors.white : Colors.grey[800],
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                ),
               ),
             ),
           ],
