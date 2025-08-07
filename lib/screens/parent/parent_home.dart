@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:math';
 import 'notifications.dart';
 
 class ParentHomeScreen extends StatelessWidget {
@@ -22,17 +23,10 @@ class ParentHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color primaryColor = const Color(0xFF2ECC71); // Match admin UI
-    final Color highlightGreen = const Color.fromARGB(
-      255,
-      76,
-      175,
-      80,
-    ); // For highlights, match admin
-    final Color cardBackground = Colors.white;
-    final Color mainText = Colors.black87;
-    final Color secondaryText =
-        Colors.grey[600] ?? Colors.grey; // Ensure non-nullable
+    const Color primaryGreen = Color(0xFF19AE61);
+    const Color black = Color(0xFF000000);
+    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.6);
+    const Color white = Color(0xFFFFFFFF);
     final List<_NavItem> navItems = [
       _NavItem('Dashboard', Icons.dashboard, 'dashboard'),
       _NavItem('Pick-up/Drop-off', Icons.directions_car, 'pickup'),
@@ -41,8 +35,8 @@ class ParentHomeScreen extends StatelessWidget {
     ];
     return _ParentHomeTabs(
       navItems: navItems,
-      primaryColor: primaryColor,
-      secondaryText: secondaryText,
+      primaryColor: primaryGreen,
+      secondaryText: black.withOpacity(0.7),
       logout: _logout,
     );
   }
@@ -85,6 +79,61 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
     });
   }
 
+  Future<void> _showLogoutConfirmation(BuildContext context) async {
+    return showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.logout, color: const Color(0xFF19AE61), size: 24),
+              SizedBox(width: 8),
+              Text(
+                'Confirm Logout',
+                style: TextStyle(
+                  color: const Color(0xFF000000),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to logout?',
+            style: TextStyle(color: const Color(0xFF000000).withOpacity(0.7)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: const Color(0xFF000000).withOpacity(0.6),
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                widget.logout(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF19AE61),
+                foregroundColor: const Color(0xFFFFFFFF),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _fetcherRow(
     String name,
     String role,
@@ -92,16 +141,19 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
     Color primaryColor, [
     bool isMobile = false,
   ]) {
+    const Color black = Color(0xFF000000);
+    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.6);
+
     return Padding(
       padding: EdgeInsets.symmetric(vertical: isMobile ? 4 : 6),
       child: Row(
         children: [
           CircleAvatar(
-            backgroundColor: Colors.grey[200],
+            backgroundColor: greenWithOpacity,
             radius: isMobile ? 16 : 20,
             child: Icon(
               Icons.person,
-              color: Colors.grey[700],
+              color: primaryColor,
               size: isMobile ? 18 : 22,
             ),
           ),
@@ -114,12 +166,13 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                 style: TextStyle(
                   fontWeight: FontWeight.w500,
                   fontSize: isMobile ? 13 : 15,
+                  color: black,
                 ),
               ),
               Text(
                 role,
                 style: TextStyle(
-                  color: Colors.grey,
+                  color: black.withOpacity(0.6),
                   fontSize: isMobile ? 11 : 13,
                 ),
               ),
@@ -128,7 +181,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
           const Spacer(),
           Icon(
             Icons.circle,
-            color: active ? primaryColor : Colors.grey[400],
+            color: active ? primaryColor : black.withOpacity(0.3),
             size: isMobile ? 10 : 12,
           ),
         ],
@@ -139,16 +192,17 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 500;
-    final Color blue = const Color(0xFF007AFF);
+    const Color white = Color(0xFFFFFFFF);
+    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.171);
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: greenWithOpacity,
       body: Stack(
         children: [
           Column(
             children: [
               // Top Bar
               Container(
-                color: Colors.white,
+                color: white,
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
@@ -174,7 +228,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                         children: [
                           Icon(
                             Icons.notifications_none,
-                            color: Colors.grey[700],
+                            color: const Color(0xFF000000),
                             size: 28,
                           ),
                           // Example badge
@@ -185,7 +239,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                               width: 8,
                               height: 8,
                               decoration: BoxDecoration(
-                                color: Colors.red,
+                                color: widget.primaryColor,
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -197,11 +251,11 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                     GestureDetector(
                       onTap: _toggleProfile,
                       child: CircleAvatar(
-                        backgroundColor: Colors.grey[200],
+                        backgroundColor: greenWithOpacity,
                         radius: 16,
                         child: Icon(
                           Icons.person,
-                          color: Colors.grey[700],
+                          color: widget.primaryColor,
                           size: 18,
                         ),
                       ),
@@ -224,7 +278,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
               ),
               // Bottom Navigation Bar
               Container(
-                color: Colors.white,
+                color: white,
                 padding: EdgeInsets.only(top: 4, bottom: 4),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -238,7 +292,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                         color:
                             selected
                                 ? widget.primaryColor
-                                : widget.secondaryText,
+                                : const Color(0xFF000000).withOpacity(0.6),
                         size: 28,
                       ),
                       onPressed: () {
@@ -262,7 +316,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                   width: 280,
                   padding: EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: white,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
@@ -274,6 +328,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
+                          color: const Color(0xFF000000),
                         ),
                       ),
                       SizedBox(height: 12),
@@ -290,14 +345,19 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                                 color:
                                     i == 0
                                         ? widget.primaryColor
-                                        : Colors.grey[400],
+                                        : const Color(
+                                          0xFF000000,
+                                        ).withOpacity(0.3),
                                 size: 10,
                               ),
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   'Notification message # {i + 1}',
-                                  style: TextStyle(fontSize: 14),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: const Color(0xFF000000),
+                                  ),
                                 ),
                               ),
                             ],
@@ -322,7 +382,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                   width: 240,
                   padding: EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: white,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
@@ -332,11 +392,11 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                       Row(
                         children: [
                           CircleAvatar(
-                            backgroundColor: Colors.grey[200],
+                            backgroundColor: greenWithOpacity,
                             radius: 20,
                             child: Icon(
                               Icons.person,
-                              color: Colors.grey[700],
+                              color: widget.primaryColor,
                               size: 22,
                             ),
                           ),
@@ -349,12 +409,15 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
+                                  color: const Color(0xFF000000),
                                 ),
                               ),
                               Text(
                                 'parent@email.com',
                                 style: TextStyle(
-                                  color: Colors.grey[600],
+                                  color: const Color(
+                                    0xFF000000,
+                                  ).withOpacity(0.6),
                                   fontSize: 13,
                                 ),
                               ),
@@ -363,14 +426,14 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                         ],
                       ),
                       SizedBox(height: 16),
-                      Divider(),
+                      Divider(color: const Color(0xFF000000).withOpacity(0.2)),
                       SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
+                            backgroundColor: widget.primaryColor,
+                            foregroundColor: white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -378,7 +441,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                           icon: Icon(Icons.logout),
                           label: Text('Logout'),
                           onPressed: () {
-                            widget.logout(context);
+                            _showLogoutConfirmation(context);
                           },
                         ),
                       ),
@@ -416,14 +479,15 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: isMobile ? 15 : 16,
+                        color: const Color(0xFF000000),
                       ),
                     ),
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.circle,
-                          color: Colors.orange,
+                          color: widget.primaryColor,
                           size: 14,
                         ),
                         const SizedBox(width: 6),
@@ -431,7 +495,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                           'Waiting for Pick-up',
                           style: TextStyle(
                             fontWeight: FontWeight.w500,
-                            color: Colors.orange,
+                            color: widget.primaryColor,
                             fontSize: isMobile ? 14 : 15,
                           ),
                         ),
@@ -440,16 +504,16 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.access_time,
                           size: 16,
-                          color: Colors.grey,
+                          color: const Color(0xFF000000).withOpacity(0.6),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           'Today, 3:30 PM',
                           style: TextStyle(
-                            color: Colors.grey[700],
+                            color: const Color(0xFF000000).withOpacity(0.7),
                             fontSize: isMobile ? 12 : 13,
                           ),
                         ),
@@ -526,15 +590,16 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: isMobile ? 15 : 16,
+                        color: const Color(0xFF000000),
                       ),
                     ),
                     SizedBox(height: isMobile ? 8 : 12),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.radio_button_checked,
                           size: 18,
-                          color: Colors.grey,
+                          color: const Color(0xFF000000).withOpacity(0.6),
                         ),
                         const SizedBox(width: 8),
                         Text(
@@ -542,13 +607,14 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                           style: TextStyle(
                             fontWeight: FontWeight.w500,
                             fontSize: isMobile ? 13 : 15,
+                            color: const Color(0xFF000000),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Text(
                           'Drop-off',
                           style: TextStyle(
-                            color: Colors.grey,
+                            color: const Color(0xFF000000).withOpacity(0.6),
                             fontSize: isMobile ? 12 : 14,
                           ),
                         ),
@@ -556,7 +622,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                         Text(
                           'Completed',
                           style: TextStyle(
-                            color: primaryColor,
+                            color: widget.primaryColor,
                             fontWeight: FontWeight.w600,
                             fontSize: isMobile ? 13 : 15,
                           ),
@@ -566,10 +632,10 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                     SizedBox(height: isMobile ? 4 : 8),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.radio_button_checked,
                           size: 18,
-                          color: Colors.grey,
+                          color: const Color(0xFF000000).withOpacity(0.6),
                         ),
                         const SizedBox(width: 8),
                         Text(
@@ -577,13 +643,14 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                           style: TextStyle(
                             fontWeight: FontWeight.w500,
                             fontSize: isMobile ? 13 : 15,
+                            color: const Color(0xFF000000),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Text(
                           'Pick-up',
                           style: TextStyle(
-                            color: Colors.grey,
+                            color: const Color(0xFF000000).withOpacity(0.6),
                             fontSize: isMobile ? 12 : 14,
                           ),
                         ),
@@ -591,7 +658,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                         Text(
                           'Pending',
                           style: TextStyle(
-                            color: Colors.orange,
+                            color: widget.primaryColor,
                             fontWeight: FontWeight.w600,
                             fontSize: isMobile ? 13 : 15,
                           ),
@@ -614,23 +681,13 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Authorized Fetchers',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: isMobile ? 15 : 16,
-                          ),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          icon: Icon(Icons.add, size: isMobile ? 18 : 20),
-                          color: primaryColor,
-                          onPressed: () {},
-                          tooltip: 'Add Fetcher',
-                        ),
-                      ],
+                    Text(
+                      'Authorized Fetchers',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: isMobile ? 15 : 16,
+                        color: const Color(0xFF000000),
+                      ),
                     ),
                     SizedBox(height: isMobile ? 6 : 10),
                     _fetcherRow(
@@ -661,15 +718,14 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs> {
           ],
         );
       case 1:
-        return Center(
-          child: Text(
-            'Pick-up/Drop-off content here',
-            style: TextStyle(fontSize: 18),
-          ),
+        return _PickupDropoffTab(
+          primaryColor: widget.primaryColor,
+          isMobile: isMobile,
         );
       case 2:
-        return Center(
-          child: Text('Fetchers content here', style: TextStyle(fontSize: 18)),
+        return _FetchersTab(
+          primaryColor: widget.primaryColor,
+          isMobile: isMobile,
         );
       case 3:
         return _NotificationsTab(primaryColor: widget.primaryColor);
@@ -708,6 +764,7 @@ class _NotificationsTab extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: isMobile ? 16 : 18,
+                    color: const Color(0xFF000000),
                   ),
                 ),
               ],
@@ -736,20 +793,732 @@ class _NotificationsTab extends StatelessWidget {
         children: [
           Icon(
             Icons.notifications,
-            color: Colors.grey[400],
+            color: const Color(0xFF000000).withOpacity(0.3),
             size: isMobile ? 18 : 22,
           ),
           SizedBox(width: isMobile ? 8 : 12),
           Expanded(
             child: Text(
               message,
-              style: TextStyle(fontSize: isMobile ? 13 : 15),
+              style: TextStyle(
+                fontSize: isMobile ? 13 : 15,
+                color: const Color(0xFF000000),
+              ),
             ),
           ),
           SizedBox(width: isMobile ? 6 : 8),
           Text(
             time,
-            style: TextStyle(color: Colors.grey, fontSize: isMobile ? 10 : 12),
+            style: TextStyle(
+              color: const Color(0xFF000000).withOpacity(0.6),
+              fontSize: isMobile ? 10 : 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PickupDropoffTab extends StatelessWidget {
+  final Color primaryColor;
+  final bool isMobile;
+
+  const _PickupDropoffTab({
+    required this.primaryColor,
+    required this.isMobile,
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    const Color black = Color(0xFF000000);
+    const Color white = Color(0xFFFFFFFF);
+    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.6);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Today's Pickup/Dropoff Status
+        Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 2,
+          child: Padding(
+            padding: EdgeInsets.all(isMobile ? 16 : 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.directions_car,
+                      color: primaryColor,
+                      size: isMobile ? 20 : 24,
+                    ),
+                    SizedBox(width: isMobile ? 8 : 12),
+                    Text(
+                      'Today\'s Schedule',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: isMobile ? 16 : 18,
+                        color: black,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: isMobile ? 16 : 20),
+                _buildScheduleItem(
+                  '8:00 AM',
+                  'Drop-off',
+                  'Completed',
+                  true,
+                  isMobile,
+                  primaryColor,
+                  black,
+                ),
+                SizedBox(height: isMobile ? 8 : 12),
+                _buildScheduleItem(
+                  '3:30 PM',
+                  'Pick-up',
+                  'Pending',
+                  false,
+                  isMobile,
+                  primaryColor,
+                  black,
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        SizedBox(height: isMobile ? 12 : 16),
+
+        // Confirmation Actions
+        Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 2,
+          child: Padding(
+            padding: EdgeInsets.all(isMobile ? 16 : 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Confirm Actions',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: isMobile ? 16 : 18,
+                    color: black,
+                  ),
+                ),
+                SizedBox(height: isMobile ? 16 : 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: white,
+                          padding: EdgeInsets.symmetric(
+                            vertical: isMobile ? 12 : 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        icon: Icon(
+                          Icons.check_circle,
+                          size: isMobile ? 18 : 20,
+                        ),
+                        label: Text(
+                          'Confirm Pick-up',
+                          style: TextStyle(fontSize: isMobile ? 14 : 16),
+                        ),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Pick-up confirmed for today'),
+                              backgroundColor: primaryColor,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: primaryColor,
+                          side: BorderSide(color: primaryColor),
+                          padding: EdgeInsets.symmetric(
+                            vertical: isMobile ? 12 : 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        icon: Icon(
+                          Icons.directions_car,
+                          size: isMobile ? 18 : 20,
+                        ),
+                        label: Text(
+                          'Confirm Drop-off',
+                          style: TextStyle(fontSize: isMobile ? 14 : 16),
+                        ),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Drop-off confirmed for today'),
+                              backgroundColor: primaryColor,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        SizedBox(height: isMobile ? 12 : 16),
+
+        // Date Selection
+        Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 2,
+          child: Padding(
+            padding: EdgeInsets.all(isMobile ? 16 : 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Select Date',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: isMobile ? 16 : 18,
+                    color: black,
+                  ),
+                ),
+                SizedBox(height: isMobile ? 12 : 16),
+                Container(
+                  padding: EdgeInsets.all(isMobile ? 12 : 16),
+                  decoration: BoxDecoration(
+                    color: greenWithOpacity,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: primaryColor, width: 1),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today,
+                        color: primaryColor,
+                        size: isMobile ? 18 : 20,
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Today, ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+                          style: TextStyle(
+                            fontSize: isMobile ? 14 : 16,
+                            color: black,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.arrow_drop_down, color: primaryColor),
+                        onPressed: () {
+                          // TODO: Implement date picker
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Date picker functionality'),
+                              backgroundColor: primaryColor,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildScheduleItem(
+    String time,
+    String action,
+    String status,
+    bool completed,
+    bool isMobile,
+    Color primaryColor,
+    Color black,
+  ) {
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: primaryColor, width: 1),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            completed ? Icons.check_circle : Icons.schedule,
+            color: completed ? primaryColor : black.withOpacity(0.6),
+            size: isMobile ? 18 : 20,
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$time - $action',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: isMobile ? 14 : 16,
+                    color: black,
+                  ),
+                ),
+                Text(
+                  status,
+                  style: TextStyle(
+                    fontSize: isMobile ? 12 : 14,
+                    color: completed ? primaryColor : black.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FetchersTab extends StatefulWidget {
+  final Color primaryColor;
+  final bool isMobile;
+
+  const _FetchersTab({
+    required this.primaryColor,
+    required this.isMobile,
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  State<_FetchersTab> createState() => _FetchersTabState();
+}
+
+class _FetchersTabState extends State<_FetchersTab> {
+  final TextEditingController _fetcherNameController = TextEditingController();
+  String _currentPin = '8472';
+  String? _currentFetcherName;
+
+  @override
+  Widget build(BuildContext context) {
+    const Color black = Color(0xFF000000);
+    const Color white = Color(0xFFFFFFFF);
+    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.6);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Add Temporary Fetcher
+        Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 2,
+          child: Padding(
+            padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.person_add,
+                      color: widget.primaryColor,
+                      size: widget.isMobile ? 20 : 24,
+                    ),
+                    SizedBox(width: widget.isMobile ? 8 : 12),
+                    Text(
+                      'Add Temporary Fetcher',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: widget.isMobile ? 16 : 18,
+                        color: black,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: widget.isMobile ? 16 : 20),
+                TextField(
+                  controller: _fetcherNameController,
+                  decoration: InputDecoration(
+                    labelText: 'Fetcher Name',
+                    hintText: 'Enter fetcher name',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(
+                        color: widget.primaryColor,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: widget.isMobile ? 16 : 20),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: widget.primaryColor,
+                    foregroundColor: white,
+                    padding: EdgeInsets.symmetric(
+                      vertical: widget.isMobile ? 12 : 16,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  icon: Icon(Icons.qr_code, size: widget.isMobile ? 18 : 20),
+                  label: Text(
+                    'Generate PIN',
+                    style: TextStyle(fontSize: widget.isMobile ? 14 : 16),
+                  ),
+                  onPressed: () {
+                    if (_fetcherNameController.text.trim().isNotEmpty) {
+                      setState(() {
+                        _currentFetcherName =
+                            _fetcherNameController.text.trim();
+                        _currentPin = _generatePin();
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'PIN generated for ${_currentFetcherName}',
+                          ),
+                          backgroundColor: widget.primaryColor,
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Please enter a fetcher name'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        SizedBox(height: widget.isMobile ? 12 : 16),
+
+        // Current Temporary Fetcher PIN
+        if (_currentFetcherName != null)
+          Card(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 2,
+            child: Padding(
+              padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.qr_code,
+                        color: widget.primaryColor,
+                        size: widget.isMobile ? 20 : 24,
+                      ),
+                      SizedBox(width: widget.isMobile ? 8 : 12),
+                      Text(
+                        'Current Temporary Fetcher',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: widget.isMobile ? 16 : 18,
+                          color: black,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: widget.isMobile ? 16 : 20),
+                  Container(
+                    padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
+                    decoration: BoxDecoration(
+                      color: greenWithOpacity,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: widget.primaryColor, width: 2),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          _currentFetcherName!,
+                          style: TextStyle(
+                            fontSize: widget.isMobile ? 16 : 18,
+                            fontWeight: FontWeight.w600,
+                            color: black,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'PIN Code',
+                          style: TextStyle(
+                            fontSize: widget.isMobile ? 14 : 16,
+                            fontWeight: FontWeight.w600,
+                            color: black,
+                          ),
+                        ),
+                        SizedBox(height: 12),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: widget.isMobile ? 20 : 24,
+                            vertical: widget.isMobile ? 12 : 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color: white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: widget.primaryColor,
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            _currentPin,
+                            style: TextStyle(
+                              fontSize: widget.isMobile ? 24 : 32,
+                              fontWeight: FontWeight.bold,
+                              color: widget.primaryColor,
+                              letterSpacing: 4,
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Valid for today only',
+                          style: TextStyle(
+                            fontSize: widget.isMobile ? 12 : 14,
+                            color: black.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: widget.isMobile ? 16 : 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: widget.primaryColor,
+                            foregroundColor: white,
+                            padding: EdgeInsets.symmetric(
+                              vertical: widget.isMobile ? 12 : 16,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: Icon(
+                            Icons.copy,
+                            size: widget.isMobile ? 18 : 20,
+                          ),
+                          label: Text(
+                            'Copy PIN',
+                            style: TextStyle(
+                              fontSize: widget.isMobile ? 14 : 16,
+                            ),
+                          ),
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('PIN copied to clipboard'),
+                                backgroundColor: widget.primaryColor,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: widget.primaryColor,
+                            side: BorderSide(color: widget.primaryColor),
+                            padding: EdgeInsets.symmetric(
+                              vertical: widget.isMobile ? 12 : 16,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: Icon(
+                            Icons.refresh,
+                            size: widget.isMobile ? 18 : 20,
+                          ),
+                          label: Text(
+                            'Regenerate',
+                            style: TextStyle(
+                              fontSize: widget.isMobile ? 14 : 16,
+                            ),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _currentPin = _generatePin();
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('New PIN generated'),
+                                backgroundColor: widget.primaryColor,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+        SizedBox(height: widget.isMobile ? 12 : 16),
+
+        // Authorized Fetchers List
+        Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 2,
+          child: Padding(
+            padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Authorized Fetchers',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: widget.isMobile ? 16 : 18,
+                    color: black,
+                  ),
+                ),
+                SizedBox(height: widget.isMobile ? 12 : 16),
+                _buildFetcherItem(
+                  'John Smith',
+                  'Father',
+                  true,
+                  widget.isMobile,
+                  widget.primaryColor,
+                  black,
+                  greenWithOpacity,
+                ),
+                SizedBox(height: 8),
+                _buildFetcherItem(
+                  'Sarah Johnson',
+                  'Grandmother',
+                  true,
+                  widget.isMobile,
+                  widget.primaryColor,
+                  black,
+                  greenWithOpacity,
+                ),
+                SizedBox(height: 8),
+                _buildFetcherItem(
+                  'Mike Wilson',
+                  'Driver',
+                  false,
+                  widget.isMobile,
+                  widget.primaryColor,
+                  black,
+                  greenWithOpacity,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _generatePin() {
+    final random = Random();
+    return (1000 + random.nextInt(9000)).toString();
+  }
+
+  Widget _buildFetcherItem(
+    String name,
+    String role,
+    bool active,
+    bool isMobile,
+    Color primaryColor,
+    Color black,
+    Color greenWithOpacity,
+  ) {
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: primaryColor, width: 1),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: greenWithOpacity,
+            radius: isMobile ? 16 : 20,
+            child: Icon(
+              Icons.person,
+              color: primaryColor,
+              size: isMobile ? 18 : 22,
+            ),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: isMobile ? 14 : 16,
+                    color: black,
+                  ),
+                ),
+                Text(
+                  role,
+                  style: TextStyle(
+                    color: black.withOpacity(0.6),
+                    fontSize: isMobile ? 12 : 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.circle,
+            color: active ? primaryColor : black.withOpacity(0.3),
+            size: isMobile ? 12 : 14,
           ),
         ],
       ),
