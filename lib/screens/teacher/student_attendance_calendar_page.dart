@@ -83,47 +83,76 @@ class _TeacherStudentAttendanceCalendarPageState
         59,
       );
 
+      // Load from section_attendance table instead of scan_records
+      final startDateStr =
+          "${startOfMonth.year.toString().padLeft(4, '0')}-${startOfMonth.month.toString().padLeft(2, '0')}-${startOfMonth.day.toString().padLeft(2, '0')}";
+      final endDateStr =
+          "${endOfMonth.year.toString().padLeft(4, '0')}-${endOfMonth.month.toString().padLeft(2, '0')}-${endOfMonth.day.toString().padLeft(2, '0')}";
+
       final records = await supabase
-          .from('scan_records')
-          .select('scan_time, status, action, notes')
+          .from('section_attendance')
+          .select('date, status, notes, marked_at')
           .eq('student_id', widget.studentId)
-          .gte('scan_time', startOfMonth.toIso8601String())
-          .lte('scan_time', endOfMonth.toIso8601String())
-          .order('scan_time', ascending: true);
+          .eq('section_id', widget.sectionId)
+          .gte('date', startDateStr)
+          .lte('date', endDateStr)
+          .order('date', ascending: true);
 
       scanRecordsByDate.clear();
       for (final rec in records) {
-        final dt = DateTime.tryParse(rec['scan_time'] ?? "");
+        final dateStr = rec['date'] ?? "";
+        final dt = DateTime.tryParse(dateStr);
         if (dt != null) {
           final date = DateTime(dt.year, dt.month, dt.day);
-          scanRecordsByDate.putIfAbsent(date, () => []).add(rec);
+          // Convert the attendance record to match the expected format
+          final attendanceRecord = {
+            'scan_time':
+                rec['marked_at'] ?? dateStr, // Use marked_at time or date
+            'status': rec['status'],
+            'notes': rec['notes'],
+            'action': 'attendance', // Add a default action
+          };
+          scanRecordsByDate.putIfAbsent(date, () => []).add(attendanceRecord);
         }
       }
 
+      // Calculate statistics based on attendance records
       totalPresent = totalAbsent = totalLate = totalExcused = totalDays = 0;
       final lastDay = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+
       for (int i = 1; i <= lastDay.day; i++) {
         final date = DateTime(selectedMonth.year, selectedMonth.month, i);
-        final records = scanRecordsByDate[date];
-        String? dayStatus;
-        if (records != null && records.isNotEmpty) {
-          dayStatus = records.first['status'];
+
+        // Only count class days for statistics
+        if (isClassDay(date)) {
+          final records = scanRecordsByDate[date];
+          String? dayStatus;
+          if (records != null && records.isNotEmpty) {
+            dayStatus = records.first['status'];
+          }
+
+          switch (dayStatus) {
+            case "Present":
+              totalPresent++;
+              break;
+            case "Absent":
+              totalAbsent++;
+              break;
+            case "Late":
+              totalLate++;
+              break;
+            case "Excused":
+              totalExcused++;
+              break;
+            default:
+              // Only count as absent if it's a past class day
+              if (date.isBefore(DateTime.now())) {
+                totalAbsent++;
+              }
+              break;
+          }
+          totalDays++;
         }
-        switch (dayStatus) {
-          case "Present":
-            totalPresent++;
-            break;
-          case "Absent":
-            totalAbsent++;
-            break;
-          case "Late":
-            totalLate++;
-            break;
-          case "Excused":
-            totalExcused++;
-            break;
-        }
-        totalDays++;
       }
     } catch (e) {
       errorMessage = "Error loading data: $e";
@@ -252,21 +281,26 @@ class _TeacherStudentAttendanceCalendarPageState
 
     final weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     List<Widget> rows = [];
+
+    // Header row with weekday labels
     rows.add(
-      Row(
-        children: List.generate(
-          7,
-          (i) => Expanded(
-            child: Center(
-              child: Text(
-                weekdayLabels[i],
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color:
-                      (i == 0 || i == 6)
-                          ? Color(0xFF8F9BB3)
-                          : Color(0xFF2E3A59),
-                  fontSize: 14,
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          children: List.generate(
+            7,
+            (i) => Expanded(
+              child: Center(
+                child: Text(
+                  weekdayLabels[i],
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color:
+                        (i == 0 || i == 6)
+                            ? Color(0xFF8F9BB3)
+                            : Color(0xFF2E3A59),
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ),
@@ -293,128 +327,29 @@ class _TeacherStudentAttendanceCalendarPageState
         dayCells.add(
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(4.0),
+              padding: const EdgeInsets.all(2.0), // Reduced padding
               child:
                   inMonth
-                      ? Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color:
-                                isClassDay(cellDate)
-                                    ? const Color(0xFFEDF1F7)
-                                    : const Color(0xFFF3F6FA),
-                            width: 1.0,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 12,
-                          horizontal: 0,
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  "$cellDay",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                    color:
-                                        isClassDay(cellDate)
-                                            ? const Color(0xFF2E3A59)
-                                            : const Color(0xFFBDBDBD),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                if (records != null && records.isNotEmpty)
-                                  ...records
-                                      .take(2)
-                                      .map(
-                                        (scan) => Container(
-                                          width: 10,
-                                          height: 10,
-                                          margin: const EdgeInsets.only(
-                                            left: 1.5,
-                                            right: 1.5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: scanDotColor(cellDate, scan),
-                                          ),
-                                        ),
-                                      ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            if (records != null && records.isNotEmpty)
-                              ...records.take(2).map((scan) {
-                                String scanTimeStr = scan['scan_time'] ?? "";
-                                DateTime? scanTime = DateTime.tryParse(
-                                  scanTimeStr,
-                                );
-                                String timeDisplay =
-                                    scanTime != null
-                                        ? DateFormat.jm().format(scanTime)
-                                        : "";
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 3),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(
-                                        Icons.access_time,
-                                        size: 14,
-                                        color: Color(0xFF8F9BB3),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        timeDisplay,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Color(0xFF8F9BB3),
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              })
-                            else if (isClassDay(cellDate))
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 3),
-                                child: Text(
-                                  "No Data",
-                                  style: TextStyle(
-                                    color: const Color(0xFFBDBDBD),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      )
+                      ? _buildDayCell(cellDate, cellDay, records)
                       : const SizedBox(),
             ),
           ),
         );
       }
-      rows.add(Row(children: dayCells));
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4), // Reduced spacing
+          child: Row(children: dayCells),
+        ),
+      );
     }
 
     return Container(
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+      margin: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.symmetric(
+        vertical: 16,
+        horizontal: 16,
+      ), // Reduced padding
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -427,6 +362,158 @@ class _TeacherStudentAttendanceCalendarPageState
         ],
       ),
       child: Column(children: rows),
+    );
+  }
+
+  Widget _buildDayCell(
+    DateTime cellDate,
+    int cellDay,
+    List<Map<String, dynamic>>? records,
+  ) {
+    final bool isClassDay = this.isClassDay(cellDate);
+    final Color borderColor =
+        isClassDay ? const Color(0xFFEDF1F7) : const Color(0xFFF3F6FA);
+    final Color dayNumberColor =
+        isClassDay ? const Color(0xFF2E3A59) : const Color(0xFFBDBDBD);
+
+    // Determine the primary status for this day
+    String dayStatus = "No Data";
+    Color statusColor = const Color(0xFFBDBDBD);
+
+    if (records != null && records.isNotEmpty) {
+      final primaryRecord = records.first;
+      dayStatus = primaryRecord['status'] ?? "No Data";
+
+      switch (dayStatus) {
+        case "Present":
+          statusColor = const Color(0xFF19AE61);
+          break;
+        case "Late":
+          statusColor = const Color(0xFFFFA726);
+          break;
+        case "Absent":
+          statusColor = const Color(0xFFEB5757);
+          break;
+        case "Excused":
+          statusColor = const Color(0xFF2563EB);
+          break;
+        default:
+          statusColor = const Color(0xFFBDBDBD);
+      }
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Make the cell responsive to available space
+        final cellHeight =
+            constraints.maxWidth * 0.9; // Aspect ratio based approach
+
+        return Container(
+          height: cellHeight.clamp(60.0, 75.0), // Min 60px, max 75px
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: borderColor, width: 1.0),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 3,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Day number and status indicator
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "$cellDay",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: dayNumberColor,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: statusColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              // Status text or time (only for class days with data)
+              if (isClassDay)
+                Flexible(
+                  child: Container(
+                    constraints: const BoxConstraints(minHeight: 16),
+                    child:
+                        records != null && records.isNotEmpty
+                            ? _buildTimeDisplay(records.first)
+                            : Text(
+                              "No Data",
+                              style: TextStyle(
+                                color: const Color(0xFFBDBDBD),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                  ),
+                )
+              else
+                const SizedBox(
+                  height: 16,
+                ), // Maintain spacing for non-class days
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTimeDisplay(Map<String, dynamic> scan) {
+    String scanTimeStr = scan['scan_time'] ?? "";
+    DateTime? scanTime = DateTime.tryParse(scanTimeStr);
+    String timeDisplay =
+        scanTime != null ? DateFormat.jm().format(scanTime) : "";
+
+    if (timeDisplay.isEmpty) {
+      return Text(
+        scan['status'] ?? "Unknown",
+        style: const TextStyle(
+          fontSize: 10,
+          color: Color(0xFF8F9BB3),
+          fontWeight: FontWeight.w500,
+        ),
+        textAlign: TextAlign.center,
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.access_time, size: 10, color: Color(0xFF8F9BB3)),
+        const SizedBox(width: 2),
+        Flexible(
+          child: Text(
+            timeDisplay,
+            style: const TextStyle(
+              fontSize: 10,
+              color: Color(0xFF8F9BB3),
+              fontWeight: FontWeight.w500,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 
