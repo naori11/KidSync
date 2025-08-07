@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'teacher_dashboard_page.dart';
-import 'teacher_class_list_page.dart';
-import 'teacher_class_management_page.dart';
-import 'teacher_student_attendance_calendar_page.dart';
-import 'teacher_section_attendance_summary.dart';
+import 'class_list_page.dart';
+import 'attendance_taking_page.dart';
+import 'student_attendance_calendar_page.dart';
+import 'section_attendance_summary_page.dart';
 
 class TeacherPanelContent extends StatefulWidget {
   final String userName;

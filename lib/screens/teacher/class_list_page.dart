@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 // Import your summary page (make sure to adjust the import path as needed)
-import 'teacher_section_attendance_summary.dart';
-import 'teacher_student_attendance_calendar_page.dart'; // for drilldown, if you want to navigate to student calendar
+import 'section_attendance_summary_page.dart';
+import 'student_attendance_calendar_page.dart'; // for drilldown, if you want to navigate to student calendar
 
 class TeacherClassListPage extends StatefulWidget {
   final void Function(int sectionId, String sectionName)? onViewAttendance;
