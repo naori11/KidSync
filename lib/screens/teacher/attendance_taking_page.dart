@@ -26,11 +26,11 @@ class _TeacherSectionAttendancePageState
   List<Map<String, dynamic>> students = [];
   Map<int, Map<String, dynamic>> todayAttendance = {};
   Map<int, Map<String, dynamic>> todayScan = {};
-  
+
   // Add these new variables for local state management
   Map<int, Map<String, dynamic>> pendingAttendance = {};
   bool hasUnsavedChanges = false;
-  
+
   bool isLoading = true;
   bool isSubmitting = false;
   String filterStatus = "All";
@@ -220,11 +220,11 @@ class _TeacherSectionAttendancePageState
     if (!attendanceActive) return;
     final user = supabase.auth.currentUser;
     if (user == null) return;
-    
+
     final today = DateTime.now();
     final todayDateStr =
         "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
-    
+
     // Store in local state instead of database
     setState(() {
       pendingAttendance[studentId] = {
@@ -242,7 +242,7 @@ class _TeacherSectionAttendancePageState
 
   Future<void> _undoAttendance(int studentId) async {
     if (!attendanceActive) return;
-    
+
     setState(() {
       pendingAttendance.remove(studentId);
       // Check if there are any remaining changes
@@ -254,25 +254,26 @@ class _TeacherSectionAttendancePageState
     if (!attendanceActive) return;
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Mark All as Present"),
-        content: const Text(
-          "Are you sure you want to mark all students as Present (or Late if past threshold)?",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text("Cancel"),
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text("Mark All as Present"),
+            content: const Text(
+              "Are you sure you want to mark all students as Present (or Late if past threshold)?",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text("Mark All"),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text("Mark All"),
-          ),
-        ],
-      ),
     );
     if (confirm != true) return;
-    
+
     for (final stu in students) {
       final currentAttendance = _getCurrentAttendanceStatus(stu['id']);
       if (currentAttendance == "Absent") {
@@ -325,23 +326,23 @@ class _TeacherSectionAttendancePageState
   // Modified submit method to save all pending changes
   Future<void> _submitAttendance() async {
     if (!attendanceActive || isSubmitting || pendingAttendance.isEmpty) return;
-    
+
     setState(() => isSubmitting = true);
-    
+
     try {
       // Submit all pending attendance records
       for (final attendance in pendingAttendance.values) {
         await supabase.from('section_attendance').upsert(attendance);
       }
-      
+
       // Clear pending changes and reload data
       setState(() {
         pendingAttendance.clear();
         hasUnsavedChanges = false;
       });
-      
+
       await _loadAttendanceData();
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Attendance submitted successfully!"),
@@ -363,64 +364,70 @@ class _TeacherSectionAttendancePageState
   // Handle mark present (determines if late based on time)
   Future<void> _handleMarkPresent(int studentId) async {
     if (!attendanceActive) return;
-    
+
     String status = "Present";
-    
+
     // Check if it should be marked as late
     if (classStartTime != null) {
       final now = DateTime.now();
-      final lateThreshold = classStartTime!.add(Duration(minutes: lateThresholdMinutes));
+      final lateThreshold = classStartTime!.add(
+        Duration(minutes: lateThresholdMinutes),
+      );
       if (now.isAfter(lateThreshold)) {
         status = "Late";
       }
     }
-    
+
     await _markAttendance(studentId, status);
   }
 
   // Handle mark excused
   Future<void> _handleMarkExcused(int studentId) async {
     if (!attendanceActive) return;
-    
+
     final TextEditingController notesController = TextEditingController();
-    
+
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Mark as Excused"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Add a note for this excused absence (optional):"),
-            const SizedBox(height: 12),
-            TextField(
-              controller: notesController,
-              decoration: const InputDecoration(
-                hintText: "Reason for excuse...",
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text("Mark as Excused"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text("Add a note for this excused absence (optional):"),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: notesController,
+                  decoration: const InputDecoration(
+                    hintText: "Reason for excuse...",
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text("Cancel"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text("Mark Excused"),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text("Mark Excused"),
-          ),
-        ],
-      ),
     );
-    
+
     if (result == true) {
       await _markAttendance(
-        studentId, 
-        "Excused", 
-        notes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+        studentId,
+        "Excused",
+        notes:
+            notesController.text.trim().isEmpty
+                ? null
+                : notesController.text.trim(),
       );
     }
   }
@@ -432,14 +439,15 @@ class _TeacherSectionAttendancePageState
       final List<List<String>> csvData = [
         ['Student Name', 'RFID Status', 'Attendance Status', 'Time'],
       ];
-      
+
       for (final student in students) {
         final scan = todayScan[student['id']];
         final status = _getCurrentAttendanceStatus(student['id']);
-        final scanTime = scan != null 
-            ? DateFormat("h:mm a").format(DateTime.parse(scan['scan_time']))
-            : 'Not tapped';
-        
+        final scanTime =
+            scan != null
+                ? DateFormat("h:mm a").format(DateTime.parse(scan['scan_time']))
+                : 'Not tapped';
+
         csvData.add([
           '${student['fname']} ${student['lname']}',
           scan != null ? 'Tapped' : 'Not tapped',
@@ -447,10 +455,10 @@ class _TeacherSectionAttendancePageState
           scanTime,
         ]);
       }
-      
+
       // Convert to CSV string
       String csvString = csvData.map((row) => row.join(',')).join('\n');
-      
+
       // For web, you would typically download the file
       // For now, just show a success message
       ScaffoldMessenger.of(context).showSnackBar(
@@ -472,29 +480,29 @@ class _TeacherSectionAttendancePageState
   // Calculate countdown to next session
   String? _nextSessionCountdown() {
     if (classStartTime == null || !classDays.isNotEmpty) return null;
-    
+
     final now = DateTime.now();
-    
+
     // If we're before today's class time
     if (classStartTime != null && now.isBefore(classStartTime!)) {
       final difference = classStartTime!.difference(now);
-      
+
       if (difference.inHours > 0) {
         return "${difference.inHours}h ${difference.inMinutes.remainder(60)}m";
       } else {
         return "${difference.inMinutes}m";
       }
     }
-    
+
     // Find next class day
     final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final currentDayIndex = now.weekday - 1;
-    
+
     // Look for next class day in the week
     for (int i = 1; i <= 7; i++) {
       final nextDayIndex = (currentDayIndex + i) % 7;
       final nextDayAbbrev = weekDays[nextDayIndex];
-      
+
       if (classDays.contains(nextDayAbbrev)) {
         final nextClassDate = now.add(Duration(days: i));
         final nextClassTime = DateTime(
@@ -504,12 +512,12 @@ class _TeacherSectionAttendancePageState
           startTime!.hour,
           startTime!.minute,
         );
-        
+
         final difference = nextClassTime.difference(now);
         final days = difference.inDays;
         final hours = difference.inHours.remainder(24);
         final minutes = difference.inMinutes.remainder(60);
-        
+
         if (days > 0) {
           return "${days}d ${hours}h ${minutes}m";
         } else if (hours > 0) {
@@ -519,7 +527,7 @@ class _TeacherSectionAttendancePageState
         }
       }
     }
-    
+
     return null;
   }
 
@@ -568,11 +576,16 @@ class _TeacherSectionAttendancePageState
                                   if (hasUnsavedChanges) ...[
                                     const SizedBox(width: 8),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: Colors.orange.shade100,
                                         borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: Colors.orange.shade300),
+                                        border: Border.all(
+                                          color: Colors.orange.shade300,
+                                        ),
                                       ),
                                       child: Text(
                                         "Unsaved Changes",
@@ -888,21 +901,69 @@ class _TeacherSectionAttendancePageState
                         child: Column(
                           children: [
                             // Table header
-                            Padding(
+                            Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
-                                vertical: 10,
+                                vertical: 12,
+                              ),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF7F9FC),
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: Color(0xFFE4E9F2),
+                                    width: 1,
+                                  ),
+                                ),
                               ),
                               child: Row(
                                 children: const [
-                                  Expanded(flex: 2, child: Text("RFID Tap")),
-                                  Expanded(flex: 4, child: Text("Student")),
-                                  Expanded(flex: 2, child: Text("Status")),
-                                  Expanded(flex: 3, child: Text("Actions")),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Text(
+                                      "RFID Tap",
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF8F9BB3),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 4,
+                                    child: Text(
+                                      "Student",
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF8F9BB3),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Text(
+                                      "Status",
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF8F9BB3),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 3,
+                                    child: Text(
+                                      "Actions",
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF8F9BB3),
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
-                            const Divider(height: 1),
                             Expanded(
                               child:
                                   _filteredStudents.isEmpty
@@ -913,7 +974,10 @@ class _TeacherSectionAttendancePageState
                                         itemCount: _filteredStudents.length,
                                         itemBuilder: (ctx, idx) {
                                           final s = _filteredStudents[idx];
-                                          final status = _getCurrentAttendanceStatus(s['id']); // Use this instead
+                                          final status =
+                                              _getCurrentAttendanceStatus(
+                                                s['id'],
+                                              );
                                           final scan = todayScan[s['id']];
                                           final tapped = scan != null;
                                           final scanTime =
@@ -925,13 +989,21 @@ class _TeacherSectionAttendancePageState
                                                   )
                                                   : "";
                                           return Container(
-                                            color:
-                                                idx % 2 == 0
-                                                    ? const Color(0xFFF7F9FC)
-                                                    : Colors.white,
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  idx % 2 == 0
+                                                      ? const Color(0xFFF7F9FC)
+                                                      : Colors.white,
+                                              border: const Border(
+                                                bottom: BorderSide(
+                                                  color: Color(0xFFE4E9F2),
+                                                  width: 0.5,
+                                                ),
+                                              ),
+                                            ),
                                             padding: const EdgeInsets.symmetric(
-                                              vertical: 7,
-                                              horizontal: 0,
+                                              vertical: 12,
+                                              horizontal: 16,
                                             ),
                                             child: Row(
                                               crossAxisAlignment:
@@ -949,23 +1021,32 @@ class _TeacherSectionAttendancePageState
                                                             : Icons.wifi_off,
                                                         color:
                                                             tapped
-                                                                ? Colors.green
-                                                                : Colors.grey,
-                                                        size: 20,
+                                                                ? const Color(
+                                                                  0xFF19AE61,
+                                                                )
+                                                                : const Color(
+                                                                  0xFF8F9BB3,
+                                                                ),
+                                                        size: 18,
                                                       ),
                                                       if (tapped) ...[
                                                         const SizedBox(
                                                           width: 6,
                                                         ),
-                                                        Text(
-                                                          scanTime,
-                                                          style:
-                                                              const TextStyle(
-                                                                fontSize: 13,
-                                                                color:
-                                                                    Colors
-                                                                        .green,
-                                                              ),
+                                                        Flexible(
+                                                          child: Text(
+                                                            scanTime,
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontSize: 12,
+                                                                  color: Color(
+                                                                    0xFF19AE61,
+                                                                  ),
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w500,
+                                                                ),
+                                                          ),
                                                         ),
                                                       ],
                                                     ],
@@ -977,78 +1058,122 @@ class _TeacherSectionAttendancePageState
                                                   child: Text(
                                                     "${s['fname']} ${s['lname']}",
                                                     style: const TextStyle(
-                                                      fontSize: 15,
+                                                      fontSize: 14,
                                                       fontWeight:
                                                           FontWeight.w600,
                                                       color: Color(0xFF222B45),
                                                     ),
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
                                                 ),
                                                 // Status badge
                                                 Expanded(
                                                   flex: 2,
-                                                  child: _StatusBadge(
-                                                    status: status,
+                                                  child: Align(
+                                                    alignment:
+                                                        Alignment.centerLeft,
+                                                    child: _StatusBadge(
+                                                      status: status,
+                                                    ),
                                                   ),
                                                 ),
                                                 // Actions
                                                 Expanded(
                                                   flex: 3,
                                                   child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
                                                     children: [
                                                       if (attendanceActive &&
                                                           (status == "Absent" ||
                                                               status == "Late"))
-                                                        ElevatedButton(
-                                                          onPressed:
-                                                              attendanceActive
-                                                                  ? () =>
-                                                                      _handleMarkPresent(
-                                                                        s['id'],
-                                                                      )
-                                                                  : null,
-                                                          child: const Text(
-                                                            "Mark Present",
-                                                          ),
-                                                          style: ElevatedButton.styleFrom(
-                                                            backgroundColor:
-                                                                const Color(
-                                                                  0xFF19AE61,
-                                                                ),
-                                                            foregroundColor:
-                                                                Colors.white,
-                                                            textStyle:
-                                                                const TextStyle(
-                                                                  fontSize: 13,
-                                                                ),
-                                                            padding:
-                                                                const EdgeInsets.symmetric(
-                                                                  horizontal: 9,
-                                                                  vertical: 0,
-                                                                ),
-                                                            minimumSize:
-                                                                const Size(
-                                                                  0,
-                                                                  32,
-                                                                ),
+                                                        SizedBox(
+                                                          height: 28,
+                                                          child: ElevatedButton(
+                                                            onPressed:
+                                                                () =>
+                                                                    _handleMarkPresent(
+                                                                      s['id'],
+                                                                    ),
+                                                            style: ElevatedButton.styleFrom(
+                                                              backgroundColor:
+                                                                  const Color(
+                                                                    0xFF19AE61,
+                                                                  ),
+                                                              foregroundColor:
+                                                                  Colors.white,
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        12,
+                                                                  ),
+                                                              shape: RoundedRectangleBorder(
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      6,
+                                                                    ),
+                                                              ),
+                                                              elevation: 0,
+                                                              textStyle:
+                                                                  const TextStyle(
+                                                                    fontSize:
+                                                                        12,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w500,
+                                                                  ),
+                                                            ),
+                                                            child: const Text(
+                                                              "Present",
+                                                            ),
                                                           ),
                                                         ),
                                                       if (attendanceActive &&
+                                                          (status == "Absent" ||
+                                                              status ==
+                                                                  "Late") &&
                                                           status != "Excused")
-                                                        TextButton(
-                                                          onPressed:
-                                                              attendanceActive
-                                                                  ? () =>
-                                                                      _handleMarkExcused(
-                                                                        s['id'],
-                                                                      )
-                                                                  : null,
-                                                          child: const Text(
-                                                            "Excuse",
-                                                            style: TextStyle(
-                                                              color: Color(
-                                                                0xFF2563EB,
+                                                        const SizedBox(
+                                                          width: 6,
+                                                        ),
+                                                      if (attendanceActive &&
+                                                          status != "Excused")
+                                                        SizedBox(
+                                                          height: 28,
+                                                          child: TextButton(
+                                                            onPressed:
+                                                                () =>
+                                                                    _handleMarkExcused(
+                                                                      s['id'],
+                                                                    ),
+                                                            style: TextButton.styleFrom(
+                                                              foregroundColor:
+                                                                  const Color(
+                                                                    0xFF2563EB,
+                                                                  ),
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        8,
+                                                                  ),
+                                                              shape: RoundedRectangleBorder(
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      6,
+                                                                    ),
                                                               ),
+                                                              textStyle:
+                                                                  const TextStyle(
+                                                                    fontSize:
+                                                                        12,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w500,
+                                                                  ),
+                                                            ),
+                                                            child: const Text(
+                                                              "Excuse",
                                                             ),
                                                           ),
                                                         ),
@@ -1056,18 +1181,26 @@ class _TeacherSectionAttendancePageState
                                                           status != "Absent")
                                                         IconButton(
                                                           icon: const Icon(
-                                                            Icons.undo,
-                                                            size: 18,
-                                                            color: Colors.grey,
+                                                            Icons.undo_rounded,
+                                                            size: 16,
+                                                            color: Color(
+                                                              0xFF8F9BB3,
+                                                            ),
                                                           ),
                                                           tooltip: "Undo",
                                                           onPressed:
-                                                              attendanceActive
-                                                                  ? () =>
-                                                                      _undoAttendance(
-                                                                        s['id'],
-                                                                      )
-                                                                  : null,
+                                                              () =>
+                                                                  _undoAttendance(
+                                                                    s['id'],
+                                                                  ),
+                                                          constraints:
+                                                              const BoxConstraints(
+                                                                minWidth: 28,
+                                                                minHeight: 28,
+                                                              ),
+                                                          padding:
+                                                              EdgeInsets.zero,
+                                                          splashRadius: 14,
                                                         ),
                                                     ],
                                                   ),
@@ -1088,26 +1221,31 @@ class _TeacherSectionAttendancePageState
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32),
                     child: ElevatedButton.icon(
-                      icon: isSubmitting 
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Icon(Icons.done_all),
+                      icon:
+                          isSubmitting
+                              ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                              : const Icon(Icons.done_all),
                       label: Text(
                         isSubmitting ? "Submitting..." : "Submit Attendance",
                       ),
-                      onPressed: attendanceActive && !isSubmitting && hasUnsavedChanges
-                          ? _submitAttendance
-                          : null,
+                      onPressed:
+                          attendanceActive && !isSubmitting && hasUnsavedChanges
+                              ? _submitAttendance
+                              : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: hasUnsavedChanges 
-                            ? const Color(0xFF2563EB) 
-                            : Colors.grey,
+                        backgroundColor:
+                            hasUnsavedChanges
+                                ? const Color(0xFF2563EB)
+                                : Colors.grey,
                         foregroundColor: Colors.white,
                         textStyle: const TextStyle(
                           fontSize: 16,
@@ -1156,17 +1294,17 @@ class _StatusBadge extends StatelessWidget {
         break;
     }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
         status,
         style: TextStyle(
           color: textColor,
-          fontWeight: FontWeight.w700,
-          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
         ),
       ),
     );
