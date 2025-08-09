@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/guard_models.dart';
 
-class RecentActivityPage extends StatelessWidget {
-  final List<Activity> activities;
+class RecentActivityPage extends StatefulWidget {
   final String searchQuery;
   final String selectedTimePeriod;
   final TextEditingController searchController;
@@ -11,7 +11,6 @@ class RecentActivityPage extends StatelessWidget {
 
   const RecentActivityPage({
     super.key,
-    required this.activities,
     required this.searchQuery,
     required this.selectedTimePeriod,
     required this.searchController,
@@ -20,10 +19,50 @@ class RecentActivityPage extends StatelessWidget {
   });
 
   @override
+  _RecentActivityPageState createState() => _RecentActivityPageState();
+}
+
+class _RecentActivityPageState extends State<RecentActivityPage> {
+  List<Activity> activities = [];
+  bool isLoading = true;
+  late Stream<List<Map<String, dynamic>>> _activityStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupRealtimeSubscription();
+  }
+
+  void _setupRealtimeSubscription() {
+    final supabase = Supabase.instance.client;
+
+    // Set up real-time subscription to the scan_records table with student relationship
+    _activityStream = supabase
+        .from('scan_records')
+        .select('''
+          scan_time, action, verified_by, status, notes,
+          students(id, fname, mname, lname, grade_level, section_id)
+        ''')
+        .order('scan_time', ascending: false)
+        .asStream();
+
+    _activityStream.listen((data) {
+      setState(() {
+        activities = data.map((item) => Activity.fromJson(item)).toList();
+        isLoading = false;
+      });
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     List<Activity> filteredActivities = activities.where((activity) {
       return activity.studentName.toLowerCase().contains(
-        searchQuery.toLowerCase(),
+        widget.searchQuery.toLowerCase(),
       );
     }).toList();
 
@@ -35,21 +74,21 @@ class RecentActivityPage extends StatelessWidget {
           // Header row, tabs, search, filter
           Row(
             children: [
-              _buildTimePeriodTab('Today', selectedTimePeriod == 'Today'),
+              _buildTimePeriodTab('Today', widget.selectedTimePeriod == 'Today'),
               _buildTimePeriodTab(
                 'This Week',
-                selectedTimePeriod == 'This Week',
+                widget.selectedTimePeriod == 'This Week',
               ),
               _buildTimePeriodTab(
                 'This Month',
-                selectedTimePeriod == 'This Month',
+                widget.selectedTimePeriod == 'This Month',
               ),
               Spacer(),
               SizedBox(
                 width: 250,
                 child: TextField(
-                  controller: searchController,
-                  onChanged: onSearchChanged,
+                  controller: widget.searchController,
+                  onChanged: widget.onSearchChanged,
                   decoration: InputDecoration(
                     hintText: 'Search activities...',
                     prefixIcon: Icon(
@@ -292,7 +331,7 @@ class RecentActivityPage extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(right: 8),
       child: InkWell(
-        onTap: () => onTimePeriodChanged(title),
+        onTap: () => widget.onTimePeriodChanged(title),
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(

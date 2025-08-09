@@ -130,6 +130,64 @@ class Activity {
     required this.reason,
     required this.timestamp,
   });
+
+  factory Activity.fromJson(Map<String, dynamic> json) {
+    final scanTime = DateTime.parse(json['scan_time']);
+    final student = json['students'];
+    
+    // Build grade/class information
+    String gradeClass = '';
+    if (student != null) {
+      final gradeLevel = student['grade_level']?.toString() ?? '';
+      final sectionId = student['section_id'];
+      if (gradeLevel.isNotEmpty) {
+        gradeClass = gradeLevel;
+        if (sectionId != null) {
+          gradeClass += ' - Section $sectionId';
+        }
+      }
+    }
+
+    // Build student name
+    String studentName = 'Unknown';
+    if (student != null) {
+      final fname = student['fname'] ?? '';
+      final mname = student['mname'] ?? '';
+      final lname = student['lname'] ?? '';
+      studentName = '$fname ${mname.isNotEmpty ? '$mname ' : ''}$lname'.trim();
+    }
+
+    // Determine status based on action
+    String statusMessage;
+    final action = (json['action'] ?? '').toString().toLowerCase();
+    
+    switch (action) {
+      case 'entry':
+        statusMessage = "Entry Recorded";
+        break;
+      case 'approved':
+        statusMessage = "Pickup Approved";
+        break;
+      case 'denied':
+        statusMessage = "Pickup Denied";
+        break;
+      case 'checked out':
+        statusMessage = "Checked Out";
+        break;
+      default:
+        statusMessage = "Activity";
+        break;
+    }
+
+    return Activity(
+      time: "${scanTime.hour.toString().padLeft(2, '0')}:${scanTime.minute.toString().padLeft(2, '0')}",
+      studentName: studentName,
+      gradeClass: gradeClass,
+      status: statusMessage,
+      reason: json['notes'] ?? '',
+      timestamp: scanTime,
+    );
+  }
 }
 
 // Navigation item model
