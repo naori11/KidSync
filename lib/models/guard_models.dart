@@ -157,22 +157,28 @@ class Activity {
       studentName = '$fname ${mname.isNotEmpty ? '$mname ' : ''}$lname'.trim();
     }
 
-    // Determine status based on action
+    // Determine status based on action and status fields
     String statusMessage;
     final action = (json['action'] ?? '').toString().toLowerCase();
+    final dbStatus = (json['status'] ?? '').toString().toLowerCase();
     
     switch (action) {
       case 'entry':
         statusMessage = "Entry Recorded";
         break;
-      case 'approved':
-        statusMessage = "Pickup Approved";
+      case 'exit':
+        // For exit actions, check the status field or verified_by to determine if approved
+        if (dbStatus.contains('checked out') || json['verified_by'] == 'parent') {
+          statusMessage = "Pickup Approved";
+        } else {
+          statusMessage = "Checked Out";
+        }
         break;
       case 'denied':
         statusMessage = "Pickup Denied";
         break;
-      case 'checked out':
-        statusMessage = "Checked Out";
+      case 'approved':
+        statusMessage = "Pickup Approved";
         break;
       default:
         statusMessage = "Activity";
