@@ -35,6 +35,10 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
   late HtmlWebSocketChannel channel;
 
+  // Make cooldown tracking static so it persists across page navigations
+  static Map<String, DateTime> rfidCooldowns = {};
+  static const int cooldownSeconds = 30; // 30 second cooldown
+
   @override
   void initState() {
     super.initState();
@@ -108,8 +112,11 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
       if (latestAction == 'entry') {
         return 'exit'; // Last action was entry, so this should be exit
+      } else if (latestAction == 'exit') {
+        return 'entry'; // Last action was successful exit, so this should be entry
       } else {
-        return 'entry'; // Last action was exit/denied, so this should be entry
+        // Last action was 'denied' - student is still inside, so this should be exit
+        return 'exit'; // Keep trying to exit until successful
       }
     } catch (e) {
       print('Error checking attendance status: $e');
@@ -244,10 +251,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     return dayNames[now.weekday % 7];
   }
 
-  // Add cooldown tracking
-  Map<String, DateTime> rfidCooldowns = {};
-  static const int cooldownSeconds = 30; // 30 second cooldown
-
   // Modified fetch student method - simplified entry handling
   Future<void> _fetchStudentByRFID(String rfidUid) async {
     _cleanupCooldowns();
@@ -269,7 +272,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
     // Set cooldown for this RFID
     rfidCooldowns[rfidUid] = now;
-    
+
     setState(() {
       isLoadingStudent = true;
       scannedStudent = null;
@@ -346,10 +349,12 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   }
 
   // Clean up old cooldowns periodically
-  void _cleanupCooldowns() {
+  static void _cleanupCooldowns() {
     final now = DateTime.now();
-    rfidCooldowns.removeWhere((uid, lastScan) => 
-        now.difference(lastScan).inSeconds > cooldownSeconds * 2);
+    rfidCooldowns.removeWhere(
+      (uid, lastScan) =>
+          now.difference(lastScan).inSeconds > cooldownSeconds * 2,
+    );
   }
 
   // Process entry (immediate check-in)
