@@ -524,7 +524,7 @@ class _TeacherStudentAttendanceCalendarPageState
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: Scaffold(
-        backgroundColor: const Color(0xFFF7F9FC),
+        backgroundColor: const Color.fromARGB(10, 78, 241, 157),
         resizeToAvoidBottomInset: false,
         body: SizedBox.expand(
           child: Column(

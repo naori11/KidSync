@@ -24,9 +24,103 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   String selectedTimePeriod = 'Today';
   final TextEditingController searchController = TextEditingController();
 
+  List<Activity> activities = [];
+
   @override
   void initState() {
     super.initState();
+    _fetchRecentActivities();
+  }
+
+  // Fetch recent activities from scan_records
+  Future<void> _fetchRecentActivities() async {
+    try {
+      // Filtering by time period (today/this week/this month)
+      DateTime now = DateTime.now();
+      DateTime start;
+      DateTime end;
+      switch (selectedTimePeriod) {
+        case 'Today':
+          start = DateTime(now.year, now.month, now.day);
+          end = start.add(Duration(days: 1));
+          break;
+        case 'This Week':
+          start = now.subtract(Duration(days: now.weekday - 1)); // Monday
+          start = DateTime(start.year, start.month, start.day);
+          end = start.add(Duration(days: 7));
+          break;
+        case 'This Month':
+          start = DateTime(now.year, now.month, 1);
+          end =
+              (now.month < 12)
+                  ? DateTime(now.year, now.month + 1, 1)
+                  : DateTime(now.year + 1, 1, 1);
+        default:
+          start = DateTime(now.year, now.month, now.day);
+          end = start.add(Duration(days: 1));
+      }
+
+      final response = await supabase
+          .from('scan_records')
+          .select('''
+        scan_time, action, verified_by, status, notes,
+        students(id, fname, mname, lname, grade_level, section_id)
+      ''')
+          .gte('scan_time', start.toIso8601String())
+          .lt('scan_time', end.toIso8601String())
+          .order('scan_time', ascending: false)
+          .limit(50);
+
+      List<Activity> fetched = [];
+      for (var record in response) {
+        final student = record['students'];
+        final scanTime = DateTime.parse(record['scan_time']);
+        final gradeClass =
+            student != null
+                ? (student['grade_level']?.toString() ?? "") +
+                    (student['section_id'] != null
+                        ? " - Section ${student['section_id']}"
+                        : "")
+                : "";
+
+        String statusMessage;
+        final action = (record['action'] ?? '').toString().toLowerCase();
+
+        if (action == 'entry') {
+          statusMessage = "Entry Recorded";
+        } else if (action == 'approved') {
+          statusMessage = "Pickup Approved";
+        } else if (action == 'denied') {
+          statusMessage = "Pickup Denied";
+        } else if (action == 'checked out') {
+          statusMessage = "Checked Out";
+        } else {
+          statusMessage = "Activity";
+        }
+
+        final reason = record['notes'] ?? '';
+
+        fetched.add(
+          Activity(
+            time:
+                "${scanTime.hour.toString().padLeft(2, '0')}:${scanTime.minute.toString().padLeft(2, '0')}",
+            studentName:
+                student != null
+                    ? "${student['fname']} ${student['mname'] ?? ''} ${student['lname']}"
+                    : "Unknown",
+            gradeClass: gradeClass,
+            status: statusMessage,
+            reason: reason,
+            timestamp: scanTime,
+          ),
+        );
+      }
+      setState(() {
+        activities = fetched;
+      });
+    } catch (e) {
+      print('Error fetching activities: $e');
+    }
   }
 
   // Function to handle logout
@@ -70,6 +164,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
             setState(() {
               selectedTimePeriod = period;
             });
+            _fetchRecentActivities();
           },
         );
       default:
@@ -163,6 +258,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: Row(
         children: [
           // Sidebar Navigation

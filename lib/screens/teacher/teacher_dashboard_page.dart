@@ -19,7 +19,7 @@ class TeacherDashboardPage extends StatefulWidget {
 
 class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   final supabase = Supabase.instance.client;
-  String? userId;
+  String? teacherId;
   String? teacherName;
   List<Map<String, dynamic>> assignedSections = [];
   Map<int, List<Map<String, dynamic>>> sectionStudents = {};
@@ -100,19 +100,10 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     setState(() => isLoading = true);
 
     final user = supabase.auth.currentUser;
-    userId = user?.id;
-    // Fetch teacher's first and last name from the users table
-    final teacherData = await supabase
-      .from('users')
-      .select('fname, lname')
-      .eq('id', userId!)
-      .maybeSingle();
-    
-    teacherName = teacherData != null 
-      ? '${teacherData['fname'] ?? ''} ${teacherData['lname'] ?? ''}'.trim()
-      : user?.email ?? '';
+    teacherId = user?.id;
+    teacherName = user?.userMetadata?['full_name'] ?? user?.email ?? '';
 
-    if (userId == null) {
+    if (teacherId == null) {
       setState(() => isLoading = false);
       return;
     }
@@ -123,7 +114,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         .select(
           'id, section_id, subject, days, start_time, end_time, assigned_at, sections(id, name, grade_level)',
         )
-        .eq('teacher_id', userId!);
+        .eq('teacher_id', teacherId!);
 
     assignedSections = List<Map<String, dynamic>>.from(sectionAssignments);
     sectionStudents.clear();
@@ -505,7 +496,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xF7F9FCFF),
+      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body:
           isLoading
               ? const Center(

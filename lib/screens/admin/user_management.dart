@@ -138,10 +138,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   Future<void> sendPasswordResetEmail(String email) async {
     try {
-      await supabase.auth.resetPasswordForEmail(
-        email,
-        redirectTo: null,
-      );
+      await supabase.auth.resetPasswordForEmail(email, redirectTo: null);
     } catch (e) {
       throw Exception('Failed to send password reset email: $e');
     }
@@ -151,12 +148,24 @@ class _UserManagementPageState extends State<UserManagementPage> {
     print('Debug: User data received: $user'); // Debug print
 
     // Form controllers
-    final fnameController = TextEditingController(text: user?['fname']?.toString() ?? '');
-    final mnameController = TextEditingController(text: user?['mname']?.toString() ?? '');
-    final lnameController = TextEditingController(text: user?['lname']?.toString() ?? '');
-    final emailController = TextEditingController(text: user?['email']?.toString() ?? '');
-    final contactController = TextEditingController(text: user?['contact_number']?.toString() ?? '');
-    final positionController = TextEditingController(text: user?['position']?.toString() ?? '');
+    final fnameController = TextEditingController(
+      text: user?['fname']?.toString() ?? '',
+    );
+    final mnameController = TextEditingController(
+      text: user?['mname']?.toString() ?? '',
+    );
+    final lnameController = TextEditingController(
+      text: user?['lname']?.toString() ?? '',
+    );
+    final emailController = TextEditingController(
+      text: user?['email']?.toString() ?? '',
+    );
+    final contactController = TextEditingController(
+      text: user?['contact_number']?.toString() ?? '',
+    );
+    final positionController = TextEditingController(
+      text: user?['position']?.toString() ?? '',
+    );
 
     // Form state variables - Aligned with schema
     String? selectedRole = user?['role']?.toString();
@@ -198,7 +207,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         // Personal Information Section
                         _buildSectionHeader('Personal Information'),
                         const SizedBox(height: 16),
-                        
+
                         // Name fields row
                         Row(
                           children: [
@@ -266,7 +275,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             if (value?.trim().isEmpty ?? true) {
                               return 'Email is required';
                             }
-                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value!)) {
+                            if (!RegExp(
+                              r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                            ).hasMatch(value!)) {
                               return 'Please enter a valid email address';
                             }
                             return null;
@@ -287,7 +298,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 ),
                                 keyboardType: TextInputType.phone,
                                 inputFormatters: [
-                                  FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-\(\)\s]')),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(r'[0-9+\-\(\)\s]'),
+                                  ),
                                 ],
                               ),
                             ),
@@ -320,33 +333,41 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   Icons.admin_panel_settings,
                                   isRequired: true,
                                 ),
-                                value: roleOptions.contains(selectedRole) ? selectedRole : null,
-                                items: roleOptions.map((role) {
-                                  IconData roleIcon;
-                                  switch (role) {
-                                    case 'Teacher':
-                                      roleIcon = Icons.school;
-                                      break;
-                                    case 'Guard':
-                                      roleIcon = Icons.security;
-                                      break;
-                                    case 'Driver':
-                                      roleIcon = Icons.directions_bus;
-                                      break;
-                                    default:
-                                      roleIcon = Icons.person;
-                                  }
-                                  return DropdownMenuItem(
-                                    value: role,
-                                    child: Row(
-                                      children: [
-                                        Icon(roleIcon, size: 16, color: Colors.grey[600]),
-                                        const SizedBox(width: 8),
-                                        Text(role),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
+                                value:
+                                    roleOptions.contains(selectedRole)
+                                        ? selectedRole
+                                        : null,
+                                items:
+                                    roleOptions.map((role) {
+                                      IconData roleIcon;
+                                      switch (role) {
+                                        case 'Teacher':
+                                          roleIcon = Icons.school;
+                                          break;
+                                        case 'Guard':
+                                          roleIcon = Icons.security;
+                                          break;
+                                        case 'Driver':
+                                          roleIcon = Icons.directions_bus;
+                                          break;
+                                        default:
+                                          roleIcon = Icons.person;
+                                      }
+                                      return DropdownMenuItem(
+                                        value: role,
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              roleIcon,
+                                              size: 16,
+                                              color: Colors.grey[600],
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(role),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
                                 onChanged: (value) {
                                   setDialogState(() {
                                     selectedRole = value;
@@ -373,7 +394,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                     value: 'Active',
                                     child: Row(
                                       children: [
-                                        Icon(Icons.check_circle, color: Colors.green, size: 16),
+                                        Icon(
+                                          Icons.check_circle,
+                                          color: Colors.green,
+                                          size: 16,
+                                        ),
                                         SizedBox(width: 8),
                                         Text('Active'),
                                       ],
@@ -383,7 +408,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                     value: 'Inactive',
                                     child: Row(
                                       children: [
-                                        Icon(Icons.cancel, color: Colors.red, size: 16),
+                                        Icon(
+                                          Icons.cancel,
+                                          color: Colors.red,
+                                          size: 16,
+                                        ),
                                         SizedBox(width: 8),
                                         Text('Inactive'),
                                       ],
@@ -399,7 +428,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             ),
                           ],
                         ),
-                        
+
                         if (user == null) ...[
                           const SizedBox(height: 16),
                           Container(
@@ -411,7 +440,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.info, color: Colors.blue[600], size: 16),
+                                Icon(
+                                  Icons.info,
+                                  color: Colors.blue[600],
+                                  size: 16,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -438,24 +471,38 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2ECC71),
+                    backgroundColor: const Color.fromARGB(10, 78, 241, 157),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
                   ),
                   onPressed: () async {
                     if (formKey.currentState!.validate()) {
                       try {
-                        print('Debug: Attempting to save user...'); // Debug print
-                        
+                        print(
+                          'Debug: Attempting to save user...',
+                        ); // Debug print
+
                         if (user == null) {
                           await createUserViaEdgeFunction(
                             email: emailController.text.trim(),
                             role: selectedRole!,
                             fname: fnameController.text.trim(),
-                            mname: mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                            mname:
+                                mnameController.text.trim().isEmpty
+                                    ? null
+                                    : mnameController.text.trim(),
                             lname: lnameController.text.trim(),
-                            contactNumber: contactController.text.trim().isEmpty ? null : contactController.text.trim(),
-                            position: positionController.text.trim().isEmpty ? null : positionController.text.trim(),
+                            contactNumber:
+                                contactController.text.trim().isEmpty
+                                    ? null
+                                    : contactController.text.trim(),
+                            position:
+                                positionController.text.trim().isEmpty
+                                    ? null
+                                    : positionController.text.trim(),
                           );
                         } else {
                           await editUserViaEdgeFunction(
@@ -463,10 +510,19 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             email: emailController.text.trim(),
                             role: selectedRole!,
                             fname: fnameController.text.trim(),
-                            mname: mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                            mname:
+                                mnameController.text.trim().isEmpty
+                                    ? null
+                                    : mnameController.text.trim(),
                             lname: lnameController.text.trim(),
-                            contactNumber: contactController.text.trim().isEmpty ? null : contactController.text.trim(),
-                            position: positionController.text.trim().isEmpty ? null : positionController.text.trim(),
+                            contactNumber:
+                                contactController.text.trim().isEmpty
+                                    ? null
+                                    : contactController.text.trim(),
+                            position:
+                                positionController.text.trim().isEmpty
+                                    ? null
+                                    : positionController.text.trim(),
                           );
                         }
 
@@ -479,7 +535,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             SnackBar(
                               content: Row(
                                 children: [
-                                  const Icon(Icons.check_circle, color: Colors.white),
+                                  const Icon(
+                                    Icons.check_circle,
+                                    color: Colors.white,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     user == null
@@ -488,7 +547,12 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   ),
                                 ],
                               ),
-                              backgroundColor: const Color(0xFF2ECC71),
+                              backgroundColor: const Color.fromARGB(
+                                10,
+                                78,
+                                241,
+                                157,
+                              ),
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
@@ -503,7 +567,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 children: [
                                   const Icon(Icons.error, color: Colors.white),
                                   const SizedBox(width: 8),
-                                  Expanded(child: Text('Error: ${e.toString()}')),
+                                  Expanded(
+                                    child: Text('Error: ${e.toString()}'),
+                                  ),
                                 ],
                               ),
                               backgroundColor: Colors.red,
@@ -565,7 +631,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   // Helper method to build consistent input decoration
-  InputDecoration _buildInputDecoration(String label, IconData icon, {bool isRequired = false}) {
+  InputDecoration _buildInputDecoration(
+    String label,
+    IconData icon, {
+    bool isRequired = false,
+  }) {
     return InputDecoration(
       labelText: isRequired ? '$label *' : label,
       prefixIcon: Icon(icon, size: 20),
@@ -588,10 +658,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       filled: true,
       fillColor: Colors.grey[50],
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      labelStyle: TextStyle(
-        color: Colors.grey[600],
-        fontSize: 14,
-      ),
+      labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
     );
   }
 
@@ -616,12 +683,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
     final isAdmin = user?.userMetadata?['role'] == 'Admin';
 
     // Filter and sort logic
-    var filteredUsers = users.where((u) {
-      final name = "${u['fname'] ?? ''} ${u['lname'] ?? ''}".toLowerCase();
-      final roleMatch = _roleFilter == 'All Roles' || u['role'] == _roleFilter;
+    var filteredUsers =
+        users.where((u) {
+          final name = "${u['fname'] ?? ''} ${u['lname'] ?? ''}".toLowerCase();
+          final roleMatch =
+              _roleFilter == 'All Roles' || u['role'] == _roleFilter;
 
-      return name.contains(_searchQuery.toLowerCase()) && roleMatch;
-    }).toList();
+          return name.contains(_searchQuery.toLowerCase()) && roleMatch;
+        }).toList();
 
     // Apply sorting
     if (_sortOption == 'Name (A-Z)') {
@@ -647,9 +716,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     // Get current page items
     final int startIndex = (_currentPage - 1) * _itemsPerPage;
-    final int endIndex = startIndex + _itemsPerPage > filteredUsers.length
-        ? filteredUsers.length
-        : startIndex + _itemsPerPage;
+    final int endIndex =
+        startIndex + _itemsPerPage > filteredUsers.length
+            ? filteredUsers.length
+            : startIndex + _itemsPerPage;
 
     final List<Map<String, dynamic>> currentPageItems =
         filteredUsers.length > startIndex
@@ -666,7 +736,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
@@ -699,10 +769,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(vertical: 10.0),
                     ),
-                    onChanged: (val) => setState(() {
-                      _searchQuery = val;
-                      _currentPage = 1;
-                    }),
+                    onChanged:
+                        (val) => setState(() {
+                          _searchQuery = val;
+                          _currentPage = 1;
+                        }),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -716,7 +787,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       style: TextStyle(color: Colors.white),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2ECC71),
+                      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4),
@@ -759,12 +830,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       child: DropdownButton<String>(
                         value: _roleFilter,
                         icon: const Icon(Icons.keyboard_arrow_down),
-                        items: roleOptions.map((String item) {
-                          return DropdownMenuItem(
-                            value: item,
-                            child: Text(item),
-                          );
-                        }).toList(),
+                        items:
+                            roleOptions.map((String item) {
+                              return DropdownMenuItem(
+                                value: item,
+                                child: Text(item),
+                              );
+                            }).toList(),
                         onChanged: (String? newValue) {
                           setState(() {
                             _roleFilter = newValue!;
@@ -787,16 +859,17 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       child: DropdownButton<String>(
                         value: _sortOption,
                         icon: const Icon(Icons.keyboard_arrow_down),
-                        items: <String>[
-                          'Name (A-Z)',
-                          'Name (Z-A)',
-                          'Role',
-                        ].map<DropdownMenuItem<String>>((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text("Sort by: $value"),
-                          );
-                        }).toList(),
+                        items:
+                            <String>[
+                              'Name (A-Z)',
+                              'Name (Z-A)',
+                              'Role',
+                            ].map<DropdownMenuItem<String>>((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text("Sort by: $value"),
+                              );
+                            }).toList(),
                         onChanged: (String? newValue) {
                           setState(() {
                             _sortOption = newValue!;
@@ -849,7 +922,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               5: FlexColumnWidth(0.8), // Status
                               6: FlexColumnWidth(0.8), // Actions
                             },
-                            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                            defaultVerticalAlignment:
+                                TableCellVerticalAlignment.middle,
                             children: [
                               // Table header row
                               TableRow(
@@ -871,11 +945,15 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               ...currentPageItems.map((u) {
                                 final role = u['role'] ?? '';
                                 final userPrefix = _getUserIdPrefix(role);
-                                final int userIndex = users.indexWhere(
+                                final int userIndex =
+                                    users.indexWhere(
                                       (item) => item['id'] == u['id'],
-                                    ) + 1;
-                                final String userId = "$userPrefix${userIndex.toString().padLeft(3, '0')}";
-                                final fullName = "${u['fname'] ?? ''} ${u['lname'] ?? ''}";
+                                    ) +
+                                    1;
+                                final String userId =
+                                    "$userPrefix${userIndex.toString().padLeft(3, '0')}";
+                                final fullName =
+                                    "${u['fname'] ?? ''} ${u['lname'] ?? ''}";
                                 final status = u['status'] ?? 'Active';
 
                                 return TableRow(
@@ -885,7 +963,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   children: [
                                     // User ID
                                     TableCell(
-                                      verticalAlignment: TableCellVerticalAlignment.middle,
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
                                       child: Container(
                                         alignment: Alignment.centerLeft,
                                         padding: const EdgeInsets.all(16),
@@ -901,7 +980,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
                                     // Name
                                     TableCell(
-                                      verticalAlignment: TableCellVerticalAlignment.middle,
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
                                       child: Container(
                                         alignment: Alignment.centerLeft,
                                         padding: const EdgeInsets.all(16),
@@ -917,15 +997,23 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
                                     // Role
                                     TableCell(
-                                      verticalAlignment: TableCellVerticalAlignment.middle,
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
                                       child: Container(
                                         alignment: Alignment.centerLeft,
                                         padding: const EdgeInsets.all(16),
                                         child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
                                           decoration: BoxDecoration(
-                                            color: _getRoleColor(role).withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(4),
+                                            color: _getRoleColor(
+                                              role,
+                                            ).withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
                                           ),
                                           child: Text(
                                             role,
@@ -941,7 +1029,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
                                     // Email
                                     TableCell(
-                                      verticalAlignment: TableCellVerticalAlignment.middle,
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
                                       child: Container(
                                         alignment: Alignment.centerLeft,
                                         padding: const EdgeInsets.all(16),
@@ -951,17 +1040,21 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
                                     // Phone/Contact
                                     TableCell(
-                                      verticalAlignment: TableCellVerticalAlignment.middle,
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
                                       child: Container(
                                         alignment: Alignment.centerLeft,
                                         padding: const EdgeInsets.all(16),
-                                        child: Text(u['contact_number'] ?? 'N/A'),
+                                        child: Text(
+                                          u['contact_number'] ?? 'N/A',
+                                        ),
                                       ),
                                     ),
 
                                     // Status
                                     TableCell(
-                                      verticalAlignment: TableCellVerticalAlignment.middle,
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
                                       child: Padding(
                                         padding: const EdgeInsets.all(16),
                                         child: Container(
@@ -970,17 +1063,21 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                             vertical: 4,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: status == 'Active'
-                                                ? const Color(0xFFE8F5E9)
-                                                : const Color(0xFFFFEBEE),
-                                            borderRadius: BorderRadius.circular(4),
+                                            color:
+                                                status == 'Active'
+                                                    ? const Color(0xFFE8F5E9)
+                                                    : const Color(0xFFFFEBEE),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
                                           ),
                                           child: Text(
                                             status,
                                             style: TextStyle(
-                                              color: status == 'Active'
-                                                  ? const Color(0xFF2E7D32)
-                                                  : const Color(0xFFC62828),
+                                              color:
+                                                  status == 'Active'
+                                                      ? const Color(0xFF2E7D32)
+                                                      : const Color(0xFFC62828),
                                               fontWeight: FontWeight.w500,
                                               fontSize: 12,
                                             ),
@@ -992,189 +1089,344 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
                                     // Actions
                                     TableCell(
-                                      verticalAlignment: TableCellVerticalAlignment.middle,
+                                      verticalAlignment:
+                                          TableCellVerticalAlignment.middle,
                                       child: Center(
-                                        child: isAdmin
-                                            ? PopupMenuButton<String>(
-                                                icon: const Icon(Icons.more_vert),
-                                                onSelected: (value) async {
-                                                  if (value == 'edit') {
-                                                    _addOrEditUser(user: u);
-                                                  } else if (value == 'delete') {
-                                                    showDialog(
-                                                      context: context,
-                                                      builder: (ctx) => AlertDialog(
-                                                        title: const Row(
-                                                          children: [
-                                                            Icon(Icons.warning, color: Colors.red),
-                                                            SizedBox(width: 8),
-                                                            Text('Confirm Delete'),
-                                                          ],
-                                                        ),
-                                                        content: Text(
-                                                          'Are you sure you want to delete ${u['fname']} ${u['lname']}? This action cannot be undone.',
-                                                        ),
-                                                        actions: [
-                                                          TextButton(
-                                                            onPressed: () => Navigator.pop(ctx),
-                                                            child: const Text('Cancel'),
-                                                          ),
-                                                          ElevatedButton(
-                                                            style: ElevatedButton.styleFrom(
-                                                              backgroundColor: Colors.red,
-                                                            ),
-                                                            onPressed: () async {
-                                                              Navigator.pop(ctx);
-                                                              try {
-                                                                await deleteUserViaEdgeFunction(
-                                                                  u['id'].toString(),
-                                                                );
-                                                                await _fetchUsers();
-                                                                if (mounted) {
-                                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                                    const SnackBar(
-                                                                      content: Row(
-                                                                        children: [
-                                                                          Icon(Icons.check_circle, color: Colors.white),
-                                                                          SizedBox(width: 8),
-                                                                          Text('User deleted successfully!'),
-                                                                        ],
-                                                                      ),
-                                                                      backgroundColor: Color(0xFF2ECC71),
-                                                                      behavior: SnackBarBehavior.floating,
-                                                                    ),
-                                                                  );
-                                                                }
-                                                              } catch (e) {
-                                                                if (mounted) {
-                                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                                    SnackBar(
-                                                                      content: Row(
-                                                                        children: [
-                                                                          const Icon(Icons.error, color: Colors.white),
-                                                                          const SizedBox(width: 8),
-                                                                          Expanded(child: Text('Error: ${e.toString()}')),
-                                                                        ],
-                                                                      ),
-                                                                      backgroundColor: Colors.red,
-                                                                      behavior: SnackBarBehavior.floating,
-                                                                    ),
-                                                                  );
-                                                                }
-                                                              }
-                                                            },
-                                                            child: const Text(
-                                                              'Delete',
-                                                              style: TextStyle(color: Colors.white),
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                  } else if (value == 'reset_password') {
-                                                    showDialog(
-                                                      context: context,
-                                                      builder: (ctx) => AlertDialog(
-                                                        title: const Row(
-                                                          children: [
-                                                            Icon(Icons.email, color: Color(0xFF2ECC71)),
-                                                            SizedBox(width: 8),
-                                                            Text('Reset Password'),
-                                                          ],
-                                                        ),
-                                                        content: Text(
-                                                          'Send password reset email to ${u['email']}?',
-                                                        ),
-                                                        actions: [
-                                                          TextButton(
-                                                            onPressed: () => Navigator.pop(ctx),
-                                                            child: const Text('Cancel'),
-                                                          ),
-                                                          ElevatedButton(
-                                                            style: ElevatedButton.styleFrom(
-                                                              backgroundColor: const Color(0xFF2ECC71),
-                                                            ),
-                                                            onPressed: () async {
-                                                              Navigator.pop(ctx);
-                                                              try {
-                                                                await sendPasswordResetEmail(u['email']);
-                                                                if (mounted) {
-                                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                                    const SnackBar(
-                                                                      content: Row(
-                                                                        children: [
-                                                                          Icon(Icons.check_circle, color: Colors.white),
-                                                                          SizedBox(width: 8),
-                                                                          Text('Password reset email sent successfully!'),
-                                                                        ],
-                                                                      ),
-                                                                      backgroundColor: Color(0xFF2ECC71),
-                                                                      behavior: SnackBarBehavior.floating,
-                                                                    ),
-                                                                  );
-                                                                }
-                                                              } catch (e) {
-                                                                if (mounted) {
-                                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                                    SnackBar(
-                                                                      content: Row(
-                                                                        children: [
-                                                                          const Icon(Icons.error, color: Colors.white),
-                                                                          const SizedBox(width: 8),
-                                                                          Expanded(child: Text('Error: ${e.toString()}')),
-                                                                        ],
-                                                                      ),
-                                                                      backgroundColor: Colors.red,
-                                                                      behavior: SnackBarBehavior.floating,
-                                                                    ),
-                                                                  );
-                                                                }
-                                                              }
-                                                            },
-                                                            child: const Text(
-                                                              'Send Email',
-                                                              style: TextStyle(color: Colors.white),
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                  }
-                                                },
-                                                itemBuilder: (context) => [
-                                                  const PopupMenuItem(
-                                                    value: 'edit',
-                                                    child: Row(
-                                                      children: [
-                                                        Icon(Icons.edit, size: 16),
-                                                        SizedBox(width: 8),
-                                                        Text('Edit'),
-                                                      ],
-                                                    ),
+                                        child:
+                                            isAdmin
+                                                ? PopupMenuButton<String>(
+                                                  icon: const Icon(
+                                                    Icons.more_vert,
                                                   ),
-                                                  const PopupMenuItem(
-                                                    value: 'reset_password',
-                                                    child: Row(
-                                                      children: [
-                                                        Icon(Icons.email, size: 16),
-                                                        SizedBox(width: 8),
-                                                        Text('Reset Password'),
+                                                  onSelected: (value) async {
+                                                    if (value == 'edit') {
+                                                      _addOrEditUser(user: u);
+                                                    } else if (value ==
+                                                        'delete') {
+                                                      showDialog(
+                                                        context: context,
+                                                        builder:
+                                                            (
+                                                              ctx,
+                                                            ) => AlertDialog(
+                                                              title: const Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    Icons
+                                                                        .warning,
+                                                                    color:
+                                                                        Colors
+                                                                            .red,
+                                                                  ),
+                                                                  SizedBox(
+                                                                    width: 8,
+                                                                  ),
+                                                                  Text(
+                                                                    'Confirm Delete',
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                              content: Text(
+                                                                'Are you sure you want to delete ${u['fname']} ${u['lname']}? This action cannot be undone.',
+                                                              ),
+                                                              actions: [
+                                                                TextButton(
+                                                                  onPressed:
+                                                                      () =>
+                                                                          Navigator.pop(
+                                                                            ctx,
+                                                                          ),
+                                                                  child:
+                                                                      const Text(
+                                                                        'Cancel',
+                                                                      ),
+                                                                ),
+                                                                ElevatedButton(
+                                                                  style: ElevatedButton.styleFrom(
+                                                                    backgroundColor:
+                                                                        Colors
+                                                                            .red,
+                                                                  ),
+                                                                  onPressed: () async {
+                                                                    Navigator.pop(
+                                                                      ctx,
+                                                                    );
+                                                                    try {
+                                                                      await deleteUserViaEdgeFunction(
+                                                                        u['id']
+                                                                            .toString(),
+                                                                      );
+                                                                      await _fetchUsers();
+                                                                      if (mounted) {
+                                                                        ScaffoldMessenger.of(
+                                                                          context,
+                                                                        ).showSnackBar(
+                                                                          const SnackBar(
+                                                                            content: Row(
+                                                                              children: [
+                                                                                Icon(
+                                                                                  Icons.check_circle,
+                                                                                  color:
+                                                                                      Colors.white,
+                                                                                ),
+                                                                                SizedBox(
+                                                                                  width:
+                                                                                      8,
+                                                                                ),
+                                                                                Text(
+                                                                                  'User deleted successfully!',
+                                                                                ),
+                                                                              ],
+                                                                            ),
+                                                                            backgroundColor: Color(
+                                                                              0xFF2ECC71,
+                                                                            ),
+                                                                            behavior:
+                                                                                SnackBarBehavior.floating,
+                                                                          ),
+                                                                        );
+                                                                      }
+                                                                    } catch (
+                                                                      e
+                                                                    ) {
+                                                                      if (mounted) {
+                                                                        ScaffoldMessenger.of(
+                                                                          context,
+                                                                        ).showSnackBar(
+                                                                          SnackBar(
+                                                                            content: Row(
+                                                                              children: [
+                                                                                const Icon(
+                                                                                  Icons.error,
+                                                                                  color:
+                                                                                      Colors.white,
+                                                                                ),
+                                                                                const SizedBox(
+                                                                                  width:
+                                                                                      8,
+                                                                                ),
+                                                                                Expanded(
+                                                                                  child: Text(
+                                                                                    'Error: ${e.toString()}',
+                                                                                  ),
+                                                                                ),
+                                                                              ],
+                                                                            ),
+                                                                            backgroundColor:
+                                                                                Colors.red,
+                                                                            behavior:
+                                                                                SnackBarBehavior.floating,
+                                                                          ),
+                                                                        );
+                                                                      }
+                                                                    }
+                                                                  },
+                                                                  child: const Text(
+                                                                    'Delete',
+                                                                    style: TextStyle(
+                                                                      color:
+                                                                          Colors
+                                                                              .white,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                      );
+                                                    } else if (value ==
+                                                        'reset_password') {
+                                                      showDialog(
+                                                        context: context,
+                                                        builder:
+                                                            (
+                                                              ctx,
+                                                            ) => AlertDialog(
+                                                              title: const Row(
+                                                                children: [
+                                                                  Icon(
+                                                                    Icons.email,
+                                                                    color: Color(
+                                                                      0xFF2ECC71,
+                                                                    ),
+                                                                  ),
+                                                                  SizedBox(
+                                                                    width: 8,
+                                                                  ),
+                                                                  Text(
+                                                                    'Reset Password',
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                              content: Text(
+                                                                'Send password reset email to ${u['email']}?',
+                                                              ),
+                                                              actions: [
+                                                                TextButton(
+                                                                  onPressed:
+                                                                      () =>
+                                                                          Navigator.pop(
+                                                                            ctx,
+                                                                          ),
+                                                                  child:
+                                                                      const Text(
+                                                                        'Cancel',
+                                                                      ),
+                                                                ),
+                                                                ElevatedButton(
+                                                                  style: ElevatedButton.styleFrom(
+                                                                    backgroundColor:
+                                                                        const Color(
+                                                                          0xFF2ECC71,
+                                                                        ),
+                                                                  ),
+                                                                  onPressed: () async {
+                                                                    Navigator.pop(
+                                                                      ctx,
+                                                                    );
+                                                                    try {
+                                                                      await sendPasswordResetEmail(
+                                                                        u['email'],
+                                                                      );
+                                                                      if (mounted) {
+                                                                        ScaffoldMessenger.of(
+                                                                          context,
+                                                                        ).showSnackBar(
+                                                                          const SnackBar(
+                                                                            content: Row(
+                                                                              children: [
+                                                                                Icon(
+                                                                                  Icons.check_circle,
+                                                                                  color:
+                                                                                      Colors.white,
+                                                                                ),
+                                                                                SizedBox(
+                                                                                  width:
+                                                                                      8,
+                                                                                ),
+                                                                                Text(
+                                                                                  'Password reset email sent successfully!',
+                                                                                ),
+                                                                              ],
+                                                                            ),
+                                                                            backgroundColor: Color(
+                                                                              0xFF2ECC71,
+                                                                            ),
+                                                                            behavior:
+                                                                                SnackBarBehavior.floating,
+                                                                          ),
+                                                                        );
+                                                                      }
+                                                                    } catch (
+                                                                      e
+                                                                    ) {
+                                                                      if (mounted) {
+                                                                        ScaffoldMessenger.of(
+                                                                          context,
+                                                                        ).showSnackBar(
+                                                                          SnackBar(
+                                                                            content: Row(
+                                                                              children: [
+                                                                                const Icon(
+                                                                                  Icons.error,
+                                                                                  color:
+                                                                                      Colors.white,
+                                                                                ),
+                                                                                const SizedBox(
+                                                                                  width:
+                                                                                      8,
+                                                                                ),
+                                                                                Expanded(
+                                                                                  child: Text(
+                                                                                    'Error: ${e.toString()}',
+                                                                                  ),
+                                                                                ),
+                                                                              ],
+                                                                            ),
+                                                                            backgroundColor:
+                                                                                Colors.red,
+                                                                            behavior:
+                                                                                SnackBarBehavior.floating,
+                                                                          ),
+                                                                        );
+                                                                      }
+                                                                    }
+                                                                  },
+                                                                  child: const Text(
+                                                                    'Send Email',
+                                                                    style: TextStyle(
+                                                                      color:
+                                                                          Colors
+                                                                              .white,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                      );
+                                                    }
+                                                  },
+                                                  itemBuilder:
+                                                      (context) => [
+                                                        const PopupMenuItem(
+                                                          value: 'edit',
+                                                          child: Row(
+                                                            children: [
+                                                              Icon(
+                                                                Icons.edit,
+                                                                size: 16,
+                                                              ),
+                                                              SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Text('Edit'),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                        const PopupMenuItem(
+                                                          value:
+                                                              'reset_password',
+                                                          child: Row(
+                                                            children: [
+                                                              Icon(
+                                                                Icons.email,
+                                                                size: 16,
+                                                              ),
+                                                              SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Text(
+                                                                'Reset Password',
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                        const PopupMenuItem(
+                                                          value: 'delete',
+                                                          child: Row(
+                                                            children: [
+                                                              Icon(
+                                                                Icons.delete,
+                                                                size: 16,
+                                                                color:
+                                                                    Colors.red,
+                                                              ),
+                                                              SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Text(
+                                                                'Delete',
+                                                                style: TextStyle(
+                                                                  color:
+                                                                      Colors
+                                                                          .red,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
                                                       ],
-                                                    ),
-                                                  ),
-                                                  const PopupMenuItem(
-                                                    value: 'delete',
-                                                    child: Row(
-                                                      children: [
-                                                        Icon(Icons.delete, size: 16, color: Colors.red),
-                                                        SizedBox(width: 8),
-                                                        Text('Delete', style: TextStyle(color: Colors.red)),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ],
-                                              )
-                                            : const Text('-'),
+                                                )
+                                                : const Text('-'),
                                       ),
                                     ),
                                   ],
@@ -1207,12 +1459,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               // Previous button
                               IconButton(
                                 icon: const Icon(Icons.chevron_left),
-                                onPressed: _currentPage > 1
-                                    ? () => setState(() => _currentPage--)
-                                    : null,
-                                color: _currentPage > 1
-                                    ? const Color(0xFF666666)
-                                    : const Color(0xFFCCCCCC),
+                                onPressed:
+                                    _currentPage > 1
+                                        ? () => setState(() => _currentPage--)
+                                        : null,
+                                color:
+                                    _currentPage > 1
+                                        ? const Color(0xFF666666)
+                                        : const Color(0xFFCCCCCC),
                               ),
 
                               // Page numbers
@@ -1220,24 +1474,31 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 if (i == _currentPage ||
                                     i == 1 ||
                                     i == _totalPages ||
-                                    (i >= _currentPage - 1 && i <= _currentPage + 1))
+                                    (i >= _currentPage - 1 &&
+                                        i <= _currentPage + 1))
                                   Container(
-                                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
                                     width: 32,
                                     height: 32,
                                     decoration: BoxDecoration(
-                                      color: i == _currentPage
-                                          ? const Color(0xFF2ECC71)
-                                          : Colors.transparent,
+                                      color:
+                                          i == _currentPage
+                                              ? const Color(0xFF2ECC71)
+                                              : Colors.transparent,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: TextButton(
-                                      onPressed: () => setState(() => _currentPage = i),
+                                      onPressed:
+                                          () =>
+                                              setState(() => _currentPage = i),
                                       style: TextButton.styleFrom(
                                         padding: EdgeInsets.zero,
-                                        foregroundColor: i == _currentPage
-                                            ? Colors.white
-                                            : const Color(0xFF666666),
+                                        foregroundColor:
+                                            i == _currentPage
+                                                ? Colors.white
+                                                : const Color(0xFF666666),
                                       ),
                                       child: Text(
                                         i.toString(),
@@ -1245,21 +1506,26 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                       ),
                                     ),
                                   )
-                                else if (i == _currentPage - 2 || i == _currentPage + 2)
+                                else if (i == _currentPage - 2 ||
+                                    i == _currentPage + 2)
                                   const Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: 4),
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
                                     child: Text('...'),
                                   ),
 
                               // Next button
                               IconButton(
                                 icon: const Icon(Icons.chevron_right),
-                                onPressed: _currentPage < _totalPages
-                                    ? () => setState(() => _currentPage++)
-                                    : null,
-                                color: _currentPage < _totalPages
-                                    ? const Color(0xFF666666)
-                                    : const Color(0xFFCCCCCC),
+                                onPressed:
+                                    _currentPage < _totalPages
+                                        ? () => setState(() => _currentPage++)
+                                        : null,
+                                color:
+                                    _currentPage < _totalPages
+                                        ? const Color(0xFF666666)
+                                        : const Color(0xFFCCCCCC),
                               ),
                             ],
                           ),

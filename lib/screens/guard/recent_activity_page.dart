@@ -37,14 +37,15 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
     final supabase = Supabase.instance.client;
 
     // Set up real-time subscription to the scan_records table with student relationship
-    _activityStream = supabase
-        .from('scan_records')
-        .select('''
+    _activityStream =
+        supabase
+            .from('scan_records')
+            .select('''
           scan_time, action, verified_by, status, notes,
           students(id, fname, mname, lname, grade_level, section_id)
         ''')
-        .order('scan_time', ascending: false)
-        .asStream();
+            .order('scan_time', ascending: false)
+            .asStream();
 
     _activityStream.listen((data) {
       setState(() {
@@ -60,11 +61,12 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    List<Activity> filteredActivities = activities.where((activity) {
-      return activity.studentName.toLowerCase().contains(
-        widget.searchQuery.toLowerCase(),
-      );
-    }).toList();
+    List<Activity> filteredActivities =
+        activities.where((activity) {
+          return activity.studentName.toLowerCase().contains(
+            widget.searchQuery.toLowerCase(),
+          );
+        }).toList();
 
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -74,7 +76,10 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
           // Header row, tabs, search, filter
           Row(
             children: [
-              _buildTimePeriodTab('Today', widget.selectedTimePeriod == 'Today'),
+              _buildTimePeriodTab(
+                'Today',
+                widget.selectedTimePeriod == 'Today',
+              ),
               _buildTimePeriodTab(
                 'This Week',
                 widget.selectedTimePeriod == 'This Week',
@@ -109,7 +114,7 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
               SizedBox(width: 16),
               ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
+                  backgroundColor: const Color.fromARGB(10, 78, 241, 157),
                   foregroundColor: Colors.grey[700],
                   elevation: 0,
                   side: BorderSide(color: Colors.grey[300]!),
@@ -146,8 +151,9 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
           Expanded(
             child: ListView.separated(
               itemCount: filteredActivities.length,
-              separatorBuilder: (context, i) =>
-                  Divider(height: 1, thickness: 1, color: Colors.grey[200]),
+              separatorBuilder:
+                  (context, i) =>
+                      Divider(height: 1, thickness: 1, color: Colors.grey[200]),
               itemBuilder: (context, index) {
                 final activity = filteredActivities[index];
                 return Container(

@@ -235,6 +235,7 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: Row(
         children: [
           // Sidebar Navigation

@@ -92,7 +92,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F8F5),
+      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(

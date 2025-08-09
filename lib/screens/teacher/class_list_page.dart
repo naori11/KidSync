@@ -168,7 +168,7 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xF7F9FCFF),
+      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body:
           isLoading
               ? const Center(

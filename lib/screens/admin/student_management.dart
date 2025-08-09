@@ -2049,7 +2049,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(

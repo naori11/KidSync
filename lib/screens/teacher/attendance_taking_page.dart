@@ -544,7 +544,7 @@ class _TeacherSectionAttendancePageState
     final countdown = _nextSessionCountdown();
 
     return Scaffold(
-      backgroundColor: const Color(0xF7F9FCFF),
+      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body:
           isLoading
               ? const Center(child: CircularProgressIndicator())

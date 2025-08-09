@@ -173,7 +173,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2ECC71),
+                    backgroundColor: const Color.fromARGB(10, 78, 241, 157),
                     foregroundColor: Colors.white,
                   ),
                   onPressed: () async {
@@ -662,7 +662,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2ECC71),
+                    backgroundColor: const Color.fromARGB(10, 78, 241, 157),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 24,
@@ -1104,7 +1104,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
