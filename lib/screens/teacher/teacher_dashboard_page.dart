@@ -19,7 +19,7 @@ class TeacherDashboardPage extends StatefulWidget {
 
 class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   final supabase = Supabase.instance.client;
-  String? teacherId;
+  String? userId;
   String? teacherName;
   List<Map<String, dynamic>> assignedSections = [];
   Map<int, List<Map<String, dynamic>>> sectionStudents = {};
@@ -100,10 +100,19 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     setState(() => isLoading = true);
 
     final user = supabase.auth.currentUser;
-    teacherId = user?.id;
-    teacherName = user?.userMetadata?['full_name'] ?? user?.email ?? '';
+    userId = user?.id;
+    // Fetch teacher's first and last name from the users table
+    final teacherData = await supabase
+      .from('users')
+      .select('fname, lname')
+      .eq('id', userId!)
+      .maybeSingle();
+    
+    teacherName = teacherData != null 
+      ? '${teacherData['fname'] ?? ''} ${teacherData['lname'] ?? ''}'.trim()
+      : user?.email ?? '';
 
-    if (teacherId == null) {
+    if (userId == null) {
       setState(() => isLoading = false);
       return;
     }
@@ -114,7 +123,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         .select(
           'id, section_id, subject, days, start_time, end_time, assigned_at, sections(id, name, grade_level)',
         )
-        .eq('teacher_id', teacherId!);
+        .eq('teacher_id', userId!);
 
     assignedSections = List<Map<String, dynamic>>.from(sectionAssignments);
     sectionStudents.clear();
