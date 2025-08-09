@@ -89,12 +89,17 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     if (_currentPage > _totalPages) _currentPage = _totalPages;
   }
 
-  Future<String?> _showRFIDScanDialog(BuildContext context) async {
+  Future<String?> _showRFIDScanDialog(
+    BuildContext context, {
+    int? excludeStudentId,
+  }) async {
     String? scannedUID;
     HtmlWebSocketChannel? channel;
     bool isScanning = true;
     bool isConnected = false;
     String connectionStatus = 'Connecting to RFID scanner...';
+    bool isValidating = false;
+    String? validationError;
 
     return await showDialog<String>(
       context: context,
@@ -110,19 +115,62 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                 );
 
                 channel!.stream.listen(
-                  (data) {
+                  (data) async {
                     try {
                       final Map<String, dynamic> message = json.decode(data);
                       if (message['type'] == 'rfid_scan' &&
                           message['uid'] != null) {
+                        final uid = message['uid'];
+
                         setDialogState(() {
-                          scannedUID = message['uid'];
                           isScanning = false;
-                          connectionStatus = 'RFID card detected!';
+                          isValidating = true;
+                          connectionStatus = 'Validating RFID card...';
+                          validationError = null;
                         });
+
+                        // Validate RFID uniqueness
+                        final isUnique = await _validateRFIDUniqueness(
+                          uid,
+                          excludeStudentId: excludeStudentId,
+                        );
+
+                        if (isUnique) {
+                          setDialogState(() {
+                            scannedUID = uid;
+                            isValidating = false;
+                            connectionStatus =
+                                'RFID card validated successfully!';
+                          });
+                        } else {
+                          final existingStudent = await _checkRFIDExists(
+                            uid,
+                            excludeStudentId: excludeStudentId,
+                          );
+                          final studentName =
+                              "${existingStudent?['fname'] ?? ''} ${existingStudent?['lname'] ?? ''}";
+                          final sectionInfo = existingStudent?['sections'];
+                          final classInfo =
+                              sectionInfo != null
+                                  ? "${sectionInfo['name']} (${sectionInfo['grade_level']})"
+                                  : "Unknown Class";
+
+                          setDialogState(() {
+                            isValidating = false;
+                            validationError =
+                                'This RFID card is already assigned to $studentName in $classInfo';
+                            connectionStatus = 'RFID validation failed';
+                            isScanning = true; // Allow scanning again
+                          });
+                        }
                       }
                     } catch (e) {
                       print('Error parsing WebSocket message: $e');
+                      setDialogState(() {
+                        isValidating = false;
+                        validationError = 'Error processing RFID scan';
+                        isScanning = true;
+                      });
                     }
                   },
                   onError: (error) {
@@ -156,66 +204,161 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
             return AlertDialog(
               title: const Text('Scan RFID Card'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (scannedUID == null) ...[
-                    const Icon(
-                      Icons.contactless,
-                      size: 64,
-                      color: Color(0xFF2ECC71),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      connectionStatus,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color:
-                            isConnected
-                                ? const Color(0xFF2ECC71)
-                                : Colors.orange,
-                      ),
-                    ),
-                    if (isConnected && isScanning) ...[
-                      const SizedBox(height: 16),
-                      const CircularProgressIndicator(color: Color(0xFF2ECC71)),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Please tap the RFID card on the scanner...',
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ] else ...[
-                    const Icon(
-                      Icons.check_circle,
-                      size: 64,
-                      color: Color(0xFF2ECC71),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'RFID Card Scanned Successfully!',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
+              content: Container(
+                width: 400,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (scannedUID == null) ...[
+                      if (validationError == null) ...[
+                        Icon(
+                          isValidating
+                              ? Icons.hourglass_empty
+                              : Icons.contactless,
+                          size: 64,
+                          color:
+                              isValidating
+                                  ? Colors.orange
+                                  : const Color(0xFF2ECC71),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          connectionStatus,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color:
+                                isConnected && !isValidating
+                                    ? const Color(0xFF2ECC71)
+                                    : isValidating
+                                    ? Colors.orange
+                                    : Colors.orange,
+                          ),
+                        ),
+                        if (isValidating) ...[
+                          const SizedBox(height: 16),
+                          const CircularProgressIndicator(color: Colors.orange),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Checking RFID card availability...',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ] else if (isConnected && isScanning) ...[
+                          const SizedBox(height: 16),
+                          const CircularProgressIndicator(
+                            color: Color(0xFF2ECC71),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Please tap the RFID card on the scanner...',
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ] else ...[
+                        // Show validation error
+                        const Icon(Icons.error, size: 64, color: Colors.red),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'RFID Card Already Assigned',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red,
+                            fontSize: 16,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red[200]!),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.warning,
+                                color: Colors.red[600],
+                                size: 20,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                validationError!,
+                                style: TextStyle(
+                                  color: Colors.red[700],
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Please use a different RFID card or remove the assignment from the other student first.',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ] else ...[
+                      const Icon(
+                        Icons.check_circle,
+                        size: 64,
                         color: Color(0xFF2ECC71),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'UID: $scannedUID',
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
+                      const SizedBox(height: 16),
+                      const Text(
+                        'RFID Card Validated Successfully!',
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
+                          color: Color(0xFF2ECC71),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.green[200]!),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green[600],
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'Available for assignment',
+                                  style: TextStyle(
+                                    color: Colors.green,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'UID: $scannedUID',
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -237,7 +380,25 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                     },
                     child: const Text('Use This UID'),
                   ),
-                if (scannedUID == null && isConnected)
+                if (validationError != null)
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      setDialogState(() {
+                        validationError = null;
+                        isScanning = true;
+                        connectionStatus = 'Ready to scan RFID card...';
+                      });
+                    },
+                    child: const Text('Scan Different Card'),
+                  ),
+                if (scannedUID == null &&
+                    isConnected &&
+                    !isValidating &&
+                    validationError == null)
                   TextButton(
                     onPressed: () {
                       setDialogState(() {
@@ -750,6 +911,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                           final newUID =
                                               await _showRFIDScanDialog(
                                                 context,
+                                                excludeStudentId:
+                                                    student?['id'],
                                               );
                                           if (newUID != null) {
                                             setDialogState(() {
@@ -833,6 +996,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                     onPressed: () async {
                                       final newUID = await _showRFIDScanDialog(
                                         context,
+                                        excludeStudentId: student?['id'],
                                       );
                                       if (newUID != null) {
                                         setDialogState(() {
@@ -1012,11 +1176,69 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   onPressed: () async {
                     if (formKey.currentState!.validate()) {
                       try {
-                        // Start with showing loading state
-                        setDialogState(() {
-                          _isUploadingImage = true;
-                        });
+                        // Validate RFID if provided
+                        if (rfidUID != null && rfidUID!.isNotEmpty) {
+                          setDialogState(() {
+                            _isUploadingImage = true;
+                          });
 
+                          final isRFIDUnique = await _validateRFIDUniqueness(
+                            rfidUID!,
+                            excludeStudentId: student?['id'],
+                          );
+
+                          if (!isRFIDUnique) {
+                            final existingStudent = await _checkRFIDExists(
+                              rfidUID!,
+                              excludeStudentId: student?['id'],
+                            );
+                            final studentName =
+                                "${existingStudent?['fname'] ?? ''} ${existingStudent?['lname'] ?? ''}";
+
+                            setDialogState(() {
+                              _isUploadingImage = false;
+                            });
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.error,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'RFID card is already assigned to $studentName',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  backgroundColor: Colors.red,
+                                  behavior: SnackBarBehavior.floating,
+                                  action: SnackBarAction(
+                                    label: 'SCAN NEW',
+                                    textColor: Colors.white,
+                                    onPressed: () async {
+                                      final newUID = await _showRFIDScanDialog(
+                                        context,
+                                        excludeStudentId: student?['id'],
+                                      );
+                                      if (newUID != null) {
+                                        setDialogState(() {
+                                          rfidUID = newUID;
+                                        });
+                                      }
+                                    },
+                                  ),
+                                ),
+                              );
+                            }
+                            return; // Stop execution if RFID is not unique
+                          }
+                        }
                         String? imageUrl =
                             _currentImageUrl ?? student?['profile_image_url'];
 
@@ -1144,7 +1366,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                         // Reset state variables
                         setState(() {
                           _selectedImagePath = null;
-                          _selectedImageBytes = null; 
+                          _selectedImageBytes = null;
                           _currentImageUrl = null;
                           _isUploadingImage = false;
                         });
@@ -1225,7 +1447,40 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     addressController.dispose();
     birthdayController.dispose();
   }
-  // Add these methods to your _StudentManagementPageState class
+
+  Future<Map<String, dynamic>?> _checkRFIDExists(
+    String rfidUID, {
+    int? excludeStudentId,
+  }) async {
+    try {
+      var query = supabase
+          .from('students')
+          .select('id, fname, lname, grade_level, sections(name, grade_level)')
+          .eq('rfid_uid', rfidUID);
+
+      // If we're editing an existing student, exclude their current record
+      if (excludeStudentId != null) {
+        query = query.neq('id', excludeStudentId);
+      }
+
+      final response = await query.maybeSingle();
+      return response;
+    } catch (e) {
+      print('Error checking RFID: $e');
+      return null;
+    }
+  }
+
+  Future<bool> _validateRFIDUniqueness(
+    String rfidUID, {
+    int? excludeStudentId,
+  }) async {
+    final existingStudent = await _checkRFIDExists(
+      rfidUID,
+      excludeStudentId: excludeStudentId,
+    );
+    return existingStudent == null;
+  }
 
   void _toggleSelectAll(List<Map<String, dynamic>> currentPageItems) {
     setState(() {
