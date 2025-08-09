@@ -124,13 +124,15 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       final today = _getCurrentDayName();
       final currentTime = TimeOfDay.fromDateTime(now);
 
-      print('Checking schedule for section_id: ${student.sectionId}, day: $today');
+      print(
+        'Checking schedule for section_id: ${student.sectionId}, day: $today',
+      );
 
       // Query the section_teachers table for today's classes
       if (student.sectionId == null) {
         return {'canExit': true, 'message': null, 'exitType': 'regular'};
       }
-      
+
       final response = await supabase
           .from('section_teachers')
           .select('end_time, subject, start_time')
@@ -159,7 +161,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             // Very Early Exit (2+ hours before last class)
             return {
               'canExit': false,
-              'message': 'Very early dismissal requested. Last class ($subjectName) ends at ${_formatTime(endTime)}',
+              'message':
+                  'Very early dismissal requested. Last class ($subjectName) ends at ${_formatTime(endTime)}',
               'lastClassEndTime': endTime,
               'subject': subjectName,
               'exitType': 'very_early',
@@ -169,7 +172,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             // Early Exit (30+ minutes before last class)
             return {
               'canExit': false,
-              'message': 'Early dismissal requested. Last class ($subjectName) ends at ${_formatTime(endTime)}',
+              'message':
+                  'Early dismissal requested. Last class ($subjectName) ends at ${_formatTime(endTime)}',
               'lastClassEndTime': endTime,
               'subject': subjectName,
               'exitType': 'early',
@@ -179,7 +183,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             // Near End Time (15-30 minutes before last class)
             return {
               'canExit': true,
-              'message': 'Approved near-end dismissal. Last class ($subjectName) ends at ${_formatTime(endTime)}',
+              'message':
+                  'Approved near-end dismissal. Last class ($subjectName) ends at ${_formatTime(endTime)}',
               'exitType': 'near_end',
               'subject': subjectName,
             };
@@ -187,7 +192,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             // Within 15 minutes of last class
             return {
               'canExit': true,
-              'message': 'Approved dismissal. Last class ($subjectName) ends soon at ${_formatTime(endTime)}',
+              'message':
+                  'Approved dismissal. Last class ($subjectName) ends soon at ${_formatTime(endTime)}',
               'exitType': 'within_15min',
               'subject': subjectName,
             };
@@ -196,18 +202,10 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       }
 
       // Regular dismissal (after last class or no classes today)
-      return {
-        'canExit': true,
-        'message': null,
-        'exitType': 'regular'
-      };
+      return {'canExit': true, 'message': null, 'exitType': 'regular'};
     } catch (e) {
       print('Error checking schedule: $e');
-      return {
-        'canExit': true,
-        'message': null,
-        'exitType': 'error'
-      };
+      return {'canExit': true, 'message': null, 'exitType': 'error'};
     }
   }
 
@@ -234,12 +232,44 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   // Helper method to get current day name
   String _getCurrentDayName() {
     final now = DateTime.now();
-    final dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    final dayNames = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
     return dayNames[now.weekday % 7];
   }
 
+  // Add cooldown tracking
+  Map<String, DateTime> rfidCooldowns = {};
+  static const int cooldownSeconds = 30; // 30 second cooldown
+
   // Modified fetch student method - simplified entry handling
   Future<void> _fetchStudentByRFID(String rfidUid) async {
+    _cleanupCooldowns();
+
+    // Check cooldown
+    final now = DateTime.now();
+    if (rfidCooldowns.containsKey(rfidUid)) {
+      final lastScan = rfidCooldowns[rfidUid]!;
+      final timeDiff = now.difference(lastScan).inSeconds;
+
+      if (timeDiff < cooldownSeconds) {
+        final remainingTime = cooldownSeconds - timeDiff;
+        _showErrorNotification(
+          'Please wait ${remainingTime}s before scanning again',
+        );
+        return;
+      }
+    }
+
+    // Set cooldown for this RFID
+    rfidCooldowns[rfidUid] = now;
+    
     setState(() {
       isLoadingStudent = true;
       scannedStudent = null;
@@ -253,12 +283,13 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     });
 
     try {
-      final response = await supabase
-          .from('students')
-          .select('*, sections!inner(name)')
-          .eq('rfid_uid', rfidUid)
-          .neq('status', 'deleted')
-          .maybeSingle();
+      final response =
+          await supabase
+              .from('students')
+              .select('*, sections!inner(name)')
+              .eq('rfid_uid', rfidUid)
+              .neq('status', 'deleted')
+              .maybeSingle();
 
       if (response != null) {
         final student = Student.fromJson(response);
@@ -279,13 +310,13 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           // Exit: Apply schedule validation
           if (isScheduleValidationEnabled && !isOverrideMode) {
             final scheduleCheck = await _checkClassSchedule(student);
-            
+
             if (!scheduleCheck['canExit']) {
               setState(() {
                 scheduleValidationMessage = scheduleCheck['message'];
                 lastClassEndTime = scheduleCheck['lastClassEndTime'];
               });
-              
+
               // Show different UI based on exit type
               final exitType = scheduleCheck['exitType'];
               if (exitType == 'very_early') {
@@ -312,6 +343,13 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       });
       _showErrorNotification('Error fetching student data: ${e.toString()}');
     }
+  }
+
+  // Clean up old cooldowns periodically
+  void _cleanupCooldowns() {
+    final now = DateTime.now();
+    rfidCooldowns.removeWhere((uid, lastScan) => 
+        now.difference(lastScan).inSeconds > cooldownSeconds * 2);
   }
 
   // Process entry (immediate check-in)
@@ -597,140 +635,167 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: [
-              Icon(Icons.warning, color: Colors.red, size: 28),
-              SizedBox(width: 12),
-              Text(
-                'Very Early Dismissal',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.red[50],
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red[200]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.schedule, color: Colors.red[700], size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'Schedule Alert',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red[700],
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setState) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  title: Row(
+                    children: [
+                      Icon(Icons.warning, color: Colors.red, size: 28),
+                      SizedBox(width: 12),
+                      Text(
+                        'Very Early Dismissal',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.red[200]!),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.schedule,
+                                  color: Colors.red[700],
+                                  size: 20,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Schedule Alert',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              scheduleValidationMessage ??
+                                  'Very early dismissal (2+ hours before last class)',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 16),
+
+                      Text(
+                        'Reason for Early Dismissal:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+
+                      DropdownButtonFormField<String>(
+                        value: selectedReason,
+                        hint: Text('Select a reason'),
+                        items:
+                            reasons.map((reason) {
+                              return DropdownMenuItem(
+                                value: reason,
+                                child: Text(reason),
+                              );
+                            }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedReason = value;
+                            if (value != 'Other') {
+                              customReasonController.text = '';
+                            }
+                          });
+                        },
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
                           ),
                         ),
+                      ),
+
+                      if (selectedReason == 'Other') ...[
+                        SizedBox(height: 16),
+                        TextField(
+                          controller: customReasonController,
+                          decoration: InputDecoration(
+                            labelText: 'Please specify reason',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                          minLines: 2,
+                          maxLines: 3,
+                        ),
                       ],
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        clearScan();
+                      },
+                      child: Text('Cancel'),
                     ),
-                    SizedBox(height: 8),
-                    Text(
-                      scheduleValidationMessage ?? 'Very early dismissal (2+ hours before last class)',
-                      style: TextStyle(fontSize: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        String reasonToSave = '';
+                        if (selectedReason == null) {
+                          // Show error
+                          return;
+                        } else if (selectedReason == 'Other') {
+                          if (customReasonController.text.trim().isEmpty) {
+                            // Show error
+                            return;
+                          }
+                          reasonToSave = customReasonController.text.trim();
+                        } else {
+                          reasonToSave = selectedReason!;
+                        }
+
+                        Navigator.pop(context);
+                        setState(() {
+                          isOverrideMode = true;
+                          scheduleValidationMessage =
+                              reasonToSave; // Store the reason
+                        });
+                        _processExit(scannedStudent!);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: Text('Allow Very Early Exit'),
                     ),
                   ],
                 ),
-              ),
-              SizedBox(height: 16),
-              
-              Text(
-                'Reason for Early Dismissal:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              SizedBox(height: 8),
-              
-              DropdownButtonFormField<String>(
-                value: selectedReason,
-                hint: Text('Select a reason'),
-                items: reasons.map((reason) {
-                  return DropdownMenuItem(
-                    value: reason,
-                    child: Text(reason),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedReason = value;
-                    if (value != 'Other') {
-                      customReasonController.text = '';
-                    }
-                  });
-                },
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-              ),
-              
-              if (selectedReason == 'Other') ...[
-                SizedBox(height: 16),
-                TextField(
-                  controller: customReasonController,
-                  decoration: InputDecoration(
-                    labelText: 'Please specify reason',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  ),
-                  minLines: 2,
-                  maxLines: 3,
-                ),
-              ],
-            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                clearScan();
-              },
-              child: Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                String reasonToSave = '';
-                if (selectedReason == null) {
-                  // Show error
-                  return;
-                } else if (selectedReason == 'Other') {
-                  if (customReasonController.text.trim().isEmpty) {
-                    // Show error
-                    return;
-                  }
-                  reasonToSave = customReasonController.text.trim();
-                } else {
-                  reasonToSave = selectedReason!;
-                }
-                
-                Navigator.pop(context);
-                setState(() {
-                  isOverrideMode = true;
-                  scheduleValidationMessage = reasonToSave; // Store the reason
-                });
-                _processExit(scannedStudent!);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
-              child: Text('Allow Very Early Exit'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -752,7 +817,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         // Check what type of override this was
         if (scheduleValidationMessage != null) {
           if (scheduleValidationMessage!.contains('Very early')) {
-            notes = "Very early dismissal override (2+ hours) - Reason: ${scheduleValidationMessage}";
+            notes =
+                "Very early dismissal override (2+ hours) - Reason: ${scheduleValidationMessage}";
           } else {
             notes = "Early dismissal override - ${scheduleValidationMessage}";
           }
