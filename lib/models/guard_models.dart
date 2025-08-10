@@ -13,7 +13,9 @@ class Student {
   final String? gender;
   final String? status;
   final String? rfidUid;
-  final DateTime createdAt;
+  final String? profileImageUrl; // Add this field
+  final String? sectionName;
+  final DateTime? createdAt;
 
   Student({
     required this.id,
@@ -27,27 +29,20 @@ class Student {
     this.gender,
     this.status,
     this.rfidUid,
-    required this.createdAt,
+    this.profileImageUrl, // Add this parameter
+    this.sectionName,
+    this.createdAt,
   });
 
-  factory Student.fromJson(Map<String, dynamic> json) {
-    return Student(
-      id: json['id'],
-      fname: json['fname'],
-      mname: json['mname'],
-      lname: json['lname'],
-      address: json['address'],
-      birthday: json['birthday'],
-      gradeLevel: json['grade_level']?.toString(),
-      sectionId: json['section_id'],
-      gender: json['gender'],
-      status: json['status'],
-      rfidUid: json['rfid_uid'],
-      createdAt: DateTime.parse(json['created_at']),
-    );
+  // Add getter for image URL with fallback
+  String get imageUrl {
+    if (profileImageUrl != null && profileImageUrl!.isNotEmpty) {
+      return profileImageUrl!;
+    }
+    // Return a default placeholder URL or empty string
+    return '';
   }
 
-  // Helper getters for display
   String get fullName {
     if (mname != null && mname!.isNotEmpty) {
       return '$fname $mname $lname';
@@ -55,19 +50,35 @@ class Student {
     return '$fname $lname';
   }
 
-  String get studentId => 'STU${id.toString().padLeft(3, '0')}';
+  String get studentId => 'STU${id.toString().padLeft(6, '0')}';
 
   String get classSection {
-    if (gradeLevel != null && sectionId != null) {
-      return 'Grade $gradeLevel - Section $sectionId';
-    } else if (gradeLevel != null) {
-      return 'Grade $gradeLevel';
+    if (sectionName != null) {
+      return sectionName!;
     }
-    return 'No class assigned';
+    return gradeLevel ?? 'Unknown';
   }
 
-  // Generate placeholder image URL (you can replace this with actual student photos later)
-  String get imageUrl => 'https://i.pravatar.cc/150?u=$id';
+  factory Student.fromJson(Map<String, dynamic> json) {
+    return Student(
+      id: json['id'] as int,
+      fname: json['fname'] as String,
+      mname: json['mname'] as String?,
+      lname: json['lname'] as String,
+      address: json['address'] as String,
+      birthday: json['birthday'] as String?,
+      gradeLevel: json['grade_level'] as String?,
+      sectionId: json['section_id'] as int?,
+      gender: json['gender'] as String?,
+      status: json['status'] as String?,
+      rfidUid: json['rfid_uid'] as String?,
+      profileImageUrl: json['profile_image_url'] as String?, // Add this line
+      sectionName: json['sections']?['name'] as String?,
+      createdAt: json['created_at'] != null 
+          ? DateTime.parse(json['created_at'] as String)
+          : null,
+    );
+  }
 }
 
 // Fetcher class to include database fields
@@ -134,7 +145,7 @@ class Activity {
   factory Activity.fromJson(Map<String, dynamic> json) {
     final scanTime = DateTime.parse(json['scan_time']);
     final student = json['students'];
-    
+
     // Build grade/class information
     String gradeClass = '';
     if (student != null) {
@@ -161,14 +172,15 @@ class Activity {
     String statusMessage;
     final action = (json['action'] ?? '').toString().toLowerCase();
     final dbStatus = (json['status'] ?? '').toString().toLowerCase();
-    
+
     switch (action) {
       case 'entry':
         statusMessage = "Entry Recorded";
         break;
       case 'exit':
         // For exit actions, check the status field or verified_by to determine if approved
-        if (dbStatus.contains('checked out') || json['verified_by'] == 'parent') {
+        if (dbStatus.contains('checked out') ||
+            json['verified_by'] == 'parent') {
           statusMessage = "Pickup Approved";
         } else {
           statusMessage = "Checked Out";
@@ -186,7 +198,8 @@ class Activity {
     }
 
     return Activity(
-      time: "${scanTime.hour.toString().padLeft(2, '0')}:${scanTime.minute.toString().padLeft(2, '0')}",
+      time:
+          "${scanTime.hour.toString().padLeft(2, '0')}:${scanTime.minute.toString().padLeft(2, '0')}",
       studentName: studentName,
       gradeClass: gradeClass,
       status: statusMessage,

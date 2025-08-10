@@ -1617,6 +1617,72 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     );
   }
 
+  Widget _buildStudentImage({
+    required String? imageUrl,
+    required double width,
+    required double height,
+    double borderRadius = 8.0,
+  }) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(color: Colors.grey[300]!, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius - 2),
+        child: _buildImageContent(imageUrl),
+      ),
+    );
+  }
+
+  Widget _buildImageContent(String? imageUrl) {
+    // Check if we have a valid image URL
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return _buildPlaceholderImage();
+    }
+
+    return Image.network(
+      imageUrl,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return _buildLoadingImage();
+      },
+      errorBuilder: (context, error, stackTrace) {
+        print('Error loading student image: $error');
+        return _buildPlaceholderImage();
+      },
+    );
+  }
+
+  Widget _buildPlaceholderImage() {
+    return Container(
+      color: Colors.grey[200],
+      child: Icon(Icons.person, size: 60, color: Colors.grey[500]),
+    );
+  }
+
+  Widget _buildLoadingImage() {
+    return Container(
+      color: Colors.grey[100],
+      child: Center(
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+        ),
+      ),
+    );
+  }
+
   // Entry mode layout - full page with complete student information
   Widget _buildEntryModeLayout() {
     if (isLoadingStudent) {
@@ -1722,43 +1788,14 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Student Photo Section
+                    // Student Photo Section - UPDATED
                     Column(
                       children: [
-                        Container(
+                        _buildStudentImage(
+                          imageUrl: scannedStudent!.imageUrl,
                           width: 200,
                           height: 200,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Colors.grey[300]!,
-                              width: 2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 8,
-                                offset: Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: Image.network(
-                              scannedStudent!.imageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: Colors.grey[200],
-                                  child: Icon(
-                                    Icons.person,
-                                    size: 100,
-                                    color: Colors.grey[500],
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
+                          borderRadius: 16,
                         ),
                         SizedBox(height: 16),
                         Container(
@@ -2137,31 +2174,12 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                   ),
                   child: Column(
                     children: [
-                      // Student Photo
-                      Container(
+                      // Student Photo - UPDATED
+                      _buildStudentImage(
+                        imageUrl: scannedStudent!.imageUrl,
                         width: 120,
                         height: 120,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          color: Colors.grey[100],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            scannedStudent!.imageUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.grey[200],
-                                child: Icon(
-                                  Icons.person,
-                                  size: 60,
-                                  color: Colors.grey[500],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
+                        borderRadius: 8,
                       ),
                       SizedBox(height: 16),
 
