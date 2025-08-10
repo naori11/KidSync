@@ -13,13 +13,12 @@ import 'screens/parent/pickup_confirmation.dart';
 import 'screens/parent/fetcher_code_generator.dart';
 import 'screens/parent/profile.dart';
 import 'screens/parent/parent_login.dart';
+import 'screens/driver/driver_panel.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:url_strategy/url_strategy.dart'; // <--- IMPORT THIS (already present)
-import 'dart:html'
-    as html; // <--- IMPORT THIS for web-specific URL reading (already present)
+import 'package:url_strategy/url_strategy.dart';
+import 'dart:html' as html;
 import 'dart:async'; // For StreamSubscription
-import 'dart:math' as math; // For min function in substring
 
 // Global variable to store the initial URL, captured before Flutter app runs.
 String initialUrlFromMain = "";
@@ -296,6 +295,10 @@ class _KidSyncAppState extends State<KidSyncApp> {
           if (currentRouteName != '/parent')
             navigator.pushReplacementNamed('/parent');
           break;
+        case 'Driver':
+          if (currentRouteName != '/driver')
+            navigator.pushReplacementNamed('/driver');
+          break;
         default:
           print(
             "[DEBUG] _handleNavigation: Unknown role ('$role') or fallback. Navigating to LoginScreen.",
@@ -350,6 +353,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
         '/parent/fetcher_code_generator':
             (_) => const FetcherCodeGeneratorScreen(),
         '/parent/profile': (_) => const ParentProfileScreen(),
+        '/driver': (_) => const DriverPanel(),
       },
     );
   }
