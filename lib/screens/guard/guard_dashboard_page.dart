@@ -1,132 +1,260 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: ListView(
-        children: [
-          // Header Section
-          Text(
-            "Guard Dashboard",
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-          ),
-          const SizedBox(height: 24),
+  State<DashboardPage> createState() => _DashboardPageState();
+}
 
-          // Stats Overview
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 5,
-                  spreadRadius: 1,
-                ),
-              ],
+class _DashboardPageState extends State<DashboardPage> {
+  final supabase = Supabase.instance.client;
+  String? guardId;
+  String? guardName;
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGuardData();
+  }
+
+  Future<void> _loadGuardData() async {
+    setState(() => isLoading = true);
+
+    final user = supabase.auth.currentUser;
+    guardId = user?.id;
+
+    if (guardId == null) {
+      setState(() => isLoading = false);
+      return;
+    }
+
+    // Fetch guard's first and last name from the users table
+    final guardData =
+        await supabase
+            .from('users')
+            .select('fname, lname')
+            .eq('id', guardId!)
+            .maybeSingle();
+
+    guardName =
+        guardData != null
+            ? '${guardData['fname'] ?? ''} ${guardData['lname'] ?? ''}'.trim()
+            : user?.email ?? 'Guard';
+
+    setState(() => isLoading = false);
+  }
+
+  String getTodayLabel() {
+    final now = DateTime.now();
+    final date =
+        "${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][now.weekday - 1]}, "
+        "${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][now.month - 1]} ${now.day}";
+    return date;
+  }
+
+  Widget _buildDashboardHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: Colors.blue[100],
+            radius: 23,
+            child: Text(
+              (guardName != null && guardName!.isNotEmpty)
+                  ? guardName![0].toUpperCase()
+                  : 'G',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 24,
+                color: Color(0xFF2563EB),
+              ),
             ),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Today's Summary",
-                  style: TextStyle(
-                    fontSize: 16,
+                  "Good day, ${guardName ?? 'Guard'}!",
+                  style: const TextStyle(
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: Color(0xFF222B45),
                   ),
                 ),
-                const SizedBox(height: 20),
-
-                // Summary stats
                 Row(
                   children: [
-                    _statCard(
-                      "Students Checked In",
-                      "42",
-                      Icons.login,
-                      Colors.blue,
+                    const Icon(
+                      Icons.calendar_today,
+                      size: 16,
+                      color: Color(0xFF8F9BB3),
                     ),
-                    const SizedBox(width: 16),
-                    _statCard(
-                      "Students Checked Out",
-                      "38",
-                      Icons.logout,
-                      Colors.green,
-                    ),
-                    const SizedBox(width: 16),
-                    _statCard(
-                      "Pending Pickups",
-                      "4",
-                      Icons.people_outline,
-                      Colors.orange,
+                    const SizedBox(width: 5),
+                    Text(
+                      getTodayLabel(),
+                      style: const TextStyle(
+                        color: Color(0xFF8F9BB3),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
 
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Section
+          _buildDashboardHeader(),
           const SizedBox(height: 24),
 
-          // Recent Activities
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 5,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
+          // Expanded wrapper to make content non-scrollable
+          Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  "Recent Activities",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                // Stats Overview
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 5,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Today's Summary",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Summary stats
+                      Row(
+                        children: [
+                          _statCard(
+                            "Students Checked In",
+                            "42",
+                            Icons.login,
+                            Colors.blue,
+                          ),
+                          const SizedBox(width: 16),
+                          _statCard(
+                            "Students Checked Out",
+                            "38",
+                            Icons.logout,
+                            Colors.green,
+                          ),
+                          const SizedBox(width: 16),
+                          _statCard(
+                            "Pending Pickups",
+                            "4",
+                            Icons.people_outline,
+                            Colors.orange,
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
 
-                // Activity list
-                _activityItem(
-                  "RFID Tag",
-                  "Checked out by guardian",
-                  "10:15 AM",
-                  Icons.logout,
-                  Colors.green,
-                ),
-                _divider(),
-                _activityItem(
-                  "RFID Card",
-                  "Checked in by parent",
-                  "8:30 AM",
-                  Icons.login,
-                  Colors.blue,
-                ),
-                _divider(),
-                _activityItem(
-                  "Test Student",
-                  "Pickup denied - unauthorized fetcher",
-                  "3:45 PM",
-                  Icons.block,
-                  Colors.red,
+                const SizedBox(height: 24),
+
+                // Recent Activities - wrapped in Expanded to fill remaining space
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 5,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Recent Activities",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Activity list - wrapped in Expanded to make it scrollable if needed
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                _activityItem(
+                                  "RFID Tag",
+                                  "Checked out by guardian",
+                                  "10:15 AM",
+                                  Icons.logout,
+                                  Colors.green,
+                                ),
+                                _divider(),
+                                _activityItem(
+                                  "RFID Card",
+                                  "Checked in by parent",
+                                  "8:30 AM",
+                                  Icons.login,
+                                  Colors.blue,
+                                ),
+                                _divider(),
+                                _activityItem(
+                                  "Test Student",
+                                  "Pickup denied - unauthorized fetcher",
+                                  "3:45 PM",
+                                  Icons.block,
+                                  Colors.red,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),

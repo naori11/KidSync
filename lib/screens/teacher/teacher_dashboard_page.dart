@@ -101,7 +101,19 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
     final user = supabase.auth.currentUser;
     teacherId = user?.id;
-    teacherName = user?.userMetadata?['full_name'] ?? user?.email ?? '';
+    // Fetch teacher's first and last name from the users table
+    final teacherData =
+        await supabase
+            .from('users')
+            .select('fname, lname')
+            .eq('id', teacherId!)
+            .maybeSingle();
+
+    teacherName =
+        teacherData != null
+            ? '${teacherData['fname'] ?? ''} ${teacherData['lname'] ?? ''}'
+                .trim()
+            : user?.email ?? '';
 
     if (teacherId == null) {
       setState(() => isLoading = false);

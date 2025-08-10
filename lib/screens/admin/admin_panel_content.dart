@@ -6,27 +6,6 @@ import 'audit_logs.dart';
 import 'section_management.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-final supabase = Supabase.instance.client;
-final user = supabase.auth.currentUser;
-final userName = user?.userMetadata?['full_name'] ?? 'User';
-
-// Dummy Analytics Data Model
-class AnalyticsData {
-  final int totalStudents;
-  final int studentsPickedUpToday;
-  final int totalGuardians;
-  final int attendanceToday;
-  final int auditLogEvents;
-
-  AnalyticsData({
-    required this.totalStudents,
-    required this.studentsPickedUpToday,
-    required this.totalGuardians,
-    required this.attendanceToday,
-    required this.auditLogEvents,
-  });
-}
-
 class AdminPanelContent extends StatefulWidget {
   final String userName;
 
@@ -37,13 +16,18 @@ class AdminPanelContent extends StatefulWidget {
 }
 
 class _AdminPanelContentState extends State<AdminPanelContent> {
-  int selectedIndex = 0;
+  final supabase = Supabase.instance.client;
+  String? adminId;
+  String? adminName;
+  bool isLoading = false;
 
+  int selectedIndex = 0;
   late final List<_NavItem> navItems;
 
   @override
   void initState() {
     super.initState();
+    _loadAdminData();
     navItems = [
       _NavItem("Dashboard", Icons.dashboard_outlined, const SizedBox()),
       _NavItem(
@@ -60,6 +44,30 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       _NavItem("Parent/Guardian", Icons.family_restroom, ParentGuardianPage()),
       _NavItem("Audit Logs", Icons.description_outlined, AuditLogsPage()),
     ];
+  }
+
+  Future<void> _loadAdminData() async {
+    setState(() => isLoading = true);
+
+    final user = supabase.auth.currentUser;
+    adminId = user?.id;
+    // Fetch admin's first and last name from the users table
+    final adminData =
+        await supabase
+            .from('users')
+            .select('fname, lname')
+            .eq('id', adminId!)
+            .maybeSingle();
+
+    adminName =
+        adminData != null
+            ? '${adminData['fname'] ?? ''} ${adminData['lname'] ?? ''}'.trim()
+            : user?.email ?? 'Admin';
+
+    if (adminId == null) {
+      setState(() => isLoading = false);
+      return;
+    }
   }
 
   // Function to handle logout
@@ -83,260 +91,328 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     }
   }
 
-  Widget _buildDashboard() {
+  String getTodayLabel() {
+    final now = DateTime.now();
+    final date =
+        "${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][now.weekday - 1]}, "
+        "${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][now.month - 1]} ${now.day}";
+    return date;
+  }
+
+  Widget _buildDashboardHeader() {
     return Padding(
-      padding: const EdgeInsets.all(16),
-      child: ListView(
-        shrinkWrap: true,
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+      child: Row(
         children: [
-          // Header Section
-          Text(
-            "Directory Dashboard",
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+          CircleAvatar(
+            backgroundColor: Colors.blue[100],
+            radius: 23,
+            child: Text(
+              (adminName != null && adminName!.isNotEmpty)
+                  ? adminName![0].toUpperCase()
+                  : 'A',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 24,
+                color: Color(0xFF2563EB),
+              ),
             ),
           ),
-          const SizedBox(height: 24),
-
-          // Monthly Attendance Stats with Line Chart
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 5,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
+          const SizedBox(width: 15),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  "Good day, ${adminName ?? 'Admin'}!",
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF222B45),
+                  ),
+                ),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      "Monthly Attendance Stats for November 2023",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
+                    const Icon(
+                      Icons.calendar_today,
+                      size: 16,
+                      color: Color(0xFF8F9BB3),
                     ),
-                    // Tab buttons for Today, Weekly, Monthly
-                    Row(
-                      children: [
-                        _periodButton("Today", false),
-                        const SizedBox(width: 8),
-                        _periodButton("Weekly", false),
-                        const SizedBox(width: 8),
-                        _periodButton("Monthly", true),
-                      ],
+                    const SizedBox(width: 5),
+                    Text(
+                      getTodayLabel(),
+                      style: const TextStyle(
+                        color: Color(0xFF8F9BB3),
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
-                // Line Chart - This is a placeholder for the actual chart
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDashboard() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Add the header here
+          _buildDashboardHeader(),
+          const SizedBox(height: 24),
+
+          // Expanded wrapper to take remaining space
+          Expanded(
+            child: Column(
+              children: [
+                // Monthly Attendance Stats with Line Chart
                 Container(
-                  height: 180,
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 5,
+                        spreadRadius: 1,
+                      ),
+                    ],
                   ),
-                  child: CustomPaint(
-                    size: const Size(double.infinity, 180),
-                    painter: LineChartPainter(),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Attendance Stats Comparison
-                Row(
-                  children: [
-                    // This Month Stats
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            "This Month",
+                            "Monthly Attendance Stats for November 2023",
                             style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
                             ),
                           ),
+                          // Tab buttons for Today, Weekly, Monthly
                           Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text(
-                                "92.6%",
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
+                              _periodButton("Today", false),
                               const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.arrow_upward,
-                                      size: 12,
-                                      color: Colors.green,
-                                    ),
-                                    const SizedBox(width: 2),
-                                    Text(
-                                      "0.2%",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.green,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              _periodButton("Weekly", false),
+                              const SizedBox(width: 8),
+                              _periodButton("Monthly", true),
                             ],
                           ),
                         ],
                       ),
-                    ),
+                      const SizedBox(height: 20),
+                      // Line Chart - This is a placeholder for the actual chart
+                      Container(
+                        height: 180,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: CustomPaint(
+                          size: const Size(double.infinity, 180),
+                          painter: LineChartPainter(),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
 
-                    // Previous Month Stats
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      // Attendance Stats Comparison
+                      Row(
                         children: [
-                          Text(
-                            "Previous Month",
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
+                          // This Month Stats
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "This Month",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      "92.6%",
+                                      style: TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.arrow_upward,
+                                            size: 12,
+                                            color: Colors.green,
+                                          ),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            "0.2%",
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.green,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
-                          Text(
-                            "89.4%",
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[600],
+
+                          // Previous Month Stats
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Previous Month",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                Text(
+                                  "89.4%",
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Two Column Layout for Grades and Overview - wrapped in Expanded
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Left Column - Students by Grade
+                      Expanded(
+                        flex: 7,
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 5,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Students according to grades",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Grade List
+                              _gradeListItem("Preschool", 42),
+                              _divider(),
+                              _gradeListItem("Kindergarten", 56),
+                              _divider(),
+                              _gradeListItem("Grade 1", 48),
+                              _divider(),
+                              _gradeListItem("Grade 2", 52),
+                              _divider(),
+                              _gradeListItem("Grade 3", 45),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 24),
+
+                      // Right Column - Overview Stats
+                      Expanded(
+                        flex: 5,
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 5,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Overview",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Overview Stats with Progress Bars
+                              _overviewItem("Active Students", 96, Colors.blue),
+                              const SizedBox(height: 16),
+                              _overviewItem("Present Today", 86, Colors.green),
+                              const SizedBox(height: 16),
+                              _overviewItem("Absent Today", 65, Colors.orange),
+                              const SizedBox(height: 16),
+                              _overviewItem("Late Students", 24, Colors.red),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Two Column Layout for Grades and Overview
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Left Column - Students by Grade
-              Expanded(
-                flex: 7,
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 5,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Students according to grades",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Grade List
-                      _gradeListItem("Preschool", 42),
-                      _divider(),
-                      _gradeListItem("Kindergarten", 56),
-                      _divider(),
-                      _gradeListItem("Grade 1", 48),
-                      _divider(),
-                      _gradeListItem("Grade 2", 52),
-                      _divider(),
-                      _gradeListItem("Grade 3", 45),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(width: 24),
-
-              // Right Column - Overview Stats
-              Expanded(
-                flex: 5,
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 5,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Overview",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Overview Stats with Progress Bars
-                      _overviewItem("Active Students", 96, Colors.blue),
-                      const SizedBox(height: 16),
-                      _overviewItem("Present Today", 86, Colors.green),
-                      const SizedBox(height: 16),
-                      _overviewItem("Absent Today", 65, Colors.orange),
-                      const SizedBox(height: 16),
-                      _overviewItem("Late Students", 24, Colors.red),
-                    ],
-                  ),
-                ),
-              ),
-            ],
           ),
         ],
       ),
