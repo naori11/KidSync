@@ -439,7 +439,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                               color: const Color(0xFF000000),
                             ),
                           ),
-                          SizedBox(height: 12),
+                          const SizedBox(height: 12),
                           // Example notifications
                           ...List.generate(
                             3,
@@ -458,7 +458,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                                             ).withOpacity(0.3),
                                     size: 10,
                                   ),
-                                  SizedBox(width: 8),
+                                  const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       'Notification message # {i + 1}',
@@ -522,7 +522,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                                   size: 22,
                                 ),
                               ),
-                              SizedBox(width: 12),
+                              const SizedBox(width: 12),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -547,7 +547,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                               ),
                             ],
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           Divider(
                             color: const Color(0xFF000000).withOpacity(0.2),
                           ),
@@ -1627,7 +1627,7 @@ class _FetchersTabState extends State<_FetchersTab> {
                             color: black,
                           ),
                         ),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Text(
                           'PIN Code',
                           style: TextStyle(
@@ -1636,7 +1636,7 @@ class _FetchersTabState extends State<_FetchersTab> {
                             color: black,
                           ),
                         ),
-                        SizedBox(height: 12),
+                        const SizedBox(height: 12),
                         Container(
                           padding: EdgeInsets.symmetric(
                             horizontal: widget.isMobile ? 20 : 24,
@@ -1660,7 +1660,7 @@ class _FetchersTabState extends State<_FetchersTab> {
                             ),
                           ),
                         ),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Text(
                           'Valid for today only',
                           style: TextStyle(
@@ -1706,7 +1706,7 @@ class _FetchersTabState extends State<_FetchersTab> {
                           },
                         ),
                       ),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
@@ -1797,7 +1797,7 @@ class _FetchersTabState extends State<_FetchersTab> {
                   black,
                   greenWithOpacity,
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 _buildFetcherItem(
                   'Sarah Johnson',
                   'Grandmother',
@@ -1807,7 +1807,7 @@ class _FetchersTabState extends State<_FetchersTab> {
                   black,
                   greenWithOpacity,
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 _buildFetcherItem(
                   'Mike Wilson',
                   'Driver',
@@ -1857,7 +1857,7 @@ class _FetchersTabState extends State<_FetchersTab> {
               size: isMobile ? 18 : 22,
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

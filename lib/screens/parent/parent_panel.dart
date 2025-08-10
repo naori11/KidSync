@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:kidsync/widgets/role_protection.dart';
+import '../../widgets/role_protection.dart';
 import 'parent_home.dart';
 
 class ParentPanel extends StatelessWidget {
