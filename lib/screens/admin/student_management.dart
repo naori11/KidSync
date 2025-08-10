@@ -1012,7 +1012,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                         ),
                         const SizedBox(height: 24),
 
-                        // Profile Image Section - CORRECTED
+                        // Profile Image Section
                         _buildSectionHeader('Profile Image'),
                         const SizedBox(height: 16),
                         Center(
@@ -1020,7 +1020,48 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                             children: [
                               // Display current image or placeholder
                               GestureDetector(
-                                onTap: _pickImage,
+                                onTap: () async {
+                                  final ImagePicker picker = ImagePicker();
+                                  final XFile? image = await picker.pickImage(
+                                    source: ImageSource.gallery,
+                                    maxWidth: 800,
+                                    maxHeight: 800,
+                                    imageQuality: 85,
+                                  );
+
+                                  if (image != null) {
+                                    final bytes = await image.readAsBytes();
+
+                                    // Validate file size (max 5MB)
+                                    if (bytes.length > 5 * 1024 * 1024) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Image size must be less than 5MB',
+                                            ),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                      return;
+                                    }
+
+                                    // Validate file type
+                                    if (_validateImageBytes(
+                                      bytes,
+                                      image.name,
+                                    )) {
+                                      setDialogState(() {
+                                        _selectedImageBytes = bytes;
+                                        _selectedImagePath = image.name;
+                                        _currentImageUrl = null;
+                                      });
+                                    }
+                                  }
+                                },
                                 child: Container(
                                   width: 120,
                                   height: 120,
@@ -1032,113 +1073,165 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                       width: 2,
                                     ),
                                   ),
-                                  child:
-                                      _selectedImagePath != null
-                                          ? Image.network(
-                                            _selectedImagePath!,
-                                            width: 120,
-                                            height: 120,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (
-                                              context,
-                                              error,
-                                              stackTrace,
-                                            ) {
-                                              // If selected image fails to load, try to load it as a file path for web
-                                              return FutureBuilder<Uint8List>(
-                                                future: () async {
-                                                  final response = await html
-                                                      .HttpRequest.request(
-                                                    _selectedImagePath!,
-                                                  );
-                                                  return Uint8List.fromList(
-                                                    response.response.codeUnits,
-                                                  );
-                                                }(),
-                                                builder: (context, snapshot) {
-                                                  if (snapshot.hasData) {
-                                                    return Image.memory(
-                                                      snapshot.data!,
-                                                      width: 120,
-                                                      height: 120,
-                                                      fit: BoxFit.cover,
-                                                    );
-                                                  }
-                                                  return const Icon(
-                                                    Icons.person,
-                                                    size: 60,
-                                                    color: Colors.grey,
-                                                  );
-                                                },
-                                              );
-                                            },
-                                          )
-                                          : (student?['profile_image_url'] !=
-                                                  null &&
-                                              student!['profile_image_url']
-                                                  .toString()
-                                                  .isNotEmpty)
-                                          ? Image.network(
-                                            student!['profile_image_url'],
-                                            width: 120,
-                                            height: 120,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (
-                                              context,
-                                              error,
-                                              stackTrace,
-                                            ) {
-                                              return const Icon(
-                                                Icons.person,
-                                                size: 60,
-                                                color: Colors.grey,
-                                              );
-                                            },
-                                          )
-                                          : const Icon(
-                                            Icons.person,
-                                            size: 60,
-                                            color: Colors.grey,
-                                          ),
+                                  child: ClipOval(
+                                    child: _buildImageWidget(student),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 12),
                               // Upload/Remove buttons
-                              if (_selectedImagePath != null) ...[
-                                ElevatedButton.icon(
-                                  onPressed:
-                                      _isUploadingImage
-                                          ? null
-                                          : () {
-                                            _clearSelectedImage();
-                                          },
-                                  icon:
-                                      _isUploadingImage
-                                          ? const SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                            ),
-                                          )
-                                          : const Icon(Icons.clear),
-                                  label: Text(
-                                    _isUploadingImage
-                                        ? 'Processing...'
-                                        : 'Remove Image',
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 12,
+                              if (_selectedImageBytes != null) ...[
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    ElevatedButton.icon(
+                                      onPressed:
+                                          _isUploadingImage
+                                              ? null
+                                              : () async {
+                                                final ImagePicker picker =
+                                                    ImagePicker();
+                                                final XFile? image =
+                                                    await picker.pickImage(
+                                                      source:
+                                                          ImageSource.gallery,
+                                                      maxWidth: 800,
+                                                      maxHeight: 800,
+                                                      imageQuality: 85,
+                                                    );
+
+                                                if (image != null) {
+                                                  final bytes =
+                                                      await image.readAsBytes();
+
+                                                  if (bytes.length >
+                                                      5 * 1024 * 1024) {
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Text(
+                                                            'Image size must be less than 5MB',
+                                                          ),
+                                                          backgroundColor:
+                                                              Colors.red,
+                                                        ),
+                                                      );
+                                                    }
+                                                    return;
+                                                  }
+
+                                                  if (_validateImageBytes(
+                                                    bytes,
+                                                    image.name,
+                                                  )) {
+                                                    setDialogState(() {
+                                                      _selectedImageBytes =
+                                                          bytes;
+                                                      _selectedImagePath =
+                                                          image.name;
+                                                      _currentImageUrl = null;
+                                                    });
+                                                  }
+                                                }
+                                              },
+                                      icon: const Icon(Icons.edit, size: 16),
+                                      label: const Text('Change'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.orange,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton.icon(
+                                      onPressed:
+                                          _isUploadingImage
+                                              ? null
+                                              : () {
+                                                setDialogState(() {
+                                                  _selectedImageBytes = null;
+                                                  _selectedImagePath = null;
+                                                  _currentImageUrl = null;
+                                                });
+                                              },
+                                      icon:
+                                          _isUploadingImage
+                                              ? const SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.white,
+                                                    ),
+                                              )
+                                              : const Icon(
+                                                Icons.clear,
+                                                size: 16,
+                                              ),
+                                      label: Text(
+                                        _isUploadingImage
+                                            ? 'Processing...'
+                                            : 'Remove',
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ] else ...[
                                 ElevatedButton.icon(
-                                  onPressed: _pickImage,
+                                  onPressed: () async {
+                                    final ImagePicker picker = ImagePicker();
+                                    final XFile? image = await picker.pickImage(
+                                      source: ImageSource.gallery,
+                                      maxWidth: 800,
+                                      maxHeight: 800,
+                                      imageQuality: 85,
+                                    );
+
+                                    if (image != null) {
+                                      final bytes = await image.readAsBytes();
+
+                                      if (bytes.length > 5 * 1024 * 1024) {
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Image size must be less than 5MB',
+                                              ),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        }
+                                        return;
+                                      }
+
+                                      if (_validateImageBytes(
+                                        bytes,
+                                        image.name,
+                                      )) {
+                                        setDialogState(() {
+                                          _selectedImageBytes = bytes;
+                                          _selectedImagePath = image.name;
+                                          _currentImageUrl = null;
+                                        });
+                                      }
+                                    }
+                                  },
                                   icon: const Icon(Icons.upload),
                                   label: const Text('Upload Photo'),
                                   style: ElevatedButton.styleFrom(
@@ -1446,6 +1539,46 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     lnameController.dispose();
     addressController.dispose();
     birthdayController.dispose();
+  }
+
+  Widget _buildImageWidget(Map<String, dynamic>? student) {
+    // Priority: 1. Selected bytes, 2. Current student image, 3. Default icon
+    if (_selectedImageBytes != null) {
+      return Image.memory(
+        _selectedImageBytes!,
+        width: 120,
+        height: 120,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return const Icon(Icons.person, size: 60, color: Colors.grey);
+        },
+      );
+    } else if (student != null &&
+        student['profile_image_url'] != null &&
+        student['profile_image_url'].toString().isNotEmpty) {
+      return Image.network(
+        student['profile_image_url'],
+        width: 120,
+        height: 120,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            width: 120,
+            height: 120,
+            color: Colors.grey[200],
+            child: const Center(
+              child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return const Icon(Icons.person, size: 60, color: Colors.grey);
+        },
+      );
+    } else {
+      return const Icon(Icons.person, size: 60, color: Colors.grey);
+    }
   }
 
   Future<Map<String, dynamic>?> _checkRFIDExists(
@@ -1797,7 +1930,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     );
   }
 
-  // Image picker function - CORRECTED
+  // Image picker function
   Future<void> _pickImage() async {
     try {
       final ImagePicker picker = ImagePicker();
@@ -1828,8 +1961,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         // Validate file type
         if (_validateImageBytes(bytes, image.name)) {
           setState(() {
-            _selectedImagePath = image.name; // Store the name for reference
-            _selectedImageBytes = bytes; // Store the actual bytes
+            _selectedImageBytes = bytes;
+            _selectedImagePath = image.name;
+            _currentImageUrl = null;
           });
         }
       }
@@ -1951,6 +2085,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     setState(() {
       _selectedImagePath = null;
       _selectedImageBytes = null;
+      _currentImageUrl = null;
     });
   }
 
@@ -2505,35 +2640,16 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                               ),
                                               child: ClipOval(
                                                 child:
-                                                    _selectedImageBytes != null
-                                                        ? Image.memory(
-                                                          _selectedImageBytes!,
-                                                          width: 120,
-                                                          height: 120,
-                                                          fit: BoxFit.cover,
-                                                        )
-                                                        : (student?['profile_image_url'] !=
+                                                    (student['profile_image_url'] !=
                                                                 null &&
-                                                            student!['profile_image_url']
+                                                            student['profile_image_url']
                                                                 .toString()
                                                                 .isNotEmpty)
                                                         ? Image.network(
-                                                          student!['profile_image_url'],
-                                                          width: 120,
-                                                          height: 120,
+                                                          student['profile_image_url'],
+                                                          width: 40,
+                                                          height: 40,
                                                           fit: BoxFit.cover,
-                                                          errorBuilder: (
-                                                            context,
-                                                            error,
-                                                            stackTrace,
-                                                          ) {
-                                                            return const Icon(
-                                                              Icons.person,
-                                                              size: 60,
-                                                              color:
-                                                                  Colors.grey,
-                                                            );
-                                                          },
                                                           loadingBuilder: (
                                                             context,
                                                             child,
@@ -2543,24 +2659,42 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                                                 null)
                                                               return child;
                                                             return Container(
-                                                              width: 120,
-                                                              height: 120,
+                                                              width: 40,
+                                                              height: 40,
                                                               color:
                                                                   Colors
                                                                       .grey[200],
                                                               child: const Center(
-                                                                child: CircularProgressIndicator(
-                                                                  color: Color(
-                                                                    0xFF2ECC71,
+                                                                child: SizedBox(
+                                                                  width: 16,
+                                                                  height: 16,
+                                                                  child: CircularProgressIndicator(
+                                                                    strokeWidth:
+                                                                        2,
+                                                                    color: Color(
+                                                                      0xFF2ECC71,
+                                                                    ),
                                                                   ),
                                                                 ),
                                                               ),
                                                             );
                                                           },
+                                                          errorBuilder: (
+                                                            context,
+                                                            error,
+                                                            stackTrace,
+                                                          ) {
+                                                            return const Icon(
+                                                              Icons.person,
+                                                              size: 20,
+                                                              color:
+                                                                  Colors.grey,
+                                                            );
+                                                          },
                                                         )
                                                         : const Icon(
                                                           Icons.person,
-                                                          size: 60,
+                                                          size: 20,
                                                           color: Colors.grey,
                                                         ),
                                               ),
