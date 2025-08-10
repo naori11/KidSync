@@ -338,7 +338,8 @@ class _DashboardTab extends StatelessWidget {
         children: [
           // Welcome Header
           Card(
-            elevation: 2,
+            elevation: 8,
+            shadowColor: primaryColor.withOpacity(0.3),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -346,15 +347,21 @@ class _DashboardTab extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                gradient: LinearGradient(
-                  colors: [
-                    primaryColor.withOpacity(0.1),
-                    primaryColor.withOpacity(0.05),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryColor.withOpacity(0.15),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
+                    spreadRadius: 2,
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -466,10 +473,23 @@ class _DashboardTab extends StatelessWidget {
     Color color,
   ) {
     return Card(
-      elevation: 2,
+      elevation: 6,
+      shadowColor: color.withOpacity(0.2),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+              spreadRadius: 1,
+            ),
+          ],
+        ),
         child: Column(
           children: [
             Icon(icon, color: color, size: 32),
@@ -497,13 +517,29 @@ class _DashboardTab extends StatelessWidget {
 
   Widget _buildTaskCard(PickupTask task, {bool isToday = false}) {
     return Card(
-      elevation: isToday ? 4 : 2,
+      elevation: isToday ? 8 : 4,
+      shadowColor:
+          isToday
+              ? primaryColor.withOpacity(0.3)
+              : Colors.black.withOpacity(0.1),
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         decoration: BoxDecoration(
+          color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: isToday ? Border.all(color: primaryColor, width: 2) : null,
+          boxShadow: [
+            BoxShadow(
+              color:
+                  isToday
+                      ? primaryColor.withOpacity(0.15)
+                      : Colors.black.withOpacity(0.08),
+              blurRadius: isToday ? 12 : 6,
+              offset: const Offset(0, 4),
+              spreadRadius: isToday ? 2 : 0,
+            ),
+          ],
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -771,7 +807,8 @@ class _PickupDropoffTabState extends State<_PickupDropoffTab> {
         children: [
           // Header Card
           Card(
-            elevation: 4,
+            elevation: 8,
+            shadowColor: widget.primaryColor.withOpacity(0.3),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -779,15 +816,21 @@ class _PickupDropoffTabState extends State<_PickupDropoffTab> {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                gradient: LinearGradient(
-                  colors: [
-                    widget.primaryColor.withOpacity(0.1),
-                    widget.primaryColor.withOpacity(0.05),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.primaryColor.withOpacity(0.15),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
+                    spreadRadius: 2,
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -956,13 +999,26 @@ class _PickupDropoffTabState extends State<_PickupDropoffTab> {
           // Action Buttons
           if (completedCount > 0) ...[
             Card(
-              elevation: 2,
+              elevation: 4,
+              shadowColor: widget.primaryColor.withOpacity(0.15),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: widget.primaryColor.withOpacity(0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1035,7 +1091,11 @@ class _PickupDropoffTabState extends State<_PickupDropoffTab> {
     );
 
     return Card(
-      elevation: isPickedUp ? 4 : 2,
+      elevation: isPickedUp ? 6 : 3,
+      shadowColor:
+          isPickedUp
+              ? widget.primaryColor.withOpacity(0.2)
+              : Colors.black.withOpacity(0.1),
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
@@ -1043,12 +1103,23 @@ class _PickupDropoffTabState extends State<_PickupDropoffTab> {
         borderRadius: BorderRadius.circular(12),
         child: Container(
           decoration: BoxDecoration(
+            color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             border:
                 isPickedUp
                     ? Border.all(color: widget.primaryColor, width: 2)
                     : null,
-            color: isPickedUp ? widget.primaryColor.withOpacity(0.05) : null,
+            boxShadow: [
+              BoxShadow(
+                color:
+                    isPickedUp
+                        ? widget.primaryColor.withOpacity(0.1)
+                        : Colors.black.withOpacity(0.05),
+                blurRadius: isPickedUp ? 8 : 4,
+                offset: const Offset(0, 3),
+                spreadRadius: isPickedUp ? 1 : 0,
+              ),
+            ],
           ),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -1178,7 +1249,8 @@ class _StudentsTab extends StatelessWidget {
         children: [
           // Header
           Card(
-            elevation: 2,
+            elevation: 6,
+            shadowColor: primaryColor.withOpacity(0.2),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -1186,15 +1258,16 @@ class _StudentsTab extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                gradient: LinearGradient(
-                  colors: [
-                    primaryColor.withOpacity(0.1),
-                    primaryColor.withOpacity(0.05),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryColor.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                    spreadRadius: 1,
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1269,10 +1342,23 @@ class _StudentsTab extends StatelessWidget {
     Color color,
   ) {
     return Card(
-      elevation: 2,
+      elevation: 6,
+      shadowColor: color.withOpacity(0.2),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+              spreadRadius: 1,
+            ),
+          ],
+        ),
         child: Column(
           children: [
             Icon(icon, color: color, size: 32),
@@ -1351,11 +1437,23 @@ class _StudentsTab extends StatelessWidget {
     }
 
     return Card(
-      elevation: 1,
+      elevation: 3,
+      shadowColor: primaryColor.withOpacity(0.1),
       margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: primaryColor.withOpacity(0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
         child: Row(
           children: [
             // Student Avatar

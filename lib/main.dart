@@ -349,11 +349,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
         '/parent': (_) => const ParentHomeScreen(),
         '/parent/login': (_) => const ParentLoginScreen(),
         '/parent/notifications': (_) => const ParentNotificationsScreen(),
-        '/parent/child_status':
-            (_) => const ChildStatusScreen(
-              primaryColor: Color(0xFF19AE61),
-              backgroundColor: Color.fromARGB(10, 78, 241, 157),
-            ),
+        '/parent/child_status': (_) => const ChildStatusScreen(),
         '/parent/pickup_confirmation':
             (_) => const PickupConfirmationScreen(
               primaryColor: Color(0xFF19AE61),

@@ -9,38 +9,14 @@ class FetcherCodeGeneratorScreen extends StatefulWidget {
       _FetcherCodeGeneratorScreenState();
 }
 
-class _FetcherCodeGeneratorScreenState extends State<FetcherCodeGeneratorScreen>
-    with TickerProviderStateMixin {
+class _FetcherCodeGeneratorScreenState
+    extends State<FetcherCodeGeneratorScreen> {
   String _generatedCode = '';
   bool _isGenerating = false;
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
 
   void _generateCode() {
     setState(() {
       _isGenerating = true;
-    });
-
-    _animationController.forward().then((_) {
-      _animationController.reverse();
     });
 
     // Simulate code generation
@@ -55,556 +31,562 @@ class _FetcherCodeGeneratorScreenState extends State<FetcherCodeGeneratorScreen>
   }
 
   String _generateRandomCode() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final random = Random();
-    return List.generate(
-      6,
-      (index) => chars[random.nextInt(chars.length)],
-    ).join();
+    return (1000 + random.nextInt(9000)).toString();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 500;
     const Color primaryGreen = Color(0xFF19AE61);
     const Color black = Color(0xFF000000);
     const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
     const Color white = Color(0xFFFFFFFF);
 
     return Scaffold(
-      backgroundColor: const Color.fromARGB(15, 78, 241, 157),
-      appBar: AppBar(
-        title: const Text(
-          'Fetcher Code Generator',
-          style: TextStyle(
-            color: white,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
-        backgroundColor: primaryGreen,
-        elevation: 8,
-        shadowColor: const Color(0xFF000000).withOpacity(0.25),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header Card
-            Container(
-              decoration: BoxDecoration(
+      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              // Top Bar - matching parent_home.dart style
+              Container(
                 color: white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: const Color(0xFF000000).withOpacity(0.05),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF000000).withOpacity(0.08),
-                    blurRadius: 32,
-                    offset: const Offset(0, 12),
-                    spreadRadius: 0,
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFF000000).withOpacity(0.04),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                    spreadRadius: 0,
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFF000000).withOpacity(0.02),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                    spreadRadius: 0,
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: greenWithOpacity,
-                        borderRadius: BorderRadius.circular(50),
-                        border: Border.all(
-                          color: primaryGreen.withOpacity(0.3),
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: primaryGreen.withOpacity(0.2),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                            spreadRadius: 0,
-                          ),
-                        ],
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: SafeArea(
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.arrow_back, color: black),
+                        onPressed: () => Navigator.of(context).pop(),
                       ),
-                      child: Icon(
-                        Icons.security,
-                        color: primaryGreen,
-                        size: 52,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Generate Fetcher Code',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: black,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Create a unique code for authorized fetchers to access your child',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: black.withOpacity(0.7),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Code Display Card
-            Container(
-              decoration: BoxDecoration(
-                color: white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: const Color(0xFF000000).withOpacity(0.05),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF000000).withOpacity(0.08),
-                    blurRadius: 32,
-                    offset: const Offset(0, 12),
-                    spreadRadius: 0,
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFF000000).withOpacity(0.04),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                    spreadRadius: 0,
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFF000000).withOpacity(0.02),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                    spreadRadius: 0,
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: greenWithOpacity,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: primaryGreen.withOpacity(0.2),
-                              width: 1,
-                            ),
-                          ),
-                          child: Icon(
-                            Icons.code,
-                            color: primaryGreen,
-                            size: 22,
-                          ),
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          'Generated Code',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: black,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    AnimatedBuilder(
-                      animation: _scaleAnimation,
-                      builder: (context, child) {
-                        return Transform.scale(
-                          scale: _scaleAnimation.value,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 28,
-                              vertical: 20,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  _generatedCode.isNotEmpty
-                                      ? greenWithOpacity
-                                      : const Color(0xFFF8F9FA),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color:
-                                    _generatedCode.isNotEmpty
-                                        ? primaryGreen
-                                        : const Color(0xFFE9ECEF),
-                                width: 2,
+                      SizedBox(width: 8),
+                      SizedBox(
+                        height: 32,
+                        width: 32,
+                        child: Image.asset(
+                          'assets/logo.png',
+                          fit: BoxFit.contain,
+                          errorBuilder:
+                              (context, error, stackTrace) => Icon(
+                                Icons.school,
+                                color: primaryGreen,
+                                size: 28,
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(
-                                    0xFF000000,
-                                  ).withOpacity(0.05),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                  spreadRadius: 0,
-                                ),
-                              ],
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        'Fetcher Code',
+                        style: TextStyle(
+                          color: black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      Spacer(),
+                      Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: greenWithOpacity,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.security,
+                          color: primaryGreen,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Main Content
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Current Temporary Fetcher Card
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          child: Card(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            child:
-                                _isGenerating
-                                    ? Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
+                            elevation: 8,
+                            shadowColor: primaryGreen.withOpacity(0.3),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: primaryGreen.withOpacity(0.15),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6),
+                                    spreadRadius: 2,
+                                  ),
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF000000,
+                                    ).withOpacity(0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Padding(
+                                padding: EdgeInsets.all(isMobile ? 16 : 32),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
                                       children: [
-                                        SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                  primaryGreen,
-                                                ),
+                                        Container(
+                                          padding: EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: greenWithOpacity,
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            Icons.person,
+                                            color: primaryGreen,
+                                            size: isMobile ? 16 : 18,
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
+                                        SizedBox(width: isMobile ? 8 : 12),
                                         Text(
-                                          'Generating...',
+                                          'Current Temporary Fetcher',
                                           style: TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: isMobile ? 15 : 16,
                                             color: black,
                                           ),
                                         ),
                                       ],
-                                    )
-                                    : Text(
-                                      _generatedCode.isNotEmpty
-                                          ? _generatedCode
-                                          : 'No code generated yet',
-                                      style: TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                        color:
-                                            _generatedCode.isNotEmpty
-                                                ? primaryGreen
-                                                : black.withOpacity(0.5),
-                                        letterSpacing: 2,
+                                    ),
+                                    SizedBox(height: isMobile ? 12 : 16),
+                                    Container(
+                                      padding: EdgeInsets.all(
+                                        isMobile ? 16 : 20,
                                       ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Action Buttons
-            Container(
-              decoration: BoxDecoration(
-                color: white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: const Color(0xFF000000).withOpacity(0.05),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF000000).withOpacity(0.08),
-                    blurRadius: 32,
-                    offset: const Offset(0, 12),
-                    spreadRadius: 0,
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFF000000).withOpacity(0.04),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                    spreadRadius: 0,
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFF000000).withOpacity(0.02),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                    spreadRadius: 0,
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: _isGenerating ? null : _generateCode,
-                      icon: Icon(
-                        _isGenerating ? Icons.hourglass_empty : Icons.security,
-                        size: 20,
-                      ),
-                      label: Text(
-                        _isGenerating ? 'Generating...' : 'Generate New Code',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryGreen,
-                        foregroundColor: white,
-                        elevation: 4,
-                        shadowColor: const Color(0xFF000000).withOpacity(0.2),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 18,
-                          horizontal: 24,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (_generatedCode.isNotEmpty)
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          // TODO: Implement copy to clipboard
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return AlertDialog(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                title: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.check_circle,
-                                      color: primaryGreen,
-                                      size: 24,
-                                    ),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      'Success',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: black,
+                                      decoration: BoxDecoration(
+                                        color: primaryGreen,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Text(
+                                            'Emma\'s Mom',
+                                            style: TextStyle(
+                                              fontSize: isMobile ? 16 : 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: white,
+                                            ),
+                                          ),
+                                          SizedBox(height: isMobile ? 8 : 12),
+                                          Text(
+                                            'PIN Code',
+                                            style: TextStyle(
+                                              fontSize: isMobile ? 14 : 16,
+                                              color: white.withOpacity(0.8),
+                                            ),
+                                          ),
+                                          SizedBox(height: isMobile ? 4 : 8),
+                                          Container(
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: isMobile ? 16 : 20,
+                                              vertical: isMobile ? 12 : 16,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: white,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              _generatedCode.isNotEmpty
+                                                  ? _generatedCode
+                                                  : '5698',
+                                              style: TextStyle(
+                                                fontSize: isMobile ? 24 : 28,
+                                                fontWeight: FontWeight.bold,
+                                                color: primaryGreen,
+                                                letterSpacing: 4,
+                                              ),
+                                            ),
+                                          ),
+                                          SizedBox(height: isMobile ? 8 : 12),
+                                          Text(
+                                            'Valid for today only',
+                                            style: TextStyle(
+                                              fontSize: isMobile ? 12 : 14,
+                                              color: white.withOpacity(0.8),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ),
-                                content: Text(
-                                  'Code copied to clipboard successfully.',
-                                  style: TextStyle(
-                                    color: black.withOpacity(0.7),
-                                  ),
-                                ),
-                                actions: [
-                                  ElevatedButton(
-                                    onPressed:
-                                        () => Navigator.of(context).pop(),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: primaryGreen,
-                                      foregroundColor: white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    child: Text('OK'),
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-                        },
-                        icon: const Icon(Icons.content_copy, size: 20),
-                        label: Text(
-                          'Copy Code',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: primaryGreen,
-                          side: BorderSide(color: primaryGreen, width: 2),
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 18,
-                            horizontal: 24,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Instructions Card
-            Container(
-              decoration: BoxDecoration(
-                color: white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: const Color(0xFF000000).withOpacity(0.05),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF000000).withOpacity(0.08),
-                    blurRadius: 32,
-                    offset: const Offset(0, 12),
-                    spreadRadius: 0,
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFF000000).withOpacity(0.04),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                    spreadRadius: 0,
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFF000000).withOpacity(0.02),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                    spreadRadius: 0,
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: greenWithOpacity,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: primaryGreen.withOpacity(0.2),
-                              width: 1,
+                              ),
                             ),
                           ),
-                          child: Icon(
-                            Icons.help_outline,
-                            color: primaryGreen,
-                            size: 22,
+                        ),
+
+                        SizedBox(height: isMobile ? 10 : 14),
+
+                        // Action Buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: primaryGreen,
+                                  foregroundColor: white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: isMobile ? 10 : 16,
+                                  ),
+                                  elevation: 2,
+                                ),
+                                icon: Icon(Icons.content_copy, size: 18),
+                                label: Text('Copy PIN'),
+                                onPressed: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('PIN copied to clipboard'),
+                                      backgroundColor: primaryGreen,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: primaryGreen,
+                                  side: BorderSide(color: primaryGreen),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: isMobile ? 10 : 16,
+                                  ),
+                                ),
+                                icon: Icon(Icons.refresh, size: 18),
+                                label: Text('Regenerate'),
+                                onPressed: _isGenerating ? null : _generateCode,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        SizedBox(height: isMobile ? 10 : 14),
+
+                        // Authorized Fetchers Card
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          child: Card(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 6,
+                            shadowColor: primaryGreen.withOpacity(0.2),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: primaryGreen.withOpacity(0.1),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 5),
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                              child: Padding(
+                                padding: EdgeInsets.all(isMobile ? 12 : 20),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: greenWithOpacity,
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            Icons.verified_user,
+                                            color: primaryGreen,
+                                            size: isMobile ? 16 : 18,
+                                          ),
+                                        ),
+                                        SizedBox(width: isMobile ? 8 : 12),
+                                        Text(
+                                          'Authorized Fetchers',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: isMobile ? 15 : 16,
+                                            color: black,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: isMobile ? 8 : 12),
+                                    _buildFetcherItem(
+                                      'David Williams',
+                                      'Father',
+                                      true,
+                                      primaryGreen,
+                                      black,
+                                      isMobile,
+                                    ),
+                                    _buildFetcherItem(
+                                      'Margaret Smith',
+                                      'Grandmother',
+                                      true,
+                                      primaryGreen,
+                                      black,
+                                      isMobile,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                        SizedBox(width: 8),
-                        Text(
-                          'How to use:',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: black,
+
+                        SizedBox(height: isMobile ? 10 : 14),
+
+                        // Confirm Actions Card
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          child: Card(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 6,
+                            shadowColor: primaryGreen.withOpacity(0.2),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: primaryGreen.withOpacity(0.1),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 5),
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                              child: Padding(
+                                padding: EdgeInsets.all(isMobile ? 12 : 20),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: greenWithOpacity,
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            Icons.check_circle_outline,
+                                            color: primaryGreen,
+                                            size: isMobile ? 16 : 18,
+                                          ),
+                                        ),
+                                        SizedBox(width: isMobile ? 8 : 12),
+                                        Text(
+                                          'Confirm Actions',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: isMobile ? 15 : 16,
+                                            color: black,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: isMobile ? 12 : 16),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: primaryGreen,
+                                              foregroundColor: white,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              padding: EdgeInsets.symmetric(
+                                                vertical: isMobile ? 10 : 16,
+                                              ),
+                                              elevation: 2,
+                                            ),
+                                            icon: Icon(
+                                              Icons.check_circle,
+                                              size: 18,
+                                            ),
+                                            label: Text('Confirm Pick-up'),
+                                            onPressed: () {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'Pick-up confirmed',
+                                                  ),
+                                                  backgroundColor: primaryGreen,
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor: primaryGreen,
+                                              side: BorderSide(
+                                                color: primaryGreen,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              padding: EdgeInsets.symmetric(
+                                                vertical: isMobile ? 10 : 16,
+                                              ),
+                                            ),
+                                            icon: Icon(
+                                              Icons.directions_car,
+                                              size: 18,
+                                            ),
+                                            label: Text('Confirm Drop-off'),
+                                            onPressed: () {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'Drop-off confirmed',
+                                                  ),
+                                                  backgroundColor: primaryGreen,
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    _buildInstructionStep(
-                      '1',
-                      'Generate a unique code',
-                      Icons.qr_code,
-                      primaryGreen,
-                      black,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildInstructionStep(
-                      '2',
-                      'Share the code with authorized fetchers',
-                      Icons.share,
-                      primaryGreen,
-                      black,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildInstructionStep(
-                      '3',
-                      'Fetchers can use this code to access your child',
-                      Icons.security,
-                      primaryGreen,
-                      black,
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildInstructionStep(
-    String number,
-    String instruction,
-    IconData icon,
+  Widget _buildFetcherItem(
+    String name,
+    String role,
+    bool active,
     Color primaryGreen,
     Color black,
+    bool isMobile,
   ) {
-    return Row(
-      children: [
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: const Color.fromRGBO(25, 174, 97, 0.1),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: primaryGreen.withOpacity(0.3), width: 1),
+    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
+
+    return Container(
+      margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: primaryGreen.withOpacity(0.3), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: primaryGreen.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
           ),
-          child: Center(
-            child: Text(
-              number,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: primaryGreen,
-              ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: greenWithOpacity,
+            radius: isMobile ? 20 : 24,
+            child: Icon(
+              Icons.person,
+              color: primaryGreen,
+              size: isMobile ? 20 : 24,
             ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            instruction,
-            style: TextStyle(fontSize: 14, color: black.withOpacity(0.8)),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: isMobile ? 16 : 18,
+                    color: black,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  role,
+                  style: TextStyle(
+                    fontSize: isMobile ? 14 : 16,
+                    color: black.withOpacity(0.6),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        Icon(icon, color: primaryGreen, size: 16),
-      ],
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: active ? primaryGreen : Colors.grey.withOpacity(0.5),
+              shape: BoxShape.circle,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

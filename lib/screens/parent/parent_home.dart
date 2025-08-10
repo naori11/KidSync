@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
-import 'notifications.dart';
+
+class _NavItem {
+  final String label;
+  final IconData icon;
+  final String route;
+  _NavItem(this.label, this.icon, this.route);
+}
 
 class ParentHomeScreen extends StatelessWidget {
   const ParentHomeScreen({Key? key}) : super(key: key);
@@ -25,8 +31,6 @@ class ParentHomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     const Color primaryGreen = Color(0xFF19AE61);
     const Color black = Color(0xFF000000);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
-    const Color white = Color(0xFFFFFFFF);
     final List<_NavItem> navItems = [
       _NavItem('Dashboard', Icons.dashboard, 'dashboard'),
       _NavItem('Pick-up/Drop-off', Icons.directions_car, 'pickup'),
@@ -203,9 +207,15 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF000000).withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: primaryColor.withOpacity(0.08),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+            spreadRadius: 1,
+          ),
+          BoxShadow(
+            color: const Color(0xFF000000).withOpacity(0.03),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
           ),
         ],
       ),
@@ -597,17 +607,23 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
-                elevation: 4,
-                shadowColor: const Color(0xFF000000).withOpacity(0.1),
+                elevation: 8,
+                shadowColor: primaryColor.withOpacity(0.3),
                 child: Container(
                   decoration: BoxDecoration(
                     color: white,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF000000).withOpacity(0.08),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
+                        color: primaryColor.withOpacity(0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                        spreadRadius: 2,
+                      ),
+                      BoxShadow(
+                        color: const Color(0xFF000000).withOpacity(0.05),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
@@ -748,17 +764,18 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
-                elevation: 4,
-                shadowColor: const Color(0xFF000000).withOpacity(0.1),
+                elevation: 6,
+                shadowColor: primaryColor.withOpacity(0.2),
                 child: Container(
                   decoration: BoxDecoration(
                     color: white,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF000000).withOpacity(0.08),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
+                        color: primaryColor.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
+                        spreadRadius: 1,
                       ),
                     ],
                   ),
@@ -878,17 +895,18 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
-                elevation: 4,
-                shadowColor: const Color(0xFF000000).withOpacity(0.1),
+                elevation: 6,
+                shadowColor: primaryColor.withOpacity(0.2),
                 child: Container(
                   decoration: BoxDecoration(
                     color: white,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF000000).withOpacity(0.08),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
+                        color: primaryColor.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
+                        spreadRadius: 1,
                       ),
                     ],
                   ),
@@ -980,42 +998,57 @@ class _NotificationsTab extends StatelessWidget {
     final isMobile = MediaQuery.of(context).size.width < 500;
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 2,
-      child: Padding(
-        padding: EdgeInsets.all(isMobile ? 16 : 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.notifications,
-                  color: primaryColor,
-                  size: isMobile ? 20 : 24,
-                ),
-                SizedBox(width: isMobile ? 6 : 8),
-                Text(
-                  'Notifications',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: isMobile ? 16 : 18,
-                    color: const Color(0xFF000000),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: isMobile ? 14 : 24),
-            _notificationRow(
-              'Student arrived safely at school',
-              '2h ago',
-              isMobile,
-            ),
-            _notificationRow(
-              'Pick-up will be at 3:30 PM today',
-              '1h ago',
-              isMobile,
+      elevation: 6,
+      shadowColor: primaryColor.withOpacity(0.2),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: primaryColor.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+              spreadRadius: 1,
             ),
           ],
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(isMobile ? 16 : 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.notifications,
+                    color: primaryColor,
+                    size: isMobile ? 20 : 24,
+                  ),
+                  SizedBox(width: isMobile ? 6 : 8),
+                  Text(
+                    'Notifications',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: isMobile ? 16 : 18,
+                      color: const Color(0xFF000000),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: isMobile ? 14 : 24),
+              _notificationRow(
+                'Student arrived safely at school',
+                '2h ago',
+                isMobile,
+              ),
+              _notificationRow(
+                'Pick-up will be at 3:30 PM today',
+                '1h ago',
+                isMobile,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1079,58 +1112,78 @@ class _PickupDropoffTab extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          elevation: 2,
-          child: Padding(
-            padding: EdgeInsets.all(isMobile ? 16 : 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: greenWithOpacity,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.schedule,
-                        color: primaryColor,
-                        size: isMobile ? 18 : 22,
-                      ),
-                    ),
-                    SizedBox(width: isMobile ? 8 : 12),
-                    Text(
-                      'Today\'s Schedule',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: isMobile ? 16 : 18,
-                        color: black,
-                      ),
-                    ),
-                  ],
+          elevation: 8,
+          shadowColor: primaryColor.withOpacity(0.3),
+          child: Container(
+            decoration: BoxDecoration(
+              color: white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: primaryColor.withOpacity(0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                  spreadRadius: 2,
                 ),
-                SizedBox(height: isMobile ? 16 : 20),
-                _buildScheduleItem(
-                  '8:00 AM',
-                  'Drop-off',
-                  'Completed',
-                  true,
-                  isMobile,
-                  primaryColor,
-                  black,
-                ),
-                SizedBox(height: isMobile ? 8 : 12),
-                _buildScheduleItem(
-                  '3:30 PM',
-                  'Pick-up',
-                  'Pending',
-                  false,
-                  isMobile,
-                  primaryColor,
-                  black,
+                BoxShadow(
+                  color: const Color(0xFF000000).withOpacity(0.05),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
                 ),
               ],
+            ),
+            child: Padding(
+              padding: EdgeInsets.all(isMobile ? 16 : 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: greenWithOpacity,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.schedule,
+                          color: primaryColor,
+                          size: isMobile ? 18 : 22,
+                        ),
+                      ),
+                      SizedBox(width: isMobile ? 8 : 12),
+                      Text(
+                        'Today\'s Schedule',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: isMobile ? 16 : 18,
+                          color: black,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: isMobile ? 16 : 20),
+                  _buildScheduleItem(
+                    '8:00 AM',
+                    'Drop-off',
+                    'Completed',
+                    true,
+                    isMobile,
+                    primaryColor,
+                    black,
+                  ),
+                  SizedBox(height: isMobile ? 8 : 12),
+                  _buildScheduleItem(
+                    '3:30 PM',
+                    'Pick-up',
+                    'Pending',
+                    false,
+                    isMobile,
+                    primaryColor,
+                    black,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1251,62 +1304,80 @@ class _PickupDropoffTab extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          elevation: 2,
-          child: Padding(
-            padding: EdgeInsets.all(isMobile ? 16 : 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Select Date',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: isMobile ? 16 : 18,
-                    color: black,
-                  ),
-                ),
-                SizedBox(height: isMobile ? 12 : 16),
-                Container(
-                  padding: EdgeInsets.all(isMobile ? 12 : 16),
-                  decoration: BoxDecoration(
-                    color: greenWithOpacity,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: primaryColor, width: 1),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today,
-                        color: primaryColor,
-                        size: isMobile ? 18 : 20,
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Today, ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
-                          style: TextStyle(
-                            fontSize: isMobile ? 14 : 16,
-                            color: black,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.arrow_drop_down, color: primaryColor),
-                        onPressed: () {
-                          // TODO: Implement date picker
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Date picker functionality'),
-                              backgroundColor: primaryColor,
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+          elevation: 6,
+          shadowColor: primaryColor.withOpacity(0.2),
+          child: Container(
+            decoration: BoxDecoration(
+              color: white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: primaryColor.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                  spreadRadius: 1,
                 ),
               ],
+            ),
+            child: Padding(
+              padding: EdgeInsets.all(isMobile ? 16 : 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Select Date',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: isMobile ? 16 : 18,
+                      color: black,
+                    ),
+                  ),
+                  SizedBox(height: isMobile ? 12 : 16),
+                  Container(
+                    padding: EdgeInsets.all(isMobile ? 12 : 16),
+                    decoration: BoxDecoration(
+                      color: greenWithOpacity,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: primaryColor, width: 1),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          color: primaryColor,
+                          size: isMobile ? 18 : 20,
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Today, ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+                            style: TextStyle(
+                              fontSize: isMobile ? 14 : 16,
+                              color: black,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.arrow_drop_down,
+                            color: primaryColor,
+                          ),
+                          onPressed: () {
+                            // TODO: Implement date picker
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Date picker functionality'),
+                                backgroundColor: primaryColor,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1385,6 +1456,11 @@ class _FetchersTabState extends State<_FetchersTab> {
   String _currentPin = '8472';
   String? _currentFetcherName;
 
+  String _generatePin() {
+    final random = Random();
+    return (1000 + random.nextInt(9000)).toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color black = Color(0xFF000000);
@@ -1399,173 +1475,188 @@ class _FetchersTabState extends State<_FetchersTab> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          elevation: 2,
-          child: Padding(
-            padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: greenWithOpacity,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.person_add_alt_1,
-                        color: widget.primaryColor,
-                        size: widget.isMobile ? 18 : 22,
-                      ),
-                    ),
-                    SizedBox(width: widget.isMobile ? 8 : 12),
-                    Text(
-                      'Add Temporary Fetcher',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: widget.isMobile ? 16 : 18,
-                        color: black,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: widget.isMobile ? 16 : 20),
-                TextField(
-                  controller: _fetcherNameController,
-                  decoration: InputDecoration(
-                    labelText: 'Fetcher Name',
-                    hintText: 'Enter fetcher name',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
-                        color: widget.primaryColor,
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(height: widget.isMobile ? 16 : 20),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: widget.primaryColor,
-                    foregroundColor: white,
-                    padding: EdgeInsets.symmetric(
-                      vertical: widget.isMobile ? 12 : 16,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  icon: Icon(Icons.security, size: widget.isMobile ? 18 : 20),
-                  label: Text(
-                    'Generate PIN',
-                    style: TextStyle(fontSize: widget.isMobile ? 14 : 16),
-                  ),
-                  onPressed: () {
-                    if (_fetcherNameController.text.trim().isNotEmpty) {
-                      setState(() {
-                        _currentFetcherName =
-                            _fetcherNameController.text.trim();
-                        _currentPin = _generatePin();
-                      });
-                      showDialog(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            title: Row(
-                              children: [
-                                Icon(
-                                  Icons.check_circle,
-                                  color: widget.primaryColor,
-                                  size: 24,
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  'PIN Generated',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: black,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            content: Text(
-                              'PIN generated successfully for ${_currentFetcherName}',
-                              style: TextStyle(color: black.withOpacity(0.7)),
-                            ),
-                            actions: [
-                              ElevatedButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: widget.primaryColor,
-                                  foregroundColor: white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                child: Text('OK'),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    } else {
-                      // Show error in center with better styling
-                      showDialog(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            title: Row(
-                              children: [
-                                Icon(
-                                  Icons.error_outline,
-                                  color: Colors.red,
-                                  size: 24,
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Input Required',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: black,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            content: Text(
-                              'Please enter a fetcher name to generate a PIN.',
-                              style: TextStyle(color: black.withOpacity(0.7)),
-                            ),
-                            actions: [
-                              ElevatedButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: widget.primaryColor,
-                                  foregroundColor: white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                child: Text('OK'),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    }
-                  },
+          elevation: 6,
+          shadowColor: widget.primaryColor.withOpacity(0.2),
+          child: Container(
+            decoration: BoxDecoration(
+              color: white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.primaryColor.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                  spreadRadius: 1,
                 ),
               ],
+            ),
+            child: Padding(
+              padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: greenWithOpacity,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.person_add_alt_1,
+                          color: widget.primaryColor,
+                          size: widget.isMobile ? 18 : 22,
+                        ),
+                      ),
+                      SizedBox(width: widget.isMobile ? 8 : 12),
+                      Text(
+                        'Add Temporary Fetcher',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: widget.isMobile ? 16 : 18,
+                          color: black,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: widget.isMobile ? 16 : 20),
+                  TextField(
+                    controller: _fetcherNameController,
+                    decoration: InputDecoration(
+                      labelText: 'Fetcher Name',
+                      hintText: 'Enter fetcher name',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(
+                          color: widget.primaryColor,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: widget.isMobile ? 16 : 20),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: widget.primaryColor,
+                      foregroundColor: white,
+                      padding: EdgeInsets.symmetric(
+                        vertical: widget.isMobile ? 12 : 16,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    icon: Icon(Icons.security, size: widget.isMobile ? 18 : 20),
+                    label: Text(
+                      'Generate PIN',
+                      style: TextStyle(fontSize: widget.isMobile ? 14 : 16),
+                    ),
+                    onPressed: () {
+                      if (_fetcherNameController.text.trim().isNotEmpty) {
+                        setState(() {
+                          _currentFetcherName =
+                              _fetcherNameController.text.trim();
+                          _currentPin = _generatePin();
+                        });
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              title: Row(
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: widget.primaryColor,
+                                    size: 24,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'PIN Generated',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: black,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              content: Text(
+                                'PIN generated successfully for ${_currentFetcherName}',
+                                style: TextStyle(color: black.withOpacity(0.7)),
+                              ),
+                              actions: [
+                                ElevatedButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: widget.primaryColor,
+                                    foregroundColor: white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: Text('OK'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      } else {
+                        // Show error in center with better styling
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              title: Row(
+                                children: [
+                                  Icon(
+                                    Icons.error_outline,
+                                    color: Colors.red,
+                                    size: 24,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Input Required',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: black,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              content: Text(
+                                'Please enter a fetcher name to generate a PIN.',
+                                style: TextStyle(color: black.withOpacity(0.7)),
+                              ),
+                              actions: [
+                                ElevatedButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: widget.primaryColor,
+                                    foregroundColor: white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: Text('OK'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1825,11 +1916,6 @@ class _FetchersTabState extends State<_FetchersTab> {
     );
   }
 
-  String _generatePin() {
-    final random = Random();
-    return (1000 + random.nextInt(9000)).toString();
-  }
-
   Widget _buildFetcherItem(
     String name,
     String role,
@@ -1889,11 +1975,4 @@ class _FetchersTabState extends State<_FetchersTab> {
       ),
     );
   }
-}
-
-class _NavItem {
-  final String label;
-  final IconData icon;
-  final String route;
-  _NavItem(this.label, this.icon, this.route);
 }
