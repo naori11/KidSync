@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kidsync/widgets/role_protection.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
+import 'package:cross_file/cross_file.dart';
 
 class UserManagementPageAdmin extends StatelessWidget {
   const UserManagementPageAdmin({super.key});
@@ -36,6 +39,12 @@ class _UserManagementPageState extends State<UserManagementPage> {
   int _itemsPerPage = 8;
   int _totalPages = 1;
 
+  // For image uploads
+  String? _selectedImagePath;
+  String? _currentImageUrl;
+  bool _isUploadingImage = false;
+  Uint8List? _selectedImageBytes;
+
   @override
   void initState() {
     super.initState();
@@ -68,6 +77,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     required String lname,
     String? contactNumber,
     String? position,
+    String? profileImageUrl,
   }) async {
     final res = await Supabase.instance.client.functions.invoke(
       'create_user',
@@ -79,6 +89,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
         'lname': lname,
         'contact_number': contactNumber,
         'position': position,
+        'profile_image_url': profileImageUrl,
       },
     );
     if (res.status != 200) {
@@ -99,6 +110,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     required String lname,
     String? contactNumber,
     String? position,
+    String? profileImageUrl,
   }) async {
     final res = await Supabase.instance.client.functions.invoke(
       'edit_user',
@@ -111,6 +123,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
         'lname': lname,
         'contact_number': contactNumber,
         'position': position,
+        'profile_image_url': profileImageUrl,
       },
     );
     if (res.status != 200) {
@@ -146,6 +159,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   Future<void> _addOrEditUser({Map<String, dynamic>? user}) async {
     print('Debug: User data received: $user'); // Debug print
+
+    setState(() {
+      _selectedImagePath = null;
+      _selectedImageBytes = null;
+      _currentImageUrl = user?['profile_image_url']; // Add this line
+      _isUploadingImage = false;
+    });
 
     // Form controllers
     final fnameController = TextEditingController(
@@ -317,13 +337,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 24),
-
-                        // System Information Section
-                        _buildSectionHeader('System Information'),
                         const SizedBox(height: 16),
 
-                        // Role and Status row
+                        // Role and Status row (moved up before Profile Image)
                         Row(
                           children: [
                             Expanded(
@@ -428,6 +444,241 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 24),
+
+                        // Profile Image Section (moved to bottom)
+                        _buildSectionHeader('Profile Image'),
+                        const SizedBox(height: 16),
+                        Center(
+                          child: Column(
+                            children: [
+                              // Display current image or placeholder
+                              GestureDetector(
+                                onTap: () async {
+                                  final ImagePicker picker = ImagePicker();
+                                  final XFile? image = await picker.pickImage(
+                                    source: ImageSource.gallery,
+                                    maxWidth: 800,
+                                    maxHeight: 800,
+                                    imageQuality: 85,
+                                  );
+
+                                  if (image != null) {
+                                    final bytes = await image.readAsBytes();
+
+                                    if (bytes.length > 5 * 1024 * 1024) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Image size must be less than 5MB',
+                                            ),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                      return;
+                                    }
+
+                                    if (_validateImageBytes(
+                                      bytes,
+                                      image.name,
+                                    )) {
+                                      setDialogState(() {
+                                        _selectedImageBytes = bytes;
+                                        _selectedImagePath = image.name;
+                                        _currentImageUrl = null;
+                                      });
+                                    }
+                                  }
+                                },
+                                child: Container(
+                                  width: 120,
+                                  height: 120,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(60),
+                                    border: Border.all(
+                                      color: const Color(0xFF2ECC71),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: ClipOval(
+                                    child: _buildImageWidget(user),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              // Upload/Remove buttons
+                              if (_selectedImageBytes != null) ...[
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    ElevatedButton.icon(
+                                      onPressed:
+                                          _isUploadingImage
+                                              ? null
+                                              : () async {
+                                                final ImagePicker picker =
+                                                    ImagePicker();
+                                                final XFile? image =
+                                                    await picker.pickImage(
+                                                      source:
+                                                          ImageSource.gallery,
+                                                      maxWidth: 800,
+                                                      maxHeight: 800,
+                                                      imageQuality: 85,
+                                                    );
+
+                                                if (image != null) {
+                                                  final bytes =
+                                                      await image.readAsBytes();
+
+                                                  if (bytes.length >
+                                                      5 * 1024 * 1024) {
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Text(
+                                                            'Image size must be less than 5MB',
+                                                          ),
+                                                          backgroundColor:
+                                                              Colors.red,
+                                                        ),
+                                                      );
+                                                    }
+                                                    return;
+                                                  }
+
+                                                  if (_validateImageBytes(
+                                                    bytes,
+                                                    image.name,
+                                                  )) {
+                                                    setDialogState(() {
+                                                      _selectedImageBytes =
+                                                          bytes;
+                                                      _selectedImagePath =
+                                                          image.name;
+                                                      _currentImageUrl = null;
+                                                    });
+                                                  }
+                                                }
+                                              },
+                                      icon: const Icon(Icons.edit, size: 16),
+                                      label: const Text('Change'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.orange,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton.icon(
+                                      onPressed:
+                                          _isUploadingImage
+                                              ? null
+                                              : () {
+                                                setDialogState(() {
+                                                  _selectedImageBytes = null;
+                                                  _selectedImagePath = null;
+                                                  _currentImageUrl = null;
+                                                });
+                                              },
+                                      icon:
+                                          _isUploadingImage
+                                              ? const SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.white,
+                                                    ),
+                                              )
+                                              : const Icon(
+                                                Icons.clear,
+                                                size: 16,
+                                              ),
+                                      label: Text(
+                                        _isUploadingImage
+                                            ? 'Processing...'
+                                            : 'Remove',
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ] else ...[
+                                ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final ImagePicker picker = ImagePicker();
+                                    final XFile? image = await picker.pickImage(
+                                      source: ImageSource.gallery,
+                                      maxWidth: 800,
+                                      maxHeight: 800,
+                                      imageQuality: 85,
+                                    );
+
+                                    if (image != null) {
+                                      final bytes = await image.readAsBytes();
+
+                                      if (bytes.length > 5 * 1024 * 1024) {
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Image size must be less than 5MB',
+                                              ),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        }
+                                        return;
+                                      }
+
+                                      if (_validateImageBytes(
+                                        bytes,
+                                        image.name,
+                                      )) {
+                                        setDialogState(() {
+                                          _selectedImageBytes = bytes;
+                                          _selectedImagePath = image.name;
+                                          _currentImageUrl = null;
+                                        });
+                                      }
+                                    }
+                                  },
+                                  icon: const Icon(Icons.upload),
+                                  label: const Text('Upload Photo'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF2ECC71),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
 
                         if (user == null) ...[
                           const SizedBox(height: 16),
@@ -481,50 +732,171 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   onPressed: () async {
                     if (formKey.currentState!.validate()) {
                       try {
-                        print(
-                          'Debug: Attempting to save user...',
-                        ); // Debug print
+                        String? imageUrl =
+                            _currentImageUrl ?? user?['profile_image_url'];
 
-                        if (user == null) {
-                          await createUserViaEdgeFunction(
-                            email: emailController.text.trim(),
-                            role: selectedRole!,
-                            fname: fnameController.text.trim(),
-                            mname:
-                                mnameController.text.trim().isEmpty
-                                    ? null
-                                    : mnameController.text.trim(),
-                            lname: lnameController.text.trim(),
-                            contactNumber:
-                                contactController.text.trim().isEmpty
-                                    ? null
-                                    : contactController.text.trim(),
-                            position:
-                                positionController.text.trim().isEmpty
-                                    ? null
-                                    : positionController.text.trim(),
-                          );
+                        // Handle image upload if there's a selected image
+                        if (_selectedImagePath != null &&
+                            _selectedImageBytes != null) {
+                          if (user == null) {
+                            // For new users, create user first, then upload image
+                            await createUserViaEdgeFunction(
+                              email: emailController.text.trim(),
+                              role: selectedRole!,
+                              fname: fnameController.text.trim(),
+                              mname:
+                                  mnameController.text.trim().isEmpty
+                                      ? null
+                                      : mnameController.text.trim(),
+                              lname: lnameController.text.trim(),
+                              contactNumber:
+                                  contactController.text.trim().isEmpty
+                                      ? null
+                                      : contactController.text.trim(),
+                              position:
+                                  positionController.text.trim().isEmpty
+                                      ? null
+                                      : positionController.text.trim(),
+                              profileImageUrl:
+                                  null, // Create without image first
+                            );
+
+                            // Get the created user ID
+                            final createdUser =
+                                await supabase
+                                    .from('users')
+                                    .select('id')
+                                    .eq('email', emailController.text.trim())
+                                    .single();
+
+                            // Now upload image with the correct user ID
+                            final XFile imageFile = XFile.fromData(
+                              _selectedImageBytes!,
+                              name: _selectedImagePath!,
+                            );
+                            final uploadedUrl = await _uploadImageToSupabase(
+                              imageFile,
+                              createdUser['id'].toString(),
+                            );
+
+                            // Update user with image URL
+                            if (uploadedUrl != null) {
+                              await supabase
+                                  .from('users')
+                                  .update({'profile_image_url': uploadedUrl})
+                                  .eq('id', createdUser['id']);
+
+                              // Also update auth metadata
+                              await supabase.auth.admin.updateUserById(
+                                createdUser['id'],
+                                attributes: AdminUserAttributes(
+                                  userMetadata: {
+                                    'profile_image_url': uploadedUrl,
+                                  },
+                                ),
+                              );
+                            }
+                          } else {
+                            // For existing users, upload image first
+                            final XFile imageFile = XFile.fromData(
+                              _selectedImageBytes!,
+                              name: _selectedImagePath!,
+                            );
+                            final uploadedUrl = await _uploadImageToSupabase(
+                              imageFile,
+                              user['id'].toString(),
+                            );
+
+                            if (uploadedUrl != null) {
+                              imageUrl = uploadedUrl;
+                              // Delete old image if updating
+                              if (user['profile_image_url'] != null &&
+                                  user['profile_image_url']
+                                      .toString()
+                                      .isNotEmpty) {
+                                await _deleteImageFromSupabase(
+                                  user['profile_image_url'],
+                                );
+                              }
+                            }
+
+                            // Update user with new data
+                            await editUserViaEdgeFunction(
+                              id: user['id'].toString(),
+                              email: emailController.text.trim(),
+                              role: selectedRole!,
+                              fname: fnameController.text.trim(),
+                              mname:
+                                  mnameController.text.trim().isEmpty
+                                      ? null
+                                      : mnameController.text.trim(),
+                              lname: lnameController.text.trim(),
+                              contactNumber:
+                                  contactController.text.trim().isEmpty
+                                      ? null
+                                      : contactController.text.trim(),
+                              position:
+                                  positionController.text.trim().isEmpty
+                                      ? null
+                                      : positionController.text.trim(),
+                              profileImageUrl: imageUrl,
+                            );
+                          }
                         } else {
-                          await editUserViaEdgeFunction(
-                            id: user['id'].toString(),
-                            email: emailController.text.trim(),
-                            role: selectedRole!,
-                            fname: fnameController.text.trim(),
-                            mname:
-                                mnameController.text.trim().isEmpty
-                                    ? null
-                                    : mnameController.text.trim(),
-                            lname: lnameController.text.trim(),
-                            contactNumber:
-                                contactController.text.trim().isEmpty
-                                    ? null
-                                    : contactController.text.trim(),
-                            position:
-                                positionController.text.trim().isEmpty
-                                    ? null
-                                    : positionController.text.trim(),
-                          );
+                          // No image selected
+                          if (user == null) {
+                            // Create new user without image
+                            await createUserViaEdgeFunction(
+                              email: emailController.text.trim(),
+                              role: selectedRole!,
+                              fname: fnameController.text.trim(),
+                              mname:
+                                  mnameController.text.trim().isEmpty
+                                      ? null
+                                      : mnameController.text.trim(),
+                              lname: lnameController.text.trim(),
+                              contactNumber:
+                                  contactController.text.trim().isEmpty
+                                      ? null
+                                      : contactController.text.trim(),
+                              position:
+                                  positionController.text.trim().isEmpty
+                                      ? null
+                                      : positionController.text.trim(),
+                              profileImageUrl: imageUrl,
+                            );
+                          } else {
+                            // Update existing user
+                            await editUserViaEdgeFunction(
+                              id: user['id'].toString(),
+                              email: emailController.text.trim(),
+                              role: selectedRole!,
+                              fname: fnameController.text.trim(),
+                              mname:
+                                  mnameController.text.trim().isEmpty
+                                      ? null
+                                      : mnameController.text.trim(),
+                              lname: lnameController.text.trim(),
+                              contactNumber:
+                                  contactController.text.trim().isEmpty
+                                      ? null
+                                      : contactController.text.trim(),
+                              position:
+                                  positionController.text.trim().isEmpty
+                                      ? null
+                                      : positionController.text.trim(),
+                              profileImageUrl: imageUrl,
+                            );
+                          }
                         }
+
+                        // Reset image state
+                        setState(() {
+                          _selectedImagePath = null;
+                          _selectedImageBytes = null;
+                          _currentImageUrl = null;
+                          _isUploadingImage = false;
+                        });
 
                         Navigator.pop(context);
                         await _fetchUsers();
@@ -547,19 +919,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   ),
                                 ],
                               ),
-                              backgroundColor: const Color.fromARGB(
-                                10,
-                                78,
-                                241,
-                                157,
-                              ),
+                              backgroundColor: const Color(0xFF2ECC71),
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
                         }
                       } catch (e) {
-                        print('Debug: Error saving user: $e'); // Debug print
-                        // Show error message
+                        // Error handling
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
@@ -674,6 +1040,157 @@ class _UserManagementPageState extends State<UserManagementPage> {
         return 'G';
       default:
         return 'U';
+    }
+  }
+
+  // Image validation function
+  bool _validateImageBytes(Uint8List bytes, String fileName) {
+    // Check file extension
+    final String extension = fileName.toLowerCase().split('.').last;
+    const List<String> allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+
+    if (!allowedExtensions.contains(extension)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Only JPG, PNG, and WebP images are allowed'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return false;
+    }
+
+    if (bytes.length < 8) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid image file'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  // Upload image to Supabase Storage
+  Future<String?> _uploadImageToSupabase(XFile image, String userId) async {
+    try {
+      setState(() => _isUploadingImage = true);
+
+      Uint8List imageBytes;
+      if (_selectedImageBytes != null) {
+        imageBytes = _selectedImageBytes!;
+      } else {
+        imageBytes = await image.readAsBytes();
+      }
+
+      // Generate unique filename
+      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final String extension = image.name.split('.').last.toLowerCase();
+      final String fileName = 'user_${userId}_$timestamp.$extension';
+
+      // Upload to Supabase Storage
+      final String uploadPath = await supabase.storage
+          .from('user-profile')
+          .uploadBinary(fileName, imageBytes);
+
+      // Get public URL
+      final String publicUrl = supabase.storage
+          .from('user-profile')
+          .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return null;
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingImage = false);
+      }
+    }
+  }
+
+  // Delete image from Supabase Storage
+  Future<void> _deleteImageFromSupabase(String imageUrl) async {
+    try {
+      final Uri uri = Uri.parse(imageUrl);
+      final String fileName = uri.pathSegments.last;
+      await supabase.storage.from('user-profile').remove([fileName]);
+    } catch (e) {
+      print('Error deleting image: $e');
+    }
+  }
+
+  // Build image widget
+  Widget _buildImageWidget(Map<String, dynamic>? user) {
+    // Priority: selected bytes -> current URL -> user profile URL -> default icon
+    if (_selectedImageBytes != null) {
+      return Image.memory(
+        _selectedImageBytes!,
+        width: 120,
+        height: 120,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return const Icon(Icons.person, size: 60, color: Colors.grey);
+        },
+      );
+    } else if (_currentImageUrl != null && _currentImageUrl!.isNotEmpty) {
+      return Image.network(
+        _currentImageUrl!,
+        width: 120,
+        height: 120,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            width: 120,
+            height: 120,
+            color: Colors.grey[200],
+            child: const Center(
+              child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return const Icon(Icons.person, size: 60, color: Colors.grey);
+        },
+      );
+    } else if (user != null &&
+        user['profile_image_url'] != null &&
+        user['profile_image_url'].toString().isNotEmpty) {
+      return Image.network(
+        user['profile_image_url'],
+        width: 120,
+        height: 120,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            width: 120,
+            height: 120,
+            color: Colors.grey[200],
+            child: const Center(
+              child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return const Icon(Icons.person, size: 60, color: Colors.grey);
+        },
+      );
+    } else {
+      return const Icon(Icons.person, size: 60, color: Colors.grey);
     }
   }
 
@@ -915,7 +1432,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             ),
                             columnWidths: const {
                               0: FlexColumnWidth(0.7), // ID
-                              1: FlexColumnWidth(1.4), // Name
+                              1: FlexColumnWidth(
+                                2.0,
+                              ), // Name + Image (increased width)
                               2: FlexColumnWidth(0.9), // Role
                               3: FlexColumnWidth(1.8), // Email
                               4: FlexColumnWidth(1.2), // Phone
@@ -973,24 +1492,133 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                           style: const TextStyle(
                                             fontWeight: FontWeight.w500,
                                             color: Color(0xFF555555),
+                                            fontSize: 13,
                                           ),
                                         ),
                                       ),
                                     ),
 
-                                    // Name
+                                    // Name WITH PROFILE IMAGE (similar to student management)
                                     TableCell(
                                       verticalAlignment:
                                           TableCellVerticalAlignment.middle,
                                       child: Container(
                                         alignment: Alignment.centerLeft,
                                         padding: const EdgeInsets.all(16),
-                                        child: Text(
-                                          fullName,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                            color: Color(0xFF333333),
-                                          ),
+                                        child: Row(
+                                          children: [
+                                            // Profile Image
+                                            Container(
+                                              width: 40,
+                                              height: 40,
+                                              decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                                border: Border.all(
+                                                  color: const Color(
+                                                    0xFF2ECC71,
+                                                  ).withOpacity(0.3),
+                                                  width: 2,
+                                                ),
+                                              ),
+                                              child: ClipOval(
+                                                child:
+                                                    (u['profile_image_url'] !=
+                                                                null &&
+                                                            u['profile_image_url']
+                                                                .toString()
+                                                                .isNotEmpty)
+                                                        ? Image.network(
+                                                          u['profile_image_url'],
+                                                          width: 40,
+                                                          height: 40,
+                                                          fit: BoxFit.cover,
+                                                          loadingBuilder: (
+                                                            context,
+                                                            child,
+                                                            loadingProgress,
+                                                          ) {
+                                                            if (loadingProgress ==
+                                                                null)
+                                                              return child;
+                                                            return Container(
+                                                              width: 40,
+                                                              height: 40,
+                                                              color:
+                                                                  Colors
+                                                                      .grey[200],
+                                                              child: const Center(
+                                                                child: SizedBox(
+                                                                  width: 16,
+                                                                  height: 16,
+                                                                  child: CircularProgressIndicator(
+                                                                    strokeWidth:
+                                                                        2,
+                                                                    color: Color(
+                                                                      0xFF2ECC71,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            );
+                                                          },
+                                                          errorBuilder: (
+                                                            context,
+                                                            error,
+                                                            stackTrace,
+                                                          ) {
+                                                            return const Icon(
+                                                              Icons.person,
+                                                              size: 20,
+                                                              color:
+                                                                  Colors.grey,
+                                                            );
+                                                          },
+                                                        )
+                                                        : const Icon(
+                                                          Icons.person,
+                                                          size: 20,
+                                                          color: Colors.grey,
+                                                        ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            // User Name and additional info
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  Text(
+                                                    fullName,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Color(0xFF333333),
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                  if (u['position'] != null &&
+                                                      u['position']
+                                                          .toString()
+                                                          .isNotEmpty) ...[
+                                                    const SizedBox(height: 2),
+                                                    Text(
+                                                      u['position'].toString(),
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color: Colors.grey[600],
+                                                        fontStyle:
+                                                            FontStyle.italic,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -1012,16 +1640,27 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                               role,
                                             ).withOpacity(0.1),
                                             borderRadius: BorderRadius.circular(
-                                              4,
+                                              12,
                                             ),
                                           ),
-                                          child: Text(
-                                            role,
-                                            style: TextStyle(
-                                              color: _getRoleColor(role),
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: 12,
-                                            ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                _getRoleIcon(role),
+                                                size: 12,
+                                                color: _getRoleColor(role),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                role,
+                                                style: TextStyle(
+                                                  color: _getRoleColor(role),
+                                                  fontWeight: FontWeight.w500,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ),
@@ -1034,7 +1673,25 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                       child: Container(
                                         alignment: Alignment.centerLeft,
                                         padding: const EdgeInsets.all(16),
-                                        child: Text(u['email'] ?? 'N/A'),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.email,
+                                              size: 14,
+                                              color: Colors.grey[600],
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Expanded(
+                                              child: Text(
+                                                u['email'] ?? 'N/A',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
 
@@ -1045,9 +1702,35 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                       child: Container(
                                         alignment: Alignment.centerLeft,
                                         padding: const EdgeInsets.all(16),
-                                        child: Text(
-                                          u['contact_number'] ?? 'N/A',
-                                        ),
+                                        child:
+                                            u['contact_number'] != null &&
+                                                    u['contact_number']
+                                                        .toString()
+                                                        .isNotEmpty
+                                                ? Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.phone,
+                                                      size: 14,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      u['contact_number'],
+                                                      style: const TextStyle(
+                                                        fontSize: 13,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                )
+                                                : Text(
+                                                  'N/A',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: Colors.grey[500],
+                                                    fontStyle: FontStyle.italic,
+                                                  ),
+                                                ),
                                       ),
                                     ),
 
@@ -1059,8 +1742,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                         padding: const EdgeInsets.all(16),
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
+                                            horizontal: 10,
+                                            vertical: 6,
                                           ),
                                           decoration: BoxDecoration(
                                             color:
@@ -1068,20 +1751,52 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                     ? const Color(0xFFE8F5E9)
                                                     : const Color(0xFFFFEBEE),
                                             borderRadius: BorderRadius.circular(
-                                              4,
+                                              16,
                                             ),
-                                          ),
-                                          child: Text(
-                                            status,
-                                            style: TextStyle(
+                                            border: Border.all(
                                               color:
                                                   status == 'Active'
-                                                      ? const Color(0xFF2E7D32)
-                                                      : const Color(0xFFC62828),
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: 12,
+                                                      ? const Color(0xFF4CAF50)
+                                                      : const Color(0xFFE57373),
+                                              width: 1,
                                             ),
-                                            textAlign: TextAlign.center,
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                width: 6,
+                                                height: 6,
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      status == 'Active'
+                                                          ? const Color(
+                                                            0xFF4CAF50,
+                                                          )
+                                                          : const Color(
+                                                            0xFFE57373,
+                                                          ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(3),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                status,
+                                                style: TextStyle(
+                                                  color:
+                                                      status == 'Active'
+                                                          ? const Color(
+                                                            0xFF2E7D32,
+                                                          )
+                                                          : const Color(
+                                                            0xFFC62828,
+                                                          ),
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ),
@@ -1095,9 +1810,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                         child:
                                             isAdmin
                                                 ? PopupMenuButton<String>(
-                                                  icon: const Icon(
+                                                  icon: Icon(
                                                     Icons.more_vert,
+                                                    color: Colors.grey[600],
                                                   ),
+                                                  iconSize: 20,
                                                   onSelected: (value) async {
                                                     if (value == 'edit') {
                                                       _addOrEditUser(user: u);
@@ -1374,6 +2091,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                               Icon(
                                                                 Icons.edit,
                                                                 size: 16,
+                                                                color: Color(
+                                                                  0xFF2ECC71,
+                                                                ),
                                                               ),
                                                               SizedBox(
                                                                 width: 8,
@@ -1544,16 +2264,36 @@ class _UserManagementPageState extends State<UserManagementPage> {
   // Helper method to get role colors
   Color _getRoleColor(String role) {
     switch (role) {
-      case 'Parent':
-        return Colors.blue;
       case 'Teacher':
-        return Colors.purple;
+        return const Color(0xFF1976D2);
+      case 'Parent':
+        return const Color(0xFF388E3C);
       case 'Guard':
-        return Colors.orange;
+        return const Color(0xFFD32F2F);
       case 'Driver':
-        return Colors.teal;
+        return const Color(0xFFF57C00);
+      case 'Admin':
+        return const Color(0xFF7B1FA2);
       default:
-        return Colors.grey;
+        return const Color(0xFF616161);
+    }
+  }
+
+  // Helper method to get role icons
+  IconData _getRoleIcon(String role) {
+    switch (role) {
+      case 'Teacher':
+        return Icons.school;
+      case 'Parent':
+        return Icons.family_restroom;
+      case 'Guard':
+        return Icons.security;
+      case 'Driver':
+        return Icons.directions_bus;
+      case 'Admin':
+        return Icons.admin_panel_settings;
+      default:
+        return Icons.person;
     }
   }
 }
