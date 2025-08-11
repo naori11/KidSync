@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../models/driver_models.dart';
 
 class ChildStatusScreen extends StatefulWidget {
   const ChildStatusScreen({Key? key}) : super(key: key);
@@ -192,6 +193,11 @@ class _ChildStatusScreenState extends State<ChildStatusScreen> {
                             ),
                           ),
                         ),
+
+                        SizedBox(height: isMobile ? 10 : 14),
+
+                        // Driver Information Card
+                        _buildDriverInfoCard(primaryGreen, isMobile, context),
 
                         SizedBox(height: isMobile ? 10 : 14),
 
@@ -400,6 +406,229 @@ class _ChildStatusScreenState extends State<ChildStatusScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDriverInfoCard(
+    Color primaryColor,
+    bool isMobile,
+    BuildContext context,
+  ) {
+    const Color white = Color(0xFFFFFFFF);
+    const Color black = Color(0xFF000000);
+    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
+    final driverInfo = StaticDriverData.driverInfo;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 6,
+        shadowColor: primaryColor.withOpacity(0.2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(isMobile ? 12 : 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: greenWithOpacity,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.local_shipping,
+                        color: primaryColor,
+                        size: isMobile ? 16 : 18,
+                      ),
+                    ),
+                    SizedBox(width: isMobile ? 8 : 12),
+                    Text(
+                      'Your Driver',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: isMobile ? 15 : 16,
+                        color: black,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: isMobile ? 12 : 16),
+                Container(
+                  padding: EdgeInsets.all(isMobile ? 12 : 16),
+                  decoration: BoxDecoration(
+                    color: white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: primaryColor.withOpacity(0.3),
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                        spreadRadius: 0,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: greenWithOpacity,
+                        radius: isMobile ? 20 : 24,
+                        child: Icon(
+                          Icons.person,
+                          color: primaryColor,
+                          size: isMobile ? 20 : 24,
+                        ),
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              driverInfo.name,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: isMobile ? 16 : 18,
+                                color: black,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.directions_car,
+                                  size: isMobile ? 14 : 16,
+                                  color: black.withOpacity(0.6),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Vehicle: ${driverInfo.vehicleNumber}',
+                                  style: TextStyle(
+                                    fontSize: isMobile ? 14 : 16,
+                                    color: black.withOpacity(0.6),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.phone,
+                                  size: isMobile ? 14 : 16,
+                                  color: black.withOpacity(0.6),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  driverInfo.phoneNumber,
+                                  style: TextStyle(
+                                    fontSize: isMobile ? 14 : 16,
+                                    color: black.withOpacity(0.6),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: primaryColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: isMobile ? 12 : 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: white,
+                          padding: EdgeInsets.symmetric(
+                            vertical: isMobile ? 10 : 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 2,
+                        ),
+                        icon: Icon(Icons.phone, size: isMobile ? 16 : 18),
+                        label: Text(
+                          'Call Driver',
+                          style: TextStyle(fontSize: isMobile ? 13 : 15),
+                        ),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Calling ${driverInfo.name}...'),
+                              backgroundColor: primaryColor,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: primaryColor,
+                          side: BorderSide(color: primaryColor),
+                          padding: EdgeInsets.symmetric(
+                            vertical: isMobile ? 10 : 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        icon: Icon(Icons.message, size: isMobile ? 16 : 18),
+                        label: Text(
+                          'Message',
+                          style: TextStyle(fontSize: isMobile ? 13 : 15),
+                        ),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Opening message to ${driverInfo.name}...',
+                              ),
+                              backgroundColor: primaryColor,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
