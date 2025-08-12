@@ -401,16 +401,19 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     try {
       print('Fetching authorized fetchers for student ID: $studentId');
 
-      // Fetch parent-student relationships with parent information
+      // Fetch parent-student relationships with parent and user information
       final response = await supabase
           .from('parent_student')
           .select('''
-            relationship_type,
-            is_primary,
-            parents!inner(
-              id, fname, mname, lname, phone, email, address, status
+          relationship_type,
+          is_primary,
+          parents!inner(
+            id, fname, mname, lname, phone, email, address, status,
+            users!inner(
+              profile_image_url
             )
-          ''')
+          )
+        ''')
           .eq('student_id', studentId);
 
       print('Fetchers response: $response');
@@ -2666,30 +2669,17 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       ),
       child: Row(
         children: [
-          // Fetcher Photo
+          // Fetcher Photo - Updated to use the same image building pattern as student images
           Container(
             width: 60,
             height: 60,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
-              color: Colors.grey[100],
+              border: Border.all(color: Colors.grey[300]!, width: 1),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                fetcher.imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: Colors.grey[200],
-                    child: Icon(
-                      Icons.person,
-                      size: 30,
-                      color: Colors.grey[500],
-                    ),
-                  );
-                },
-              ),
+              borderRadius: BorderRadius.circular(7),
+              child: _buildFetcherImageContent(fetcher.imageUrl),
             ),
           ),
           SizedBox(width: 16),
@@ -2724,34 +2714,115 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                 ),
                 SizedBox(height: 8),
 
-                // Authorized Badge
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.green[200]!),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.check_circle, size: 12, color: Colors.green),
-                      SizedBox(width: 4),
-                      Text(
-                        'AUTHORIZED',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.green[700],
-                          fontWeight: FontWeight.bold,
+                // Primary/Authorized Badge
+                Row(
+                  children: [
+                    if (fetcher.isPrimary) ...[
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.blue[200]!),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.star, size: 12, color: Colors.blue),
+                            SizedBox(width: 4),
+                            Text(
+                              'PRIMARY',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.blue[700],
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                      SizedBox(width: 8),
                     ],
-                  ),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.green[200]!),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            size: 12,
+                            color: Colors.green,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'AUTHORIZED',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.green[700],
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // Add this new method for fetcher image handling
+  Widget _buildFetcherImageContent(String? imageUrl) {
+    // Check if we have a valid image URL
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return _buildFetcherPlaceholderImage();
+    }
+
+    return Image.network(
+      imageUrl,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return _buildFetcherLoadingImage();
+      },
+      errorBuilder: (context, error, stackTrace) {
+        print('Error loading fetcher image: $error');
+        return _buildFetcherPlaceholderImage();
+      },
+    );
+  }
+
+  Widget _buildFetcherPlaceholderImage() {
+    return Container(
+      color: Colors.grey[200],
+      child: Icon(Icons.person, size: 30, color: Colors.grey[500]),
+    );
+  }
+
+  Widget _buildFetcherLoadingImage() {
+    return Container(
+      color: Colors.grey[100],
+      child: Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+          ),
+        ),
       ),
     );
   }

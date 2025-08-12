@@ -74,9 +74,10 @@ class Student {
       rfidUid: json['rfid_uid'] as String?,
       profileImageUrl: json['profile_image_url'] as String?, // Add this line
       sectionName: json['sections']?['name'] as String?,
-      createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at'] as String)
-          : null,
+      createdAt:
+          json['created_at'] != null
+              ? DateTime.parse(json['created_at'] as String)
+              : null,
     );
   }
 }
@@ -85,41 +86,63 @@ class Student {
 class Fetcher {
   final int id;
   final String name;
-  final String imageUrl;
-  final String relationship;
   final String contact;
-  final String email;
-  final bool authorized;
+  final String address;
+  final String relationship;
   final bool isPrimary;
+  final String imageUrl;
 
   Fetcher({
     required this.id,
     required this.name,
-    required this.imageUrl,
-    required this.relationship,
     required this.contact,
-    required this.email,
-    this.authorized = true,
-    this.isPrimary = false,
+    required this.address,
+    required this.relationship,
+    required this.isPrimary,
+    required this.imageUrl,
   });
 
   factory Fetcher.fromParentData(
     Map<String, dynamic> parentData,
     Map<String, dynamic> relationshipData,
   ) {
-    final parentInfo = parentData;
-    final fullName = '${parentInfo['fname']} ${parentInfo['lname']}';
+    final fname = parentData['fname'] ?? '';
+    final mname = parentData['mname'] ?? '';
+    final lname = parentData['lname'] ?? '';
+    final fullName = '$fname $mname $lname'.trim().replaceAll(
+      RegExp(r'\s+'),
+      ' ',
+    );
+
+    // Extract profile image URL from nested users data - Fixed approach
+    String profileImageUrl = '';
+    try {
+      // The users data comes as an array from the join
+      if (parentData['users'] != null) {
+        if (parentData['users'] is List &&
+            (parentData['users'] as List).isNotEmpty) {
+          final userData = (parentData['users'] as List)[0];
+          if (userData is Map<String, dynamic>) {
+            profileImageUrl = userData['profile_image_url'] ?? '';
+          }
+        } else if (parentData['users'] is Map<String, dynamic>) {
+          // Sometimes it might come as a direct object
+          profileImageUrl = parentData['users']['profile_image_url'] ?? '';
+        }
+      }
+    } catch (e) {
+      print('Error extracting profile image URL: $e');
+      profileImageUrl = '';
+    }
 
     return Fetcher(
-      id: parentInfo['id'],
+      id: parentData['id'],
       name: fullName,
-      imageUrl:
-          'https://i.pravatar.cc/150?u=${parentInfo['id']}', // Placeholder image
-      relationship: relationshipData['relationship_type'] ?? 'Parent',
-      contact: parentInfo['phone'] ?? 'No phone',
-      email: parentInfo['email'] ?? 'No email',
-      authorized: true, // All parents in database are considered authorized
+      contact: parentData['phone'] ?? parentData['email'] ?? 'No contact',
+      address: parentData['address'] ?? 'No address provided',
+      relationship: relationshipData['relationship_type'] ?? 'Guardian',
       isPrimary: relationshipData['is_primary'] ?? false,
+      imageUrl: profileImageUrl,
     );
   }
 }
