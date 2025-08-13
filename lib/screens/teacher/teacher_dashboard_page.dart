@@ -21,6 +21,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   final supabase = Supabase.instance.client;
   String? teacherId;
   String? teacherName;
+  String? profileImageUrl;
   List<Map<String, dynamic>> assignedSections = [];
   Map<int, List<Map<String, dynamic>>> sectionStudents = {};
   Map<int, Map<String, int>> sectionAttendanceStats = {};
@@ -105,7 +106,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     final teacherData =
         await supabase
             .from('users')
-            .select('fname, lname')
+            .select('fname, lname, profile_image_url')
             .eq('id', teacherId!)
             .maybeSingle();
 
@@ -114,6 +115,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             ? '${teacherData['fname'] ?? ''} ${teacherData['lname'] ?? ''}'
                 .trim()
             : user?.email ?? '';
+
+    profileImageUrl = teacherData?['profile_image_url'];
 
     if (teacherId == null) {
       setState(() => isLoading = false);
@@ -528,16 +531,26 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                             CircleAvatar(
                               backgroundColor: Colors.blue[100],
                               radius: 23,
-                              child: Text(
-                                (teacherName != null && teacherName!.isNotEmpty)
-                                    ? teacherName![0].toUpperCase()
-                                    : '?',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 24,
-                                  color: Color(0xFF2563EB),
-                                ),
-                              ),
+                              backgroundImage:
+                                  profileImageUrl != null &&
+                                          profileImageUrl!.isNotEmpty
+                                      ? NetworkImage(profileImageUrl!)
+                                      : null,
+                              child:
+                                  profileImageUrl == null ||
+                                          profileImageUrl!.isEmpty
+                                      ? Text(
+                                        (teacherName != null &&
+                                                teacherName!.isNotEmpty)
+                                            ? teacherName![0].toUpperCase()
+                                            : 'A',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 24,
+                                          color: Color(0xFF2563EB),
+                                        ),
+                                      )
+                                      : null,
                             ),
                             const SizedBox(width: 15),
                             Expanded(

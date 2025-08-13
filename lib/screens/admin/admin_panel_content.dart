@@ -19,6 +19,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
   final supabase = Supabase.instance.client;
   String? adminId;
   String? adminName;
+  String? profileImageUrl;
   bool isLoading = false;
 
   int selectedIndex = 0;
@@ -55,7 +56,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     final adminData =
         await supabase
             .from('users')
-            .select('fname, lname')
+            .select('fname, lname, profile_image_url')
             .eq('id', adminId!)
             .maybeSingle();
 
@@ -64,10 +65,13 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
             ? '${adminData['fname'] ?? ''} ${adminData['lname'] ?? ''}'.trim()
             : user?.email ?? 'Admin';
 
+    profileImageUrl = adminData?['profile_image_url'];
+
     if (adminId == null) {
       setState(() => isLoading = false);
       return;
     }
+    setState(() => isLoading = false);
   }
 
   // Function to handle logout
@@ -107,16 +111,23 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           CircleAvatar(
             backgroundColor: Colors.blue[100],
             radius: 23,
-            child: Text(
-              (adminName != null && adminName!.isNotEmpty)
-                  ? adminName![0].toUpperCase()
-                  : 'A',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 24,
-                color: Color(0xFF2563EB),
-              ),
-            ),
+            backgroundImage:
+                profileImageUrl != null && profileImageUrl!.isNotEmpty
+                    ? NetworkImage(profileImageUrl!)
+                    : null,
+            child:
+                profileImageUrl == null || profileImageUrl!.isEmpty
+                    ? Text(
+                      (adminName != null && adminName!.isNotEmpty)
+                          ? adminName![0].toUpperCase()
+                          : 'A',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 24,
+                        color: Color(0xFF2563EB),
+                      ),
+                    )
+                    : null,
           ),
           const SizedBox(width: 15),
           Expanded(
