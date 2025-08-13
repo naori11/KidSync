@@ -1,0 +1,3 @@
+id,email,password,name,phone,created_at
+b1a7e1c0-1234-4a1b-9c1a-111111111111,parent1@example.com,parent123,Parent One,1234567890,2024-06-01T10:00:00Z
+b1a7e1c0-1234-4a1b-9c1a-222222222222,parent2@example.com,parent456,Parent Two,987654321,2024-06-01T10:05:00Z 

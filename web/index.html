@@ -1,38 +1,92 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
+  <head>
+    <meta charset="UTF-8">
 
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
+    <!-- Password Reset Code Interception -->
+    <script>
+      (function() {
+        var url = window.location.href;
+        if (url.indexOf('?code=') !== -1 || url.indexOf('&code=') !== -1) {
+          var code = "";
+          var email = "";
+          if (url.indexOf('?code=') !== -1) {
+            code = url.split('?code=')[1];
+          } else if (url.indexOf('&code=') !== -1) {
+            code = url.split('&code=')[1];
+          }
+          if (code.indexOf('&') !== -1) {
+            code = code.split('&')[0];
+          }
+          // Extract email
+          if (url.indexOf('email=') !== -1) {
+            email = url.split('email=')[1];
+            if (email.indexOf('&') !== -1) email = email.split('&')[0];
+            email = decodeURIComponent(email);
+            window.sessionStorage.setItem('kidsync_reset_email', email);
+          }
+          window.sessionStorage.setItem('kidsync_reset_code', code);
+          var baseUrl = window.location.href.split('?')[0];
+          window.history.replaceState({}, document.title, baseUrl);
+        }
+      })();
+    </script>
 
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+    <!-- Other meta tags -->
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+    <meta name="description" content="A new Flutter project.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="ksync">
+    <link rel="apple-touch-icon" href="icons/Icon-192.png">
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <title>KidSync</title>
+    <link rel="manifest" href="manifest.json">
 
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
-  <base href="$FLUTTER_BASE_HREF">
+    <script>
+      var serviceWorkerVersion = null;
+    </script>
+    <script>
+      console.log('[DEBUG index.html HEAD SCRIPT] window.location.href:', window.location.href);
+      console.log('[DEBUG index.html HEAD SCRIPT] window.location.hash:', window.location.hash);
+    </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('flutter-first-frame', function () {
+          navigator.serviceWorker.register('flutter_service_worker.js?v=' + serviceWorkerVersion);
+        });
+      }
+    </script>
 
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
-
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="kidsync">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>kidsync</title>
-  <link rel="manifest" href="manifest.json">
-</head>
-<body>
-  <script src="flutter_bootstrap.js" async></script>
-</body>
+    <!-- Supabase Invite Token Interception -->
+    <script>
+      // This only runs for invite/access_token links, not password resets.
+      // In index.html — Invite flow handler
+      window.addEventListener('DOMContentLoaded', function() {
+        var location = window.location.href;
+        if (location.includes('access_token=')) {
+          var hash = location.split('#').pop(); // get everything after final #
+          var params = hash.split('&');
+          params.forEach(function(param) {
+            var pair = param.split('=');
+            if (pair.length === 2) {
+              var key = pair[0];
+              var value = pair[1];
+              // Store all relevant tokens
+              if (key === 'access_token' || key === 'refresh_token' || key === 'expires_in' || key === 'expires_at' || key === 'token_type') {
+                window.sessionStorage.setItem('supabase_' + key, value);
+              }
+            }
+          });
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <script>
+      console.log('[DEBUG index.html BODY SCRIPT] window.location.href:', window.location.href);
+      console.log('[DEBUG index.html BODY SCRIPT] window.location.hash:', window.location.hash);
+    </script>
+    <script src="flutter_bootstrap.js" async></script>
+  </body>
 </html>

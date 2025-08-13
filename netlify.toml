@@ -1,0 +1,14 @@
+[build]
+  # This command will:
+  # 1. Define a path for the Flutter SDK in the user's home directory.
+  # 2. Create this directory if it doesn't exist.
+  # 3. Clone Flutter into it if not already present.
+  # 4. Add Flutter to the PATH.
+  # 5. Run flutter doctor, pub get, and build.
+  command = "FLUTTER_SDK_PATH=\"$HOME/flutter_sdk\" && mkdir -p \"$FLUTTER_SDK_PATH\" && if [ ! -d \"$FLUTTER_SDK_PATH/bin\" ]; then echo 'Cloning Flutter SDK to $FLUTTER_SDK_PATH ...'; git clone https://github.com/flutter/flutter.git --depth 1 --branch stable \"$FLUTTER_SDK_PATH\"; else echo 'Flutter SDK already present in $FLUTTER_SDK_PATH.'; fi && export PATH=\"$FLUTTER_SDK_PATH/bin:$PATH\" && echo '--- Flutter Version ---' && flutter --version && echo '--- Flutter Doctor ---' && flutter doctor && echo '--- Flutter Pub Get ---' && flutter pub get && echo '--- Flutter Build Web ---' && flutter build web --release && echo '--- Build Finished ---'"
+  publish = "build/web"  # Your Flutter web output directory
+
+[build.environment]
+  # You can set other environment variables here if needed by your build.
+  # For example, if you want to specify a particular Node.js version for some other tool:
+  # NODE_VERSION = "18"
