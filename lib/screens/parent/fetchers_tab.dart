@@ -41,12 +41,13 @@ class _FetchersScreenState extends State<FetchersScreen> {
       if (user == null) return;
 
       // Get current parent data
-      final parentResponse = await supabase
-          .from('parents')
-          .select('id, fname, mname, lname')
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .maybeSingle();
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('id, fname, mname, lname')
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .maybeSingle();
 
       if (parentResponse == null) {
         setState(() => isLoadingFetchers = false);
@@ -55,12 +56,12 @@ class _FetchersScreenState extends State<FetchersScreen> {
 
       final parentId = parentResponse['id'];
 
-      // Get the child(ren) of this parent to find all authorized fetchers
+      // Get the child(ren) of this parent - REMOVED is_primary filter
       final studentResponse = await supabase
           .from('parent_student')
           .select('student_id, students(fname, mname, lname)')
           .eq('parent_id', parentId)
-          .eq('is_primary', true);
+          .limit(1); // Just get the first student relationship
 
       if (studentResponse.isNotEmpty) {
         final student = studentResponse.first['students'];
@@ -68,26 +69,36 @@ class _FetchersScreenState extends State<FetchersScreen> {
         final mname = student['mname'] ?? '';
         final lname = student['lname'] ?? '';
         setState(() {
-          childName = '$fname${mname.isNotEmpty ? ' $mname' : ''} $lname'.trim();
+          childName =
+              '$fname${mname.isNotEmpty ? ' $mname' : ''} $lname'.trim();
         });
 
         final studentId = studentResponse.first['student_id'];
 
-        // Get all authorized fetchers for this student
+        // Get all authorized fetchers for this student with profile images
         final fetchersResponse = await supabase
             .from('parent_student')
             .select('''
-              relationship_type,
-              is_primary,
-              parents!inner(
-                id, fname, mname, lname, phone, email, status
+            relationship_type,
+            is_primary,
+            parents!inner(
+              id, fname, mname, lname, phone, email, status, user_id,
+              users!inner(
+                profile_image_url, role
               )
-            ''')
-            .eq('student_id', studentId);
+            )
+          ''')
+            .eq('student_id', studentId)
+            .eq('parents.status', 'active')
+            .eq(
+              'parents.users.role',
+              'Parent',
+            ); // Only get parents with Parent role
 
-        final List<AuthorizedFetcher> fetchers = fetchersResponse
-            .map((data) => AuthorizedFetcher.fromJson(data))
-            .toList();
+        final List<AuthorizedFetcher> fetchers =
+            fetchersResponse
+                .map((data) => AuthorizedFetcher.fromJson(data))
+                .toList();
 
         // Sort: primary first, then by relationship type
         fetchers.sort((a, b) {
@@ -245,7 +256,9 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8),
                                       borderSide: BorderSide(
-                                        color: widget.primaryColor.withOpacity(0.2),
+                                        color: widget.primaryColor.withOpacity(
+                                          0.2,
+                                        ),
                                         width: 1,
                                       ),
                                     ),
@@ -291,9 +304,12 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                   ),
                                 ),
                                 onPressed: () {
-                                  if (_fetcherNameController.text.trim().isNotEmpty) {
+                                  if (_fetcherNameController.text
+                                      .trim()
+                                      .isNotEmpty) {
                                     setState(() {
-                                      _currentFetcherName = _fetcherNameController.text.trim();
+                                      _currentFetcherName =
+                                          _fetcherNameController.text.trim();
                                       _currentPin = _generatePin();
                                     });
                                     showDialog(
@@ -301,7 +317,9 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                       builder: (BuildContext context) {
                                         return AlertDialog(
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(16),
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
                                           ),
                                           title: Row(
                                             children: [
@@ -328,12 +346,18 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                           ),
                                           actions: [
                                             ElevatedButton(
-                                              onPressed: () => Navigator.of(context).pop(),
+                                              onPressed:
+                                                  () =>
+                                                      Navigator.of(
+                                                        context,
+                                                      ).pop(),
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: widget.primaryColor,
+                                                backgroundColor:
+                                                    widget.primaryColor,
                                                 foregroundColor: white,
                                                 shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(8),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
                                                 ),
                                               ),
                                               child: Text('OK'),
@@ -349,7 +373,9 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                       builder: (BuildContext context) {
                                         return AlertDialog(
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(16),
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
                                           ),
                                           title: Row(
                                             children: [
@@ -376,12 +402,18 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                           ),
                                           actions: [
                                             ElevatedButton(
-                                              onPressed: () => Navigator.of(context).pop(),
+                                              onPressed:
+                                                  () =>
+                                                      Navigator.of(
+                                                        context,
+                                                      ).pop(),
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: widget.primaryColor,
+                                                backgroundColor:
+                                                    widget.primaryColor,
                                                 foregroundColor: white,
                                                 shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(8),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
                                                 ),
                                               ),
                                               child: Text('OK'),
@@ -677,51 +709,55 @@ class _FetchersScreenState extends State<FetchersScreen> {
                       SizedBox(height: widget.isMobile ? 12 : 16),
                       isLoadingFetchers
                           ? Center(
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(vertical: 20),
-                                child: CircularProgressIndicator(
-                                  color: widget.primaryColor,
-                                ),
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 20),
+                              child: CircularProgressIndicator(
+                                color: widget.primaryColor,
                               ),
-                            )
+                            ),
+                          )
                           : authorizedFetchers.isEmpty
-                              ? Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 20),
-                                  child: Center(
-                                    child: Column(
-                                      children: [
-                                        Icon(
-                                          Icons.people_outline,
-                                          size: 48,
-                                          color: black.withOpacity(0.3),
-                                        ),
-                                        SizedBox(height: 8),
-                                        Text(
-                                          'No authorized fetchers found',
-                                          style: TextStyle(
-                                            color: black.withOpacity(0.6),
-                                            fontSize: widget.isMobile ? 14 : 16,
-                                          ),
-                                        ),
-                                      ],
+                          ? Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.people_outline,
+                                    size: 48,
+                                    color: black.withOpacity(0.3),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'No authorized fetchers found',
+                                    style: TextStyle(
+                                      color: black.withOpacity(0.6),
+                                      fontSize: widget.isMobile ? 14 : 16,
                                     ),
                                   ),
-                                )
-                              : Column(
-                                  children: authorizedFetchers.map((fetcher) {
-                                    return _buildFetcherItem(
-                                      fetcher.name,
-                                      fetcher.relationship,
-                                      'Contact: Available',
-                                      fetcher.isActive,
-                                      widget.isMobile,
-                                      widget.primaryColor,
-                                      black,
-                                      greenWithOpacity,
-                                      isPrimary: fetcher.isPrimary,
-                                    );
-                                  }).toList(),
-                                ),
+                                ],
+                              ),
+                            ),
+                          )
+                          : Column(
+                            children:
+                                authorizedFetchers.map((fetcher) {
+                                  return _buildFetcherItem(
+                                    fetcher.name,
+                                    fetcher.relationship,
+                                    'Contact: Available',
+                                    fetcher.isActive,
+                                    widget.isMobile,
+                                    widget.primaryColor,
+                                    black,
+                                    greenWithOpacity,
+                                    isPrimary: fetcher.isPrimary,
+                                    profileImageUrl:
+                                        fetcher
+                                            .profileImageUrl, // Add this line
+                                  );
+                                }).toList(),
+                          ),
                     ],
                   ),
                 ),
@@ -743,6 +779,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
     Color black,
     Color greenWithOpacity, {
     bool isPrimary = false,
+    String? profileImageUrl, // Add this parameter
   }) {
     return Container(
       margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
@@ -768,19 +805,27 @@ class _FetchersScreenState extends State<FetchersScreen> {
           Container(
             padding: EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: active
-                  ? primaryColor.withOpacity(0.1)
-                  : black.withOpacity(0.05),
+              color:
+                  active
+                      ? primaryColor.withOpacity(0.1)
+                      : black.withOpacity(0.05),
               shape: BoxShape.circle,
             ),
             child: CircleAvatar(
               backgroundColor: greenWithOpacity,
               radius: isMobile ? 16 : 20,
-              child: Icon(
-                Icons.person,
-                color: primaryColor,
-                size: isMobile ? 18 : 22,
-              ),
+              backgroundImage:
+                  profileImageUrl != null && profileImageUrl.isNotEmpty
+                      ? NetworkImage(profileImageUrl)
+                      : null,
+              child:
+                  profileImageUrl == null || profileImageUrl.isEmpty
+                      ? Icon(
+                        Icons.person,
+                        color: primaryColor,
+                        size: isMobile ? 18 : 22,
+                      )
+                      : null,
             ),
           ),
           const SizedBox(width: 16),
@@ -864,9 +909,10 @@ class _FetchersScreenState extends State<FetchersScreen> {
           Container(
             padding: EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: active
-                  ? primaryColor.withOpacity(0.1)
-                  : black.withOpacity(0.05),
+              color:
+                  active
+                      ? primaryColor.withOpacity(0.1)
+                      : black.withOpacity(0.05),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(

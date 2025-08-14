@@ -1,34 +1,38 @@
+// Update your AuthorizedFetcher model to include profileImageUrl
 class AuthorizedFetcher {
-  final int id;
+  final String id;
   final String name;
   final String relationship;
-  final String contact;
+  final String? phone;
+  final String? email;
   final bool isPrimary;
   final bool isActive;
+  final String? profileImageUrl;
 
   AuthorizedFetcher({
     required this.id,
     required this.name,
     required this.relationship,
-    required this.contact,
+    this.phone,
+    this.email,
     required this.isPrimary,
     required this.isActive,
+    this.profileImageUrl,
   });
 
   factory AuthorizedFetcher.fromJson(Map<String, dynamic> json) {
-    final parentData = json['parents'];
-    final fname = parentData['fname'] ?? '';
-    final mname = parentData['mname'] ?? '';
-    final lname = parentData['lname'] ?? '';
-    final fullName = '$fname${mname.isNotEmpty ? ' $mname' : ''} $lname'.trim();
+    final parent = json['parents'];
+    final users = parent['users'];
     
     return AuthorizedFetcher(
-      id: parentData['id'],
-      name: fullName,
+      id: parent['id'].toString(),
+      name: '${parent['fname'] ?? ''} ${parent['mname'] ?? ''} ${parent['lname'] ?? ''}'.trim(),
       relationship: json['relationship_type'] ?? 'Parent',
-      contact: parentData['phone'] ?? parentData['email'] ?? 'No contact',
+      phone: parent['phone'],
+      email: parent['email'],
       isPrimary: json['is_primary'] ?? false,
-      isActive: (parentData['status'] ?? 'active') == 'active',
+      isActive: parent['status'] == 'active',
+      profileImageUrl: users['profile_image_url'], // Extract profile image URL
     );
   }
 }

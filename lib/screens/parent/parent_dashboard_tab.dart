@@ -33,12 +33,13 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       final user = supabase.auth.currentUser;
       if (user == null) return;
 
-      final parentResponse = await supabase
-          .from('parents')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .maybeSingle();
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .maybeSingle();
 
       if (parentResponse == null) {
         setState(() => isDashboardLoading = false);
@@ -46,29 +47,42 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       }
 
       final parentId = parentResponse['id'];
+
+      // Remove is_primary filter - get any student relationship
       final studentResponse = await supabase
           .from('parent_student')
           .select('student_id')
           .eq('parent_id', parentId)
-          .eq('is_primary', true);
+          .limit(1); // Just get the first student relationship
 
       if (studentResponse.isNotEmpty) {
         final studentId = studentResponse.first['student_id'];
+
+        // Updated query to include profile images and remove role filter if needed
         final fetchersResponse = await supabase
             .from('parent_student')
             .select('''
-              relationship_type,
-              is_primary,
-              parents!inner(
-                id, fname, mname, lname, phone, email, status
+            relationship_type,
+            is_primary,
+            parents!inner(
+              id, fname, mname, lname, phone, email, status, user_id,
+              users!inner(
+                profile_image_url, role
               )
-            ''')
+            )
+          ''')
             .eq('student_id', studentId)
+            .eq('parents.status', 'active')
+            .eq(
+              'parents.users.role',
+              'Parent',
+            ) // Only get parents with Parent role
             .limit(3);
 
-        final List<AuthorizedFetcher> fetchers = fetchersResponse
-            .map((data) => AuthorizedFetcher.fromJson(data))
-            .toList();
+        final List<AuthorizedFetcher> fetchers =
+            fetchersResponse
+                .map((data) => AuthorizedFetcher.fromJson(data))
+                .toList();
 
         setState(() {
           dashboardFetchers = fetchers;
@@ -89,16 +103,24 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     bool active,
     Color primaryColor, [
     bool isMobile = false,
+    String? profileImageUrl, // Add this parameter
   ]) {
     const Color black = Color(0xFF000000);
     const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      padding: EdgeInsets.symmetric(vertical: isMobile ? 4 : 6),
+      margin: EdgeInsets.only(
+        bottom: isMobile ? 6 : 8,
+      ), // Add margin for spacing
+      padding: EdgeInsets.symmetric(
+        vertical: isMobile ? 8 : 10,
+        horizontal: isMobile ? 8 : 12,
+      ),
       decoration: BoxDecoration(
         color: const Color(0xFFFFFFFF),
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: primaryColor.withOpacity(0.2), width: 1),
         boxShadow: [
           BoxShadow(
             color: primaryColor.withOpacity(0.08),
@@ -118,34 +140,42 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
           CircleAvatar(
             backgroundColor: greenWithOpacity,
             radius: isMobile ? 16 : 20,
-            child: Icon(
-              Icons.person,
-              color: primaryColor,
-              size: isMobile ? 18 : 22,
-            ),
+            backgroundImage:
+                profileImageUrl != null && profileImageUrl.isNotEmpty
+                    ? NetworkImage(profileImageUrl)
+                    : null,
+            child:
+                profileImageUrl == null || profileImageUrl.isEmpty
+                    ? Icon(
+                      Icons.person,
+                      color: primaryColor,
+                      size: isMobile ? 18 : 22,
+                    )
+                    : null,
           ),
           SizedBox(width: isMobile ? 8 : 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                name,
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: isMobile ? 13 : 15,
-                  color: black,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: isMobile ? 13 : 15,
+                    color: black,
+                  ),
                 ),
-              ),
-              Text(
-                role,
-                style: TextStyle(
-                  color: black.withOpacity(0.6),
-                  fontSize: isMobile ? 11 : 13,
+                Text(
+                  role,
+                  style: TextStyle(
+                    color: black.withOpacity(0.6),
+                    fontSize: isMobile ? 11 : 13,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const Spacer(),
           Icon(
             Icons.circle,
             color: active ? primaryColor : black.withOpacity(0.3),
@@ -606,9 +636,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                 ],
               ),
               child: Padding(
-                padding: EdgeInsets.all(
-                  widget.isMobile ? 16 : 32,
-                ),
+                padding: EdgeInsets.all(widget.isMobile ? 16 : 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -703,9 +731,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                           child: OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(
                               foregroundColor: widget.primaryColor,
-                              side: BorderSide(
-                                color: widget.primaryColor,
-                              ),
+                              side: BorderSide(color: widget.primaryColor),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -716,10 +742,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                                 fontSize: widget.isMobile ? 13 : 15,
                               ),
                             ),
-                            icon: const Icon(
-                              Icons.directions_car,
-                              size: 18,
-                            ),
+                            icon: const Icon(Icons.directions_car, size: 18),
                             label: const Text('Confirm Drop-off'),
                             onPressed: () {},
                           ),
@@ -925,38 +948,38 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                     SizedBox(height: widget.isMobile ? 6 : 10),
                     isDashboardLoading
                         ? Center(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(vertical: 10),
-                              child: CircularProgressIndicator(
-                                color: widget.primaryColor,
-                                strokeWidth: 2,
-                              ),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 10),
+                            child: CircularProgressIndicator(
+                              color: widget.primaryColor,
+                              strokeWidth: 2,
                             ),
-                          )
+                          ),
+                        )
                         : dashboardFetchers.isEmpty
-                            ? Padding(
-                                padding: EdgeInsets.symmetric(vertical: 10),
-                                child: Text(
-                                  'No authorized fetchers found',
-                                  style: TextStyle(
-                                    color: const Color(
-                                      0xFF000000,
-                                    ).withOpacity(0.6),
-                                    fontSize: widget.isMobile ? 12 : 14,
-                                  ),
-                                ),
-                              )
-                            : Column(
-                                children: dashboardFetchers.map((fetcher) {
-                                  return _fetcherRow(
-                                    fetcher.name,
-                                    fetcher.relationship,
-                                    fetcher.isActive,
-                                    widget.primaryColor,
-                                    widget.isMobile,
-                                  );
-                                }).toList(),
-                              ),
+                        ? Padding(
+                          padding: EdgeInsets.symmetric(vertical: 10),
+                          child: Text(
+                            'No authorized fetchers found',
+                            style: TextStyle(
+                              color: const Color(0xFF000000).withOpacity(0.6),
+                              fontSize: widget.isMobile ? 12 : 14,
+                            ),
+                          ),
+                        )
+                        : Column(
+                          children:
+                              dashboardFetchers.map((fetcher) {
+                                return _fetcherRow(
+                                  fetcher.name,
+                                  fetcher.relationship,
+                                  fetcher.isActive,
+                                  widget.primaryColor,
+                                  widget.isMobile,
+                                  fetcher.profileImageUrl, // Add this line
+                                );
+                              }).toList(),
+                        ),
                   ],
                 ),
               ),
