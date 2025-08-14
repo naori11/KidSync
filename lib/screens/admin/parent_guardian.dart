@@ -606,14 +606,17 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
   @override
   Widget build(BuildContext context) {
     // Filter parents by search query
-    final filteredParents = parents.where((parent) {
-      final fullName = "${parent['first_name']} ${parent['last_name']}".toLowerCase();
-      return fullName.contains(_searchQuery.toLowerCase());
-    }).toList();
+    final filteredParents =
+        parents.where((parent) {
+          final fullName =
+              "${parent['first_name']} ${parent['last_name']}".toLowerCase();
+          return fullName.contains(_searchQuery.toLowerCase());
+        }).toList();
 
     return Scaffold(
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
-      body: Stack(  // Changed from just Padding to Stack to overlay modals
+      body: Stack(
+        // Changed from just Padding to Stack to overlay modals
         children: [
           // Main content
           Padding(
@@ -644,7 +647,10 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                       child: TextField(
                         decoration: const InputDecoration(
                           hintText: 'Search parents...',
-                          prefixIcon: Icon(Icons.search, color: Color(0xFF9E9E9E)),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Color(0xFF9E9E9E),
+                          ),
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(vertical: 10.0),
                         ),
@@ -674,7 +680,8 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                           final result = await showDialog<Map<String, dynamic>>(
                             context: context,
                             barrierDismissible: false,
-                            builder: (context) => AddEditParentModal(parent: null),
+                            builder:
+                                (context) => AddEditParentModal(parent: null),
                           );
                           if (result != null &&
                               result['fname'] != null &&
@@ -716,7 +723,9 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                         onPressed: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Export functionality coming soon...'),
+                              content: Text(
+                                'Export functionality coming soon...',
+                              ),
                               backgroundColor: Colors.orange,
                             ),
                           );
@@ -739,7 +748,9 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                 Container(
                   padding: const EdgeInsets.only(bottom: 16.0),
                   decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE))),
+                    border: Border(
+                      bottom: BorderSide(color: Color(0xFFEEEEEE)),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -830,7 +841,9 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF2ECC71).withOpacity(0.1),
+                                  color: const Color(
+                                    0xFF2ECC71,
+                                  ).withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Icon(
@@ -917,7 +930,11 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.sync, size: 16, color: Colors.blue[600]),
+                              Icon(
+                                Icons.sync,
+                                size: 16,
+                                color: Colors.blue[600],
+                              ),
                               const SizedBox(width: 6),
                               Text(
                                 'Synced with User Accounts',
@@ -936,124 +953,120 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
                 // Parent Cards Grid
                 Expanded(
-                  child: isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: Color(0xFF2ECC71),
-                          ),
-                        )
-                      : filteredParents.isEmpty
+                  child:
+                      isLoading
+                          ? const Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF2ECC71),
+                            ),
+                          )
+                          : filteredParents.isEmpty
                           ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(32),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[50],
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(color: Colors.grey[200]!),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(32),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[50],
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: Colors.grey[200]!,
                                     ),
-                                    child: Column(
-                                      children: [
-                                        Icon(
-                                          Icons.people_outline,
-                                          size: 64,
-                                          color: Colors.grey[400],
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        Icons.people_outline,
+                                        size: 64,
+                                        color: Colors.grey[400],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        parents.isEmpty
+                                            ? "No parents found in database"
+                                            : "No parents match your search",
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
                                         ),
+                                      ),
+                                      if (parents.isEmpty) ...[
                                         const SizedBox(height: 16),
-                                        Text(
-                                          parents.isEmpty
-                                              ? "No parents found in database"
-                                              : "No parents match your search",
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        if (parents.isEmpty) ...[
-                                          const SizedBox(height: 16),
-                                          ElevatedButton.icon(
-                                            onPressed: () async {
-                                              final result = await showDialog<
-                                                Map<String, dynamic>
-                                              >(
-                                                context: context,
-                                                barrierDismissible: false,
-                                                builder:
-                                                    (context) => AddEditParentModal(
-                                                      parent: null,
-                                                    ),
+                                        ElevatedButton.icon(
+                                          onPressed: () async {
+                                            final result = await showDialog<
+                                              Map<String, dynamic>
+                                            >(
+                                              context: context,
+                                              barrierDismissible: false,
+                                              builder:
+                                                  (context) =>
+                                                      AddEditParentModal(
+                                                        parent: null,
+                                                      ),
+                                            );
+                                            if (result != null &&
+                                                result['fname'] != null &&
+                                                result['lname'] != null &&
+                                                result['email'] != null &&
+                                                result['phone'] != null) {
+                                              await _addParent(
+                                                fname: result['fname'],
+                                                mname: result['mname'],
+                                                lname: result['lname'],
+                                                email: result['email'],
+                                                phone: result['phone'],
+                                                address: result['address'],
+                                                studentsToLink:
+                                                    result['studentsToLink'] ??
+                                                    [],
                                               );
-                                              if (result != null &&
-                                                  result['fname'] != null &&
-                                                  result['lname'] != null &&
-                                                  result['email'] != null &&
-                                                  result['phone'] != null) {
-                                                await _addParent(
-                                                  fname: result['fname'],
-                                                  mname: result['mname'],
-                                                  lname: result['lname'],
-                                                  email: result['email'],
-                                                  phone: result['phone'],
-                                                  address: result['address'],
-                                                  studentsToLink:
-                                                      result['studentsToLink'] ?? [],
-                                                );
-                                              }
-                                            },
-                                            icon: const Icon(Icons.add),
-                                            label: const Text('Add First Parent'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(
-                                                0xFF2ECC71,
-                                              ),
-                                              foregroundColor: Colors.white,
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 24,
-                                                vertical: 12,
-                                              ),
+                                            }
+                                          },
+                                          icon: const Icon(Icons.add),
+                                          label: const Text('Add First Parent'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(
+                                              0xFF2ECC71,
+                                            ),
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 24,
+                                              vertical: 12,
                                             ),
                                           ),
-                                        ],
+                                        ),
                                       ],
-                                    ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            )
-                          : GridView.builder(
-                              gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 4, // Increased from 3 to 4
-                                    crossAxisSpacing: 16.0,
-                                    mainAxisSpacing: 16.0,
-                                    childAspectRatio: 1.2, // Adjusted ratio
-                                  ),
-                              itemCount: filteredParents.length,
-                              itemBuilder: (context, index) {
-                                final parent = filteredParents[index];
-                                return _buildParentCard(parent);
-                              },
+                                ),
+                              ],
                             ),
+                          )
+                          : GridView.builder(
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 4, // Increased from 3 to 4
+                                  crossAxisSpacing: 16.0,
+                                  mainAxisSpacing: 16.0,
+                                  childAspectRatio: 1.2, // Adjusted ratio
+                                ),
+                            itemCount: filteredParents.length,
+                            itemBuilder: (context, index) {
+                              final parent = filteredParents[index];
+                              return _buildParentCard(parent);
+                            },
+                          ),
                 ),
               ],
             ),
           ),
 
-          // Parent Detail Modal - ADD THIS
+          // Parent Detail Modal - KEEP THIS
           if (_showDetailModal && _selectedParent != null)
             _buildParentDetailModal(),
-
-          // Add/Edit Modal - ADD THIS if you want to show the AddEditParentModal as an overlay too
-          if (_showAddEditModal)
-            Container(
-              color: Colors.black.withOpacity(0.5),
-              child: Center(
-                child: AddEditParentModal(parent: _editingParent),
-              ),
-            ),
         ],
       ),
     );
