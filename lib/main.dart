@@ -12,7 +12,6 @@ import 'screens/parent/child_status.dart';
 import 'screens/parent/pickup_confirmation.dart';
 import 'screens/parent/fetcher_code_generator.dart';
 import 'screens/parent/profile.dart';
-import 'screens/parent/parent_login.dart';
 import 'screens/parent/static_pickup_status_demo.dart';
 import 'screens/driver/driver_panel.dart';
 
@@ -347,7 +346,6 @@ class _KidSyncAppState extends State<KidSyncApp> {
         '/guard': (_) => GuardPanel(),
         '/teacher': (_) => const TeacherPanel(),
         '/parent': (_) => const ParentHomeScreen(),
-        '/parent/login': (_) => const ParentLoginScreen(),
         '/parent/notifications': (_) => const ParentNotificationsScreen(),
         '/parent/child_status': (_) => const ChildStatusScreen(),
         '/parent/pickup_confirmation':
