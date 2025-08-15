@@ -177,20 +177,68 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           _buildDashboardHeader(),
           const SizedBox(height: 24),
 
-          // Expanded wrapper to take remaining space
+          // Quick Stats Row
+          Row(
+            children: [
+              Expanded(
+                child: _buildQuickStatCard(
+                  "Total Students",
+                  "243",
+                  Icons.people,
+                  Colors.blue,
+                  "+12 this month",
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildQuickStatCard(
+                  "Total Users",
+                  "156",
+                  Icons.person,
+                  Colors.green,
+                  "+8 this month",
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildQuickStatCard(
+                  "Active Sections",
+                  "18",
+                  Icons.class_,
+                  Colors.orange,
+                  "2 new sections",
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildQuickStatCard(
+                  "Today's Attendance",
+                  "92.6%",
+                  Icons.check_circle,
+                  Colors.purple,
+                  "+0.2% from yesterday",
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Main Content - Centered Summary Panels
           Expanded(
             child: Column(
+              // Changed from Row to Column as only one column remains
               children: [
-                // Monthly Attendance Stats with Line Chart
+                // System Overview
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(24), // Increased padding
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(16), // Increased radius
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.05),
-                        blurRadius: 5,
+                        blurRadius: 10,
                         spreadRadius: 1,
                       ),
                     ],
@@ -198,226 +246,72 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Monthly Attendance Stats for November 2023",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          // Tab buttons for Today, Weekly, Monthly
-                          Row(
-                            children: [
-                              _periodButton("Today", false),
-                              const SizedBox(width: 8),
-                              _periodButton("Weekly", false),
-                              const SizedBox(width: 8),
-                              _periodButton("Monthly", true),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      // Line Chart - This is a placeholder for the actual chart
-                      Container(
-                        height: 180,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: CustomPaint(
-                          size: const Size(double.infinity, 180),
-                          painter: LineChartPainter(),
+                      Text(
+                        "System Overview",
+                        style: TextStyle(
+                          fontSize: 20, // Increased font size
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
                         ),
                       ),
-                      const SizedBox(height: 20),
-
-                      // Attendance Stats Comparison
-                      Row(
-                        children: [
-                          // This Month Stats
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "This Month",
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      "92.6%",
-                                      style: TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.arrow_upward,
-                                            size: 12,
-                                            color: Colors.green,
-                                          ),
-                                          const SizedBox(width: 2),
-                                          Text(
-                                            "0.2%",
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.green,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          // Previous Month Stats
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "Previous Month",
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                Text(
-                                  "89.4%",
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                      const SizedBox(height: 20), // Increased spacing
+                      _overviewItem("Active Students", 96, Colors.blue),
+                      const SizedBox(height: 16), // Increased spacing
+                      _overviewItem("Present Today", 86, Colors.green),
+                      const SizedBox(height: 16), // Increased spacing
+                      _overviewItem("Absent Today", 14, Colors.orange),
+                      const SizedBox(height: 16), // Increased spacing
+                      _overviewItem("Late Students", 24, Colors.red),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 24),
-
-                // Two Column Layout for Grades and Overview - wrapped in Expanded
-                Expanded(
-                  child: Row(
+                const SizedBox(height: 24), // Increased spacing between panels
+                // Recent Activity
+                Container(
+                  padding: const EdgeInsets.all(24), // Increased padding
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16), // Increased radius
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Left Column - Students by Grade
-                      Expanded(
-                        flex: 7,
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 5,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Students according to grades",
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-
-                              // Grade List
-                              _gradeListItem("Preschool", 42),
-                              _divider(),
-                              _gradeListItem("Kindergarten", 56),
-                              _divider(),
-                              _gradeListItem("Grade 1", 48),
-                              _divider(),
-                              _gradeListItem("Grade 2", 52),
-                              _divider(),
-                              _gradeListItem("Grade 3", 45),
-                            ],
-                          ),
+                      Text(
+                        "Recent Activity",
+                        style: TextStyle(
+                          fontSize: 20, // Increased font size
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
                         ),
                       ),
-
-                      const SizedBox(width: 24),
-
-                      // Right Column - Overview Stats
-                      Expanded(
-                        flex: 5,
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 5,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Overview",
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-
-                              // Overview Stats with Progress Bars
-                              _overviewItem("Active Students", 96, Colors.blue),
-                              const SizedBox(height: 16),
-                              _overviewItem("Present Today", 86, Colors.green),
-                              const SizedBox(height: 16),
-                              _overviewItem("Absent Today", 65, Colors.orange),
-                              const SizedBox(height: 16),
-                              _overviewItem("Late Students", 24, Colors.red),
-                            ],
-                          ),
-                        ),
+                      const SizedBox(height: 20), // Increased spacing
+                      _buildActivityItem(
+                        "New student enrolled",
+                        "2 minutes ago",
+                        Icons.person_add,
+                        Colors.green,
+                      ),
+                      const SizedBox(height: 12), // Increased spacing
+                      _buildActivityItem(
+                        "Attendance marked",
+                        "15 minutes ago",
+                        Icons.check_circle,
+                        Colors.blue,
+                      ),
+                      const SizedBox(height: 12), // Increased spacing
+                      _buildActivityItem(
+                        "Section updated",
+                        "1 hour ago",
+                        Icons.edit,
+                        Colors.orange,
                       ),
                     ],
                   ),
@@ -428,51 +322,6 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
         ],
       ),
     );
-  }
-
-  // Helper widget for period buttons (Today, Weekly, Monthly)
-  Widget _periodButton(String label, bool isSelected) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF2ECC71) : Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          color: isSelected ? Colors.white : Colors.black54,
-        ),
-      ),
-    );
-  }
-
-  // Helper widget for grade list items
-  Widget _gradeListItem(String grade, int count) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(grade, style: TextStyle(fontSize: 15, color: Colors.black87)),
-          Text(
-            count.toString(),
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Divider for grade list
-  Widget _divider() {
-    return Divider(color: Colors.grey[200], height: 1);
   }
 
   // Helper widget for overview items with progress bar
@@ -502,6 +351,225 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
             backgroundColor: Colors.grey[200],
             valueColor: AlwaysStoppedAnimation<Color>(color),
             minHeight: 8,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Quick stat card for dashboard summary
+  Widget _buildQuickStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+    String subtitle,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const Spacer(),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Attendance stat item
+  Widget _buildAttendanceStat(
+    String label,
+    String value,
+    String change,
+    Color changeColor,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: changeColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                change,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: changeColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // Grade distribution widget
+  Widget _buildGradeDistribution() {
+    final grades = [
+      {"name": "Preschool", "count": 42, "color": Colors.blue},
+      {"name": "Kindergarten", "count": 56, "color": Colors.green},
+      {"name": "Grade 1", "count": 48, "color": Colors.orange},
+      {"name": "Grade 2", "count": 52, "color": Colors.purple},
+      {"name": "Grade 3", "count": 45, "color": Colors.red},
+    ];
+
+    return Column(
+      children:
+          grades.map((grade) {
+            final index = grades.indexOf(grade);
+            return Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: grade["color"] as Color,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        grade["name"] as String,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.black87,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      "${grade["count"]}",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+                if (index < grades.length - 1)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12, bottom: 12),
+                    child: Divider(color: Colors.grey[200], height: 1),
+                  ),
+              ],
+            );
+          }).toList(),
+    );
+  }
+
+  // Activity item widget
+  Widget _buildActivityItem(
+    String title,
+    String time,
+    IconData icon,
+    Color color,
+  ) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(icon, color: color, size: 16),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                time,
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              ),
+            ],
           ),
         ),
       ],

@@ -624,192 +624,269 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header row with title and search/add buttons
-                Row(
-                  children: [
-                    const Text(
-                      "Parent & Guardian Management",
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF333333),
-                      ),
-                    ),
-                    const Spacer(),
-                    // Search bar - UPDATED STYLING
-                    Container(
-                      width: 240,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFE0E0E0)),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: TextField(
-                        decoration: const InputDecoration(
-                          hintText: 'Search parents...',
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: Color(0xFF9E9E9E),
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(vertical: 10.0),
-                        ),
-                        onChanged: (val) => setState(() => _searchQuery = val),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    // Add New Parent button - UPDATED STYLING
-                    SizedBox(
-                      height: 40,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.add, color: Colors.white),
-                        label: const Text(
-                          "Add New Parent",
-                          style: TextStyle(color: Colors.white),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2ECC71),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                        ),
-                        onPressed: () async {
-                          final result = await showDialog<Map<String, dynamic>>(
-                            context: context,
-                            barrierDismissible: false,
-                            builder:
-                                (context) => AddEditParentModal(parent: null),
-                          );
-                          if (result != null &&
-                              result['fname'] != null &&
-                              result['lname'] != null &&
-                              result['email'] != null &&
-                              result['phone'] != null) {
-                            await _addParent(
-                              fname: result['fname'],
-                              mname: result['mname'],
-                              lname: result['lname'],
-                              email: result['email'],
-                              phone: result['phone'],
-                              address: result['address'],
-                              studentsToLink: result['studentsToLink'] ?? [],
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    // Export button - NEW ADDITION
-                    SizedBox(
-                      height: 40,
-                      child: OutlinedButton.icon(
-                        icon: const Icon(
-                          Icons.file_download_outlined,
-                          color: Color(0xFF333333),
-                        ),
-                        label: const Text(
-                          "Export",
-                          style: TextStyle(color: Color(0xFF333333)),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFE0E0E0)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Export functionality coming soon...',
-                              ),
-                              backgroundColor: Colors.orange,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-
-                // Breadcrumb / subtitle - UPDATED STYLING
-                const Padding(
-                  padding: EdgeInsets.only(top: 4.0, bottom: 20.0),
-                  child: Text(
-                    "Home / Parent & Guardian Management",
-                    style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
-                  ),
-                ),
-
-                // Filter row - NEW ADDITION to match other pages
+                // Enhanced Header Container with white background
                 Container(
-                  padding: const EdgeInsets.only(bottom: 16.0),
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: Color(0xFFEEEEEE)),
-                    ),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ],
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Status filter dropdown
-                      Container(
-                        height: 40,
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: const Color(0xFFE0E0E0)),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: 'All Status',
-                            icon: const Icon(Icons.keyboard_arrow_down),
-                            items:
-                                ['All Status', 'Active', 'Inactive'].map((
-                                  String item,
-                                ) {
-                                  return DropdownMenuItem(
-                                    value: item,
-                                    child: Text(item),
+                      // Header row with title and search/add buttons
+                      Row(
+                        children: [
+                          const Text(
+                            "Parent & Guardian Management",
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF333333),
+                            ),
+                          ),
+                          const Spacer(),
+                          // Enhanced Search bar
+                          Container(
+                            width: 280,
+                            height: 45,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[50],
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: TextField(
+                              decoration: const InputDecoration(
+                                hintText: 'Search parents...',
+                                prefixIcon: Icon(
+                                  Icons.search,
+                                  color: Color(0xFF9E9E9E),
+                                ),
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.symmetric(
+                                  vertical: 12.0,
+                                ),
+                              ),
+                              onChanged:
+                                  (val) => setState(() => _searchQuery = val),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Enhanced Add New Parent button
+                          SizedBox(
+                            height: 45,
+                            child: ElevatedButton.icon(
+                              icon: const Icon(
+                                Icons.add,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                              label: const Text(
+                                "Add New Parent",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2ECC71),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 2,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                              ),
+                              onPressed: () async {
+                                final result =
+                                    await showDialog<Map<String, dynamic>>(
+                                      context: context,
+                                      barrierDismissible: false,
+                                      builder:
+                                          (context) =>
+                                              AddEditParentModal(parent: null),
+                                    );
+                                if (result != null &&
+                                    result['fname'] != null &&
+                                    result['lname'] != null &&
+                                    result['email'] != null &&
+                                    result['phone'] != null) {
+                                  await _addParent(
+                                    fname: result['fname'],
+                                    mname: result['mname'],
+                                    lname: result['lname'],
+                                    email: result['email'],
+                                    phone: result['phone'],
+                                    address: result['address'],
+                                    studentsToLink:
+                                        result['studentsToLink'] ?? [],
                                   );
-                                }).toList(),
-                            onChanged: (String? newValue) {
-                              // TODO: Implement status filtering
-                            },
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Enhanced Export button
+                          SizedBox(
+                            height: 45,
+                            child: OutlinedButton.icon(
+                              icon: const Icon(
+                                Icons.file_download_outlined,
+                                color: Color(0xFF333333),
+                                size: 20,
+                              ),
+                              label: const Text(
+                                "Export",
+                                style: TextStyle(
+                                  color: Color(0xFF333333),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(
+                                  color: Color(0xFFE0E0E0),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                              ),
+                              onPressed: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Export functionality coming soon...',
+                                    ),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // Enhanced Breadcrumb / subtitle
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8.0, bottom: 20.0),
+                        child: Text(
+                          "Home / Parent & Guardian Management",
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF9E9E9E),
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      // Sort by dropdown
+
+                      // Enhanced Filter row with better visibility
                       Container(
-                        height: 40,
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          border: Border.all(color: const Color(0xFFE0E0E0)),
-                          borderRadius: BorderRadius.circular(4),
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey[200]!),
                         ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: 'Sort by: Name (A-Z)',
-                            icon: const Icon(Icons.keyboard_arrow_down),
-                            items:
-                                [
-                                  'Sort by: Name (A-Z)',
-                                  'Sort by: Name (Z-A)',
-                                  'Sort by: Date Added',
-                                  'Sort by: Student Count',
-                                ].map<DropdownMenuItem<String>>((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Text(value),
-                                  );
-                                }).toList(),
-                            onChanged: (String? newValue) {
-                              // TODO: Implement sorting
-                            },
-                          ),
+                        child: Row(
+                          children: [
+                            // Status filter dropdown
+                            Container(
+                              height: 42,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16.0,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                border: Border.all(
+                                  color: const Color(0xFFE0E0E0),
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: 'All Status',
+                                  icon: const Icon(Icons.keyboard_arrow_down),
+                                  items: [
+                                    const DropdownMenuItem(
+                                      value: 'All Status',
+                                      child: Text('All Status'),
+                                    ),
+                                    const DropdownMenuItem(
+                                      value: 'Active',
+                                      child: Text('Active'),
+                                    ),
+                                    const DropdownMenuItem(
+                                      value: 'Inactive',
+                                      child: Text('Inactive'),
+                                    ),
+                                  ],
+                                  onChanged: (String? newValue) {
+                                    // TODO: Implement status filtering
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            // Sort by dropdown
+                            Container(
+                              height: 42,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16.0,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                border: Border.all(
+                                  color: const Color(0xFFE0E0E0),
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: 'Name (A-Z)',
+                                  icon: const Icon(Icons.keyboard_arrow_down),
+                                  items: [
+                                    const DropdownMenuItem(
+                                      value: 'Name (A-Z)',
+                                      child: Text('Sort by: Name (A-Z)'),
+                                    ),
+                                    const DropdownMenuItem(
+                                      value: 'Name (Z-A)',
+                                      child: Text('Sort by: Name (Z-A)'),
+                                    ),
+                                    const DropdownMenuItem(
+                                      value: 'Status',
+                                      child: Text('Sort by: Status'),
+                                    ),
+                                    const DropdownMenuItem(
+                                      value: 'Students Count',
+                                      child: Text('Sort by: Students Count'),
+                                    ),
+                                  ],
+                                  onChanged: (String? newValue) {
+                                    // TODO: Implement sorting
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
