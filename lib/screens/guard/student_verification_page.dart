@@ -470,6 +470,205 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     }
   }
 
+  // Add this method to the StudentVerificationPage class
+  Future<Map<String, dynamic>?> _verifyTemporaryFetcherPin(
+    String pin,
+    int studentId,
+  ) async {
+    try {
+      final today = DateTime.now().toIso8601String().split('T')[0];
+
+      // Try exact match first (as entered)
+      var response =
+          await supabase
+              .from('temporary_fetchers')
+              .select('*')
+              .eq('pin_code', pin)
+              .eq('student_id', studentId)
+              .eq('valid_date', today)
+              .eq('status', 'active')
+              .eq('is_used', false)
+              .maybeSingle();
+
+      // If no exact match found and pin has leading zeros, try without leading zeros
+      if (response == null && pin.startsWith('0')) {
+        final pinWithoutZeros = pin.replaceFirst(RegExp(r'^0+'), '');
+
+        response =
+            await supabase
+                .from('temporary_fetchers')
+                .select('*')
+                .eq('pin_code', pinWithoutZeros)
+                .eq('student_id', studentId)
+                .eq('valid_date', today)
+                .eq('status', 'active')
+                .eq('is_used', false)
+                .maybeSingle();
+      }
+
+      // If still no match, try with leading zeros (in case database stores with zeros)
+      if (response == null && !pin.startsWith('0')) {
+        final pinWithZeros = pin.padLeft(6, '0');
+
+        response =
+            await supabase
+                .from('temporary_fetchers')
+                .select('*')
+                .eq('pin_code', pinWithZeros)
+                .eq('student_id', studentId)
+                .eq('valid_date', today)
+                .eq('status', 'active')
+                .eq('is_used', false)
+                .maybeSingle();
+      }
+
+      return response;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Fix the method call in _verifyAndProcessTemporaryFetcher
+  Future<void> _verifyAndProcessTemporaryFetcher(String pin) async {
+    if (scannedStudent == null) return;
+
+    try {
+      final tempFetcher = await _verifyTemporaryFetcherPin(
+        pin,
+        scannedStudent!.id,
+      );
+
+      if (tempFetcher != null) {
+        // Mark as used
+        await _markTemporaryFetcherAsUsed(tempFetcher['id']);
+
+        // Save pickup record
+        await supabase.from('scan_records').insert({
+          'student_id': scannedStudent!.id,
+          'guard_id': user?.id,
+          'rfid_uid': scannedStudent!.rfidUid ?? '',
+          'scan_time': DateTime.now().toIso8601String(),
+          'action': 'exit',
+          'verified_by': 'Temporary Fetcher: ${tempFetcher['fetcher_name']}',
+          'status': 'Checked Out',
+          'notes':
+              'Temporary fetcher verification - PIN: $pin, Relationship: ${tempFetcher['relationship']}',
+        });
+
+        _showSuccessNotification(
+          'Pickup approved for temporary fetcher: ${tempFetcher['fetcher_name']}',
+        );
+
+        // Auto-clear after success
+        Future.delayed(Duration(seconds: 3), () {
+          if (mounted) clearScan();
+        });
+      } else {
+        // Enhanced error message with more details
+        await _showDetailedPinErrorNotification(pin, scannedStudent!.id);
+      }
+    } catch (e) {
+      _showErrorNotification(
+        'Error verifying temporary fetcher: ${e.toString()}',
+      );
+    }
+  }
+
+  Future<void> _showDetailedPinErrorNotification(
+    String pin,
+    int studentId,
+  ) async {
+    try {
+      final today = DateTime.now().toIso8601String().split('T')[0];
+
+      // Check if there are any temporary fetchers for this student today
+      final allTempFetchersToday = await supabase
+          .from('temporary_fetchers')
+          .select('*')
+          .eq('student_id', studentId)
+          .eq('valid_date', today);
+
+      // Check if there are any active temporary fetchers for this student today
+      final activeTempFetchersToday = await supabase
+          .from('temporary_fetchers')
+          .select('*')
+          .eq('student_id', studentId)
+          .eq('valid_date', today)
+          .eq('status', 'active')
+          .eq('is_used', false);
+
+      // Check if this specific PIN exists for any student today
+      final pinExistsForOtherStudent =
+          await supabase
+              .from('temporary_fetchers')
+              .select('student_id, fetcher_name')
+              .eq('pin_code', pin)
+              .eq('valid_date', today)
+              .eq('status', 'active')
+              .eq('is_used', false)
+              .maybeSingle();
+
+      String errorMessage = '';
+
+      if (allTempFetchersToday.isEmpty) {
+        errorMessage =
+            'No temporary fetchers assigned to ${scannedStudent!.fullName} for today ($today)';
+      } else if (activeTempFetchersToday.isEmpty) {
+        final usedCount =
+            allTempFetchersToday.where((f) => f['is_used'] == true).length;
+        final inactiveCount =
+            allTempFetchersToday.where((f) => f['status'] != 'active').length;
+
+        if (usedCount > 0 && inactiveCount > 0) {
+          errorMessage =
+              'All temporary fetcher PINs for ${scannedStudent!.fullName} have been used or are inactive';
+        } else if (usedCount > 0) {
+          errorMessage =
+              'All temporary fetcher PINs for ${scannedStudent!.fullName} have already been used today';
+        } else {
+          errorMessage =
+              'All temporary fetchers for ${scannedStudent!.fullName} are inactive';
+        }
+      } else if (pinExistsForOtherStudent != null) {
+        errorMessage =
+            'PIN $pin belongs to a different student. Please verify the correct PIN for ${scannedStudent!.fullName}';
+      } else {
+        // Check if PIN might exist with different formatting
+        final availablePins =
+            activeTempFetchersToday
+                .map((f) => f['pin_code'].toString())
+                .toList();
+        if (availablePins.isNotEmpty) {
+          errorMessage =
+              'Invalid PIN "$pin" for ${scannedStudent!.fullName}. ${availablePins.length} active PIN(s) available for today';
+        } else {
+          errorMessage =
+              'Invalid PIN "$pin" - no matching temporary fetcher found for ${scannedStudent!.fullName}';
+        }
+      }
+
+      _showErrorNotification(errorMessage);
+    } catch (e) {
+      _showErrorNotification('Invalid PIN or PIN already used');
+    }
+  }
+
+  // Method to mark temporary fetcher as used
+  Future<void> _markTemporaryFetcherAsUsed(int tempFetcherId) async {
+    try {
+      await supabase
+          .from('temporary_fetchers')
+          .update({
+            'is_used': true,
+            'used_at': DateTime.now().toIso8601String(),
+            'created_by_guard_id': user?.id,
+          })
+          .eq('id', tempFetcherId);
+    } catch (e) {
+      print('Error marking temporary fetcher as used: $e');
+    }
+  }
+
   // Show override dialog for early dismissal
   void _showOverrideDialog() {
     showDialog(
@@ -1100,7 +1299,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
   // Simulate RFID scan for testing
   void simulateRFIDScan() {
-    _fetchStudentByRFID('d9e0c801');
+    _fetchStudentByRFID('f2e2f603');
   }
 
   @override
@@ -2783,7 +2982,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     );
   }
 
-  // Add this new method for fetcher image handling
+  // method for fetcher image handling
   Widget _buildFetcherImageContent(String? imageUrl) {
     // Check if we have a valid image URL
     if (imageUrl == null || imageUrl.isEmpty) {
@@ -2830,7 +3029,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   Widget _buildActionButtons() {
     return Column(
       children: [
-        // Approve Button
+        // Existing approve button
         SizedBox(
           width: double.infinity,
           height: 48,
@@ -2840,47 +3039,204 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                     ? () => handleApproval(true)
                     : null,
             icon: Icon(Icons.check_circle, size: 20),
-            label: Text(
-              'Approve Pick-up',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
+            label: Text('Approve Pickup'),
             style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  (fetchers != null && fetchers!.isNotEmpty)
-                      ? Colors.green
-                      : Colors.grey[300],
+              backgroundColor: Colors.green,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: (fetchers != null && fetchers!.isNotEmpty) ? 2 : 0,
             ),
           ),
         ),
+
         SizedBox(height: 12),
 
-        // Deny Button
+        // Add temporary fetcher PIN verification button
         SizedBox(
           width: double.infinity,
           height: 48,
-          child: ElevatedButton.icon(
-            onPressed: _showDenyReasonDialog,
-            icon: Icon(Icons.block, size: 20),
-            label: Text(
-              'Deny Pick-up',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          child: OutlinedButton.icon(
+            onPressed: () => _showTemporaryFetcherDialog(),
+            icon: Icon(Icons.pin, size: 20),
+            label: Text('Verify Temporary Fetcher PIN'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.blue,
+              side: BorderSide(color: Colors.blue),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 2,
+          ),
+        ),
+
+        SizedBox(height: 12),
+
+        // Existing deny button
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: OutlinedButton.icon(
+            onPressed: () => _showDenyReasonDialog(),
+            icon: Icon(Icons.cancel, size: 20),
+            label: Text('Deny Pickup'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.red,
+              side: BorderSide(color: Colors.red),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  // Add this method to show temporary fetcher PIN dialog
+  void _showTemporaryFetcherDialog() {
+    final pinController = TextEditingController();
+    String? errorMessage;
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setState) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  title: Row(
+                    children: [
+                      Icon(Icons.pin, color: Colors.blue, size: 24),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Verify Temporary Fetcher PIN'),
+                            if (scannedStudent != null)
+                              Text(
+                                'for ${scannedStudent!.fullName}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.normal,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Enter the PIN provided by the temporary fetcher:',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      SizedBox(height: 16),
+                      TextField(
+                        controller: pinController,
+                        decoration: InputDecoration(
+                          labelText: 'PIN Code',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          hintText: 'Enter PIN (e.g., 696991)',
+                          errorText: errorMessage,
+                          prefixIcon: Icon(Icons.security),
+                        ),
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 20, letterSpacing: 2),
+                        onChanged: (value) {
+                          // Clear error when user types
+                          if (errorMessage != null) {
+                            setState(() {
+                              errorMessage = null;
+                            });
+                          }
+                        },
+                      ),
+                      SizedBox(height: 8),
+                      Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info, color: Colors.blue[600], size: 16),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'PIN is valid only for today and can be used once.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.blue[600],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text('Cancel'),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        final pin = pinController.text.trim();
+
+                        if (pin.isEmpty) {
+                          setState(() {
+                            errorMessage = 'Please enter a PIN';
+                          });
+                          return;
+                        }
+
+                        if (pin.length < 1 || pin.length > 6) {
+                          setState(() {
+                            errorMessage = 'PIN must be 1-6 digits';
+                          });
+                          return;
+                        }
+
+                        if (!RegExp(r'^\d+$').hasMatch(pin)) {
+                          setState(() {
+                            errorMessage = 'PIN must contain only numbers';
+                          });
+                          return;
+                        }
+
+                        if (scannedStudent != null) {
+                          Navigator.pop(context);
+                          await _verifyAndProcessTemporaryFetcher(pin);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text('Verify PIN'),
+                    ),
+                  ],
+                ),
+          ),
     );
   }
 

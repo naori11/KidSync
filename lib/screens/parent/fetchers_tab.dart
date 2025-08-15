@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/services.dart'; // Add this import for clipboard functionality
 import 'dart:math';
 import '../../models/parent_models.dart';
 
@@ -10,31 +11,83 @@ class FetchersScreen extends StatefulWidget {
   const FetchersScreen({
     required this.primaryColor,
     required this.isMobile,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<FetchersScreen> createState() => _FetchersScreenState();
 }
 
 class _FetchersScreenState extends State<FetchersScreen> {
+  // Enhanced controllers for all fields
   final TextEditingController _fetcherNameController = TextEditingController();
+  final TextEditingController _contactNumberController =
+      TextEditingController();
+  final TextEditingController _idNumberController = TextEditingController();
+  final TextEditingController _emergencyContactController =
+      TextEditingController();
+  final TextEditingController _notesController = TextEditingController();
+
   final supabase = Supabase.instance.client;
-  String _currentPin = '8472';
+  String _currentPin = '';
   String? _currentFetcherName;
+
+  // Form validation and dropdown values
+  final _formKey = GlobalKey<FormState>();
+  String? _selectedRelationship;
+  String? _selectedIdType;
+  bool _isGeneratingPin = false;
+
+  // Dropdown options
+  final List<String> _relationships = [
+    'Parent',
+    'Guardian',
+    'Grandparent',
+    'Uncle',
+    'Aunt',
+    'Sibling',
+    'Family Friend',
+    'Relative',
+    'Other',
+  ];
+
+  final List<String> _idTypes = [
+    'Driver\'s License',
+    'Government ID',
+    'Passport',
+    'Senior Citizen ID',
+    'PWD ID',
+    'Company ID',
+    'Other Valid ID',
+  ];
 
   // Add these new variables for fetchers data
   List<AuthorizedFetcher> authorizedFetchers = [];
+  List<Map<String, dynamic>> temporaryFetchers = [];
   bool isLoadingFetchers = true;
+  bool isLoadingTempFetchers = false;
   String? currentParentName;
   String? childName;
+  int? currentStudentId;
 
   @override
   void initState() {
     super.initState();
     _loadFetchersData();
+    _loadTemporaryFetchers();
   }
 
+  @override
+  void dispose() {
+    _fetcherNameController.dispose();
+    _contactNumberController.dispose();
+    _idNumberController.dispose();
+    _emergencyContactController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  // ...existing code for _loadFetchersData()...
   Future<void> _loadFetchersData() async {
     try {
       final user = supabase.auth.currentUser;
@@ -56,12 +109,12 @@ class _FetchersScreenState extends State<FetchersScreen> {
 
       final parentId = parentResponse['id'];
 
-      // Get the child(ren) of this parent - REMOVED is_primary filter
+      // Get the child(ren) of this parent
       final studentResponse = await supabase
           .from('parent_student')
           .select('student_id, students(fname, mname, lname)')
           .eq('parent_id', parentId)
-          .limit(1); // Just get the first student relationship
+          .limit(1);
 
       if (studentResponse.isNotEmpty) {
         final student = studentResponse.first['students'];
@@ -71,6 +124,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
         setState(() {
           childName =
               '$fname${mname.isNotEmpty ? ' $mname' : ''} $lname'.trim();
+          currentStudentId = studentResponse.first['student_id'];
         });
 
         final studentId = studentResponse.first['student_id'];
@@ -90,10 +144,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
           ''')
             .eq('student_id', studentId)
             .eq('parents.status', 'active')
-            .eq(
-              'parents.users.role',
-              'Parent',
-            ); // Only get parents with Parent role
+            .eq('parents.users.role', 'Parent');
 
         final List<AuthorizedFetcher> fetchers =
             fetchersResponse
@@ -128,16 +179,313 @@ class _FetchersScreenState extends State<FetchersScreen> {
     }
   }
 
+  // New method to load today's temporary fetchers
+  Future<void> _loadTemporaryFetchers() async {
+    if (currentStudentId == null) return;
+
+    setState(() => isLoadingTempFetchers = true);
+
+    try {
+      final today = DateTime.now().toIso8601String().split('T')[0];
+      final response = await supabase
+          .from('temporary_fetchers')
+          .select('*')
+          .eq('student_id', currentStudentId!)
+          .eq('valid_date', today)
+          .eq('status', 'active')
+          .order('created_at', ascending: false);
+
+      setState(() {
+        temporaryFetchers = List<Map<String, dynamic>>.from(response);
+        isLoadingTempFetchers = false;
+      });
+    } catch (error) {
+      print('Error loading temporary fetchers: $error');
+      setState(() => isLoadingTempFetchers = false);
+    }
+  }
+
+  // Add this to get temporary fetcher statistics
+  Future<Map<String, dynamic>> getTemporaryFetcherStats(int studentId) async {
+    try {
+      final response = await supabase
+          .from('temporary_fetchers')
+          .select('status, is_used, created_at')
+          .eq('student_id', studentId)
+          .gte(
+            'created_at',
+            DateTime.now().subtract(Duration(days: 30)).toIso8601String(),
+          );
+
+      final total = response.length;
+      final used = response.where((r) => r['is_used'] == true).length;
+      final active =
+          response
+              .where((r) => r['status'] == 'active' && r['is_used'] != true)
+              .length;
+
+      return {
+        'total': total,
+        'used': used,
+        'active': active,
+        'usage_rate': total > 0 ? (used / total * 100).round() : 0,
+      };
+    } catch (e) {
+      print('Error getting temporary fetcher stats: $e');
+      return {'total': 0, 'used': 0, 'active': 0, 'usage_rate': 0};
+    }
+  }
+
   Future<void> _refreshData() async {
     setState(() {
       isLoadingFetchers = true;
+      isLoadingTempFetchers = true;
     });
     await _loadFetchersData();
+    await _loadTemporaryFetchers();
+  }
+
+  // Add this check before generating PIN
+  Future<bool> _checkDailyLimit(int parentId, int studentId) async {
+    try {
+      final today = DateTime.now().toIso8601String().split('T')[0];
+      final response = await supabase
+          .from('temporary_fetchers')
+          .select('id')
+          .eq('parent_id', parentId)
+          .eq('student_id', studentId)
+          .eq('valid_date', today)
+          .eq('status', 'active');
+
+      // Limit to 3 temporary fetchers per day per student
+      return response.length < 3;
+    } catch (e) {
+      print('Error checking daily limit: $e');
+      return false;
+    }
   }
 
   String _generatePin() {
     final random = Random();
-    return (1000 + random.nextInt(9000)).toString();
+    return (100000 + random.nextInt(900000)).toString(); // 6-digit PIN
+  }
+
+  // Enhanced PIN generation with database storage
+  Future<void> _generateAndSaveTemporaryFetcher() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (currentStudentId == null) {
+      _showErrorDialog(
+        'Error',
+        'Student information not found. Please try again.',
+      );
+      return;
+    }
+
+    setState(() => _isGeneratingPin = true);
+
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('id')
+              .eq('user_id', user.id)
+              .single();
+
+      final parentId = parentResponse['id'];
+
+      // Check daily limit
+      final canCreate = await _checkDailyLimit(parentId, currentStudentId!);
+      if (!canCreate) {
+        throw Exception(
+          'Daily limit reached. You can only create 3 temporary fetchers per day.',
+        );
+      }
+
+      // Generate unique PIN
+      String pin;
+      bool isUnique = false;
+      int attempts = 0;
+
+      do {
+        pin = _generatePin();
+        final today = DateTime.now().toIso8601String().split('T')[0];
+
+        final existingPin =
+            await supabase
+                .from('temporary_fetchers')
+                .select('id')
+                .eq('pin_code', pin)
+                .eq('valid_date', today)
+                .eq('status', 'active')
+                .maybeSingle();
+
+        isUnique = existingPin == null;
+        attempts++;
+      } while (!isUnique && attempts < 10);
+
+      if (!isUnique) {
+        throw Exception('Unable to generate unique PIN. Please try again.');
+      }
+
+      // Save to database
+      final tempFetcherData = {
+        'student_id': currentStudentId,
+        'parent_id': parentId,
+        'fetcher_name': _fetcherNameController.text.trim(),
+        'relationship': _selectedRelationship!,
+        'contact_number': _contactNumberController.text.trim(),
+        'id_type': _selectedIdType,
+        'id_number': _idNumberController.text.trim(),
+        'pin_code': pin,
+        'emergency_contact':
+            _emergencyContactController.text.trim().isEmpty
+                ? null
+                : _emergencyContactController.text.trim(),
+        'notes':
+            _notesController.text.trim().isEmpty
+                ? null
+                : _notesController.text.trim(),
+        'valid_date': DateTime.now().toIso8601String().split('T')[0],
+        'status': 'active',
+      };
+
+      await supabase.from('temporary_fetchers').insert(tempFetcherData);
+
+      setState(() {
+        _currentFetcherName = _fetcherNameController.text.trim();
+        _currentPin = pin;
+        _isGeneratingPin = false;
+      });
+
+      // Refresh the temporary fetchers list
+      await _loadTemporaryFetchers();
+
+      // Clear form
+      _clearForm();
+
+      // Show success dialog
+      _showSuccessDialog(
+        'PIN Generated Successfully',
+        'Temporary fetcher access has been created for ${_currentFetcherName}',
+      );
+    } catch (error) {
+      setState(() => _isGeneratingPin = false);
+      print('Error saving temporary fetcher: $error');
+      _showErrorDialog('Error', 'Failed to generate PIN: ${error.toString()}');
+    }
+  }
+
+  void _clearForm() {
+    _fetcherNameController.clear();
+    _contactNumberController.clear();
+    _idNumberController.clear();
+    _emergencyContactController.clear();
+    _notesController.clear();
+    setState(() {
+      _selectedRelationship = null;
+      _selectedIdType = null;
+    });
+  }
+
+  void _showSuccessDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.check_circle, color: widget.primaryColor, size: 24),
+              SizedBox(width: 8),
+              Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Text(message),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.primaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showErrorDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.red, size: 24),
+              SizedBox(width: 8),
+              Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: Text(message),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.primaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Enhanced form validation
+  String? _validateName(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Fetcher name is required';
+    }
+    if (value.trim().length < 2) {
+      return 'Name must be at least 2 characters';
+    }
+    return null;
+  }
+
+  String? _validatePhoneNumber(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Contact number is required';
+    }
+    final phoneRegex = RegExp(r'^[0-9+\-\s\(\)]{10,15}$');
+    if (!phoneRegex.hasMatch(value.trim())) {
+      return 'Please enter a valid phone number';
+    }
+    return null;
+  }
+
+  String? _validateIdNumber(String? value) {
+    if (_selectedIdType != null && (value == null || value.trim().isEmpty)) {
+      return 'ID number is required when ID type is selected';
+    }
+    return null;
   }
 
   @override
@@ -151,7 +499,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Add Temporary Fetcher
+          // Enhanced Add Temporary Fetcher Form
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             child: Card(
@@ -171,306 +519,16 @@ class _FetchersScreenState extends State<FetchersScreen> {
                       offset: const Offset(0, 6),
                       spreadRadius: 2,
                     ),
-                    BoxShadow(
-                      color: const Color(0xFF000000).withOpacity(0.05),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
                   ],
                 ),
                 child: Padding(
                   padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: greenWithOpacity,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Icon(
-                              Icons.person_add_alt_1,
-                              color: widget.primaryColor,
-                              size: widget.isMobile ? 16 : 18,
-                            ),
-                          ),
-                          SizedBox(width: widget.isMobile ? 8 : 12),
-                          Text(
-                            'Add Temporary Fetcher',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: widget.isMobile ? 15 : 16,
-                              color: black,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: widget.isMobile ? 16 : 20),
-                      Container(
-                        padding: EdgeInsets.all(widget.isMobile ? 12 : 16),
-                        decoration: BoxDecoration(
-                          color: greenWithOpacity,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: widget.primaryColor.withOpacity(0.3),
-                            width: 1,
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Temporary Access',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: widget.isMobile ? 14 : 16,
-                                color: widget.primaryColor,
-                              ),
-                            ),
-                            SizedBox(height: widget.isMobile ? 8 : 10),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Fetcher Name',
-                                  style: TextStyle(
-                                    fontSize: widget.isMobile ? 13 : 15,
-                                    fontWeight: FontWeight.w600,
-                                    color: black,
-                                  ),
-                                ),
-                                SizedBox(height: widget.isMobile ? 6 : 8),
-                                TextField(
-                                  controller: _fetcherNameController,
-                                  decoration: InputDecoration(
-                                    hintText: 'Enter full name',
-                                    filled: true,
-                                    fillColor: white,
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide.none,
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(
-                                        color: widget.primaryColor.withOpacity(
-                                          0.2,
-                                        ),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(
-                                        color: widget.primaryColor,
-                                        width: 2,
-                                      ),
-                                    ),
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: widget.isMobile ? 12 : 16,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: widget.isMobile ? 12 : 16),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: widget.primaryColor,
-                                  foregroundColor: white,
-                                  padding: EdgeInsets.symmetric(
-                                    vertical: widget.isMobile ? 12 : 16,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  elevation: 2,
-                                ),
-                                icon: Icon(
-                                  Icons.security,
-                                  size: widget.isMobile ? 18 : 20,
-                                ),
-                                label: Text(
-                                  'Generate Secure PIN',
-                                  style: TextStyle(
-                                    fontSize: widget.isMobile ? 14 : 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                onPressed: () {
-                                  if (_fetcherNameController.text
-                                      .trim()
-                                      .isNotEmpty) {
-                                    setState(() {
-                                      _currentFetcherName =
-                                          _fetcherNameController.text.trim();
-                                      _currentPin = _generatePin();
-                                    });
-                                    showDialog(
-                                      context: context,
-                                      builder: (BuildContext context) {
-                                        return AlertDialog(
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              16,
-                                            ),
-                                          ),
-                                          title: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.check_circle,
-                                                color: widget.primaryColor,
-                                                size: 24,
-                                              ),
-                                              SizedBox(width: 8),
-                                              Text(
-                                                'PIN Generated',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: black,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          content: Text(
-                                            'PIN generated successfully for ${_currentFetcherName}',
-                                            style: TextStyle(
-                                              color: black.withOpacity(0.7),
-                                            ),
-                                          ),
-                                          actions: [
-                                            ElevatedButton(
-                                              onPressed:
-                                                  () =>
-                                                      Navigator.of(
-                                                        context,
-                                                      ).pop(),
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor:
-                                                    widget.primaryColor,
-                                                foregroundColor: white,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                              ),
-                                              child: Text('OK'),
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                    );
-                                  } else {
-                                    // Show error in center with better styling
-                                    showDialog(
-                                      context: context,
-                                      builder: (BuildContext context) {
-                                        return AlertDialog(
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              16,
-                                            ),
-                                          ),
-                                          title: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.error_outline,
-                                                color: Colors.red,
-                                                size: 24,
-                                              ),
-                                              SizedBox(width: 8),
-                                              Text(
-                                                'Input Required',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: black,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          content: Text(
-                                            'Please enter a fetcher name to generate a PIN.',
-                                            style: TextStyle(
-                                              color: black.withOpacity(0.7),
-                                            ),
-                                          ),
-                                          actions: [
-                                            ElevatedButton(
-                                              onPressed:
-                                                  () =>
-                                                      Navigator.of(
-                                                        context,
-                                                      ).pop(),
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor:
-                                                    widget.primaryColor,
-                                                foregroundColor: white,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                              ),
-                                              child: Text('OK'),
-                                            ),
-                                          ],
-                                        );
-                                      },
-                                    );
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          SizedBox(height: widget.isMobile ? 12 : 16),
-
-          // Current Temporary Fetcher PIN
-          if (_currentFetcherName != null)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              child: Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 8,
-                shadowColor: widget.primaryColor.withOpacity(0.3),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: widget.primaryColor.withOpacity(0.15),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                        spreadRadius: 2,
-                      ),
-                      BoxShadow(
-                        color: const Color(0xFF000000).withOpacity(0.05),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
+                  child: Form(
+                    key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Header
                         Row(
                           children: [
                             Container(
@@ -480,14 +538,14 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Icon(
-                                Icons.person_pin,
+                                Icons.person_add_alt_1,
                                 color: widget.primaryColor,
                                 size: widget.isMobile ? 16 : 18,
                               ),
                             ),
                             SizedBox(width: widget.isMobile ? 8 : 12),
                             Text(
-                              'Active Temporary Access',
+                              'Add Temporary Fetcher',
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: widget.isMobile ? 15 : 16,
@@ -497,142 +555,174 @@ class _FetchersScreenState extends State<FetchersScreen> {
                           ],
                         ),
                         SizedBox(height: widget.isMobile ? 16 : 20),
+
+                        // Form Container
                         Container(
-                          padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
+                          padding: EdgeInsets.all(widget.isMobile ? 12 : 16),
                           decoration: BoxDecoration(
                             color: greenWithOpacity,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: widget.primaryColor,
-                              width: 2,
+                              color: widget.primaryColor.withOpacity(0.3),
+                              width: 1,
                             ),
                           ),
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _currentFetcherName!,
+                                'Temporary Access Information',
                                 style: TextStyle(
-                                  fontSize: widget.isMobile ? 16 : 18,
                                   fontWeight: FontWeight.w600,
-                                  color: black,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'PIN Code',
-                                style: TextStyle(
                                   fontSize: widget.isMobile ? 14 : 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: black,
+                                  color: widget.primaryColor,
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: widget.isMobile ? 20 : 24,
-                                  vertical: widget.isMobile ? 12 : 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: widget.primaryColor,
-                                    width: 1,
+                              SizedBox(height: widget.isMobile ? 16 : 20),
+
+                              // Row 1: Fetcher Name and Relationship
+                              Row(
+                                children: [
+                                  Expanded(
+                                    flex: 2,
+                                    child: _buildTextFormField(
+                                      controller: _fetcherNameController,
+                                      label: 'Fetcher Name *',
+                                      hint: 'Enter full name',
+                                      validator: _validateName,
+                                    ),
                                   ),
-                                ),
-                                child: Text(
-                                  _currentPin,
-                                  style: TextStyle(
-                                    fontSize: widget.isMobile ? 24 : 32,
-                                    fontWeight: FontWeight.bold,
-                                    color: widget.primaryColor,
-                                    letterSpacing: 4,
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildDropdownField(
+                                      value: _selectedRelationship,
+                                      label: 'Relationship *',
+                                      hint: 'Select relationship',
+                                      items: _relationships,
+                                      onChanged:
+                                          (value) => setState(
+                                            () => _selectedRelationship = value,
+                                          ),
+                                      validator:
+                                          (value) =>
+                                              value == null ? 'Required' : null,
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Valid for today only',
-                                style: TextStyle(
-                                  fontSize: widget.isMobile ? 12 : 14,
-                                  color: black.withOpacity(0.6),
+                              SizedBox(height: 16),
+
+                              // Row 2: Contact Number and Emergency Contact
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildTextFormField(
+                                      controller: _contactNumberController,
+                                      label: 'Contact Number *',
+                                      hint: 'e.g. 09123456789',
+                                      validator: _validatePhoneNumber,
+                                      keyboardType: TextInputType.phone,
+                                    ),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildTextFormField(
+                                      controller: _emergencyContactController,
+                                      label: 'Emergency Contact',
+                                      hint: 'Optional backup contact',
+                                      keyboardType: TextInputType.phone,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 16),
+
+                              // Row 3: ID Type and ID Number
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildDropdownField(
+                                      value: _selectedIdType,
+                                      label: 'Valid ID Type',
+                                      hint: 'Select ID type',
+                                      items: _idTypes,
+                                      onChanged:
+                                          (value) => setState(
+                                            () => _selectedIdType = value,
+                                          ),
+                                    ),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildTextFormField(
+                                      controller: _idNumberController,
+                                      label: 'ID Number',
+                                      hint: 'Enter ID number',
+                                      validator: _validateIdNumber,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 16),
+
+                              // Notes field
+                              _buildTextFormField(
+                                controller: _notesController,
+                                label: 'Additional Notes',
+                                hint: 'Any special instructions or notes',
+                                maxLines: 2,
+                              ),
+                              SizedBox(height: widget.isMobile ? 16 : 20),
+
+                              // Generate PIN Button
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: widget.primaryColor,
+                                    foregroundColor: white,
+                                    padding: EdgeInsets.symmetric(
+                                      vertical: widget.isMobile ? 12 : 16,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    elevation: 2,
+                                  ),
+                                  icon:
+                                      _isGeneratingPin
+                                          ? SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    white,
+                                                  ),
+                                            ),
+                                          )
+                                          : Icon(
+                                            Icons.security,
+                                            size: widget.isMobile ? 18 : 20,
+                                          ),
+                                  label: Text(
+                                    _isGeneratingPin
+                                        ? 'Generating...'
+                                        : 'Generate Secure PIN',
+                                    style: TextStyle(
+                                      fontSize: widget.isMobile ? 14 : 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  onPressed:
+                                      _isGeneratingPin
+                                          ? null
+                                          : _generateAndSaveTemporaryFetcher,
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                        SizedBox(height: widget.isMobile ? 16 : 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: widget.primaryColor,
-                                  foregroundColor: white,
-                                  padding: EdgeInsets.symmetric(
-                                    vertical: widget.isMobile ? 12 : 16,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                icon: Icon(
-                                  Icons.copy,
-                                  size: widget.isMobile ? 18 : 20,
-                                ),
-                                label: Text(
-                                  'Copy PIN',
-                                  style: TextStyle(
-                                    fontSize: widget.isMobile ? 14 : 16,
-                                  ),
-                                ),
-                                onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('PIN copied to clipboard'),
-                                      backgroundColor: widget.primaryColor,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: widget.primaryColor,
-                                  side: BorderSide(color: widget.primaryColor),
-                                  padding: EdgeInsets.symmetric(
-                                    vertical: widget.isMobile ? 12 : 16,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                icon: Icon(
-                                  Icons.refresh,
-                                  size: widget.isMobile ? 18 : 20,
-                                ),
-                                label: Text(
-                                  'Regenerate',
-                                  style: TextStyle(
-                                    fontSize: widget.isMobile ? 14 : 16,
-                                  ),
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _currentPin = _generatePin();
-                                  });
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('New PIN generated'),
-                                      backgroundColor: widget.primaryColor,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
                         ),
                       ],
                     ),
@@ -640,10 +730,17 @@ class _FetchersScreenState extends State<FetchersScreen> {
                 ),
               ),
             ),
+          ),
 
           SizedBox(height: widget.isMobile ? 12 : 16),
 
-          // Authorized Fetchers List
+          // Current/Recent Temporary Fetchers
+          if (temporaryFetchers.isNotEmpty) _buildCurrentTemporaryFetchers(),
+
+          SizedBox(height: widget.isMobile ? 12 : 16),
+
+          // Existing Authorized Fetchers List (keep your existing code)
+          // ...existing authorized fetchers code...
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             child: Card(
@@ -695,7 +792,6 @@ class _FetchersScreenState extends State<FetchersScreen> {
                               ),
                             ),
                           ),
-                          // Add refresh button
                           IconButton(
                             icon: Icon(
                               Icons.refresh,
@@ -752,9 +848,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                     black,
                                     greenWithOpacity,
                                     isPrimary: fetcher.isPrimary,
-                                    profileImageUrl:
-                                        fetcher
-                                            .profileImageUrl, // Add this line
+                                    profileImageUrl: fetcher.profileImageUrl,
                                   );
                                 }).toList(),
                           ),
@@ -769,6 +863,322 @@ class _FetchersScreenState extends State<FetchersScreen> {
     );
   }
 
+  // Helper widget for text form fields
+  Widget _buildTextFormField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    String? Function(String?)? validator,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: widget.isMobile ? 13 : 15,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF000000),
+          ),
+        ),
+        SizedBox(height: widget.isMobile ? 6 : 8),
+        TextFormField(
+          controller: controller,
+          validator: validator,
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          decoration: InputDecoration(
+            hintText: hint,
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: widget.primaryColor.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: widget.primaryColor, width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.red, width: 1),
+            ),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: widget.isMobile ? 12 : 16,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper widget for dropdown fields
+  Widget _buildDropdownField({
+    required String? value,
+    required String label,
+    required String hint,
+    required List<String> items,
+    required void Function(String?) onChanged,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: widget.isMobile ? 13 : 15,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF000000),
+          ),
+        ),
+        SizedBox(height: widget.isMobile ? 6 : 8),
+        DropdownButtonFormField<String>(
+          value: value,
+          validator: validator,
+          decoration: InputDecoration(
+            hintText: hint,
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: widget.primaryColor.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: widget.primaryColor, width: 2),
+            ),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: widget.isMobile ? 12 : 16,
+            ),
+          ),
+          items:
+              items.map((String item) {
+                return DropdownMenuItem<String>(value: item, child: Text(item));
+              }).toList(),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  // New widget to display current temporary fetchers
+  Widget _buildCurrentTemporaryFetchers() {
+    const Color black = Color(0xFF000000);
+    const Color white = Color(0xFFFFFFFF);
+    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.6);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 8,
+        shadowColor: widget.primaryColor.withOpacity(0.3),
+        child: Container(
+          decoration: BoxDecoration(
+            color: white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: widget.primaryColor.withOpacity(0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: greenWithOpacity,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.access_time,
+                        color: widget.primaryColor,
+                        size: widget.isMobile ? 16 : 18,
+                      ),
+                    ),
+                    SizedBox(width: widget.isMobile ? 8 : 12),
+                    Text(
+                      'Today\'s Temporary Fetchers',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: widget.isMobile ? 15 : 16,
+                        color: black,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: widget.isMobile ? 16 : 20),
+                isLoadingTempFetchers
+                    ? Center(
+                      child: CircularProgressIndicator(
+                        color: widget.primaryColor,
+                      ),
+                    )
+                    : Column(
+                      children:
+                          temporaryFetchers
+                              .map(
+                                (fetcher) =>
+                                    _buildTemporaryFetcherCard(fetcher),
+                              )
+                              .toList(),
+                    ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTemporaryFetcherCard(Map<String, dynamic> fetcher) {
+    const Color black = Color(0xFF000000);
+    const Color white = Color(0xFFFFFFFF);
+
+    final bool isUsed = fetcher['is_used'] == true;
+    final String status = fetcher['status'] ?? 'active';
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isUsed ? Colors.grey[50] : white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color:
+              isUsed ? Colors.grey[300]! : widget.primaryColor.withOpacity(0.3),
+          width: 1,
+        ),
+        boxShadow: [
+          if (!isUsed)
+            BoxShadow(
+              color: widget.primaryColor.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fetcher['fetcher_name'] ?? 'Unknown',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        color: isUsed ? Colors.grey[600] : black,
+                      ),
+                    ),
+                    Text(
+                      fetcher['relationship'] ?? 'Unknown',
+                      style: TextStyle(
+                        color:
+                            isUsed ? Colors.grey[500] : black.withOpacity(0.6),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color:
+                      isUsed
+                          ? Colors.grey[200]
+                          : widget.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isUsed ? Colors.grey[400]! : widget.primaryColor,
+                  ),
+                ),
+                child: Text(
+                  fetcher['pin_code'] ?? '',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isUsed ? Colors.grey[600] : widget.primaryColor,
+                    fontSize: 16,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                isUsed ? Icons.check_circle : Icons.access_time,
+                size: 16,
+                color: isUsed ? Colors.green : widget.primaryColor,
+              ),
+              SizedBox(width: 4),
+              Text(
+                isUsed ? 'Used' : 'Active',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: isUsed ? Colors.green : widget.primaryColor,
+                ),
+              ),
+              Spacer(),
+              if (!isUsed)
+                IconButton(
+                  icon: Icon(Icons.copy, size: 16),
+                  onPressed: () async {
+                    await Clipboard.setData(
+                      ClipboardData(text: fetcher['pin_code']),
+                    );
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('PIN copied to clipboard'),
+                        backgroundColor: widget.primaryColor,
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Keep your existing _buildFetcherItem method...
   Widget _buildFetcherItem(
     String name,
     String role,
@@ -779,7 +1189,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
     Color black,
     Color greenWithOpacity, {
     bool isPrimary = false,
-    String? profileImageUrl, // Add this parameter
+    String? profileImageUrl,
   }) {
     return Container(
       margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
