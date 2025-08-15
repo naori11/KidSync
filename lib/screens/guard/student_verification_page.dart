@@ -401,37 +401,86 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     try {
       print('Fetching authorized fetchers for student ID: $studentId');
 
-      // Fetch parent-student relationships with parent and user information
-      final response = await supabase
+      // First, get the parent-student relationships
+      final parentStudentResponse = await supabase
           .from('parent_student')
           .select('''
+          parent_id,
           relationship_type,
-          is_primary,
-          parents!inner(
-            id, fname, mname, lname, phone, email, address, status,
-            users!inner(
-              profile_image_url
-            )
-          )
+          is_primary
         ''')
           .eq('student_id', studentId);
 
-      print('Fetchers response: $response');
+      print('Parent-Student relationships: $parentStudentResponse');
 
-      if (response.isNotEmpty) {
+      if (parentStudentResponse.isNotEmpty) {
         final List<Fetcher> fetchersList = [];
 
-        for (final relationshipData in response) {
-          final parentData = relationshipData['parents'];
+        // Get the parent IDs
+        final parentIds =
+            parentStudentResponse
+                .map((rel) => rel['parent_id'])
+                .toSet()
+                .toList();
 
-          // Only include active parents
-          if (parentData != null &&
-              (parentData['status'] == null ||
-                  parentData['status'] == 'active')) {
-            final fetcher = Fetcher.fromParentData(
-              parentData,
-              relationshipData,
+        // Fetch parent details
+        final parentsResponse = await supabase
+            .from('parents')
+            .select('''
+            id,
+            fname,
+            mname,
+            lname,
+            phone,
+            email,
+            address,
+            status,
+            user_id
+          ''')
+            .inFilter('id', parentIds)
+            .eq('status', 'active'); // Only get active parents
+
+        print('Parents response: $parentsResponse');
+
+        // Create fetchers list by combining parent data with relationship data
+        for (final parentData in parentsResponse) {
+          // Find the corresponding relationship data
+          final relationshipData = parentStudentResponse.cast<Map<String, dynamic>?>().firstWhere(
+            (rel) => rel != null && rel['parent_id'] == parentData['id'],
+            orElse: () => null,
+          );
+
+          if (relationshipData != null) {
+            // Get user profile image if user_id exists
+            String? profileImageUrl;
+            if (parentData['user_id'] != null) {
+              try {
+                final userResponse =
+                    await supabase
+                        .from('users')
+                        .select('profile_image_url')
+                        .eq('id', parentData['user_id'])
+                        .maybeSingle();
+
+                profileImageUrl = userResponse?['profile_image_url'];
+              } catch (e) {
+                print('Error fetching user profile image: $e');
+              }
+            }
+
+            final fetcher = Fetcher(
+              id: parentData['id'],
+              name:
+                  '${parentData['fname']} ${parentData['mname'] ?? ''} ${parentData['lname']}'
+                      .trim(),
+              relationship: relationshipData['relationship_type'] ?? 'Parent',
+              contact: parentData['phone'] ?? '',
+              email: parentData['email'] ?? '',
+              address: parentData['address'] ?? '',
+              imageUrl: profileImageUrl ?? '',
+              isPrimary: relationshipData['is_primary'] ?? false,
             );
+
             fetchersList.add(fetcher);
             print('Added fetcher: ${fetcher.name} (${fetcher.relationship})');
           }
@@ -455,7 +504,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           fetchers = [];
           isLoadingFetchers = false;
         });
-        print('No authorized fetchers found for student ID: $studentId');
+        print(
+          'No parent-student relationships found for student ID: $studentId',
+        );
         _showErrorNotification('No authorized fetchers found for this student');
       }
     } catch (e) {
@@ -542,17 +593,28 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         // Mark as used
         await _markTemporaryFetcherAsUsed(tempFetcher['id']);
 
-        // Save pickup record
+        // Create detailed notes with all fetcher information
+        final detailedNotes =
+            'Temporary fetcher verification - '
+            'PIN: $pin, '
+            'Fetcher: ${tempFetcher['fetcher_name']}, '
+            'Relationship: ${tempFetcher['relationship']}, '
+            'Contact: ${tempFetcher['contact_number'] ?? 'Not provided'}, '
+            'ID Type: ${tempFetcher['id_type'] ?? 'Not provided'}, '
+            'ID Number: ${tempFetcher['id_number'] ?? 'Not provided'}, '
+            'Emergency Contact: ${tempFetcher['emergency_contact'] ?? 'Not provided'}';
+
+        // Save pickup record with enhanced information
         await supabase.from('scan_records').insert({
           'student_id': scannedStudent!.id,
           'guard_id': user?.id,
           'rfid_uid': scannedStudent!.rfidUid ?? '',
           'scan_time': DateTime.now().toIso8601String(),
           'action': 'exit',
-          'verified_by': 'Temporary Fetcher: ${tempFetcher['fetcher_name']}',
+          'verified_by':
+              'Temporary Fetcher: ${tempFetcher['fetcher_name']} (PIN: $pin)',
           'status': 'Checked Out',
-          'notes':
-              'Temporary fetcher verification - PIN: $pin, Relationship: ${tempFetcher['relationship']}',
+          'notes': detailedNotes,
         });
 
         _showSuccessNotification(
@@ -564,7 +626,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           if (mounted) clearScan();
         });
       } else {
-        // Enhanced error message with more details
         await _showDetailedPinErrorNotification(pin, scannedStudent!.id);
       }
     } catch (e) {

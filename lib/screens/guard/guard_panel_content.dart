@@ -112,6 +112,8 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
             status: statusMessage,
             reason: reason,
             timestamp: scanTime,
+            verifiedBy: record['verified_by'] ?? '',
+            action: record['action'] ?? '',
           ),
         );
       }
