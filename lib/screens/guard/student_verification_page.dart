@@ -25,6 +25,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   DateTime? actionTimestamp;
   bool isLoadingStudent = false;
   bool isLoadingFetchers = false;
+  Map<String, dynamic>? verifiedTempFetcher;
+  bool isShowingTempFetcher = false;
 
   // Remove isEntryMode and isAwaitingDecision - replaced with auto detection
   String? currentAction; // 'entry' or 'exit'
@@ -445,10 +447,12 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         // Create fetchers list by combining parent data with relationship data
         for (final parentData in parentsResponse) {
           // Find the corresponding relationship data
-          final relationshipData = parentStudentResponse.cast<Map<String, dynamic>?>().firstWhere(
-            (rel) => rel != null && rel['parent_id'] == parentData['id'],
-            orElse: () => null,
-          );
+          final relationshipData = parentStudentResponse
+              .cast<Map<String, dynamic>?>()
+              .firstWhere(
+                (rel) => rel != null && rel['parent_id'] == parentData['id'],
+                orElse: () => null,
+              );
 
           if (relationshipData != null) {
             // Get user profile image if user_id exists
@@ -590,19 +594,46 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       );
 
       if (tempFetcher != null) {
+        setState(() {
+          verifiedTempFetcher = tempFetcher;
+          isShowingTempFetcher = true;
+        });
+
+        _showSuccessNotification(
+          'PIN verified successfully! Please review fetcher details.',
+        );
+      } else {
+        await _showDetailedPinErrorNotification(pin, scannedStudent!.id);
+      }
+    } catch (e) {
+      _showErrorNotification(
+        'Error verifying temporary fetcher: ${e.toString()}',
+      );
+    }
+  }
+
+  // New method to handle final approval of temporary fetcher
+  Future<void> _processTempFetcherPickup(
+    bool approved, {
+    String? denyReason,
+  }) async {
+    if (scannedStudent == null || verifiedTempFetcher == null) return;
+
+    try {
+      if (approved) {
         // Mark as used
-        await _markTemporaryFetcherAsUsed(tempFetcher['id']);
+        await _markTemporaryFetcherAsUsed(verifiedTempFetcher!['id']);
 
         // Create detailed notes with all fetcher information
         final detailedNotes =
             'Temporary fetcher verification - '
-            'PIN: $pin, '
-            'Fetcher: ${tempFetcher['fetcher_name']}, '
-            'Relationship: ${tempFetcher['relationship']}, '
-            'Contact: ${tempFetcher['contact_number'] ?? 'Not provided'}, '
-            'ID Type: ${tempFetcher['id_type'] ?? 'Not provided'}, '
-            'ID Number: ${tempFetcher['id_number'] ?? 'Not provided'}, '
-            'Emergency Contact: ${tempFetcher['emergency_contact'] ?? 'Not provided'}';
+            'PIN: ${verifiedTempFetcher!['pin_code']}, '
+            'Fetcher: ${verifiedTempFetcher!['fetcher_name']}, '
+            'Relationship: ${verifiedTempFetcher!['relationship']}, '
+            'Contact: ${verifiedTempFetcher!['contact_number'] ?? 'Not provided'}, '
+            'ID Type: ${verifiedTempFetcher!['id_type'] ?? 'Not provided'}, '
+            'ID Number: ${verifiedTempFetcher!['id_number'] ?? 'Not provided'}, '
+            'Emergency Contact: ${verifiedTempFetcher!['emergency_contact'] ?? 'Not provided'}';
 
         // Save pickup record with enhanced information
         await supabase.from('scan_records').insert({
@@ -612,25 +643,40 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'scan_time': DateTime.now().toIso8601String(),
           'action': 'exit',
           'verified_by':
-              'Temporary Fetcher: ${tempFetcher['fetcher_name']} (PIN: $pin)',
+              'Temporary Fetcher: ${verifiedTempFetcher!['fetcher_name']} (PIN: ${verifiedTempFetcher!['pin_code']})',
           'status': 'Checked Out',
           'notes': detailedNotes,
         });
 
         _showSuccessNotification(
-          'Pickup approved for temporary fetcher: ${tempFetcher['fetcher_name']}',
+          'Pickup approved for temporary fetcher: ${verifiedTempFetcher!['fetcher_name']}',
         );
-
-        // Auto-clear after success
-        Future.delayed(Duration(seconds: 3), () {
-          if (mounted) clearScan();
-        });
       } else {
-        await _showDetailedPinErrorNotification(pin, scannedStudent!.id);
+        // Save denied record
+        await supabase.from('scan_records').insert({
+          'student_id': scannedStudent!.id,
+          'guard_id': user?.id,
+          'rfid_uid': scannedStudent!.rfidUid ?? '',
+          'scan_time': DateTime.now().toIso8601String(),
+          'action': 'denied',
+          'verified_by': 'Guard',
+          'status': 'Denied',
+          'notes':
+              'Temporary fetcher pickup denied: ${denyReason ?? 'No reason provided'}',
+        });
+
+        _showErrorNotification(
+          'Pickup denied: ${denyReason ?? 'Access denied'}',
+        );
       }
+
+      // Auto-clear after success/denial
+      Future.delayed(Duration(seconds: 3), () {
+        if (mounted) clearScan();
+      });
     } catch (e) {
       _showErrorNotification(
-        'Error verifying temporary fetcher: ${e.toString()}',
+        'Error processing temporary fetcher pickup: ${e.toString()}',
       );
     }
   }
@@ -1172,6 +1218,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       scheduleValidationMessage = null;
       isOverrideMode = false;
       lastClassEndTime = null;
+      verifiedTempFetcher = null;
+      isShowingTempFetcher = false;
     });
   }
 
@@ -1460,7 +1508,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     if (currentAction == 'entry') {
       return _buildEntryModeLayout();
     } else if (currentAction == 'exit') {
-      if (scheduleValidationMessage != null) {
+      if (isShowingTempFetcher && verifiedTempFetcher != null) {
+        return _buildTempFetcherVerificationLayout();
+      } else if (scheduleValidationMessage != null) {
         return _buildScheduleBlockedLayout();
       } else {
         return _buildExitModeLayout();
@@ -2839,6 +2889,776 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         ),
       ],
     );
+  }
+
+  Widget _buildTempFetcherVerificationLayout() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Left Column - Student Information
+        Expanded(
+          flex: 3,
+          child: Column(
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.pin, size: 32, color: Colors.white),
+                    ),
+                    SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Temporary Fetcher Verification',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[800],
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'PIN verified - Review fetcher details',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 24),
+
+              // Student Information Card (same as exit mode)
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey[200]!),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      // Student Photo and Basic Info Section
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Student Photo Section
+                          Column(
+                            children: [
+                              _buildStudentImage(
+                                imageUrl: scannedStudent!.imageUrl,
+                                width: 180,
+                                height: 180,
+                                borderRadius: 16,
+                              ),
+                              SizedBox(height: 16),
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[50],
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: Colors.blue[200]!),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.verified,
+                                      size: 18,
+                                      color: Colors.blue,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'VERIFIED STUDENT',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.blue[700],
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          SizedBox(width: 32),
+
+                          // Student Information Section
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Student Information',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                SizedBox(height: 16),
+
+                                Text(
+                                  scannedStudent!.fullName,
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+
+                                Text(
+                                  scannedStudent!.classSection,
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                SizedBox(height: 24),
+
+                                // Information Grid (2x2)
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildInfoCard(
+                                        'Student ID',
+                                        scannedStudent!.studentId,
+                                        Icons.badge,
+                                        Colors.blue,
+                                      ),
+                                    ),
+                                    SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildInfoCard(
+                                        'Exit Time',
+                                        _formatCurrentTime(),
+                                        Icons.access_time,
+                                        Colors.orange,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 12),
+
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildInfoCard(
+                                        'RFID Status',
+                                        'Active',
+                                        Icons.nfc,
+                                        Colors.purple,
+                                      ),
+                                    ),
+                                    SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildInfoCard(
+                                        'Verification',
+                                        'PIN Verified',
+                                        Icons.security,
+                                        Colors.green,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      SizedBox(height: 24),
+
+                      // Additional Student Information
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey[200]!),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Additional Information',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Address',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        scannedStudent!.address,
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(width: 24),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Gender',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        scannedStudent!.gender ??
+                                            'Not specified',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        SizedBox(width: 32),
+
+        // Right Column - Temporary Fetcher Information
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Temp Fetcher Header
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.person_pin,
+                            size: 24,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Temporary Fetcher',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue[800],
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'PIN verified - Review details below',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.blue[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 20),
+
+              // Temp Fetcher Details Card
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.grey[200]!),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(16), // Reduced padding
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // PIN Status Badge
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green[50],
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.green[200]!),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                size: 14,
+                                color: Colors.green[600],
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'PIN VERIFIED',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.green[700],
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        SizedBox(height: 16),
+
+                        // Fetcher Name
+                        Text(
+                          verifiedTempFetcher!['fetcher_name'] ?? 'Unknown',
+                          style: TextStyle(
+                            fontSize: 20, // Reduced from 24
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        SizedBox(height: 12), // Reduced spacing
+                        // Compact fetcher details using a more space-efficient layout
+                        _buildCompactDetailRow(
+                          'Relationship',
+                          verifiedTempFetcher!['relationship'] ??
+                              'Not specified',
+                          Icons.family_restroom,
+                        ),
+                        SizedBox(height: 10),
+
+                        _buildCompactDetailRow(
+                          'Contact',
+                          verifiedTempFetcher!['contact_number'] ??
+                              'Not provided',
+                          Icons.phone,
+                        ),
+                        SizedBox(height: 10),
+
+                        _buildCompactDetailRow(
+                          'PIN Code',
+                          verifiedTempFetcher!['pin_code'].toString(),
+                          Icons.pin,
+                        ),
+
+                        // Conditional fields in a more compact format
+                        if (verifiedTempFetcher!['id_type'] != null ||
+                            verifiedTempFetcher!['id_number'] != null) ...[
+                          SizedBox(height: 10),
+                          _buildCompactDetailRow(
+                            'ID Info',
+                            '${verifiedTempFetcher!['id_type'] ?? 'ID'}: ${verifiedTempFetcher!['id_number'] ?? 'Not provided'}',
+                            Icons.credit_card,
+                          ),
+                        ],
+
+                        if (verifiedTempFetcher!['emergency_contact'] !=
+                            null) ...[
+                          SizedBox(height: 10),
+                          _buildCompactDetailRow(
+                            'Emergency',
+                            verifiedTempFetcher!['emergency_contact'],
+                            Icons.emergency,
+                          ),
+                        ],
+
+                        SizedBox(height: 10),
+                        _buildCompactDetailRow(
+                          'Valid Date',
+                          verifiedTempFetcher!['valid_date'] ?? 'Today',
+                          Icons.calendar_today,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              SizedBox(height: 20),
+
+              // Action Buttons for Temp Fetcher
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(16), // Reduced from 20
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey[200]!),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 8,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Approve button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44, // Slightly smaller
+                      child: ElevatedButton.icon(
+                        onPressed: () => _processTempFetcherPickup(true),
+                        icon: Icon(Icons.check_circle, size: 18),
+                        label: Text(
+                          'Approve Pickup',
+                          style: TextStyle(fontSize: 14), // Smaller font
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+
+                    SizedBox(height: 10), // Reduced spacing
+                    // Back to PIN entry
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            verifiedTempFetcher = null;
+                            isShowingTempFetcher = false;
+                          });
+                        },
+                        icon: Icon(Icons.arrow_back, size: 18),
+                        label: Text(
+                          'Back to PIN Entry',
+                          style: TextStyle(fontSize: 14),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.blue,
+                          side: BorderSide(color: Colors.blue),
+                        ),
+                      ),
+                    ),
+
+                    SizedBox(height: 10),
+
+                    // Deny button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showTempFetcherDenyReasonDialog(),
+                        icon: Icon(Icons.cancel, size: 18),
+                        label: Text(
+                          'Deny Pickup',
+                          style: TextStyle(fontSize: 14),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: BorderSide(color: Colors.red),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactDetailRow(String label, String value, IconData icon) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: EdgeInsets.all(6), // Reduced padding
+          decoration: BoxDecoration(
+            color: Colors.blue[50],
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(icon, size: 16, color: Colors.blue[600]), // Smaller icon
+        ),
+        SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12, // Smaller font
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              SizedBox(height: 2),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 14, // Smaller font
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // New deny reason dialog specifically for temp fetchers
+  void _showTempFetcherDenyReasonDialog() async {
+    final reasons = [
+      'Invalid ID presented',
+      'Suspicious behavior',
+      'Information mismatch',
+      'Student refused to go',
+      'Other',
+    ];
+    String? selectedReason;
+    TextEditingController customReasonController = TextEditingController();
+    String? errorText;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              title: Text(
+                'Deny Temporary Fetcher Pickup',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Please select a reason for denying this temporary fetcher pickup:',
+                    style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                  ),
+                  SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: selectedReason,
+                    hint: Text(
+                      'Select a reason',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    items:
+                        reasons.map((reason) {
+                          return DropdownMenuItem(
+                            value: reason,
+                            child: Text(reason, style: TextStyle(fontSize: 16)),
+                          );
+                        }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedReason = value;
+                        if (value != 'Other') {
+                          customReasonController.text = '';
+                        }
+                        errorText = null;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(height: 16),
+                  TextField(
+                    controller: customReasonController,
+                    decoration: InputDecoration(
+                      labelText: 'Custom reason',
+                      labelStyle: TextStyle(fontSize: 16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      enabled: selectedReason == 'Other',
+                    ),
+                    style: TextStyle(fontSize: 16),
+                    minLines: 2,
+                    maxLines: 3,
+                    enabled: selectedReason == 'Other',
+                  ),
+                  if (errorText != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12.0),
+                      child: Text(
+                        errorText!,
+                        style: TextStyle(color: Colors.red, fontSize: 14),
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel', style: TextStyle(fontSize: 16)),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    String reasonToSave = '';
+                    if (selectedReason == null) {
+                      setState(() {
+                        errorText = "Please select a reason.";
+                      });
+                      return;
+                    } else if (selectedReason == 'Other') {
+                      if (customReasonController.text.trim().isEmpty) {
+                        setState(() {
+                          errorText = "Please provide a custom reason.";
+                        });
+                        return;
+                      }
+                      reasonToSave = customReasonController.text.trim();
+                    } else {
+                      reasonToSave = selectedReason!;
+                    }
+                    Navigator.pop(context, reasonToSave);
+                  },
+                  child: Text('Confirm', style: TextStyle(fontSize: 16)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((result) {
+      if (result != null && result is String && result.isNotEmpty) {
+        _processTempFetcherPickup(false, denyReason: result);
+      }
+    });
   }
 
   String _getEmergencyContact() {
