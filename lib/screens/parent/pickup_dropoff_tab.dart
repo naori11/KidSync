@@ -15,83 +15,53 @@ class PickupDropoffScreen extends StatefulWidget {
 }
 
 class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
-  String _selectedDropoffMode = 'driver'; // 'driver' or 'parent'
-  String _selectedPickupMode = 'driver'; // 'driver' or 'parent'
-  bool _hasDroppedOff = false;
-  bool _hasPickedUp = false;
-
-  // Advanced scheduling variables
-  Map<String, Map<String, String>> _weeklySchedule = {
+  // Default weekly pattern
+  Map<String, Map<String, String>> _weeklyPattern = {
     'Monday': {'dropoff': 'driver', 'pickup': 'driver'},
     'Tuesday': {'dropoff': 'driver', 'pickup': 'driver'},
     'Wednesday': {'dropoff': 'driver', 'pickup': 'driver'},
     'Thursday': {'dropoff': 'driver', 'pickup': 'driver'},
     'Friday': {'dropoff': 'driver', 'pickup': 'driver'},
   };
-  bool _hasUnassignedDays = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _checkForUnassignedDays();
-  }
+  // Exceptions to the pattern (specific dates)
+  Map<String, Map<String, String>> _exceptions = {};
 
-  void _checkForUnassignedDays() {
-    DateTime now = DateTime.now();
+  bool _hasDroppedOff = false;
+  bool _hasPickedUp = false;
 
-    // Check if tomorrow or next few days are unassigned
-    bool hasUnassigned = false;
-    for (int i = 1; i <= 3; i++) {
-      DateTime futureDate = now.add(Duration(days: i));
-      String dayName = _getDayName(futureDate.weekday);
-      if (_weeklySchedule[dayName] == null ||
-          _weeklySchedule[dayName]!['dropoff'] == null ||
-          _weeklySchedule[dayName]!['pickup'] == null) {
-        hasUnassigned = true;
-        break;
-      }
-    }
+  // Get current week date range
+  String _getCurrentWeekRange() {
+    final now = DateTime.now();
+    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    final endOfWeek = startOfWeek.add(Duration(days: 6));
 
-    setState(() {
-      _hasUnassignedDays = hasUnassigned;
-    });
-  }
+    final startMonth = _getMonthName(startOfWeek.month);
+    final endMonth = _getMonthName(endOfWeek.month);
 
-  String _getDayName(int weekday) {
-    switch (weekday) {
-      case 1:
-        return 'Monday';
-      case 2:
-        return 'Tuesday';
-      case 3:
-        return 'Wednesday';
-      case 4:
-        return 'Thursday';
-      case 5:
-        return 'Friday';
-      default:
-        return '';
+    if (startOfWeek.month == endOfWeek.month) {
+      return '$startMonth ${startOfWeek.day} - ${endOfWeek.day}, ${startOfWeek.year}';
+    } else {
+      return '$startMonth ${startOfWeek.day} - $endMonth ${endOfWeek.day}, ${startOfWeek.year}';
     }
   }
 
-  void _showTabularSchedulingModal() {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (BuildContext context) {
-        return TabularSchedulingModal(
-          weeklySchedule: _weeklySchedule,
-          onScheduleUpdate: (updatedSchedule) {
-            setState(() {
-              _weeklySchedule = updatedSchedule;
-              _hasUnassignedDays = false;
-            });
-          },
-          primaryColor: widget.primaryColor,
-          isMobile: widget.isMobile,
-        );
-      },
-    );
+  String _getMonthName(int month) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return months[month - 1];
   }
 
   @override
@@ -105,305 +75,163 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Today's Pickup/Dropoff Status
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            child: Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 8,
-              shadowColor: widget.primaryColor.withOpacity(0.3),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.primaryColor.withOpacity(0.15),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                      spreadRadius: 2,
-                    ),
-                    BoxShadow(
-                      color: const Color(0xFF000000).withOpacity(0.05),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: greenWithOpacity,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Icon(
-                              Icons.schedule,
-                              color: widget.primaryColor,
-                              size: widget.isMobile ? 16 : 18,
-                            ),
-                          ),
-                          SizedBox(width: widget.isMobile ? 8 : 12),
-                          Text(
-                            'Today\'s Schedule',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: widget.isMobile ? 15 : 16,
-                              color: black,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: widget.isMobile ? 16 : 20),
-                      _buildScheduleItem(
-                        '8:00 AM',
-                        'Drop-off',
-                        _hasDroppedOff
-                            ? 'Completed by ${_selectedDropoffMode == 'driver' ? 'Driver' : 'Parent'}'
-                            : 'Pending',
-                        _hasDroppedOff,
-                        widget.isMobile,
-                        widget.primaryColor,
-                        black,
-                      ),
-                      SizedBox(height: widget.isMobile ? 8 : 12),
-                      _buildScheduleItem(
-                        '3:30 PM',
-                        'Pick-up',
-                        _hasPickedUp
-                            ? 'Completed by ${_selectedPickupMode == 'driver' ? 'Driver' : 'Parent'}'
-                            : 'Pending',
-                        _hasPickedUp,
-                        widget.isMobile,
-                        widget.primaryColor,
-                        black,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
+          // Today's Status Card
+          _buildTodayStatusCard(),
 
           SizedBox(height: widget.isMobile ? 12 : 16),
 
-          // Unassigned Days Alert
-          if (_hasUnassignedDays)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              child: Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 6,
-                shadowColor: Colors.orange.withOpacity(0.3),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.orange, width: 2),
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Icon(
-                                Icons.warning_amber,
-                                color: Colors.orange,
-                                size: widget.isMobile ? 16 : 18,
-                              ),
-                            ),
-                            SizedBox(width: widget.isMobile ? 8 : 12),
-                            Expanded(
-                              child: Text(
-                                'Upcoming Days Need Assignment',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: widget.isMobile ? 15 : 16,
-                                  color: Colors.orange.shade800,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: widget.isMobile ? 12 : 16),
-                        Text(
-                          'You have upcoming school days without pickup/dropoff assignments. Please schedule them to avoid last-minute confusion.',
-                          style: TextStyle(
-                            fontSize: widget.isMobile ? 13 : 15,
-                            color: Colors.orange.shade700,
-                          ),
-                        ),
-                        SizedBox(height: widget.isMobile ? 12 : 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange,
-                              foregroundColor: white,
-                              padding: EdgeInsets.symmetric(
-                                vertical: widget.isMobile ? 12 : 16,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              elevation: 2,
-                            ),
-                            icon: Icon(
-                              Icons.calendar_month,
-                              size: widget.isMobile ? 18 : 20,
-                            ),
-                            label: Text(
-                              'Schedule Future Days',
-                              style: TextStyle(
-                                fontSize: widget.isMobile ? 14 : 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            onPressed: () {
-                              _showTabularSchedulingModal();
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          // Weekly Pattern Card
+          _buildWeeklyPatternCard(),
 
-          if (_hasUnassignedDays) SizedBox(height: widget.isMobile ? 12 : 16),
+          SizedBox(height: widget.isMobile ? 12 : 16),
 
-          // Quick Schedule Button
-          if (!_hasUnassignedDays)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              child: Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 4,
-                shadowColor: widget.primaryColor.withOpacity(0.2),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () {
-                    _showTabularSchedulingModal();
-                  },
-                  child: Container(
-                    padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: greenWithOpacity,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            Icons.schedule,
-                            color: widget.primaryColor,
-                            size: widget.isMobile ? 20 : 24,
-                          ),
-                        ),
-                        SizedBox(width: widget.isMobile ? 12 : 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Advanced Scheduling',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: widget.isMobile ? 15 : 16,
-                                  color: black,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Plan your weekly pickup & dropoff schedule',
-                                style: TextStyle(
-                                  fontSize: widget.isMobile ? 12 : 14,
-                                  color: black.withOpacity(0.6),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: widget.primaryColor,
-                          size: widget.isMobile ? 16 : 18,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          // Quick Actions
+          _buildQuickActionsCard(),
 
-          if (!_hasUnassignedDays) SizedBox(height: widget.isMobile ? 12 : 16),
+          if (_exceptions.isNotEmpty) ...[
+            SizedBox(height: widget.isMobile ? 12 : 16),
+            _buildExceptionsCard(),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildScheduleItem(
+  Widget _buildTodayStatusCard() {
+    const Color black = Color(0xFF000000);
+    const Color white = Color(0xFFFFFFFF);
+    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 6,
+        shadowColor: widget.primaryColor.withOpacity(0.2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: widget.primaryColor.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: greenWithOpacity,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.today,
+                        color: widget.primaryColor,
+                        size: widget.isMobile ? 16 : 18,
+                      ),
+                    ),
+                    SizedBox(width: widget.isMobile ? 8 : 12),
+                    Text(
+                      'Today\'s Schedule',
+                      style: TextStyle(
+                        fontSize: widget.isMobile ? 16 : 18,
+                        fontWeight: FontWeight.w600,
+                        color: black,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: widget.isMobile ? 4 : 6),
+                Text(
+                  'Monday, August 16, 2025',
+                  style: TextStyle(
+                    fontSize: widget.isMobile ? 12 : 14,
+                    color: black.withOpacity(0.6),
+                  ),
+                ),
+                SizedBox(height: widget.isMobile ? 16 : 20),
+
+                // Drop-off Status
+                _buildTodayItem(
+                  'Drop-off',
+                  '8:00 AM',
+                  _hasDroppedOff,
+                  Icons.arrow_upward,
+                ),
+                SizedBox(height: 12),
+
+                // Pick-up Status
+                _buildTodayItem(
+                  'Pick-up',
+                  '3:30 PM',
+                  _hasPickedUp,
+                  Icons.arrow_downward,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTodayItem(
+    String title,
     String time,
-    String action,
-    String status,
     bool completed,
-    bool isMobile,
-    Color primaryColor,
-    Color black,
+    IconData icon,
   ) {
+    const Color black = Color(0xFF000000);
     const Color white = Color(0xFFFFFFFF);
 
     return Container(
-      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      padding: EdgeInsets.all(widget.isMobile ? 12 : 16),
       decoration: BoxDecoration(
         color: white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: completed ? primaryColor : primaryColor.withOpacity(0.3),
+          color:
+              completed
+                  ? widget.primaryColor
+                  : widget.primaryColor.withOpacity(0.3),
           width: completed ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withOpacity(0.1),
-            blurRadius: 6,
+            color:
+                completed
+                    ? widget.primaryColor.withOpacity(0.1)
+                    : Colors.grey.withOpacity(0.05),
+            blurRadius: 8,
             offset: const Offset(0, 2),
-            spreadRadius: 0,
           ),
         ],
       ),
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(6),
+            padding: EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: completed ? primaryColor : black.withOpacity(0.1),
+              color:
+                  completed
+                      ? widget.primaryColor
+                      : Colors.grey.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
-              completed ? Icons.check_circle : Icons.schedule,
-              color: completed ? white : black.withOpacity(0.6),
-              size: isMobile ? 16 : 18,
+              completed ? Icons.check : icon,
+              color: completed ? white : Colors.grey,
+              size: widget.isMobile ? 16 : 18,
             ),
           ),
           SizedBox(width: 12),
@@ -412,19 +240,22 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$time - $action',
+                  '$title ($time)',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: isMobile ? 14 : 16,
+                    fontSize: widget.isMobile ? 14 : 16,
                     color: black,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
-                  status,
+                  completed ? 'Completed by Driver' : 'Scheduled: Driver',
                   style: TextStyle(
-                    fontSize: isMobile ? 12 : 14,
-                    color: completed ? primaryColor : black.withOpacity(0.6),
+                    fontSize: widget.isMobile ? 12 : 14,
+                    color:
+                        completed
+                            ? widget.primaryColor
+                            : black.withOpacity(0.6),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -435,85 +266,669 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
       ),
     );
   }
+
+  Widget _buildWeeklyPatternCard() {
+    const Color black = Color(0xFF000000);
+    const Color white = Color(0xFFFFFFFF);
+    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 6,
+        shadowColor: widget.primaryColor.withOpacity(0.2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: widget.primaryColor.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: greenWithOpacity,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.repeat,
+                        color: widget.primaryColor,
+                        size: widget.isMobile ? 16 : 18,
+                      ),
+                    ),
+                    SizedBox(width: widget.isMobile ? 8 : 12),
+                    Expanded(
+                      child: Text(
+                        'Weekly Pattern',
+                        style: TextStyle(
+                          fontSize: widget.isMobile ? 16 : 18,
+                          fontWeight: FontWeight.w600,
+                          color: black,
+                        ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _showWeeklyPatternEditor(),
+                      icon: Icon(Icons.edit, size: widget.isMobile ? 16 : 18),
+                      label: Text('Edit'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: widget.primaryColor,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: widget.isMobile ? 8 : 12,
+                          vertical: widget.isMobile ? 4 : 8,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: widget.isMobile ? 4 : 6),
+                Text(
+                  _getCurrentWeekRange(),
+                  style: TextStyle(
+                    fontSize: widget.isMobile ? 12 : 14,
+                    color: widget.primaryColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: widget.isMobile ? 8 : 12),
+                Text(
+                  'This pattern repeats every week unless you set specific exceptions.',
+                  style: TextStyle(
+                    fontSize: widget.isMobile ? 12 : 14,
+                    color: black.withOpacity(0.6),
+                  ),
+                ),
+                SizedBox(height: widget.isMobile ? 16 : 20),
+
+                // Weekly Schedule Grid
+                Container(
+                  padding: EdgeInsets.all(widget.isMobile ? 12 : 16),
+                  decoration: BoxDecoration(
+                    color: greenWithOpacity,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: widget.primaryColor.withOpacity(0.2),
+                    ),
+                  ),
+                  child: Column(
+                    children:
+                        _weeklyPattern.entries
+                            .map(
+                              (entry) => _buildWeeklyPatternRow(
+                                entry.key,
+                                entry.value,
+                              ),
+                            )
+                            .toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeeklyPatternRow(String day, Map<String, String> schedule) {
+    const Color black = Color(0xFF000000);
+    const Color white = Color(0xFFFFFFFF);
+
+    final bool isToday = _isToday(day);
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.all(widget.isMobile ? 14 : 18),
+      decoration: BoxDecoration(
+        color: isToday ? widget.primaryColor.withOpacity(0.08) : white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color:
+              isToday
+                  ? widget.primaryColor
+                  : widget.primaryColor.withOpacity(0.15),
+          width: isToday ? 2 : 1,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center, // Center vertically
+        children: [
+          // Day section with consistent width
+          SizedBox(
+            width:
+                widget.isMobile ? 85 : 100, // Slightly wider for better spacing
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment:
+                  MainAxisAlignment.center, // Center the day column
+              children: [
+                Text(
+                  day,
+                  style: TextStyle(
+                    fontWeight: isToday ? FontWeight.bold : FontWeight.w600,
+                    fontSize: widget.isMobile ? 15 : 17,
+                    color: isToday ? widget.primaryColor : black,
+                  ),
+                ),
+                if (isToday) ...[
+                  SizedBox(height: 2),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: widget.primaryColor,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Today',
+                      style: TextStyle(
+                        fontSize: widget.isMobile ? 9 : 10,
+                        color: white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // Schedule section
+          Expanded(
+            child: Column(
+              mainAxisAlignment:
+                  MainAxisAlignment.center, // Center the actions column
+              children: [
+                _buildModernPatternItem(
+                  'Drop-off',
+                  _capitalize(schedule['dropoff'] ?? 'driver'),
+                  Icons.directions_car,
+                  schedule['dropoff'] == 'parent'
+                      ? Colors.orange
+                      : widget.primaryColor,
+                ),
+                SizedBox(height: 10),
+                _buildModernPatternItem(
+                  'Pick-up',
+                  _capitalize(schedule['pickup'] ?? 'driver'),
+                  Icons.home,
+                  schedule['pickup'] == 'parent'
+                      ? Colors.orange
+                      : widget.primaryColor,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernPatternItem(
+    String action,
+    String person,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: widget.isMobile ? 10 : 12,
+        vertical: widget.isMobile ? 6 : 8,
+      ),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: widget.isMobile ? 28 : 32,
+            height: widget.isMobile ? 28 : 32,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, size: widget.isMobile ? 14 : 16, color: color),
+          ),
+          SizedBox(width: widget.isMobile ? 10 : 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment:
+                  MainAxisAlignment.center, // Center text vertically
+              children: [
+                Text(
+                  action,
+                  style: TextStyle(
+                    fontSize: widget.isMobile ? 10 : 11,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: 1), // Minimal spacing
+                Text(
+                  person,
+                  style: TextStyle(
+                    fontSize: widget.isMobile ? 13 : 15,
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPatternChip(String text, IconData icon) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: widget.isMobile ? 8 : 12,
+        vertical: widget.isMobile ? 4 : 6,
+      ),
+      decoration: BoxDecoration(
+        color: widget.primaryColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: widget.primaryColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: widget.isMobile ? 12 : 14,
+            color: widget.primaryColor,
+          ),
+          SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: widget.isMobile ? 11 : 13,
+              color: widget.primaryColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionsCard() {
+    const Color black = Color(0xFF000000);
+    const Color white = Color(0xFFFFFFFF);
+    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 6,
+        shadowColor: widget.primaryColor.withOpacity(0.2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: widget.primaryColor.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: greenWithOpacity,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.flash_on,
+                        color: widget.primaryColor,
+                        size: widget.isMobile ? 16 : 18,
+                      ),
+                    ),
+                    SizedBox(width: widget.isMobile ? 8 : 12),
+                    Text(
+                      'Quick Actions',
+                      style: TextStyle(
+                        fontSize: widget.isMobile ? 16 : 18,
+                        fontWeight: FontWeight.w600,
+                        color: black,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: widget.isMobile ? 16 : 20),
+
+                // Actions Grid
+                Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildQuickActionButton(
+                            'Set Exception',
+                            'For specific dates',
+                            Icons.event_note,
+                            () => _showExceptionDialog(),
+                            widget.primaryColor,
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: _buildQuickActionButton(
+                            'Emergency Change',
+                            'For today only',
+                            Icons.warning,
+                            () => _showEmergencyChangeDialog(),
+                            Colors.orange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActionButton(
+    String title,
+    String subtitle,
+    IconData icon,
+    VoidCallback onTap,
+    Color buttonColor,
+  ) {
+    const Color black = Color(0xFF000000);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: EdgeInsets.all(widget.isMobile ? 12 : 16),
+        decoration: BoxDecoration(
+          color: buttonColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: buttonColor.withOpacity(0.3), width: 1),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: buttonColor, size: widget.isMobile ? 24 : 28),
+            SizedBox(height: widget.isMobile ? 6 : 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: widget.isMobile ? 13 : 15,
+                color: black,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: widget.isMobile ? 10 : 12,
+                color: black.withOpacity(0.6),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExceptionsCard() {
+    const Color black = Color(0xFF000000);
+    const Color white = Color(0xFFFFFFFF);
+    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 6,
+        shadowColor: widget.primaryColor.withOpacity(0.2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: widget.primaryColor.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.event_busy,
+                        color: Colors.orange,
+                        size: widget.isMobile ? 16 : 18,
+                      ),
+                    ),
+                    SizedBox(width: widget.isMobile ? 8 : 12),
+                    Text(
+                      'Scheduled Exceptions',
+                      style: TextStyle(
+                        fontSize: widget.isMobile ? 16 : 18,
+                        fontWeight: FontWeight.w600,
+                        color: black,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: widget.isMobile ? 16 : 20),
+                ..._exceptions.entries
+                    .map((entry) => _buildExceptionRow(entry.key, entry.value))
+                    .toList(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExceptionRow(String date, Map<String, String> schedule) {
+    const Color black = Color(0xFF000000);
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.all(widget.isMobile ? 12 : 16),
+      decoration: BoxDecoration(
+        color: Colors.orange.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _formatDate(date),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: widget.isMobile ? 14 : 16,
+                    color: black,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    _buildPatternChip(
+                      'Drop: ${_capitalize(schedule['dropoff'] ?? 'driver')}',
+                      Icons.arrow_upward,
+                    ),
+                    _buildPatternChip(
+                      'Pick: ${_capitalize(schedule['pickup'] ?? 'driver')}',
+                      Icons.arrow_downward,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _exceptions.remove(date);
+              });
+            },
+            icon: Icon(
+              Icons.delete_outline,
+              color: Colors.red,
+              size: widget.isMobile ? 20 : 24,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _isToday(String dayName) {
+    final now = DateTime.now();
+    final today =
+        [
+          'Monday',
+          'Tuesday',
+          'Wednesday',
+          'Thursday',
+          'Friday',
+          'Saturday',
+          'Sunday',
+        ][now.weekday - 1];
+    return dayName == today;
+  }
+
+  void _showWeeklyPatternEditor() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => WeeklyPatternDialog(
+            currentPattern: _weeklyPattern,
+            primaryColor: widget.primaryColor,
+            isMobile: widget.isMobile,
+            onSave: (newPattern) {
+              setState(() {
+                _weeklyPattern = newPattern;
+              });
+            },
+          ),
+    );
+  }
+
+  void _showExceptionDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => ExceptionDialog(
+            primaryColor: widget.primaryColor,
+            isMobile: widget.isMobile,
+            onSave: (date, schedule) {
+              setState(() {
+                _exceptions[date] = schedule;
+              });
+            },
+          ),
+    );
+  }
+
+  void _showEmergencyChangeDialog() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Emergency change dialog would open here'),
+        backgroundColor: widget.primaryColor,
+      ),
+    );
+  }
+
+  String _capitalize(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1);
+  }
+
+  String _formatDate(String date) {
+    // Format date string for display
+    return date; // Implement proper date formatting
+  }
 }
 
-class TabularSchedulingModal extends StatefulWidget {
-  final Map<String, Map<String, String>> weeklySchedule;
-  final Function(Map<String, Map<String, String>>) onScheduleUpdate;
+// Enhanced Weekly Pattern Dialog
+class WeeklyPatternDialog extends StatefulWidget {
+  final Map<String, Map<String, String>> currentPattern;
   final Color primaryColor;
   final bool isMobile;
+  final Function(Map<String, Map<String, String>>) onSave;
 
-  const TabularSchedulingModal({
+  const WeeklyPatternDialog({
     Key? key,
-    required this.weeklySchedule,
-    required this.onScheduleUpdate,
+    required this.currentPattern,
     required this.primaryColor,
     required this.isMobile,
+    required this.onSave,
   }) : super(key: key);
 
   @override
-  State<TabularSchedulingModal> createState() => _TabularSchedulingModalState();
+  State<WeeklyPatternDialog> createState() => _WeeklyPatternDialogState();
 }
 
-class _TabularSchedulingModalState extends State<TabularSchedulingModal> {
-  late Map<String, Map<String, String>> _localSchedule;
-  DateTime _selectedMonth = DateTime.now();
-
-  // Generate dates for the current month
-  List<DateTime> _generateMonthDates() {
-    final lastDay = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0);
-
-    List<DateTime> dates = [];
-    for (int i = 0; i < lastDay.day; i++) {
-      final date = DateTime(_selectedMonth.year, _selectedMonth.month, i + 1);
-      // Only include weekdays (Monday to Friday)
-      if (date.weekday >= 1 && date.weekday <= 5) {
-        dates.add(date);
-      }
-    }
-    return dates;
-  }
-
-  String _getDayName(int weekday) {
-    switch (weekday) {
-      case 1:
-        return 'Monday';
-      case 2:
-        return 'Tuesday';
-      case 3:
-        return 'Wednesday';
-      case 4:
-        return 'Thursday';
-      case 5:
-        return 'Friday';
-      default:
-        return '';
-    }
-  }
-
-  String _getMonthName(int month) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    return months[month - 1];
-  }
+class _WeeklyPatternDialogState extends State<WeeklyPatternDialog> {
+  late Map<String, Map<String, String>> _pattern;
 
   @override
   void initState() {
     super.initState();
-    _localSchedule = Map.from(
-      widget.weeklySchedule.map(
+    _pattern = Map.from(
+      widget.currentPattern.map(
         (key, value) => MapEntry(key, Map<String, String>.from(value)),
       ),
     );
@@ -523,176 +938,103 @@ class _TabularSchedulingModalState extends State<TabularSchedulingModal> {
   Widget build(BuildContext context) {
     const Color black = Color(0xFF000000);
     const Color white = Color(0xFFFFFFFF);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
-
-    final screenSize = MediaQuery.of(context).size;
-    final isTablet = screenSize.width > 600 && screenSize.width < 1024;
-
-    // Better responsive sizing - made wider for better text fitting
-    double dialogWidth;
-    if (widget.isMobile) {
-      dialogWidth = screenSize.width * 0.98; // Increased from 0.95
-    } else if (isTablet) {
-      dialogWidth = screenSize.width * 0.90; // Increased from 0.85
-    } else {
-      dialogWidth =
-          screenSize.width > 1200
-              ? 1000.0
-              : screenSize.width * 0.80; // Increased
-    }
 
     return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: EdgeInsets.symmetric(
-        horizontal: widget.isMobile ? 8 : 20,
-        vertical: widget.isMobile ? 20 : 40,
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
-        width: dialogWidth,
         constraints: BoxConstraints(
-          maxHeight: screenSize.height * 0.9,
-          minHeight: widget.isMobile ? screenSize.height * 0.6 : 400,
-        ),
-        decoration: BoxDecoration(
-          color: white,
-          borderRadius: BorderRadius.circular(widget.isMobile ? 16 : 24),
-          boxShadow: [
-            BoxShadow(
-              color: widget.primaryColor.withOpacity(0.1),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
-              spreadRadius: 0,
-            ),
-          ],
+          maxWidth: widget.isMobile ? double.infinity : 500,
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header with Month Navigation
+            // Header
             Container(
-              padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
+              padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
               decoration: BoxDecoration(
-                color: widget.primaryColor.withOpacity(0.05),
+                color: widget.primaryColor.withOpacity(0.1),
                 borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(widget.isMobile ? 16 : 24),
-                  topRight: Radius.circular(widget.isMobile ? 16 : 24),
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
                 ),
               ),
-              child: Column(
+              child: Row(
                 children: [
-                  // Title Row
-                  Row(
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: greenWithOpacity,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.calendar_month,
-                          color: widget.primaryColor,
-                          size: widget.isMobile ? 20 : 24,
-                        ),
+                  Icon(Icons.edit, color: widget.primaryColor),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Edit Weekly Pattern',
+                      style: TextStyle(
+                        fontSize: widget.isMobile ? 16 : 18,
+                        fontWeight: FontWeight.bold,
+                        color: black,
                       ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Monthly Schedule Planner',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: widget.isMobile ? 16 : 20,
-                            color: black,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.close, color: black.withOpacity(0.6)),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
+                    ),
                   ),
-
-                  SizedBox(height: 16),
-
-                  // Month Navigation
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _selectedMonth = DateTime(
-                              _selectedMonth.year,
-                              _selectedMonth.month - 1,
-                            );
-                          });
-                        },
-                        icon: Icon(
-                          Icons.chevron_left,
-                          color: widget.primaryColor,
-                          size: widget.isMobile ? 24 : 28,
-                        ),
-                      ),
-                      Text(
-                        '${_getMonthName(_selectedMonth.month)} ${_selectedMonth.year}',
-                        style: TextStyle(
-                          fontSize: widget.isMobile ? 18 : 22,
-                          fontWeight: FontWeight.w600,
-                          color: black,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () {
-                          setState(() {
-                            _selectedMonth = DateTime(
-                              _selectedMonth.year,
-                              _selectedMonth.month + 1,
-                            );
-                          });
-                        },
-                        icon: Icon(
-                          Icons.chevron_right,
-                          color: widget.primaryColor,
-                          size: widget.isMobile ? 24 : 28,
-                        ),
-                      ),
-                    ],
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(Icons.close, color: black),
                   ),
                 ],
               ),
             ),
 
             // Content
-            Expanded(
+            Flexible(
               child: SingleChildScrollView(
-                padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
+                padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Set pickup and drop-off arrangements for each school day in ${_getMonthName(_selectedMonth.month)}:',
-                      style: TextStyle(
-                        fontSize: widget.isMobile ? 14 : 16,
-                        color: black.withOpacity(0.7),
-                      ),
-                    ),
-                    SizedBox(height: widget.isMobile ? 16 : 24),
-
-                    // Responsive Schedule Interface
-                    _buildResponsiveScheduleInterface(),
-
-                    SizedBox(height: widget.isMobile ? 20 : 32),
-
-                    // Quick Action Buttons
-                    _buildQuickActionButtons(),
-
-                    SizedBox(height: 16),
-
-                    // Save Button
-                    _buildSaveButton(),
-                  ],
+                  children:
+                      _pattern.entries.map((entry) {
+                        return _buildDayEditor(entry.key, entry.value);
+                      }).toList(),
                 ),
+              ),
+            ),
+
+            // Actions
+            Container(
+              padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.grey[300]!)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: widget.primaryColor,
+                        side: BorderSide(color: widget.primaryColor),
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text('Cancel'),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        widget.onSave(_pattern);
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: widget.primaryColor,
+                        foregroundColor: white,
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text('Save Changes'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -701,368 +1043,387 @@ class _TabularSchedulingModalState extends State<TabularSchedulingModal> {
     );
   }
 
-  Widget _buildResponsiveScheduleInterface() {
-    final monthDates = _generateMonthDates();
-    return _buildResponsiveMonthlyTable(monthDates);
-  }
-
-  Widget _buildResponsiveMonthlyTable(List<DateTime> dates) {
-    const Color white = Color(0xFFFFFFFF);
+  Widget _buildDayEditor(String day, Map<String, String> schedule) {
     const Color black = Color(0xFF000000);
 
     return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: white,
+        border: Border.all(color: widget.primaryColor.withOpacity(0.2)),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: widget.primaryColor.withOpacity(0.2),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: widget.primaryColor.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            day,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: widget.isMobile ? 14 : 16,
+              color: black,
+            ),
+          ),
+          SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildDropdownField(
+                  'Drop-off',
+                  schedule['dropoff']!,
+                  (value) => setState(() => _pattern[day]!['dropoff'] = value!),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _buildDropdownField(
+                  'Pick-up',
+                  schedule['pickup']!,
+                  (value) => setState(() => _pattern[day]!['pickup'] = value!),
+                ),
+              ),
+            ],
           ),
         ],
       ),
-      child: Column(
-        children: [
-          // Header Row
-          Container(
-            padding: EdgeInsets.symmetric(
-              vertical: widget.isMobile ? 12 : 16,
-              horizontal: widget.isMobile ? 8 : 16,
-            ),
-            decoration: BoxDecoration(
-              color: widget.primaryColor.withOpacity(0.05),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
+    );
+  }
+
+  Widget _buildDropdownField(
+    String label,
+    String value,
+    Function(String?) onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: widget.isMobile ? 12 : 14,
+            fontWeight: FontWeight.w500,
+            color: const Color(0xFF000000),
+          ),
+        ),
+        SizedBox(height: 4),
+        DropdownButtonFormField<String>(
+          value: value,
+          decoration: InputDecoration(
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: widget.primaryColor.withOpacity(0.3),
               ),
             ),
-            child: Row(
-              children: [
-                // Date & Day Column Header
-                Expanded(
-                  flex: widget.isMobile ? 3 : 4,
-                  child: Text(
-                    'Date & Day',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: widget.isMobile ? 12 : 14,
-                      color: black,
-                    ),
-                  ),
-                ),
-                // Drop-off Column Header
-                Expanded(
-                  flex: widget.isMobile ? 3 : 4,
-                  child: Text(
-                    'Drop-off\n(8:00 AM)',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: widget.isMobile ? 10 : 12,
-                      color: black,
-                      height: 1.2,
-                    ),
-                  ),
-                ),
-                // Pick-up Column Header
-                Expanded(
-                  flex: widget.isMobile ? 3 : 4,
-                  child: Text(
-                    'Pick-up\n(3:30 PM)',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: widget.isMobile ? 10 : 12,
-                      color: black,
-                      height: 1.2,
-                    ),
-                  ),
-                ),
-              ],
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(
+                color: widget.primaryColor.withOpacity(0.3),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: widget.primaryColor),
             ),
           ),
+          items: [
+            DropdownMenuItem(value: 'driver', child: Text('Driver')),
+            DropdownMenuItem(value: 'parent', child: Text('Parent')),
+          ],
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+}
 
-          // Data Rows
-          ...dates.asMap().entries.map((entry) {
-            final index = entry.key;
-            final date = entry.value;
-            final dayKey = _getDayName(date.weekday);
-            final dateKey =
-                '${date.year}-${date.month}-${date.day}'; // Unique date key
-            final isEvenRow = index % 2 == 0;
+// Enhanced Exception Dialog
+class ExceptionDialog extends StatefulWidget {
+  final Color primaryColor;
+  final bool isMobile;
+  final Function(String, Map<String, String>) onSave;
 
-            return Container(
-              padding: EdgeInsets.symmetric(
-                vertical: widget.isMobile ? 8 : 12,
-                horizontal: widget.isMobile ? 8 : 16,
-              ),
+  const ExceptionDialog({
+    Key? key,
+    required this.primaryColor,
+    required this.isMobile,
+    required this.onSave,
+  }) : super(key: key);
+
+  @override
+  State<ExceptionDialog> createState() => _ExceptionDialogState();
+}
+
+class _ExceptionDialogState extends State<ExceptionDialog> {
+  DateTime? _selectedDate;
+  String _dropoffChoice = 'driver';
+  String _pickupChoice = 'driver';
+
+  @override
+  Widget build(BuildContext context) {
+    const Color white = Color(0xFFFFFFFF);
+    const Color black = Color(0xFF000000);
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: widget.isMobile ? double.infinity : 400,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
               decoration: BoxDecoration(
-                color:
-                    isEvenRow ? white : widget.primaryColor.withOpacity(0.02),
-                border: Border(
-                  bottom: BorderSide(
-                    color: widget.primaryColor.withOpacity(0.1),
-                    width: 0.5,
-                  ),
+                color: widget.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
                 ),
               ),
               child: Row(
                 children: [
-                  // Date & Day Column
+                  Icon(Icons.event_note, color: widget.primaryColor),
+                  SizedBox(width: 8),
                   Expanded(
-                    flex: widget.isMobile ? 3 : 4,
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: widget.isMobile ? 6 : 8,
-                            vertical: widget.isMobile ? 2 : 4,
-                          ),
-                          decoration: BoxDecoration(
+                    child: Text(
+                      'Set Exception',
+                      style: TextStyle(
+                        fontSize: widget.isMobile ? 16 : 18,
+                        fontWeight: FontWeight.bold,
+                        color: black,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(Icons.close, color: black),
+                  ),
+                ],
+              ),
+            ),
+
+            // Content
+            Padding(
+              padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Select a specific date that differs from your weekly pattern:',
+                    style: TextStyle(
+                      fontSize: widget.isMobile ? 14 : 16,
+                      color: black.withOpacity(0.7),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+
+                  // Date Picker
+                  InkWell(
+                    onTap: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now().add(Duration(days: 1)),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(Duration(days: 365)),
+                      );
+                      if (date != null) {
+                        setState(() => _selectedDate = date);
+                      }
+                    },
+                    child: Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: widget.primaryColor.withOpacity(0.3),
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_today,
                             color: widget.primaryColor,
-                            borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Text(
-                            '${date.day}',
+                          SizedBox(width: 12),
+                          Text(
+                            _selectedDate != null
+                                ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
+                                : 'Select Date',
                             style: TextStyle(
-                              color: white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: widget.isMobile ? 10 : 12,
+                              fontSize: widget.isMobile ? 14 : 16,
+                              color:
+                                  _selectedDate != null
+                                      ? black
+                                      : black.withOpacity(0.5),
                             ),
                           ),
-                        ),
-                        SizedBox(width: widget.isMobile ? 4 : 8),
-                        Expanded(
-                          child: Text(
-                            widget.isMobile
-                                ? dayKey.substring(0, 3) // Mon, Tue, etc.
-                                : dayKey,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: widget.isMobile ? 11 : 14,
-                              color: black,
-                            ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
 
-                  // Drop-off Column
-                  Expanded(
-                    flex: widget.isMobile ? 3 : 4,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: _buildTabularOptionButton(
-                            'driver',
-                            'dropoff',
-                            dateKey,
-                            Icons.local_shipping,
-                            isFirst: true,
-                          ),
-                        ),
-                        SizedBox(width: widget.isMobile ? 2 : 4),
-                        Expanded(
-                          child: _buildTabularOptionButton(
-                            'parent',
-                            'dropoff',
-                            dateKey,
-                            Icons.person,
-                            isFirst: false,
-                          ),
-                        ),
-                      ],
+                  SizedBox(height: 20),
+
+                  // Drop-off Selection
+                  Text(
+                    'Drop-off:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: widget.isMobile ? 14 : 16,
                     ),
                   ),
+                  SizedBox(height: 8),
+                  _buildChoiceButtons(
+                    _dropoffChoice,
+                    (value) => setState(() => _dropoffChoice = value),
+                  ),
 
-                  // Pick-up Column
+                  SizedBox(height: 16),
+
+                  // Pick-up Selection
+                  Text(
+                    'Pick-up:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: widget.isMobile ? 14 : 16,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  _buildChoiceButtons(
+                    _pickupChoice,
+                    (value) => setState(() => _pickupChoice = value),
+                  ),
+                ],
+              ),
+            ),
+
+            // Actions
+            Container(
+              padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.grey[300]!)),
+              ),
+              child: Row(
+                children: [
                   Expanded(
-                    flex: widget.isMobile ? 3 : 4,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: _buildTabularOptionButton(
-                            'driver',
-                            'pickup',
-                            dateKey,
-                            Icons.local_shipping,
-                            isFirst: true,
-                          ),
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: widget.primaryColor,
+                        side: BorderSide(color: widget.primaryColor),
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        SizedBox(width: widget.isMobile ? 2 : 4),
-                        Expanded(
-                          child: _buildTabularOptionButton(
-                            'parent',
-                            'pickup',
-                            dateKey,
-                            Icons.person,
-                            isFirst: false,
-                          ),
+                      ),
+                      child: Text('Cancel'),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed:
+                          _selectedDate != null
+                              ? () {
+                                final dateKey =
+                                    '${_selectedDate!.year}-${_selectedDate!.month}-${_selectedDate!.day}';
+                                widget.onSave(dateKey, {
+                                  'dropoff': _dropoffChoice,
+                                  'pickup': _pickupChoice,
+                                });
+                                Navigator.pop(context);
+                              }
+                              : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: widget.primaryColor,
+                        foregroundColor: white,
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      ],
+                      ),
+                      child: Text('Save Exception'),
                     ),
                   ),
                 ],
               ),
-            );
-          }).toList(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabularOptionButton(
-    String value,
-    String type,
-    String dateKey,
-    IconData icon, {
-    required bool isFirst,
-  }) {
-    const Color white = Color(0xFFFFFFFF);
-
-    final isSelected = _localSchedule[dateKey]?[type] == value;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          if (_localSchedule[dateKey] == null) {
-            _localSchedule[dateKey] = {};
-          }
-          _localSchedule[dateKey]![type] = value;
-        });
-      },
-      child: AnimatedContainer(
-        duration: Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(
-          vertical: widget.isMobile ? 6 : 8,
-          horizontal: widget.isMobile ? 4 : 8,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected ? widget.primaryColor : white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(isFirst ? 6 : 0),
-            bottomLeft: Radius.circular(isFirst ? 6 : 0),
-            topRight: Radius.circular(!isFirst ? 6 : 0),
-            bottomRight: Radius.circular(!isFirst ? 6 : 0),
-          ),
-          border: Border.all(color: widget.primaryColor, width: 1),
-        ),
-        child: Icon(
-          icon,
-          color: isSelected ? white : widget.primaryColor,
-          size: widget.isMobile ? 14 : 16,
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildQuickActionButtons() {
+  Widget _buildChoiceButtons(String selectedValue, Function(String) onChanged) {
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: widget.primaryColor,
-              side: BorderSide(color: widget.primaryColor),
-              padding: EdgeInsets.symmetric(
-                vertical: widget.isMobile ? 12 : 16,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            icon: Icon(Icons.local_shipping),
-            label: Text('All Driver'),
-            onPressed: () {
-              setState(() {
-                final monthDates = _generateMonthDates();
-                for (DateTime date in monthDates) {
-                  final dateKey = '${date.year}-${date.month}-${date.day}';
-                  _localSchedule[dateKey] = {
-                    'dropoff': 'driver',
-                    'pickup': 'driver',
-                  };
-                }
-              });
-            },
+          child: _buildChoiceButton(
+            'Driver',
+            'driver',
+            selectedValue,
+            onChanged,
           ),
         ),
         SizedBox(width: 12),
         Expanded(
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: widget.primaryColor,
-              side: BorderSide(color: widget.primaryColor),
-              padding: EdgeInsets.symmetric(
-                vertical: widget.isMobile ? 12 : 16,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            icon: Icon(Icons.person),
-            label: Text('All Parent'),
-            onPressed: () {
-              setState(() {
-                final monthDates = _generateMonthDates();
-                for (DateTime date in monthDates) {
-                  final dateKey = '${date.year}-${date.month}-${date.day}';
-                  _localSchedule[dateKey] = {
-                    'dropoff': 'parent',
-                    'pickup': 'parent',
-                  };
-                }
-              });
-            },
+          child: _buildChoiceButton(
+            'Parent',
+            'parent',
+            selectedValue,
+            onChanged,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSaveButton() {
-    const Color white = Color(0xFFFFFFFF);
+  Widget _buildChoiceButton(
+    String label,
+    String value,
+    String selectedValue,
+    Function(String) onChanged,
+  ) {
+    final bool isSelected = selectedValue == value;
 
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: widget.primaryColor,
-          foregroundColor: white,
-          padding: EdgeInsets.symmetric(vertical: widget.isMobile ? 16 : 20),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+    return InkWell(
+      onTap: () => onChanged(value),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color:
+              isSelected
+                  ? widget.primaryColor.withOpacity(0.1)
+                  : Colors.grey[50],
+          border: Border.all(
+            color: isSelected ? widget.primaryColor : Colors.grey[300]!,
+            width: isSelected ? 2 : 1,
           ),
-          elevation: 4,
+          borderRadius: BorderRadius.circular(8),
         ),
-        icon: Icon(Icons.save, size: widget.isMobile ? 20 : 24),
-        label: Text(
-          'Save Monthly Schedule',
-          style: TextStyle(
-            fontSize: widget.isMobile ? 16 : 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        onPressed: () {
-          widget.onScheduleUpdate(_localSchedule);
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Monthly schedule for ${_getMonthName(_selectedMonth.month)} saved successfully!',
-              ),
-              backgroundColor: widget.primaryColor,
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: isSelected ? widget.primaryColor : Colors.grey[400],
+              size: widget.isMobile ? 18 : 20,
             ),
-          );
-        },
+            SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color: isSelected ? widget.primaryColor : Colors.grey[700],
+                fontSize: widget.isMobile ? 14 : 16,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
