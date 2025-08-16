@@ -82,6 +82,12 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
   bool isDashboardLoading = true;
   final supabase = Supabase.instance.client;
 
+  // Add these new properties for user data
+  String userName = 'Loading...';
+  String userEmail = 'Loading...';
+  String? profileImageUrl;
+  bool isLoadingProfile = true;
+
   @override
   void initState() {
     super.initState();
@@ -103,8 +109,69 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
 
-    // Load dashboard data
+    // Load dashboard data and user profile
     _loadDashboardFetchers();
+    _loadUserProfile();
+  }
+
+  // Add this new method to load user profile
+  Future<void> _loadUserProfile() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        setState(() => isLoadingProfile = false);
+        return;
+      }
+
+      final response = await supabase
+          .from('users')
+          .select('fname, mname, lname, email, profile_image_url')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (response != null) {
+        String firstName = response['fname'] ?? '';
+        String middleName = response['mname'] ?? '';
+        String lastName = response['lname'] ?? '';
+        
+        // Construct full name
+        String fullName = '';
+        if (firstName.isNotEmpty) fullName += firstName;
+        if (middleName.isNotEmpty) fullName += ' $middleName';
+        if (lastName.isNotEmpty) fullName += ' $lastName';
+        
+        // Fallback to email username if no name is available
+        if (fullName.trim().isEmpty) {
+          final emailParts = (response['email'] ?? user.email ?? '').split('@');
+          fullName = emailParts.isNotEmpty ? emailParts[0] : 'User';
+        }
+
+        setState(() {
+          userName = fullName.trim();
+          userEmail = response['email'] ?? user.email ?? '';
+          profileImageUrl = response['profile_image_url'];
+          isLoadingProfile = false;
+        });
+      } else {
+        // Fallback to auth user data if no record in users table
+        setState(() {
+          userName = user.userMetadata?['full_name'] ?? 
+                   user.email?.split('@')[0] ?? 'User';
+          userEmail = user.email ?? '';
+          isLoadingProfile = false;
+        });
+      }
+    } catch (error) {
+      print('Error loading user profile: $error');
+      // Fallback to auth user data on error
+      final user = supabase.auth.currentUser;
+      setState(() {
+        userName = user?.userMetadata?['full_name'] ?? 
+                 user?.email?.split('@')[0] ?? 'User';
+        userEmail = user?.email ?? '';
+        isLoadingProfile = false;
+      });
+    }
   }
 
   Future<void> _loadDashboardFetchers() async {
@@ -410,11 +477,16 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                         child: CircleAvatar(
                           backgroundColor: greenWithOpacity,
                           radius: 16,
-                          child: Icon(
-                            Icons.person,
-                            color: widget.primaryColor,
-                            size: 18,
-                          ),
+                          backgroundImage: profileImageUrl != null
+                              ? NetworkImage(profileImageUrl!)
+                              : null,
+                          child: profileImageUrl == null
+                              ? Icon(
+                                  Icons.person,
+                                  color: widget.primaryColor,
+                                  size: 18,
+                                )
+                              : null,
                         ),
                       ),
                     ),
@@ -471,7 +543,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
               ),
             ],
           ),
-          // Notification and Profile Popovers (keeping your existing code)
+          // Notification and Profile Popovers
           if (showNotifications)
             Positioned(
               top: 56,
@@ -582,32 +654,41 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                               CircleAvatar(
                                 backgroundColor: greenWithOpacity,
                                 radius: 20,
-                                child: Icon(
-                                  Icons.person,
-                                  color: widget.primaryColor,
-                                  size: 22,
-                                ),
+                                backgroundImage: profileImageUrl != null
+                                    ? NetworkImage(profileImageUrl!)
+                                    : null,
+                                child: profileImageUrl == null
+                                    ? Icon(
+                                        Icons.person,
+                                        color: widget.primaryColor,
+                                        size: 22,
+                                      )
+                                    : null,
                               ),
                               const SizedBox(width: 12),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Parent Name',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: const Color(0xFF000000),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      isLoadingProfile ? 'Loading...' : userName,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFF000000),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                  Text(
-                                    'parent@email.com',
-                                    style: TextStyle(
-                                      color: const Color(0xFF000000)
-                                          .withOpacity(0.6),
-                                      fontSize: 13,
+                                    Text(
+                                      isLoadingProfile ? 'Loading...' : userEmail,
+                                      style: TextStyle(
+                                        color: const Color(0xFF000000)
+                                            .withOpacity(0.6),
+                                        fontSize: 13,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ],
                           ),
