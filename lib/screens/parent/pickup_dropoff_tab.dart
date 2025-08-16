@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:kidsync/services/pickup_dropoff_service.dart';
+import '../../models/pickup_dropoff_models.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PickupDropoffScreen extends StatefulWidget {
   final Color primaryColor;
   final bool isMobile;
+  final int? studentId; // Add this parameter
 
   const PickupDropoffScreen({
     required this.primaryColor,
     required this.isMobile,
-    Key? key,
-  }) : super(key: key);
+    this.studentId,
+    super.key,
+  });
 
   @override
   State<PickupDropoffScreen> createState() => _PickupDropoffScreenState();
 }
 
 class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
-  // Default weekly pattern
+  final supabase = Supabase.instance.client;
+
   Map<String, Map<String, String>> _weeklyPattern = {
     'Monday': {'dropoff': 'driver', 'pickup': 'driver'},
     'Tuesday': {'dropoff': 'driver', 'pickup': 'driver'},
@@ -25,10 +31,17 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
   };
 
   // Exceptions to the pattern (specific dates)
-  Map<String, Map<String, String>> _exceptions = {};
+  final Map<String, Map<String, String>> _exceptions = {};
 
   bool _hasDroppedOff = false;
   bool _hasPickedUp = false;
+
+  // Add these as class variables
+  final PickupDropoffService _service = PickupDropoffService();
+  StudentSchedule? _studentSchedule;
+  List<PickupDropoffPattern> _patterns = [];
+  int? _currentStudentId; // You'll need to pass this from parent widget
+  bool _isLoading = false;
 
   // Get current week date range
   String _getCurrentWeekRange() {
@@ -65,10 +78,238 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // Don't rely on passed studentId - fetch it internally like fetchers_tab does
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      // Get current user (same pattern as fetchers_tab.dart)
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Get current parent data (same pattern as fetchers_tab.dart)
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('id, fname, mname, lname')
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .maybeSingle();
+
+      if (parentResponse == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final parentId = parentResponse['id'];
+
+      // Get the child(ren) of this parent (same pattern as fetchers_tab.dart)
+      final studentResponse = await supabase
+          .from('parent_student')
+          .select('student_id, students(fname, mname, lname)')
+          .eq('parent_id', parentId)
+          .limit(1);
+
+      if (studentResponse.isEmpty) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Set the student ID from the query result
+      _currentStudentId = studentResponse.first['student_id'];
+
+      // Now load the pickup/dropoff data with the fetched student ID
+      await _loadPickupDropoffData();
+    } catch (e) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // Separate the pickup/dropoff specific data loading
+  Future<void> _loadPickupDropoffData() async {
+    if (_currentStudentId == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      // Load student schedule
+      _studentSchedule = await _service.getStudentSchedule(_currentStudentId!);
+
+      // Check if student schedule is valid
+      if (_studentSchedule == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      if (_studentSchedule!.classDays.isEmpty) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Load patterns
+      _patterns = await _service.getPatterns(_currentStudentId!);
+
+      // Load exceptions
+      final exceptionsList = await _service.getExceptions(_currentStudentId!);
+
+      // Convert to the format used by the UI
+      _weeklyPattern.clear();
+      _exceptions.clear();
+
+      for (int dayNum in _studentSchedule!.classDays) {
+        String dayName = dayNumToDayName(dayNum);
+        if (dayName.isNotEmpty) {
+          _weeklyPattern[dayName] = {'dropoff': 'driver', 'pickup': 'driver'};
+        }
+      }
+
+      // Apply saved patterns
+      for (var pattern in _patterns) {
+        String dayName = dayNumToDayName(pattern.dayOfWeek);
+        if (dayName.isNotEmpty && _weeklyPattern.containsKey(dayName)) {
+          _weeklyPattern[dayName] = {
+            'dropoff': pattern.dropoffPerson,
+            'pickup': pattern.pickupPerson,
+          };
+        }
+      }
+
+      // Apply exceptions
+      for (var exception in exceptionsList) {
+        String dateKey =
+            exception.exceptionDate.toIso8601String().split('T')[0];
+        _exceptions[dateKey] = {
+          'dropoff': exception.dropoffPerson,
+          'pickup': exception.pickupPerson,
+        };
+      }
+    } catch (e) {
+      // Handle error silently or show user-friendly message
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // Add this method to get today's schedule
+  Map<String, dynamic> _getTodaySchedule() {
+    if (_studentSchedule == null || _studentSchedule!.classDays.isEmpty) {
+      return {'hasClassToday': false};
+    }
+
+    final today = DateTime.now();
+    final dayOfWeek = today.weekday;
+
+    // Check if there are classes today
+    if (!_studentSchedule!.classDays.contains(dayOfWeek)) {
+      // Find next class day - handle empty list case
+      int? nextDay;
+
+      // First try to find a day greater than today
+      try {
+        nextDay = _studentSchedule!.classDays.firstWhere(
+          (day) => day > dayOfWeek,
+        );
+      } catch (e) {
+        // If no day greater than today, get the first day of next week
+        if (_studentSchedule!.classDays.isNotEmpty) {
+          nextDay = _studentSchedule!.classDays.first;
+        }
+      }
+
+      return {
+        'hasClassToday': false,
+        'nextClassDay': nextDay,
+        'nextClassDate': nextDay != null ? _getNextDateForDay(nextDay) : null,
+      };
+    }
+
+    // Get schedule for today
+    final timeRange = _studentSchedule!.classSchedule[dayOfWeek];
+    if (timeRange == null) return {'hasClassToday': false};
+
+    // Check for exceptions first
+    final todayKey = today.toIso8601String().split('T')[0];
+    final schedule =
+        _exceptions[todayKey] ?? _weeklyPattern[dayNumToDayName(dayOfWeek)];
+
+    return {
+      'hasClassToday': true,
+      'dropoffTime': formatTime(timeRange.startTime),
+      'pickupTime': formatTime(timeRange.endTime),
+      'dropoffPerson': schedule?['dropoff'] ?? 'driver',
+      'pickupPerson': schedule?['pickup'] ?? 'driver',
+    };
+  }
+
+  DateTime _getNextDateForDay(int dayOfWeek) {
+    final today = DateTime.now();
+    int daysToAdd = dayOfWeek - today.weekday;
+    if (daysToAdd <= 0) daysToAdd += 7;
+    return today.add(Duration(days: daysToAdd));
+  }
+
+  // Change these methods from private to public (remove underscore)
+  int dayNameToDayNum(String dayName) {
+    const dayMap = {
+      'monday': 1,
+      'tuesday': 2,
+      'wednesday': 3,
+      'thursday': 4,
+      'friday': 5,
+      'saturday': 6,
+      'sunday': 7,
+    };
+    return dayMap[dayName.toLowerCase()] ?? 0;
+  }
+
+  String dayNumToDayName(int dayNum) {
+    const days = [
+      '',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+    return days[dayNum];
+  }
+
+  String formatTime(String timeString) {
+    if (timeString.contains(':')) {
+      List<String> parts = timeString.split(':');
+      int hour = int.parse(parts[0]);
+      int minute = int.parse(parts[1]);
+
+      String period = hour >= 12 ? 'PM' : 'AM';
+      hour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+
+      return '$hour:${minute.toString().padLeft(2, '0')} $period';
+    }
+    return timeString;
+  }
+
+  @override
   Widget build(BuildContext context) {
     const Color black = Color(0xFF000000);
     const Color white = Color(0xFFFFFFFF);
     const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
+
+    if (_isLoading) {
+      return Center(
+        child: CircularProgressIndicator(color: widget.primaryColor),
+      );
+    }
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(widget.isMobile ? 8 : 16),
@@ -101,6 +342,11 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
     const Color black = Color(0xFF000000);
     const Color white = Color(0xFFFFFFFF);
     const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
+
+    final todaySchedule = _getTodaySchedule();
+    final now = DateTime.now();
+    final today =
+        '${_getDayName(now.weekday)}, ${_getMonthName(now.month)} ${now.day}, ${now.year}';
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -153,7 +399,7 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
                 ),
                 SizedBox(height: widget.isMobile ? 4 : 6),
                 Text(
-                  'Monday, August 16, 2025',
+                  today,
                   style: TextStyle(
                     fontSize: widget.isMobile ? 12 : 14,
                     color: black.withOpacity(0.6),
@@ -161,22 +407,71 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
                 ),
                 SizedBox(height: widget.isMobile ? 16 : 20),
 
-                // Drop-off Status
-                _buildTodayItem(
-                  'Drop-off',
-                  '8:00 AM',
-                  _hasDroppedOff,
-                  Icons.arrow_upward,
-                ),
-                SizedBox(height: 12),
+                // Check if there are classes today
+                if (todaySchedule['hasClassToday'] == true) ...[
+                  // Drop-off Status
+                  _buildTodayItem(
+                    'Drop-off',
+                    todaySchedule['dropoffTime'] ?? '8:00 AM',
+                    _hasDroppedOff,
+                    Icons.arrow_upward,
+                    todaySchedule['dropoffPerson'] ?? 'driver',
+                  ),
+                  SizedBox(height: 12),
 
-                // Pick-up Status
-                _buildTodayItem(
-                  'Pick-up',
-                  '3:30 PM',
-                  _hasPickedUp,
-                  Icons.arrow_downward,
-                ),
+                  // Pick-up Status
+                  _buildTodayItem(
+                    'Pick-up',
+                    todaySchedule['pickupTime'] ?? '3:30 PM',
+                    _hasPickedUp,
+                    Icons.arrow_downward,
+                    todaySchedule['pickupPerson'] ?? 'driver',
+                  ),
+                ] else ...[
+                  // No classes today
+                  Container(
+                    padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(Icons.event_busy, color: Colors.blue, size: 32),
+                        SizedBox(height: 12),
+                        Text(
+                          'No Classes Today',
+                          style: TextStyle(
+                            fontSize: widget.isMobile ? 16 : 18,
+                            fontWeight: FontWeight.w600,
+                            color: black,
+                          ),
+                        ),
+                        // Only show next class date if it exists
+                        if (todaySchedule['nextClassDate'] != null) ...[
+                          SizedBox(height: 8),
+                          Text(
+                            'Next class: ${_formatNextClassDate(todaySchedule['nextClassDate'])}',
+                            style: TextStyle(
+                              fontSize: widget.isMobile ? 14 : 16,
+                              color: black.withOpacity(0.7),
+                            ),
+                          ),
+                        ] else ...[
+                          SizedBox(height: 8),
+                          Text(
+                            'No upcoming classes scheduled',
+                            style: TextStyle(
+                              fontSize: widget.isMobile ? 14 : 16,
+                              color: black.withOpacity(0.7),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -185,11 +480,29 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
     );
   }
 
+  String _getDayName(int weekday) {
+    const days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+    return days[weekday - 1];
+  }
+
+  String _formatNextClassDate(DateTime date) {
+    return '${_getDayName(date.weekday)}, ${_getMonthName(date.month)} ${date.day}';
+  }
+
   Widget _buildTodayItem(
     String title,
     String time,
     bool completed,
     IconData icon,
+    String person, // Add this parameter
   ) {
     const Color black = Color(0xFF000000);
     const Color white = Color(0xFFFFFFFF);
@@ -249,7 +562,9 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  completed ? 'Completed by Driver' : 'Scheduled: Driver',
+                  completed
+                      ? 'Completed by ${_capitalize(person)}'
+                      : 'Scheduled: ${_capitalize(person)}',
                   style: TextStyle(
                     fontSize: widget.isMobile ? 12 : 14,
                     color:
@@ -818,10 +1133,26 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
             ),
           ),
           IconButton(
-            onPressed: () {
-              setState(() {
-                _exceptions.remove(date);
-              });
+            onPressed: () async {
+              // Call service method to delete from database
+              if (_currentStudentId != null) {
+                final success = await _service.deleteException(
+                  _currentStudentId!,
+                  DateTime.parse(date),
+                );
+                if (success) {
+                  setState(() {
+                    _exceptions.remove(date);
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Exception deleted successfully')),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to delete exception')),
+                  );
+                }
+              }
             },
             icon: Icon(
               Icons.delete_outline,
@@ -857,10 +1188,8 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
             currentPattern: _weeklyPattern,
             primaryColor: widget.primaryColor,
             isMobile: widget.isMobile,
-            onSave: (newPattern) {
-              setState(() {
-                _weeklyPattern = newPattern;
-              });
+            onSave: (newPattern) async {
+              await _saveWeeklyPattern(newPattern);
             },
           ),
     );
@@ -873,10 +1202,9 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
           (context) => ExceptionDialog(
             primaryColor: widget.primaryColor,
             isMobile: widget.isMobile,
-            onSave: (date, schedule) {
-              setState(() {
-                _exceptions[date] = schedule;
-              });
+            onSave: (dateString, schedule) async {
+              final date = DateTime.parse(dateString);
+              await _saveException(date, schedule);
             },
           ),
     );
@@ -899,6 +1227,56 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
   String _formatDate(String date) {
     // Format date string for display
     return date; // Implement proper date formatting
+  }
+
+  // Update the save methods
+  Future<void> _saveWeeklyPattern(
+    Map<String, Map<String, String>> newPattern,
+  ) async {
+    if (_currentStudentId == null) return;
+
+    final success = await _service.saveWeeklyPattern(
+      _currentStudentId!,
+      newPattern,
+    );
+    if (success) {
+      setState(() {
+        _weeklyPattern = newPattern;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Weekly pattern saved successfully')),
+      );
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save weekly pattern')));
+    }
+  }
+
+  Future<void> _saveException(
+    DateTime date,
+    Map<String, String> schedule,
+  ) async {
+    if (_currentStudentId == null) return;
+
+    final success = await _service.saveException(
+      _currentStudentId!,
+      date,
+      schedule,
+    );
+    if (success) {
+      String dateKey = date.toIso8601String().split('T')[0];
+      setState(() {
+        _exceptions[dateKey] = schedule;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Exception saved successfully')));
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save exception')));
+    }
   }
 }
 
@@ -932,6 +1310,25 @@ class _WeeklyPatternDialogState extends State<WeeklyPatternDialog> {
         (key, value) => MapEntry(key, Map<String, String>.from(value)),
       ),
     );
+  }
+
+  // Add methods to set all dropdowns
+  void _setAllToParent() {
+    setState(() {
+      for (String day in _pattern.keys) {
+        _pattern[day]!['dropoff'] = 'parent';
+        _pattern[day]!['pickup'] = 'parent';
+      }
+    });
+  }
+
+  void _setAllToDriver() {
+    setState(() {
+      for (String day in _pattern.keys) {
+        _pattern[day]!['dropoff'] = 'driver';
+        _pattern[day]!['pickup'] = 'driver';
+      }
+    });
   }
 
   @override
@@ -976,6 +1373,76 @@ class _WeeklyPatternDialogState extends State<WeeklyPatternDialog> {
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: Icon(Icons.close, color: black),
+                  ),
+                ],
+              ),
+            ),
+
+            // Quick Set Buttons
+            Container(
+              padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                border: Border(
+                  bottom: BorderSide(color: Colors.grey[200]!, width: 1),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Quick Set All:',
+                    style: TextStyle(
+                      fontSize: widget.isMobile ? 14 : 16,
+                      fontWeight: FontWeight.w600,
+                      color: black,
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _setAllToParent,
+                          icon: Icon(
+                            Icons.person,
+                            size: widget.isMobile ? 16 : 18,
+                          ),
+                          label: Text('All Parent'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: white,
+                            padding: EdgeInsets.symmetric(
+                              vertical: widget.isMobile ? 8 : 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _setAllToDriver,
+                          icon: Icon(
+                            Icons.directions_car,
+                            size: widget.isMobile ? 16 : 18,
+                          ),
+                          label: Text('All Driver'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: widget.primaryColor,
+                            foregroundColor: white,
+                            padding: EdgeInsets.symmetric(
+                              vertical: widget.isMobile ? 8 : 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1071,7 +1538,9 @@ class _WeeklyPatternDialogState extends State<WeeklyPatternDialog> {
                 child: _buildDropdownField(
                   'Drop-off',
                   schedule['dropoff']!,
-                  (value) => setState(() => _pattern[day]!['dropoff'] = value!),
+                  (value) => setState(
+                    () => _pattern[day]!['dropoff'] = value ?? 'driver',
+                  ),
                 ),
               ),
               SizedBox(width: 12),
@@ -1079,7 +1548,9 @@ class _WeeklyPatternDialogState extends State<WeeklyPatternDialog> {
                 child: _buildDropdownField(
                   'Pick-up',
                   schedule['pickup']!,
-                  (value) => setState(() => _pattern[day]!['pickup'] = value!),
+                  (value) => setState(
+                    () => _pattern[day]!['pickup'] = value ?? 'driver',
+                  ),
                 ),
               ),
             ],
@@ -1159,11 +1630,18 @@ class _ExceptionDialogState extends State<ExceptionDialog> {
   DateTime? _selectedDate;
   String _dropoffChoice = 'driver';
   String _pickupChoice = 'driver';
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
     const Color white = Color(0xFFFFFFFF);
     const Color black = Color(0xFF000000);
+
+    if (_isLoading) {
+      return Center(
+        child: CircularProgressIndicator(color: widget.primaryColor),
+      );
+    }
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1330,7 +1808,9 @@ class _ExceptionDialogState extends State<ExceptionDialog> {
                           _selectedDate != null
                               ? () {
                                 final dateKey =
-                                    '${_selectedDate!.year}-${_selectedDate!.month}-${_selectedDate!.day}';
+                                    _selectedDate!.toIso8601String().split(
+                                      'T',
+                                    )[0]; // Use proper ISO format
                                 widget.onSave(dateKey, {
                                   'dropoff': _dropoffChoice,
                                   'pickup': _pickupChoice,
