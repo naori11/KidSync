@@ -17,11 +17,69 @@ class DriverHomeScreen extends StatelessWidget {
       }
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
+        _showErrorDialog(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error logging out: $error')));
+          'Logout Error',
+          'An error occurred while logging out: $error',
+          'Retry',
+          () => _logout(context),
+        );
       }
     }
+  }
+
+  void _showErrorDialog(
+    BuildContext context,
+    String title,
+    String message,
+    String retryText,
+    VoidCallback? onRetry,
+  ) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.orange, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Text(message, style: const TextStyle(fontSize: 16)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel', style: TextStyle(fontSize: 16)),
+            ),
+            if (onRetry != null)
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  onRetry();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF19AE61),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(retryText, style: const TextStyle(fontSize: 16)),
+              ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -38,6 +96,7 @@ class DriverHomeScreen extends StatelessWidget {
       primaryColor: primaryGreen,
       secondaryText: black.withOpacity(0.7),
       logout: _logout,
+      showErrorDialog: _showErrorDialog,
     );
   }
 }
@@ -47,12 +106,15 @@ class _DriverHomeTabs extends StatefulWidget {
   final Color primaryColor;
   final Color secondaryText;
   final Future<void> Function(BuildContext) logout;
+  final Function(BuildContext, String, String, String, VoidCallback?)
+  showErrorDialog;
 
   const _DriverHomeTabs({
     required this.navItems,
     required this.primaryColor,
     required this.secondaryText,
     required this.logout,
+    required this.showErrorDialog,
     Key? key,
   }) : super(key: key);
 
