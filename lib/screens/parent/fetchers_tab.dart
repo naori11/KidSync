@@ -581,88 +581,157 @@ class _FetchersScreenState extends State<FetchersScreen> {
                               SizedBox(height: widget.isMobile ? 16 : 20),
 
                               // Row 1: Fetcher Name and Relationship
-                              Row(
-                                children: [
-                                  Expanded(
-                                    flex: 2,
-                                    child: _buildTextFormField(
-                                      controller: _fetcherNameController,
-                                      label: 'Fetcher Name *',
-                                      hint: 'Enter full name',
-                                      validator: _validateName,
+                              if (widget.isMobile) ...[
+                                // Mobile: Stack vertically to prevent overflow
+                                _buildTextFormField(
+                                  controller: _fetcherNameController,
+                                  label: 'Fetcher Name *',
+                                  hint: 'Enter full name',
+                                  validator: _validateName,
+                                ),
+                                SizedBox(height: 16),
+                                _buildDropdownField(
+                                  value: _selectedRelationship,
+                                  label: 'Relationship *',
+                                  hint: 'Select relationship',
+                                  items: _relationships,
+                                  onChanged:
+                                      (value) => setState(
+                                        () => _selectedRelationship = value,
+                                      ),
+                                  validator:
+                                      (value) =>
+                                          value == null ? 'Required' : null,
+                                ),
+                              ] else ...[
+                                // Desktop: Use Row layout
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 2,
+                                      child: _buildTextFormField(
+                                        controller: _fetcherNameController,
+                                        label: 'Fetcher Name *',
+                                        hint: 'Enter full name',
+                                        validator: _validateName,
+                                      ),
                                     ),
-                                  ),
-                                  SizedBox(width: 12),
-                                  Expanded(
-                                    child: _buildDropdownField(
-                                      value: _selectedRelationship,
-                                      label: 'Relationship *',
-                                      hint: 'Select relationship',
-                                      items: _relationships,
-                                      onChanged:
-                                          (value) => setState(
-                                            () => _selectedRelationship = value,
-                                          ),
-                                      validator:
-                                          (value) =>
-                                              value == null ? 'Required' : null,
+                                    SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildDropdownField(
+                                        value: _selectedRelationship,
+                                        label: 'Relationship *',
+                                        hint: 'Select relationship',
+                                        items: _relationships,
+                                        onChanged:
+                                            (value) => setState(
+                                              () =>
+                                                  _selectedRelationship = value,
+                                            ),
+                                        validator:
+                                            (value) =>
+                                                value == null
+                                                    ? 'Required'
+                                                    : null,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                  ],
+                                ),
+                              ],
                               SizedBox(height: 16),
 
                               // Row 2: Contact Number and Emergency Contact
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildTextFormField(
-                                      controller: _contactNumberController,
-                                      label: 'Contact Number *',
-                                      hint: 'e.g. 09123456789',
-                                      validator: _validatePhoneNumber,
-                                      keyboardType: TextInputType.phone,
+                              if (widget.isMobile) ...[
+                                // Mobile: Stack vertically to prevent overflow
+                                _buildTextFormField(
+                                  controller: _contactNumberController,
+                                  label: 'Contact Number *',
+                                  hint: 'e.g. 09123456789',
+                                  validator: _validatePhoneNumber,
+                                  keyboardType: TextInputType.phone,
+                                ),
+                                SizedBox(height: 16),
+                                _buildTextFormField(
+                                  controller: _emergencyContactController,
+                                  label: 'Emergency Contact',
+                                  hint: 'Optional backup contact',
+                                  keyboardType: TextInputType.phone,
+                                ),
+                              ] else ...[
+                                // Desktop: Use Row layout
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildTextFormField(
+                                        controller: _contactNumberController,
+                                        label: 'Contact Number *',
+                                        hint: 'e.g. 09123456789',
+                                        validator: _validatePhoneNumber,
+                                        keyboardType: TextInputType.phone,
+                                      ),
                                     ),
-                                  ),
-                                  SizedBox(width: 12),
-                                  Expanded(
-                                    child: _buildTextFormField(
-                                      controller: _emergencyContactController,
-                                      label: 'Emergency Contact',
-                                      hint: 'Optional backup contact',
-                                      keyboardType: TextInputType.phone,
+                                    SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildTextFormField(
+                                        controller: _emergencyContactController,
+                                        label: 'Emergency Contact',
+                                        hint: 'Optional backup contact',
+                                        keyboardType: TextInputType.phone,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                  ],
+                                ),
+                              ],
                               SizedBox(height: 16),
 
                               // Row 3: ID Type and ID Number
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildDropdownField(
-                                      value: _selectedIdType,
-                                      label: 'Valid ID Type',
-                                      hint: 'Select ID type',
-                                      items: _idTypes,
-                                      onChanged:
-                                          (value) => setState(
-                                            () => _selectedIdType = value,
-                                          ),
+                              if (widget.isMobile) ...[
+                                // Mobile: Stack vertically to prevent overflow
+                                _buildDropdownField(
+                                  value: _selectedIdType,
+                                  label: 'Valid ID Type',
+                                  hint: 'Select ID type',
+                                  items: _idTypes,
+                                  onChanged:
+                                      (value) => setState(
+                                        () => _selectedIdType = value,
+                                      ),
+                                ),
+                                SizedBox(height: 16),
+                                _buildTextFormField(
+                                  controller: _idNumberController,
+                                  label: 'ID Number',
+                                  hint: 'Enter ID number',
+                                  validator: _validateIdNumber,
+                                ),
+                              ] else ...[
+                                // Desktop: Use Row layout
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildDropdownField(
+                                        value: _selectedIdType,
+                                        label: 'Valid ID Type',
+                                        hint: 'Select ID type',
+                                        items: _idTypes,
+                                        onChanged:
+                                            (value) => setState(
+                                              () => _selectedIdType = value,
+                                            ),
+                                      ),
                                     ),
-                                  ),
-                                  SizedBox(width: 12),
-                                  Expanded(
-                                    child: _buildTextFormField(
-                                      controller: _idNumberController,
-                                      label: 'ID Number',
-                                      hint: 'Enter ID number',
-                                      validator: _validateIdNumber,
+                                    SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildTextFormField(
+                                        controller: _idNumberController,
+                                        label: 'ID Number',
+                                        hint: 'Enter ID number',
+                                        validator: _validateIdNumber,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                  ],
+                                ),
+                              ],
                               SizedBox(height: 16),
 
                               // Notes field
@@ -946,6 +1015,8 @@ class _FetchersScreenState extends State<FetchersScreen> {
         DropdownButtonFormField<String>(
           value: value,
           validator: validator,
+          isExpanded:
+              true, // Prevent overflow by expanding to fill available width
           decoration: InputDecoration(
             hintText: hint,
             filled: true,
@@ -972,7 +1043,15 @@ class _FetchersScreenState extends State<FetchersScreen> {
           ),
           items:
               items.map((String item) {
-                return DropdownMenuItem<String>(value: item, child: Text(item));
+                return DropdownMenuItem<String>(
+                  value: item,
+                  child: Text(
+                    item,
+                    overflow:
+                        TextOverflow.ellipsis, // Handle long text gracefully
+                    maxLines: 1,
+                  ),
+                );
               }).toList(),
           onChanged: onChanged,
         ),

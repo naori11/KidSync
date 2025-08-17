@@ -1532,29 +1532,47 @@ class _WeeklyPatternDialogState extends State<WeeklyPatternDialog> {
             ),
           ),
           SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildDropdownField(
-                  'Drop-off',
-                  schedule['dropoff']!,
-                  (value) => setState(
-                    () => _pattern[day]!['dropoff'] = value ?? 'driver',
+          if (widget.isMobile) ...[
+            // Mobile: Stack vertically to prevent overflow
+            _buildDropdownField(
+              'Drop-off',
+              schedule['dropoff']!,
+              (value) =>
+                  setState(() => _pattern[day]!['dropoff'] = value ?? 'driver'),
+            ),
+            SizedBox(height: 12),
+            _buildDropdownField(
+              'Pick-up',
+              schedule['pickup']!,
+              (value) =>
+                  setState(() => _pattern[day]!['pickup'] = value ?? 'driver'),
+            ),
+          ] else ...[
+            // Desktop: Use Row layout
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDropdownField(
+                    'Drop-off',
+                    schedule['dropoff']!,
+                    (value) => setState(
+                      () => _pattern[day]!['dropoff'] = value ?? 'driver',
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: _buildDropdownField(
-                  'Pick-up',
-                  schedule['pickup']!,
-                  (value) => setState(
-                    () => _pattern[day]!['pickup'] = value ?? 'driver',
+                SizedBox(width: 12),
+                Expanded(
+                  child: _buildDropdownField(
+                    'Pick-up',
+                    schedule['pickup']!,
+                    (value) => setState(
+                      () => _pattern[day]!['pickup'] = value ?? 'driver',
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -1579,6 +1597,8 @@ class _WeeklyPatternDialogState extends State<WeeklyPatternDialog> {
         SizedBox(height: 4),
         DropdownButtonFormField<String>(
           value: value,
+          isExpanded:
+              true, // Prevent overflow by expanding to fill available width
           decoration: InputDecoration(
             contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             border: OutlineInputBorder(
