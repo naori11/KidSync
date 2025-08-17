@@ -6,6 +6,7 @@ import '../../models/driver_models.dart';
 import 'parent_dashboard_tab.dart';
 import 'pickup_dropoff_tab.dart';
 import 'fetchers_tab.dart';
+import 'confirmation_logs.dart';
 
 class _NavItem {
   final String label;
@@ -40,6 +41,7 @@ class ParentHomeScreen extends StatelessWidget {
       _NavItem('Dashboard', Icons.dashboard, 'dashboard'),
       _NavItem('Pick-up/Drop-off', Icons.directions_car, 'pickup'),
       _NavItem('Fetchers', Icons.group, 'fetchers'),
+      _NavItem('Confirmation Logs', Icons.history, 'logs'),
     ];
     return _ParentHomeTabs(
       navItems: navItems,
@@ -123,23 +125,24 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
         return;
       }
 
-      final response = await supabase
-          .from('users')
-          .select('fname, mname, lname, email, profile_image_url')
-          .eq('id', user.id)
-          .maybeSingle();
+      final response =
+          await supabase
+              .from('users')
+              .select('fname, mname, lname, email, profile_image_url')
+              .eq('id', user.id)
+              .maybeSingle();
 
       if (response != null) {
         String firstName = response['fname'] ?? '';
         String middleName = response['mname'] ?? '';
         String lastName = response['lname'] ?? '';
-        
+
         // Construct full name
         String fullName = '';
         if (firstName.isNotEmpty) fullName += firstName;
         if (middleName.isNotEmpty) fullName += ' $middleName';
         if (lastName.isNotEmpty) fullName += ' $lastName';
-        
+
         // Fallback to email username if no name is available
         if (fullName.trim().isEmpty) {
           final emailParts = (response['email'] ?? user.email ?? '').split('@');
@@ -155,8 +158,10 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
       } else {
         // Fallback to auth user data if no record in users table
         setState(() {
-          userName = user.userMetadata?['full_name'] ?? 
-                   user.email?.split('@')[0] ?? 'User';
+          userName =
+              user.userMetadata?['full_name'] ??
+              user.email?.split('@')[0] ??
+              'User';
           userEmail = user.email ?? '';
           isLoadingProfile = false;
         });
@@ -166,8 +171,10 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
       // Fallback to auth user data on error
       final user = supabase.auth.currentUser;
       setState(() {
-        userName = user?.userMetadata?['full_name'] ?? 
-                 user?.email?.split('@')[0] ?? 'User';
+        userName =
+            user?.userMetadata?['full_name'] ??
+            user?.email?.split('@')[0] ??
+            'User';
         userEmail = user?.email ?? '';
         isLoadingProfile = false;
       });
@@ -179,12 +186,13 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
       final user = supabase.auth.currentUser;
       if (user == null) return;
 
-      final parentResponse = await supabase
-          .from('parents')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .maybeSingle();
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .maybeSingle();
 
       if (parentResponse == null) {
         setState(() => isDashboardLoading = false);
@@ -212,9 +220,10 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
             .eq('student_id', studentId)
             .limit(3); // Only show first 3 in dashboard
 
-        final List<AuthorizedFetcher> fetchers = fetchersResponse
-            .map((data) => AuthorizedFetcher.fromJson(data))
-            .toList();
+        final List<AuthorizedFetcher> fetchers =
+            fetchersResponse
+                .map((data) => AuthorizedFetcher.fromJson(data))
+                .toList();
 
         setState(() {
           dashboardFetchers = fetchers;
@@ -418,11 +427,12 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                       child: Image.asset(
                         'assets/logo.png',
                         fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) => Icon(
-                          Icons.school,
-                          color: widget.primaryColor,
-                          size: 28,
-                        ),
+                        errorBuilder:
+                            (context, error, stackTrace) => Icon(
+                              Icons.school,
+                              color: widget.primaryColor,
+                              size: 28,
+                            ),
                       ),
                     ),
                     Spacer(),
@@ -433,9 +443,10 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: showNotifications
-                              ? greenWithOpacity
-                              : Colors.transparent,
+                          color:
+                              showNotifications
+                                  ? greenWithOpacity
+                                  : Colors.transparent,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Stack(
@@ -469,24 +480,27 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: showProfile
-                              ? greenWithOpacity
-                              : Colors.transparent,
+                          color:
+                              showProfile
+                                  ? greenWithOpacity
+                                  : Colors.transparent,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: CircleAvatar(
                           backgroundColor: greenWithOpacity,
                           radius: 16,
-                          backgroundImage: profileImageUrl != null
-                              ? NetworkImage(profileImageUrl!)
-                              : null,
-                          child: profileImageUrl == null
-                              ? Icon(
-                                  Icons.person,
-                                  color: widget.primaryColor,
-                                  size: 18,
-                                )
-                              : null,
+                          backgroundImage:
+                              profileImageUrl != null
+                                  ? NetworkImage(profileImageUrl!)
+                                  : null,
+                          child:
+                              profileImageUrl == null
+                                  ? Icon(
+                                    Icons.person,
+                                    color: widget.primaryColor,
+                                    size: 18,
+                                  )
+                                  : null,
                         ),
                       ),
                     ),
@@ -512,13 +526,13 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                 padding: EdgeInsets.only(top: 8, bottom: 8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: List.generate(3, (i) {
+                  children: List.generate(4, (i) {
                     final item = widget.navItems[i];
                     final bool selected = i == selectedIndex;
                     return AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
+                        horizontal: 8,
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
@@ -528,10 +542,11 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                       child: IconButton(
                         icon: Icon(
                           item.icon,
-                          color: selected
-                              ? widget.primaryColor
-                              : const Color(0xFF000000).withOpacity(0.6),
-                          size: 28,
+                          color:
+                              selected
+                                  ? widget.primaryColor
+                                  : const Color(0xFF000000).withOpacity(0.6),
+                          size: 24,
                         ),
                         onPressed: () {
                           setState(() => selectedIndex = i);
@@ -592,10 +607,12 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                                 children: [
                                   Icon(
                                     Icons.circle,
-                                    color: i == 0
-                                        ? widget.primaryColor
-                                        : const Color(0xFF000000)
-                                            .withOpacity(0.3),
+                                    color:
+                                        i == 0
+                                            ? widget.primaryColor
+                                            : const Color(
+                                              0xFF000000,
+                                            ).withOpacity(0.3),
                                     size: 10,
                                   ),
                                   const SizedBox(width: 8),
@@ -654,16 +671,18 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                               CircleAvatar(
                                 backgroundColor: greenWithOpacity,
                                 radius: 20,
-                                backgroundImage: profileImageUrl != null
-                                    ? NetworkImage(profileImageUrl!)
-                                    : null,
-                                child: profileImageUrl == null
-                                    ? Icon(
-                                        Icons.person,
-                                        color: widget.primaryColor,
-                                        size: 22,
-                                      )
-                                    : null,
+                                backgroundImage:
+                                    profileImageUrl != null
+                                        ? NetworkImage(profileImageUrl!)
+                                        : null,
+                                child:
+                                    profileImageUrl == null
+                                        ? Icon(
+                                          Icons.person,
+                                          color: widget.primaryColor,
+                                          size: 22,
+                                        )
+                                        : null,
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -671,7 +690,9 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      isLoadingProfile ? 'Loading...' : userName,
+                                      isLoadingProfile
+                                          ? 'Loading...'
+                                          : userName,
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         color: const Color(0xFF000000),
@@ -679,10 +700,13 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
-                                      isLoadingProfile ? 'Loading...' : userEmail,
+                                      isLoadingProfile
+                                          ? 'Loading...'
+                                          : userEmail,
                                       style: TextStyle(
-                                        color: const Color(0xFF000000)
-                                            .withOpacity(0.6),
+                                        color: const Color(
+                                          0xFF000000,
+                                        ).withOpacity(0.6),
                                         fontSize: 13,
                                       ),
                                       overflow: TextOverflow.ellipsis,
@@ -743,7 +767,10 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
         );
       case 2:
         // Use the separated FetchersScreen
-        return FetchersScreen(
+        return FetchersScreen(primaryColor: primaryColor, isMobile: isMobile);
+      case 3:
+        // Use the separated ConfirmationLogsScreen
+        return ConfirmationLogsScreen(
           primaryColor: primaryColor,
           isMobile: isMobile,
         );
