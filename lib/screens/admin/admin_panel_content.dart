@@ -4,6 +4,7 @@ import 'user_management.dart';
 import 'parent_guardian.dart';
 import 'audit_logs.dart';
 import 'section_management.dart';
+import 'driver_assignment.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminPanelContent extends StatefulWidget {
@@ -43,6 +44,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       ),
       _NavItem("User Management", Icons.person_outline, UserManagementPage()),
       _NavItem("Parent/Guardian", Icons.family_restroom, ParentGuardianPage()),
+      _NavItem("Driver Assignment", Icons.drive_eta, DriverAssignmentPage()),
       _NavItem("Audit Logs", Icons.description_outlined, AuditLogsPage()),
     ];
   }
