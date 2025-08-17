@@ -10,7 +10,7 @@ class DriverAssignmentPage extends StatefulWidget {
 
 class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
   final supabase = Supabase.instance.client;
-  String _selectedView = 'assignments'; // 'assignments', 'students', 'drivers'
+  String _selectedView = 'assignments';
   String _searchQuery = '';
   String _selectedGradeFilter = 'All Grades';
   String _selectedDriverFilter = 'All Drivers';
@@ -23,65 +23,422 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
   int _itemsPerPage = 10;
   int _totalPages = 1;
 
-  // Mock data
+  // Data lists
   List<Map<String, dynamic>> assignments = [];
   List<Map<String, dynamic>> students = [];
   List<Map<String, dynamic>> drivers = [];
 
+  // Stats
+  int totalStudents = 0;
+  int activeDrivers = 0;
+  int unassignedStudents = 0;
+  int pendingAssignments = 0;
+
   @override
   void initState() {
     super.initState();
-    _initializeMockData();
+    _loadAllData();
   }
 
-  void _initializeMockData() {
-    assignments = [
-      {
-        'id': 1,
-        'student_id': '1',
-        'student_name': 'Emma Johnson',
-        'student_grade': 'Grade 1',
-        'student_section': 'Section A',
-        'driver_id': '1',
-        'driver_name': 'John Smith',
-        'vehicle': 'Bus A1',
-        'route': 'Route A-1',
-        'status': 'active',
-        'pickup_time': '07:30',
-        'dropoff_time': '15:30',
-        'student_address': '123 Maple Street',
-      },
-      {
-        'id': 2,
-        'student_id': '2',
-        'student_name': 'Liam Smith',
-        'student_grade': 'Grade 2',
-        'student_section': 'Section B',
-        'driver_id': '2',
-        'driver_name': 'Sarah Johnson',
-        'vehicle': 'Van B2',
-        'route': 'Route B-2',
-        'status': 'active',
-        'pickup_time': '07:45',
-        'dropoff_time': '15:45',
-        'student_address': '456 Oak Avenue',
-      },
-      {
-        'id': 3,
-        'student_id': '3',
-        'student_name': 'Olivia Brown',
-        'student_grade': 'Grade 1',
-        'student_section': 'Section A',
-        'driver_id': null,
-        'driver_name': null,
-        'vehicle': null,
-        'route': null,
-        'status': 'pending',
-        'pickup_time': null,
-        'dropoff_time': null,
-        'student_address': '789 Pine Road',
-      },
+  Future<void> _loadAllData() async {
+    setState(() => isLoading = true);
+    try {
+      await Future.wait([
+        _loadAssignments(),
+        _loadStudents(),
+        _loadDrivers(),
+        _loadStats(),
+      ]);
+    } catch (e) {
+      _showErrorSnackBar('Error loading data: $e');
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _loadAssignments() async {
+    try {
+      final response = await supabase
+          .from('driver_assignments')
+          .select('''
+            *,
+            students!inner(id, fname, mname, lname, grade_level, address, section_id,
+              sections(name, grade_level)
+            ),
+            users!inner(id, fname, mname, lname, contact_number)
+          ''')
+          .order('created_at', ascending: false);
+
+      setState(() {
+        assignments = List<Map<String, dynamic>>.from(response);
+      });
+    } catch (e) {
+      print('Error loading assignments: $e');
+    }
+  }
+
+  Future<void> _loadStudents() async {
+    try {
+      print('Loading students...'); // Debug log
+
+      // First, let's try a simpler query to see if students exist
+      final simpleResponse = await supabase
+          .from('students')
+          .select('*')
+          .eq('status', 'Active');
+
+      print(
+        'Simple student query result: ${simpleResponse.length} students found',
+      ); // Debug log
+
+      // Now try the complex query
+      final response = await supabase
+          .from('students')
+          .select('''
+          *,
+          sections(name, grade_level),
+          driver_assignments!driver_assignments_student_id_fkey(id, status, driver_id)
+        ''')
+          .eq('status', 'Active');
+
+      print(
+        'Complex student query result: ${response.length} students found',
+      ); // Debug log
+      print(
+        'First student data: ${response.isNotEmpty ? response[0] : 'No data'}',
+      ); // Debug log
+
+      setState(() {
+        students = List<Map<String, dynamic>>.from(response);
+      });
+
+      print('Students loaded successfully: ${students.length}'); // Debug log
+    } catch (e) {
+      print('Error loading students: $e');
+      print('Error type: ${e.runtimeType}');
+
+      // Fallback: try loading students without relationships
+      try {
+        print('Trying fallback query...');
+        final fallbackResponse = await supabase
+            .from('students')
+            .select('*')
+            .eq('status', 'Active');
+
+        setState(() {
+          students = List<Map<String, dynamic>>.from(
+            fallbackResponse.map(
+              (student) => {
+                ...student,
+                'sections': null,
+                'driver_assignments': [],
+              },
+            ),
+          );
+        });
+
+        print('Fallback successful: ${students.length} students loaded');
+      } catch (fallbackError) {
+        print('Fallback also failed: $fallbackError');
+        setState(() {
+          students = [];
+        });
+      }
+    }
+  }
+
+  Future<void> _loadDrivers() async {
+    try {
+      final response = await supabase
+          .from('users')
+          .select('*')
+          .eq('role', 'Driver');
+
+      setState(() {
+        drivers = List<Map<String, dynamic>>.from(response);
+      });
+    } catch (e) {
+      print('Error loading drivers: $e');
+    }
+  }
+
+  Future<void> _loadStats() async {
+    try {
+      print('Loading stats...'); // Debug log
+
+      // Total students - use length of the response list
+      final studentResponse = await supabase
+          .from('students')
+          .select('id')
+          .eq('status', 'Active');
+
+      print('Student count response: ${studentResponse.length}'); // Debug log
+
+      // Active drivers
+      final driverResponse = await supabase
+          .from('users')
+          .select('id')
+          .eq('role', 'Driver');
+
+      print('Driver count response: ${driverResponse.length}'); // Debug log
+
+      // For unassigned students, let's use a different approach
+      final allStudentsResponse = await supabase
+          .from('students')
+          .select('id')
+          .eq('status', 'Active');
+
+      final assignedStudentsResponse = await supabase
+          .from('driver_assignments')
+          .select('student_id')
+          .eq('status', 'active');
+
+      final assignedStudentIds =
+          assignedStudentsResponse.map((a) => a['student_id']).toSet();
+      final unassignedCount =
+          allStudentsResponse
+              .where((s) => !assignedStudentIds.contains(s['id']))
+              .length;
+
+      // Pending assignments
+      final pendingResponse = await supabase
+          .from('driver_assignments')
+          .select('id')
+          .eq('status', 'pending');
+
+      setState(() {
+        totalStudents = studentResponse.length;
+        activeDrivers = driverResponse.length;
+        unassignedStudents = unassignedCount;
+        pendingAssignments = pendingResponse.length;
+      });
+
+      print(
+        'Stats loaded - Students: $totalStudents, Drivers: $activeDrivers, Unassigned: $unassignedStudents, Pending: $pendingAssignments',
+      );
+    } catch (e) {
+      print('Error loading stats: $e');
+      // Set default values on error
+      setState(() {
+        totalStudents = 0;
+        activeDrivers = 0;
+        unassignedStudents = 0;
+        pendingAssignments = 0;
+      });
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _getStudentSchedule(int sectionId) async {
+    try {
+      final response = await supabase
+          .from('section_teachers')
+          .select('''
+          subject,
+          days,
+          start_time,
+          end_time,
+          users!section_teachers_teacher_id_fkey(fname, lname)
+        ''')
+          .eq('section_id', sectionId)
+          .order('start_time', ascending: true);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Error getting student schedule: $e');
+
+      // Fallback: try without teacher relationship
+      try {
+        print('Trying fallback query without teacher relationship...');
+        final fallbackResponse = await supabase
+            .from('section_teachers')
+            .select('''
+            subject,
+            days,
+            start_time,
+            end_time,
+            teacher_id
+          ''')
+            .eq('section_id', sectionId)
+            .order('start_time', ascending: true);
+
+        // For each record, manually fetch teacher info
+        List<Map<String, dynamic>> scheduleWithTeachers = [];
+
+        for (var schedule in fallbackResponse) {
+          Map<String, dynamic> scheduleItem = Map<String, dynamic>.from(
+            schedule,
+          );
+
+          // Fetch teacher info separately
+          if (schedule['teacher_id'] != null) {
+            try {
+              final teacherResponse =
+                  await supabase
+                      .from('users')
+                      .select('fname, lname')
+                      .eq('id', schedule['teacher_id'])
+                      .eq('role', 'Teacher')
+                      .single();
+
+              scheduleItem['users'] = teacherResponse;
+            } catch (teacherError) {
+              print(
+                'Error fetching teacher ${schedule['teacher_id']}: $teacherError',
+              );
+              scheduleItem['users'] = null;
+            }
+          } else {
+            scheduleItem['users'] = null;
+          }
+
+          scheduleWithTeachers.add(scheduleItem);
+        }
+
+        return scheduleWithTeachers;
+      } catch (fallbackError) {
+        print('Fallback also failed: $fallbackError');
+        return [];
+      }
+    }
+  }
+
+  Map<String, String> _calculatePickupDropoffTimes(
+    List<Map<String, dynamic>> schedule,
+  ) {
+    if (schedule.isEmpty) {
+      return {'pickup_time': '07:00', 'dropoff_time': '15:00'};
+    }
+
+    // Find earliest start time and latest end time across all subjects
+    String? earliestStart;
+    String? latestEnd;
+
+    for (var subject in schedule) {
+      final startTime = subject['start_time'] as String?;
+      final endTime = subject['end_time'] as String?;
+
+      if (startTime != null) {
+        if (earliestStart == null || startTime.compareTo(earliestStart) < 0) {
+          earliestStart = startTime;
+        }
+      }
+
+      if (endTime != null) {
+        if (latestEnd == null || endTime.compareTo(latestEnd) > 0) {
+          latestEnd = endTime;
+        }
+      }
+    }
+
+    // Calculate pickup time (30 minutes before earliest class)
+    String pickupTime = '07:00';
+    if (earliestStart != null) {
+      final parts = earliestStart.split(':');
+      if (parts.length >= 2) {
+        try {
+          final hours = int.parse(parts[0]);
+          final minutes = int.parse(parts[1]);
+          final totalMinutes = hours * 60 + minutes - 30; // 30 minutes earlier
+
+          // Ensure pickup time doesn't go before 6:00 AM
+          final adjustedMinutes =
+              totalMinutes < 360 ? 360 : totalMinutes; // 6:00 AM = 360 minutes
+
+          final pickupHours = (adjustedMinutes / 60).floor();
+          final pickupMins = adjustedMinutes % 60;
+          pickupTime =
+              '${pickupHours.toString().padLeft(2, '0')}:${pickupMins.toString().padLeft(2, '0')}';
+        } catch (e) {
+          print('Error parsing start time: $e');
+        }
+      }
+    }
+
+    // Calculate dropoff time (30 minutes after latest class)
+    String dropoffTime = '15:00';
+    if (latestEnd != null) {
+      final parts = latestEnd.split(':');
+      if (parts.length >= 2) {
+        try {
+          final hours = int.parse(parts[0]);
+          final minutes = int.parse(parts[1]);
+          final totalMinutes = hours * 60 + minutes + 30; // 30 minutes later
+
+          final dropoffHours = (totalMinutes / 60).floor();
+          final dropoffMins = totalMinutes % 60;
+          dropoffTime =
+              '${dropoffHours.toString().padLeft(2, '0')}:${dropoffMins.toString().padLeft(2, '0')}';
+        } catch (e) {
+          print('Error parsing end time: $e');
+        }
+      }
+    }
+
+    return {'pickup_time': pickupTime, 'dropoff_time': dropoffTime};
+  }
+
+  List<String> _getUniqueDaysFromSchedule(List<Map<String, dynamic>> schedule) {
+    final Set<String> allDays = {};
+
+    for (var subject in schedule) {
+      final days = subject['days'];
+      if (days != null) {
+        if (days is List) {
+          // If days is already a list
+          allDays.addAll(days.cast<String>());
+        } else if (days is String) {
+          // If days is a string, try to parse it
+          try {
+            // Handle different possible formats
+            if (days.startsWith('[') && days.endsWith(']')) {
+              // JSON array format: ["Monday", "Tuesday"]
+              final daysList =
+                  days
+                      .substring(1, days.length - 1)
+                      .split(',')
+                      .map((day) => day.trim().replaceAll('"', ''))
+                      .where((day) => day.isNotEmpty)
+                      .toList();
+              allDays.addAll(daysList);
+            } else {
+              // Comma-separated format: "Monday,Tuesday,Wednesday"
+              final daysList =
+                  days
+                      .split(',')
+                      .map((day) => day.trim())
+                      .where((day) => day.isNotEmpty)
+                      .toList();
+              allDays.addAll(daysList);
+            }
+          } catch (e) {
+            print('Error parsing days: $e');
+            // Fallback: treat as single day
+            allDays.add(days);
+          }
+        }
+      }
+    }
+
+    // Sort days in weekly order
+    final weekDays = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
     ];
+    final sortedDays =
+        allDays.toList()..sort((a, b) {
+          final indexA = weekDays.indexOf(a);
+          final indexB = weekDays.indexOf(b);
+          if (indexA == -1) return 1;
+          if (indexB == -1) return -1;
+          return indexA.compareTo(indexB);
+        });
+
+    return sortedDays;
   }
 
   @override
@@ -96,7 +453,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Enhanced Header Container
+            // Header Container
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(24),
@@ -114,7 +471,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header row with title and search/add buttons
+                  // Header row
                   Row(
                     children: [
                       const Text(
@@ -141,12 +498,14 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                             border: InputBorder.none,
                             contentPadding: EdgeInsets.symmetric(vertical: 12),
                           ),
-                          onChanged:
-                              (value) => setState(() => _searchQuery = value),
+                          onChanged: (value) {
+                            setState(() => _searchQuery = value);
+                            _applyFiltersAndSearch();
+                          },
                         ),
                       ),
                       const SizedBox(width: 16),
-                      // Add Assignment button
+                      // Action buttons
                       SizedBox(
                         height: 40,
                         child: ElevatedButton.icon(
@@ -157,7 +516,6 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF2ECC71),
-                            foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(4),
                             ),
@@ -169,7 +527,6 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      // Bulk Assign button
                       SizedBox(
                         height: 40,
                         child: OutlinedButton.icon(
@@ -186,45 +543,15 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
                           ),
                           onPressed:
                               isAdmin ? () => _showBulkAssignDialog() : null,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      // Export button
-                      SizedBox(
-                        height: 40,
-                        child: OutlinedButton.icon(
-                          icon: const Icon(
-                            Icons.file_download_outlined,
-                            color: Color(0xFF333333),
-                          ),
-                          label: const Text(
-                            "Export",
-                            style: TextStyle(color: Color(0xFF333333)),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFFE0E0E0)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                          ),
-                          onPressed: () => _exportData(),
-                        ),
-                      ),
                     ],
                   ),
 
-                  // Enhanced Breadcrumb / subtitle
+                  // Breadcrumb
                   const Padding(
                     padding: EdgeInsets.only(top: 8.0, bottom: 20.0),
                     child: Text(
@@ -237,33 +564,33 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                     ),
                   ),
 
-                  // Quick Stats
+                  // Stats
                   Row(
                     children: [
                       _buildStatCard(
                         'Total Students',
-                        '245',
+                        totalStudents.toString(),
                         Icons.school,
                         const Color(0xFF2ECC71),
                       ),
                       const SizedBox(width: 16),
                       _buildStatCard(
                         'Active Drivers',
-                        '12',
+                        activeDrivers.toString(),
                         Icons.directions_bus,
                         Colors.blue,
                       ),
                       const SizedBox(width: 16),
                       _buildStatCard(
                         'Unassigned',
-                        '8',
+                        unassignedStudents.toString(),
                         Icons.warning,
                         Colors.orange,
                       ),
                       const SizedBox(width: 16),
                       _buildStatCard(
                         'Pending',
-                        '3',
+                        pendingAssignments.toString(),
                         Icons.schedule,
                         Colors.purple,
                       ),
@@ -275,7 +602,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
 
             const SizedBox(height: 24),
 
-            // View Tabs and Filter row
+            // View Tabs and Filters
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -310,156 +637,12 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 16),
                   const Divider(height: 1),
                   const SizedBox(height: 16),
 
-                  // Enhanced Filter row
-                  Row(
-                    children: [
-                      // Grade filter dropdown
-                      Container(
-                        height: 40,
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: const Color(0xFFE0E0E0)),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedGradeFilter,
-                            icon: const Icon(Icons.keyboard_arrow_down),
-                            items:
-                                [
-                                  'All Grades',
-                                  'Grade 1',
-                                  'Grade 2',
-                                  'Grade 3',
-                                  'Grade 4',
-                                  'Grade 5',
-                                ].map((String item) {
-                                  return DropdownMenuItem(
-                                    value: item,
-                                    child: Text(item),
-                                  );
-                                }).toList(),
-                            onChanged: (String? newValue) {
-                              setState(() {
-                                _selectedGradeFilter = newValue!;
-                                _currentPage = 1;
-                              });
-                            },
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-
-                      // Driver filter dropdown
-                      Container(
-                        height: 40,
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: const Color(0xFFE0E0E0)),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedDriverFilter,
-                            icon: const Icon(Icons.keyboard_arrow_down),
-                            items:
-                                [
-                                  'All Drivers',
-                                  'John Smith',
-                                  'Sarah Johnson',
-                                  'Mike Wilson',
-                                  'Unassigned',
-                                ].map((String item) {
-                                  return DropdownMenuItem(
-                                    value: item,
-                                    child: Text(item),
-                                  );
-                                }).toList(),
-                            onChanged: (String? newValue) {
-                              setState(() {
-                                _selectedDriverFilter = newValue!;
-                                _currentPage = 1;
-                              });
-                            },
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-
-                      // Status filter dropdown (only for assignments view)
-                      if (_selectedView == 'assignments') ...[
-                        Container(
-                          height: 40,
-                          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: const Color(0xFFE0E0E0)),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: _selectedStatusFilter,
-                              icon: const Icon(Icons.keyboard_arrow_down),
-                              items:
-                                  [
-                                    'All Status',
-                                    'Active',
-                                    'Pending',
-                                    'Inactive',
-                                  ].map((String item) {
-                                    return DropdownMenuItem(
-                                      value: item,
-                                      child: Text(item),
-                                    );
-                                  }).toList(),
-                              onChanged: (String? newValue) {
-                                setState(() {
-                                  _selectedStatusFilter = newValue!;
-                                  _currentPage = 1;
-                                });
-                              },
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                      ],
-
-                      // Sort by dropdown
-                      Container(
-                        height: 40,
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: const Color(0xFFE0E0E0)),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _sortOption,
-                            icon: const Icon(Icons.keyboard_arrow_down),
-                            items:
-                                <String>[
-                                  'Student Name (A-Z)',
-                                  'Student Name (Z-A)',
-                                  'Grade Level',
-                                  'Date Created',
-                                ].map<DropdownMenuItem<String>>((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Text("Sort by: $value"),
-                                  );
-                                }).toList(),
-                            onChanged: (String? newValue) {
-                              setState(() => _sortOption = newValue!);
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  // Filter row
+                  _buildFilterRow(),
                 ],
               ),
             ),
@@ -467,7 +650,16 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
             const SizedBox(height: 16),
 
             // Content Area
-            Expanded(child: _buildContent()),
+            Expanded(
+              child:
+                  isLoading
+                      ? const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF2ECC71),
+                        ),
+                      )
+                      : _buildContent(),
+            ),
           ],
         ),
       ),
@@ -558,6 +750,89 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
     );
   }
 
+  Widget _buildFilterRow() {
+    return Row(
+      children: [
+        _buildFilterDropdown(
+          'Grade',
+          _selectedGradeFilter,
+          ['All Grades', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5'],
+          (value) {
+            setState(() => _selectedGradeFilter = value!);
+            _applyFiltersAndSearch();
+          },
+        ),
+        const SizedBox(width: 16),
+        _buildFilterDropdown(
+          'Driver',
+          _selectedDriverFilter,
+          [
+            'All Drivers',
+            ...drivers.map((d) => '${d['fname']} ${d['lname']}'),
+            'Unassigned',
+          ],
+          (value) {
+            setState(() => _selectedDriverFilter = value!);
+            _applyFiltersAndSearch();
+          },
+        ),
+        const SizedBox(width: 16),
+        if (_selectedView == 'assignments') ...[
+          _buildFilterDropdown(
+            'Status',
+            _selectedStatusFilter,
+            ['All Status', 'Active', 'Pending', 'Inactive'],
+            (value) {
+              setState(() => _selectedStatusFilter = value!);
+              _applyFiltersAndSearch();
+            },
+          ),
+          const SizedBox(width: 16),
+        ],
+        _buildFilterDropdown('Sort', _sortOption, [
+          'Student Name (A-Z)',
+          'Student Name (Z-A)',
+          'Grade Level',
+          'Date Created',
+        ], (value) => setState(() => _sortOption = value!)),
+      ],
+    );
+  }
+
+  Widget _buildFilterDropdown(
+    String label,
+    String value,
+    List<String> items,
+    ValueChanged<String?> onChanged,
+  ) {
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          icon: const Icon(Icons.keyboard_arrow_down),
+          items:
+              items
+                  .map(
+                    (item) => DropdownMenuItem(value: item, child: Text(item)),
+                  )
+                  .toList(),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
+  void _applyFiltersAndSearch() {
+    // This will trigger a rebuild and apply filters in the respective build methods
+    setState(() {});
+  }
+
   Widget _buildContent() {
     switch (_selectedView) {
       case 'students':
@@ -569,25 +844,25 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
     }
   }
 
+  // ...existing code...
+
+  // Replace the placeholder methods with these implementations:
+
   Widget _buildAssignmentsView() {
+    final filteredAssignments = _getFilteredAssignments();
+    final paginatedAssignments = _getPaginatedData(filteredAssignments);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: Colors.grey[200]!),
       ),
       child: Column(
         children: [
-          // Table header
+          // Table Header
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: Colors.grey[50],
               borderRadius: const BorderRadius.only(
@@ -599,545 +874,698 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
             child: const Row(
               children: [
                 Expanded(flex: 2, child: TableHeaderCell(text: 'Student')),
-                Expanded(child: TableHeaderCell(text: 'Grade')),
+                Expanded(flex: 1, child: TableHeaderCell(text: 'Grade')),
                 Expanded(flex: 2, child: TableHeaderCell(text: 'Driver')),
-                Expanded(child: TableHeaderCell(text: 'Route')),
-                Expanded(child: TableHeaderCell(text: 'Status')),
-                Expanded(child: TableHeaderCell(text: 'Schedule')),
-                SizedBox(width: 100, child: TableHeaderCell(text: 'Actions')),
+                Expanded(flex: 1, child: TableHeaderCell(text: 'Pickup Time')),
+                Expanded(flex: 1, child: TableHeaderCell(text: 'Dropoff Time')),
+                Expanded(flex: 1, child: TableHeaderCell(text: 'Status')),
+                Expanded(flex: 1, child: TableHeaderCell(text: 'Actions')),
               ],
             ),
           ),
 
-          // Table content
+          // Table Content
           Expanded(
-            child: ListView.builder(
-              itemCount: 10, // Mock data count
-              itemBuilder: (context, index) => _buildAssignmentRow(index),
-            ),
+            child:
+                paginatedAssignments.isEmpty
+                    ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.assignment, size: 64, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text(
+                            'No assignments found',
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    )
+                    : ListView.builder(
+                      itemCount: paginatedAssignments.length,
+                      itemBuilder: (context, index) {
+                        final assignment = paginatedAssignments[index];
+                        final student = assignment['students'];
+                        final driver = assignment['users'];
+                        final section = student['sections'];
+
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: Colors.grey[100]!),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              // Student Info
+                              Expanded(
+                                flex: 2,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${student['fname']} ${student['lname']}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    Text(
+                                      section != null
+                                          ? section['name']
+                                          : 'No Section',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // Grade
+                              Expanded(
+                                flex: 1,
+                                child: Text(student['grade_level'] ?? '-'),
+                              ),
+
+                              // Driver
+                              Expanded(
+                                flex: 2,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${driver['fname']} ${driver['lname']}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    Text(
+                                      driver['contact_number'] ?? 'No contact',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // Pickup Time
+                              Expanded(
+                                flex: 1,
+                                child: Text(assignment['pickup_time'] ?? '-'),
+                              ),
+
+                              // Dropoff Time
+                              Expanded(
+                                flex: 1,
+                                child: Text(assignment['dropoff_time'] ?? '-'),
+                              ),
+
+                              // Status
+                              Expanded(
+                                flex: 1,
+                                child: _buildStatusChip(assignment['status']),
+                              ),
+
+                              // Actions
+                              Expanded(
+                                flex: 1,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit, size: 18),
+                                      onPressed:
+                                          () => _editAssignment(assignment),
+                                      tooltip: 'Edit',
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete,
+                                        size: 18,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed:
+                                          () => _deleteAssignment(assignment),
+                                      tooltip: 'Delete',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
           ),
 
-          // Pagination (simplified for now)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(8),
-                bottomRight: Radius.circular(8),
-              ),
-              border: Border(top: BorderSide(color: Colors.grey[200]!)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Showing 1 to 10 of 10 entries',
-                  style: TextStyle(
-                    color: Color(0xFF666666),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.chevron_left),
-                      onPressed: null,
-                      color: const Color(0xFFCCCCCC),
-                    ),
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2ECC71),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Center(
-                        child: Text(
-                          '1',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.chevron_right),
-                      onPressed: null,
-                      color: const Color(0xFFCCCCCC),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAssignmentRow(int index) {
-    final students = [
-      'Emma Johnson',
-      'Liam Smith',
-      'Olivia Brown',
-      'Noah Davis',
-    ];
-    final grades = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4'];
-    final drivers = [
-      'John Smith',
-      'Sarah Johnson',
-      'Mike Wilson',
-      'Unassigned',
-    ];
-    final routes = ['Route A-1', 'Route B-2', 'Route C-3', 'Not Assigned'];
-    final statuses = ['Active', 'Active', 'Active', 'Pending'];
-
-    Color getStatusColor() {
-      switch (statuses[index % 4].toLowerCase()) {
-        case 'active':
-          return Colors.green;
-        case 'pending':
-          return Colors.orange;
-        case 'inactive':
-          return Colors.red;
-        default:
-          return Colors.grey;
-      }
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
-      ),
-      child: Row(
-        children: [
-          // Student Info
-          Expanded(
-            flex: 2,
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: const Color(0xFF2ECC71).withOpacity(0.1),
-                  child: Text(
-                    students[index % 4][0].toUpperCase(),
-                    style: const TextStyle(
-                      color: Color(0xFF2ECC71),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        students[index % 4],
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: Color(0xFF333333),
-                        ),
-                      ),
-                      Text(
-                        'Student ID: S00${index + 1}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Grade
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          // Pagination
+          if (filteredAssignments.length > _itemsPerPage)
+            Container(
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+                border: Border(top: BorderSide(color: Colors.grey[200]!)),
               ),
-              child: Text(
-                grades[index % 4],
-                style: const TextStyle(
-                  color: Colors.blue,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-              ),
+              child: _buildPagination(filteredAssignments.length),
             ),
-          ),
-
-          // Driver
-          Expanded(
-            flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  drivers[index % 4],
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                    color:
-                        drivers[index % 4] == 'Unassigned'
-                            ? Colors.red
-                            : const Color(0xFF333333),
-                  ),
-                ),
-                if (drivers[index % 4] != 'Unassigned')
-                  Text(
-                    'Bus A${index + 1}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-              ],
-            ),
-          ),
-
-          // Route
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color:
-                    routes[index % 4] == 'Not Assigned'
-                        ? Colors.red.withOpacity(0.1)
-                        : Colors.green.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                routes[index % 4],
-                style: TextStyle(
-                  color:
-                      routes[index % 4] == 'Not Assigned'
-                          ? Colors.red
-                          : Colors.green,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-
-          // Status
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: getStatusColor().withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: getStatusColor(),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    statuses[index % 4].toUpperCase(),
-                    style: TextStyle(
-                      color: getStatusColor(),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Schedule
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Pickup: 07:${30 + index}0',
-                  style: const TextStyle(fontSize: 11),
-                ),
-                Text(
-                  'Dropoff: 15:${30 + index}0',
-                  style: const TextStyle(fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-
-          // Actions
-          SizedBox(
-            width: 100,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                IconButton(
-                  onPressed: () => _editAssignment(index),
-                  icon: const Icon(Icons.edit, size: 18),
-                  color: const Color(0xFF2ECC71),
-                  tooltip: 'Edit Assignment',
-                ),
-                IconButton(
-                  onPressed: () => _deleteAssignment(index),
-                  icon: const Icon(Icons.delete, size: 18),
-                  color: Colors.red,
-                  tooltip: 'Delete Assignment',
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
   }
 
   Widget _buildStudentsView() {
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 1.2,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: 9, // Mock data
-      itemBuilder: (context, index) => _buildStudentCard(index),
-    );
-  }
-
-  Widget _buildStudentCard(int index) {
-    final students = ['Emma Johnson', 'Liam Smith', 'Olivia Brown'];
-    final grades = ['Grade 1', 'Grade 2', 'Grade 3'];
-    final isAssigned = index % 3 != 0; // Mock assignment status
+    final filteredStudents = _getFilteredStudents();
+    final paginatedStudents = _getPaginatedData(filteredStudents);
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            CircleAvatar(
-              radius: 30,
-              backgroundColor: const Color(0xFF2ECC71).withOpacity(0.1),
-              child: Text(
-                students[index % 3][0],
-                style: const TextStyle(
-                  color: Color(0xFF2ECC71),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
+      child: Column(
+        children: [
+          // Table Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(8),
+                topRight: Radius.circular(8),
+              ),
+              border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+            ),
+            child: const Row(
+              children: [
+                Expanded(flex: 2, child: TableHeaderCell(text: 'Student')),
+                Expanded(flex: 1, child: TableHeaderCell(text: 'Grade')),
+                Expanded(flex: 2, child: TableHeaderCell(text: 'Address')),
+                Expanded(
+                  flex: 2,
+                  child: TableHeaderCell(text: 'Assignment Status'),
                 ),
-              ),
+                Expanded(flex: 1, child: TableHeaderCell(text: 'Actions')),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              students[index % 3],
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: Color(0xFF333333),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              grades[index % 3],
-              style: TextStyle(color: Colors.grey[600], fontSize: 14),
-            ),
-            const SizedBox(height: 12),
+          ),
+
+          // Table Content
+          Expanded(
+            child:
+                paginatedStudents.isEmpty
+                    ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.school, size: 64, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text(
+                            'No students found',
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    )
+                    : ListView.builder(
+                      itemCount: paginatedStudents.length,
+                      itemBuilder: (context, index) {
+                        final student = paginatedStudents[index];
+                        final section = student['sections'];
+                        final assignment =
+                            student['driver_assignments'].isNotEmpty
+                                ? student['driver_assignments'][0]
+                                : null;
+                        final isAssigned = student['driver_assignments'].any(
+                          (assignment) =>
+                              assignment['status']?.toString().toLowerCase() ==
+                              'active',
+                        );
+
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: Colors.grey[100]!),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              // Student Info
+                              Expanded(
+                                flex: 2,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${student['fname']} ${student['lname']}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    Text(
+                                      section != null
+                                          ? section['name']
+                                          : 'No Section',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // Grade
+                              Expanded(
+                                flex: 1,
+                                child: Text(student['grade_level'] ?? '-'),
+                              ),
+
+                              // Address
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  student['address'] ?? 'No address',
+                                  style: const TextStyle(fontSize: 14),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+
+                              // Assignment Status
+                              Expanded(
+                                flex: 2,
+                                child:
+                                    isAssigned
+                                        ? Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.check_circle,
+                                              color: Colors.green,
+                                              size: 16,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Text(
+                                              'Assigned',
+                                              style: TextStyle(
+                                                color: Colors.green,
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                        : Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.warning,
+                                              color: Colors.orange,
+                                              size: 16,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Text(
+                                              'Unassigned',
+                                              style: TextStyle(
+                                                color: Colors.orange,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                              ),
+
+                              // Actions
+                              Expanded(
+                                flex: 1,
+                                child:
+                                    isAssigned
+                                        ? TextButton(
+                                          onPressed:
+                                              () => _editAssignment(
+                                                assignments.firstWhere(
+                                                  (a) =>
+                                                      a['student_id'] ==
+                                                      student['id'],
+                                                ),
+                                              ),
+                                          child: const Text(
+                                            'Edit',
+                                            style: TextStyle(fontSize: 12),
+                                          ),
+                                        )
+                                        : ElevatedButton(
+                                          onPressed:
+                                              () => _assignStudent(student),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(
+                                              0xFF2ECC71,
+                                            ),
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 4,
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Assign',
+                                            style: TextStyle(fontSize: 12),
+                                          ),
+                                        ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+          ),
+
+          // Pagination
+          if (filteredStudents.length > _itemsPerPage)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color:
-                    isAssigned
-                        ? Colors.green.withOpacity(0.1)
-                        : Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(16),
+                border: Border(top: BorderSide(color: Colors.grey[200]!)),
               ),
-              child: Text(
-                isAssigned ? 'Assigned' : 'Unassigned',
-                style: TextStyle(
-                  color: isAssigned ? Colors.green : Colors.red,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                ),
-              ),
+              child: _buildPagination(filteredStudents.length),
             ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => _assignStudent(index),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2ECC71),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  elevation: 0,
-                ),
-                child: Text(isAssigned ? 'Reassign' : 'Assign'),
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildDriversView() {
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 1.5,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: 6, // Mock data
-      itemBuilder: (context, index) => _buildDriverCard(index),
-    );
-  }
-
-  Widget _buildDriverCard(int index) {
-    final drivers = ['John Smith', 'Sarah Johnson', 'Mike Wilson'];
-    final studentCounts = [15, 23, 18];
-    final routeCounts = [2, 3, 2];
+    final filteredDrivers = _getFilteredDrivers();
+    final paginatedDrivers = _getPaginatedData(filteredDrivers);
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 25,
-                  backgroundColor: const Color(0xFF2ECC71).withOpacity(0.1),
-                  child: const Icon(
-                    Icons.person,
-                    color: Color(0xFF2ECC71),
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        drivers[index % 3],
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Color(0xFF333333),
-                        ),
-                      ),
-                      Text(
-                        'Driver ID: D${(index + 1).toString().padLeft(3, '0')}',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                _buildDriverStat(
-                  '${studentCounts[index % 3]}',
-                  'Students',
-                  Icons.school,
-                  Colors.blue,
-                ),
-                const SizedBox(width: 20),
-                _buildDriverStat(
-                  '${routeCounts[index % 3]}',
-                  'Routes',
-                  Icons.route,
-                  Colors.green,
-                ),
-              ],
-            ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => _viewDriverDetails(index),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF2ECC71),
-                  side: const BorderSide(color: Color(0xFF2ECC71)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('View Details'),
+      child: Column(
+        children: [
+          // Table Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(8),
+                topRight: Radius.circular(8),
               ),
+              border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
             ),
-          ],
-        ),
+            child: const Row(
+              children: [
+                Expanded(flex: 2, child: TableHeaderCell(text: 'Driver')),
+                Expanded(flex: 2, child: TableHeaderCell(text: 'Contact')),
+                Expanded(
+                  flex: 1,
+                  child: TableHeaderCell(text: 'Assigned Students'),
+                ),
+                Expanded(flex: 2, child: TableHeaderCell(text: 'Students')),
+                Expanded(flex: 1, child: TableHeaderCell(text: 'Actions')),
+              ],
+            ),
+          ),
+
+          // Table Content
+          Expanded(
+            child:
+                paginatedDrivers.isEmpty
+                    ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.directions_bus,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'No drivers found',
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    )
+                    : ListView.builder(
+                      itemCount: paginatedDrivers.length,
+                      itemBuilder: (context, index) {
+                        final driver = paginatedDrivers[index];
+                        final driverAssignments =
+                            assignments
+                                .where((a) => a['driver_id'] == driver['id'])
+                                .toList();
+
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: Colors.grey[100]!),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              // Driver Info
+                              Expanded(
+                                flex: 2,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${driver['fname']} ${driver['lname']}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Driver',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // Contact
+                              Expanded(
+                                flex: 2,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      driver['contact_number'] ?? 'No contact',
+                                    ),
+                                    Text(
+                                      driver['email'] ?? 'No email',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // Assigned Count
+                              Expanded(
+                                flex: 1,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        driverAssignments.isNotEmpty
+                                            ? Colors.green.withOpacity(0.1)
+                                            : Colors.grey.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    '${driverAssignments.length} students',
+                                    style: TextStyle(
+                                      color:
+                                          driverAssignments.isNotEmpty
+                                              ? Colors.green
+                                              : Colors.grey,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+
+                              // Student Names
+                              Expanded(
+                                flex: 2,
+                                child:
+                                    driverAssignments.isNotEmpty
+                                        ? Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children:
+                                              driverAssignments.take(3).map((
+                                                  assignment,
+                                                ) {
+                                                  final student =
+                                                      assignment['students'];
+                                                  return Text(
+                                                    '${student['fname']} ${student['lname']}',
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                    ),
+                                                  );
+                                                }).toList()
+                                                ..addAll(
+                                                  driverAssignments.length > 3
+                                                      ? [
+                                                        Text(
+                                                          '+ ${driverAssignments.length - 3} more',
+                                                          style: TextStyle(
+                                                            fontSize: 12,
+                                                            color:
+                                                                Colors
+                                                                    .grey[600],
+                                                          ),
+                                                        ),
+                                                      ]
+                                                      : [],
+                                                ),
+                                        )
+                                        : const Text(
+                                          'No assignments',
+                                          style: TextStyle(color: Colors.grey),
+                                        ),
+                              ),
+
+                              // Actions
+                              Expanded(
+                                flex: 1,
+                                child: TextButton(
+                                  onPressed: () => _viewDriverDetails(driver),
+                                  child: const Text(
+                                    'View Details',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+          ),
+
+          // Pagination
+          if (filteredDrivers.length > _itemsPerPage)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.grey[200]!)),
+              ),
+              child: _buildPagination(filteredDrivers.length),
+            ),
+        ],
       ),
     );
   }
 
-  Widget _buildDriverStat(
-    String value,
-    String label,
-    IconData icon,
-    Color color,
-  ) {
+  Widget _buildStatusChip(String? status) {
+    Color color;
+    String text;
+
+    switch (status?.toLowerCase()) {
+      case 'active':
+        color = Colors.green;
+        text = 'Active';
+        break;
+      case 'pending':
+        color = Colors.orange;
+        text = 'Pending';
+        break;
+      case 'inactive':
+        color = Colors.red;
+        text = 'Inactive';
+        break;
+      default:
+        color = Colors.grey;
+        text = 'Unknown';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildPagination(int totalItems) {
+    _totalPages = (totalItems / _itemsPerPage).ceil();
+
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Icon(icon, color: color, size: 16),
-        const SizedBox(width: 4),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Text(
+          'Showing ${(_currentPage - 1) * _itemsPerPage + 1}-${(_currentPage * _itemsPerPage).clamp(1, totalItems)} of $totalItems',
+          style: TextStyle(color: Colors.grey[600]),
+        ),
+        Row(
           children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: color,
-              ),
+            IconButton(
+              onPressed:
+                  _currentPage > 1
+                      ? () => setState(() => _currentPage--)
+                      : null,
+              icon: const Icon(Icons.chevron_left),
             ),
-            Text(
-              label,
-              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+            ...List.generate(_totalPages.clamp(1, 5), (index) {
+              final pageNum = index + 1;
+              return TextButton(
+                onPressed: () => setState(() => _currentPage = pageNum),
+                style: TextButton.styleFrom(
+                  backgroundColor:
+                      _currentPage == pageNum ? const Color(0xFF2ECC71) : null,
+                  foregroundColor:
+                      _currentPage == pageNum ? Colors.white : null,
+                ),
+                child: Text('$pageNum'),
+              );
+            }),
+            IconButton(
+              onPressed:
+                  _currentPage < _totalPages
+                      ? () => setState(() => _currentPage++)
+                      : null,
+              icon: const Icon(Icons.chevron_right),
             ),
           ],
         ),
@@ -1145,14 +1573,153 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
     );
   }
 
-  // Placeholder methods for functionality (keeping existing implementations)
+  // Filtering and pagination helper methods
+  List<Map<String, dynamic>> _getFilteredAssignments() {
+    List<Map<String, dynamic>> filtered = List.from(assignments);
+
+    // Apply search filter
+    if (_searchQuery.isNotEmpty) {
+      filtered =
+          filtered.where((assignment) {
+            final student = assignment['students'];
+            final driver = assignment['users'];
+            final studentName =
+                '${student['fname']} ${student['lname']}'.toLowerCase();
+            final driverName =
+                '${driver['fname']} ${driver['lname']}'.toLowerCase();
+            return studentName.contains(_searchQuery.toLowerCase()) ||
+                driverName.contains(_searchQuery.toLowerCase());
+          }).toList();
+    }
+
+    // Apply grade filter
+    if (_selectedGradeFilter != 'All Grades') {
+      filtered =
+          filtered.where((assignment) {
+            final student = assignment['students'];
+            return student['grade_level'] == _selectedGradeFilter;
+          }).toList();
+    }
+
+    // Apply driver filter
+    if (_selectedDriverFilter != 'All Drivers') {
+      if (_selectedDriverFilter == 'Unassigned') {
+        // This shouldn't happen in assignments view, but handle it
+        filtered = [];
+      } else {
+        filtered =
+            filtered.where((assignment) {
+              final driver = assignment['users'];
+              final driverName = '${driver['fname']} ${driver['lname']}';
+              return driverName == _selectedDriverFilter;
+            }).toList();
+      }
+    }
+
+    // Apply status filter
+    if (_selectedStatusFilter != 'All Status') {
+      filtered =
+          filtered.where((assignment) {
+            return assignment['status']?.toLowerCase() ==
+                _selectedStatusFilter.toLowerCase();
+          }).toList();
+    }
+
+    return filtered;
+  }
+
+  List<Map<String, dynamic>> _getFilteredStudents() {
+    List<Map<String, dynamic>> filtered = List.from(students);
+
+    // Apply search filter
+    if (_searchQuery.isNotEmpty) {
+      filtered =
+          filtered.where((student) {
+            final studentName =
+                '${student['fname']} ${student['lname']}'.toLowerCase();
+            return studentName.contains(_searchQuery.toLowerCase());
+          }).toList();
+    }
+
+    // Apply grade filter
+    if (_selectedGradeFilter != 'All Grades') {
+      filtered =
+          filtered.where((student) {
+            return student['grade_level'] == _selectedGradeFilter;
+          }).toList();
+    }
+
+    // Apply driver filter (assignment status)
+    if (_selectedDriverFilter == 'Unassigned') {
+      filtered =
+          filtered.where((student) {
+            final hasActiveAssignment = student['driver_assignments'].any(
+              (assignment) => assignment['status'] == 'Active',
+            );
+            return !hasActiveAssignment;
+          }).toList();
+    } else if (_selectedDriverFilter != 'All Drivers') {
+      // Filter by specific driver
+      filtered =
+          filtered.where((student) {
+            return student['driver_assignments'].any((assignment) {
+              if (assignment['status'] != 'Active') return false;
+              final driverAssignment = assignments.firstWhere(
+                (a) => a['id'] == assignment['id'],
+                orElse: () => {},
+              );
+              if (driverAssignment.isEmpty) return false;
+              final driver = driverAssignment['users'];
+              final driverName = '${driver['fname']} ${driver['lname']}';
+              return driverName == _selectedDriverFilter;
+            });
+          }).toList();
+    }
+
+    return filtered;
+  }
+
+  List<Map<String, dynamic>> _getFilteredDrivers() {
+    List<Map<String, dynamic>> filtered = List.from(drivers);
+
+    // Apply search filter
+    if (_searchQuery.isNotEmpty) {
+      filtered =
+          filtered.where((driver) {
+            final driverName =
+                '${driver['fname']} ${driver['lname']}'.toLowerCase();
+            final contact = (driver['contact_number'] ?? '').toLowerCase();
+            return driverName.contains(_searchQuery.toLowerCase()) ||
+                contact.contains(_searchQuery.toLowerCase());
+          }).toList();
+    }
+
+    return filtered;
+  }
+
+  List<Map<String, dynamic>> _getPaginatedData(
+    List<Map<String, dynamic>> data,
+  ) {
+    final startIndex = (_currentPage - 1) * _itemsPerPage;
+    final endIndex = (startIndex + _itemsPerPage).clamp(0, data.length);
+    return data.sublist(startIndex, endIndex);
+  }
+
+  // Dialog and action methods
   void _showAssignmentDialog() {
     showDialog(
       context: context,
-      builder: (context) => _AssignmentDialog(isEdit: false),
+      builder:
+          (context) => _AssignmentDialog(
+            students: students,
+            drivers: drivers,
+            getStudentSchedule: _getStudentSchedule,
+            calculatePickupDropoffTimes: _calculatePickupDropoffTimes,
+            getUniqueDaysFromSchedule: _getUniqueDaysFromSchedule,
+          ),
     ).then((result) {
       if (result != null) {
-        print('New assignment created: $result');
+        _createAssignment(result);
       }
     });
   }
@@ -1160,85 +1727,259 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
   void _showBulkAssignDialog() {
     showDialog(
       context: context,
-      builder: (context) => const _BulkAssignmentDialog(),
+      builder:
+          (context) =>
+              _BulkAssignmentDialog(students: students, drivers: drivers),
     ).then((result) {
       if (result != null) {
-        print('Bulk assignment: $result');
+        _performBulkAssignment(result);
       }
     });
   }
 
-  void _exportData() {
-    // TODO: Export functionality
-  }
-
-  void _editAssignment(int index) {
-    final mockData = {
-      'student_id': '1',
-      'driver_id': '1',
-      'route_id': '1',
-      'pickup_address': '123 Main St',
-      'dropoff_address': '456 School Ave',
-      'status': 'active',
-    };
-
+  void _editAssignment(Map<String, dynamic> assignment) {
     showDialog(
       context: context,
       builder:
-          (context) =>
-              _AssignmentDialog(isEdit: true, existingAssignment: mockData),
+          (context) => _AssignmentDialog(
+            isEdit: true,
+            existingAssignment: assignment,
+            students: students,
+            drivers: drivers,
+            getStudentSchedule: _getStudentSchedule,
+            calculatePickupDropoffTimes: _calculatePickupDropoffTimes,
+            getUniqueDaysFromSchedule: _getUniqueDaysFromSchedule,
+          ),
     ).then((result) {
       if (result != null) {
-        print('Assignment updated: $result');
+        _updateAssignment(assignment['id'], result);
       }
     });
   }
 
-  void _deleteAssignment(int index) {
-    final students = [
-      'Emma Johnson',
-      'Liam Smith',
-      'Olivia Brown',
-      'Noah Davis',
-    ];
-    final drivers = [
-      'John Smith',
-      'Sarah Johnson',
-      'Mike Wilson',
-      'Unassigned',
-    ];
+  void _deleteAssignment(Map<String, dynamic> assignment) {
+    final student = assignment['students'];
+    final driver = assignment['users'];
+    final studentName = '${student['fname']} ${student['lname']}';
+    final driverName = '${driver['fname']} ${driver['lname']}';
 
     showDialog(
       context: context,
       builder:
           (context) => _DeleteAssignmentDialog(
-            studentName: students[index % 4],
-            driverName: drivers[index % 4],
+            studentName: studentName,
+            driverName: driverName,
           ),
     ).then((result) {
       if (result == true) {
-        print('Assignment deleted for ${students[index % 4]}');
+        _performDeleteAssignment(assignment['id']);
       }
     });
   }
 
-  void _assignStudent(int index) {
+  void _assignStudent(Map<String, dynamic> student) {
     showDialog(
       context: context,
-      builder: (context) => _AssignmentDialog(isEdit: false),
+      builder:
+          (context) => _AssignmentDialog(
+            students: [student],
+            drivers: drivers,
+            preselectedStudentId: student['id'].toString(),
+            getStudentSchedule: _getStudentSchedule,
+            calculatePickupDropoffTimes: _calculatePickupDropoffTimes,
+            getUniqueDaysFromSchedule: _getUniqueDaysFromSchedule,
+          ),
     ).then((result) {
       if (result != null) {
-        print('Student assigned: $result');
+        _createAssignment(result);
       }
     });
   }
 
-  void _viewDriverDetails(int index) {
-    // TODO: Show driver details
+  void _viewDriverDetails(Map<String, dynamic> driver) {
+    final driverAssignments =
+        assignments.where((a) => a['driver_id'] == driver['id']).toList();
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text('${driver['fname']} ${driver['lname']} - Details'),
+            content: SizedBox(
+              width: 400,
+              height: 300,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Contact: ${driver['contact_number'] ?? 'N/A'}'),
+                  Text('Email: ${driver['email'] ?? 'N/A'}'),
+                  const SizedBox(height: 16),
+                  Text('Assigned Students (${driverAssignments.length}):'),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: driverAssignments.length,
+                      itemBuilder: (context, index) {
+                        final assignment = driverAssignments[index];
+                        final student = assignment['students'];
+                        return ListTile(
+                          leading: CircleAvatar(
+                            child: Text(
+                              '${student['fname'][0]}${student['lname'][0]}',
+                            ),
+                          ),
+                          title: Text(
+                            '${student['fname']} ${student['lname']}',
+                          ),
+                          subtitle: Text(
+                            '${student['grade_level']} - ${assignment['status']}',
+                          ),
+                          trailing: Text(
+                            '${assignment['pickup_time']} - ${assignment['dropoff_time']}',
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // Database operations
+  Future<void> _createAssignment(Map<String, dynamic> assignmentData) async {
+    try {
+      setState(() => isLoading = true);
+
+      await supabase.from('driver_assignments').insert({
+        'student_id': int.parse(assignmentData['student_id']),
+        'driver_id': assignmentData['driver_id'],
+        'pickup_time': assignmentData['pickup_time'],
+        'dropoff_time': assignmentData['dropoff_time'],
+        'pickup_address': assignmentData['pickup_address'],
+        'schedule_days': assignmentData['schedule_days'],
+        'status': assignmentData['status'],
+        'notes': assignmentData['notes'],
+      });
+
+      _showSuccessSnackBar('Assignment created successfully');
+      await _loadAllData();
+    } catch (e) {
+      _showErrorSnackBar('Error creating assignment: $e');
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _updateAssignment(
+    int assignmentId,
+    Map<String, dynamic> assignmentData,
+  ) async {
+    try {
+      setState(() => isLoading = true);
+
+      await supabase
+          .from('driver_assignments')
+          .update({
+            'student_id': int.parse(assignmentData['student_id']),
+            'driver_id': assignmentData['driver_id'],
+            'pickup_time': assignmentData['pickup_time'],
+            'dropoff_time': assignmentData['dropoff_time'],
+            'pickup_address': assignmentData['pickup_address'],
+            'schedule_days': assignmentData['schedule_days'],
+            'status': assignmentData['status'],
+            'notes': assignmentData['notes'],
+          })
+          .eq('id', assignmentId);
+
+      _showSuccessSnackBar('Assignment updated successfully');
+      await _loadAllData();
+    } catch (e) {
+      _showErrorSnackBar('Error updating assignment: $e');
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _performDeleteAssignment(int assignmentId) async {
+    try {
+      setState(() => isLoading = true);
+
+      await supabase.from('driver_assignments').delete().eq('id', assignmentId);
+
+      _showSuccessSnackBar('Assignment deleted successfully');
+      await _loadAllData();
+    } catch (e) {
+      _showErrorSnackBar('Error deleting assignment: $e');
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _performBulkAssignment(Map<String, dynamic> bulkData) async {
+    try {
+      setState(() => isLoading = true);
+
+      final studentIds = List<String>.from(bulkData['student_ids']);
+      final driverId = bulkData['driver_id'];
+      final pickupTime = bulkData['pickup_time'] ?? '07:00';
+      final dropoffTime = bulkData['dropoff_time'] ?? '15:00';
+      final scheduleDays =
+          bulkData['schedule_days'] ??
+          ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+      List<Map<String, dynamic>> insertData = [];
+
+      for (String studentId in studentIds) {
+        final student = students.firstWhere(
+          (s) => s['id'].toString() == studentId,
+        );
+
+        insertData.add({
+          'student_id': int.parse(studentId),
+          'driver_id': driverId,
+          'pickup_time': pickupTime,
+          'dropoff_time': dropoffTime,
+          'pickup_address': student['address'] ?? '',
+          'schedule_days': scheduleDays,
+          'status': 'active',
+          'notes': 'Bulk assignment',
+        });
+      }
+
+      if (insertData.isNotEmpty) {
+        await supabase.from('driver_assignments').insert(insertData);
+        _showSuccessSnackBar('Bulk assignment completed successfully');
+        await _loadAllData();
+      }
+    } catch (e) {
+      _showErrorSnackBar('Error performing bulk assignment: $e');
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.green),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 }
 
-// Custom header cell for table
 class TableHeaderCell extends StatelessWidget {
   final String text;
 
@@ -1246,30 +1987,40 @@ class TableHeaderCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      alignment: Alignment.centerLeft,
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 13,
-          color: Color(0xFF666666),
-        ),
+    return Text(
+      text,
+      style: const TextStyle(
+        fontWeight: FontWeight.w600,
+        fontSize: 14,
+        color: Color(0xFF666666),
       ),
     );
   }
 }
 
-// 1. CREATE/EDIT Assignment Modal - Remade fields
 class _AssignmentDialog extends StatefulWidget {
   final bool isEdit;
   final Map<String, dynamic>? existingAssignment;
+  final List<Map<String, dynamic>> students;
+  final List<Map<String, dynamic>> drivers;
+  final String? preselectedStudentId;
+  final Future<List<Map<String, dynamic>>> Function(int sectionId)
+  getStudentSchedule;
+  final Map<String, String> Function(List<Map<String, dynamic>> schedule)
+  calculatePickupDropoffTimes;
+  final List<String> Function(List<Map<String, dynamic>> schedule)
+  getUniqueDaysFromSchedule;
 
   const _AssignmentDialog({
     Key? key,
     this.isEdit = false,
     this.existingAssignment,
+    required this.students,
+    required this.drivers,
+    this.preselectedStudentId,
+    required this.getStudentSchedule,
+    required this.calculatePickupDropoffTimes,
+    required this.getUniqueDaysFromSchedule,
   }) : super(key: key);
 
   @override
@@ -1278,643 +2029,410 @@ class _AssignmentDialog extends StatefulWidget {
 
 class _AssignmentDialogState extends State<_AssignmentDialog> {
   final _formKey = GlobalKey<FormState>();
-  final Color primaryColor = const Color(0xFF2E7D32);
-
-  // Form controllers
   String? selectedStudentId;
   String? selectedDriverId;
-  String _status = 'active';
-  String _pickupTime = '';
-  String _dropoffTime = '';
-  String _studentAddress = '';
-  List<String> _studentScheduleDays = [];
-
-  // Mock data
-  final List<Map<String, dynamic>> _students = [
-    {
-      'id': '1',
-      'name': 'Emma Johnson',
-      'grade': 'Grade 1',
-      'section': 'Section A',
-      'section_id': '3',
-      'address': '123 Maple Street, Subdivision A, City',
-      'phone': '+1234567890',
-    },
-    {
-      'id': '2',
-      'name': 'Liam Smith',
-      'grade': 'Grade 2',
-      'section': 'Section B',
-      'section_id': '4',
-      'address': '456 Oak Avenue, Village Heights, City',
-      'phone': '+1234567891',
-    },
-    {
-      'id': '3',
-      'name': 'Olivia Brown',
-      'grade': 'Grade 3',
-      'section': 'Section C',
-      'section_id': '5',
-      'address': '789 Pine Road, Riverside District, City',
-      'phone': '+1234567892',
-    },
+  String pickupTime = '07:00';
+  String dropoffTime = '15:00';
+  String pickupAddress = '';
+  List<String> scheduleDays = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
   ];
+  String status = 'active';
+  String notes = '';
 
-  final List<Map<String, dynamic>> _drivers = [
-    {
-      'id': '1',
-      'name': 'John Smith',
-      'vehicle': 'Bus A1',
-      'license': 'DL-12345',
-      'phone': '+1987654321',
-    },
-    {
-      'id': '2',
-      'name': 'Sarah Johnson',
-      'vehicle': 'Van B2',
-      'license': 'DL-67890',
-      'phone': '+1987654322',
-    },
-    {
-      'id': '3',
-      'name': 'Mike Wilson',
-      'vehicle': 'Bus C3',
-      'license': 'DL-54321',
-      'phone': '+1987654323',
-    },
-  ];
-
-  // Mock schedule data based on section_teachers table
-  final Map<String, List<Map<String, dynamic>>> _studentSchedules = {
-    '3': [
-      // Section A schedule
-      {
-        'subject': 'Math 101',
-        'days': ['Mon', 'Wed', 'Fri'],
-        'start_time': '08:00:00',
-        'end_time': '09:00:00',
-      },
-      {
-        'subject': 'English 101',
-        'days': ['Tue', 'Thu'],
-        'start_time': '09:00:00',
-        'end_time': '10:00:00',
-      },
-      {
-        'subject': 'Science 101',
-        'days': ['Mon', 'Wed', 'Fri'],
-        'start_time': '10:00:00',
-        'end_time': '11:00:00',
-      },
-    ],
-    '4': [
-      // Section B schedule
-      {
-        'subject': 'Math 102',
-        'days': ['Tue', 'Thu'],
-        'start_time': '08:00:00',
-        'end_time': '09:00:00',
-      },
-      {
-        'subject': 'English 102',
-        'days': ['Mon', 'Wed', 'Fri'],
-        'start_time': '09:30:00',
-        'end_time': '10:30:00',
-      },
-    ],
-    '5': [
-      // Section C schedule
-      {
-        'subject': 'Math 103',
-        'days': ['Mon', 'Wed', 'Fri'],
-        'start_time': '07:30:00',
-        'end_time': '08:30:00',
-      },
-      {
-        'subject': 'English 103',
-        'days': ['Tue', 'Thu'],
-        'start_time': '08:30:00',
-        'end_time': '09:30:00',
-      },
-      {
-        'subject': 'History 103',
-        'days': ['Mon', 'Wed', 'Fri'],
-        'start_time': '10:00:00',
-        'end_time': '11:00:00',
-      },
-    ],
-  };
+  // For displaying student schedule as reference
+  List<Map<String, dynamic>> studentSchedule = [];
+  bool isLoadingSchedule = false;
 
   @override
   void initState() {
     super.initState();
     if (widget.isEdit && widget.existingAssignment != null) {
       _loadExistingData();
+    } else if (widget.preselectedStudentId != null) {
+      selectedStudentId = widget.preselectedStudentId;
+      _loadStudentScheduleReference();
     }
   }
 
   void _loadExistingData() {
     final assignment = widget.existingAssignment!;
-    selectedStudentId = assignment['student_id'];
-    selectedDriverId = assignment['driver_id'];
-    _status = assignment['status'] ?? 'active';
+    selectedStudentId = assignment['student_id'].toString();
+    selectedDriverId = assignment['driver_id'].toString();
+    pickupTime = assignment['pickup_time'] ?? '07:00';
+    dropoffTime = assignment['dropoff_time'] ?? '15:00';
+    pickupAddress = assignment['pickup_address'] ?? '';
 
-    // Load student data when editing
-    if (selectedStudentId != null) {
-      _updateStudentData(selectedStudentId!);
+    // Handle schedule_days - it could be a List or a String
+    if (assignment['schedule_days'] != null) {
+      if (assignment['schedule_days'] is List) {
+        scheduleDays = List<String>.from(assignment['schedule_days']);
+      } else if (assignment['schedule_days'] is String) {
+        // Handle PostgreSQL array format
+        String daysStr = assignment['schedule_days'].toString();
+        if (daysStr.startsWith('{') && daysStr.endsWith('}')) {
+          daysStr = daysStr.substring(1, daysStr.length - 1);
+        }
+        scheduleDays =
+            daysStr
+                .split(',')
+                .map((s) => s.trim())
+                .where((s) => s.isNotEmpty)
+                .toList();
+      }
     }
+
+    status = assignment['status'] ?? 'active';
+    notes = assignment['notes'] ?? '';
+
+    // Load schedule reference for editing
+    _loadStudentScheduleReference();
   }
 
-  void _updateStudentData(String studentId) {
-    final student = _students.firstWhere((s) => s['id'] == studentId);
-    final sectionId = student['section_id'];
-    final schedule = _studentSchedules[sectionId] ?? [];
+  Future<void> _loadStudentScheduleReference() async {
+    if (selectedStudentId == null) return;
 
-    setState(() {
-      _studentAddress = student['address'];
+    setState(() => isLoadingSchedule = true);
 
-      // Get all unique days from student's schedule
-      Set<String> allDays = {};
-      for (var subject in schedule) {
-        allDays.addAll(List<String>.from(subject['days']));
+    try {
+      final student = widget.students.firstWhere(
+        (s) => s['id'].toString() == selectedStudentId,
+      );
+      final sectionId = student['section_id'];
+
+      if (sectionId != null) {
+        print('Loading schedule reference for section ID: $sectionId');
+
+        final schedule = await widget.getStudentSchedule(sectionId);
+        print('Loaded schedule reference: $schedule');
+
+        setState(() {
+          studentSchedule = schedule;
+          // Set pickup address from student's address if not already set
+          if (pickupAddress.isEmpty) {
+            pickupAddress = student['address'] ?? '';
+          }
+        });
       }
-      _studentScheduleDays = allDays.toList()..sort();
-
-      // Calculate pickup and dropoff times
-      if (schedule.isNotEmpty) {
-        // Earliest start time (pickup should be 30 minutes before)
-        var earliestTime = schedule
-            .map((s) => s['start_time'] as String)
-            .reduce((a, b) => a.compareTo(b) < 0 ? a : b);
-
-        // Latest end time (dropoff should be this time)
-        var latestTime = schedule
-            .map((s) => s['end_time'] as String)
-            .reduce((a, b) => a.compareTo(b) > 0 ? a : b);
-
-        // Convert times and subtract 30 minutes for pickup
-        var earliestParts = earliestTime.split(':');
-        var earliestMinutes =
-            int.parse(earliestParts[0]) * 60 + int.parse(earliestParts[1]);
-        var pickupMinutes = earliestMinutes - 30; // 30 minutes before class
-
-        if (pickupMinutes < 0) pickupMinutes = 0; // Don't go before midnight
-
-        var pickupHours = pickupMinutes ~/ 60;
-        var pickupMins = pickupMinutes % 60;
-
-        _pickupTime =
-            '${pickupHours.toString().padLeft(2, '0')}:${pickupMins.toString().padLeft(2, '0')}';
-        _dropoffTime = latestTime;
-      }
-    });
+    } catch (e) {
+      print('Error loading student schedule reference: $e');
+      setState(() {
+        studentSchedule = [];
+      });
+    } finally {
+      setState(() => isLoadingSchedule = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Row(
-        children: [
-          Icon(
-            widget.isEdit ? Icons.edit : Icons.add_circle,
-            color: primaryColor,
-            size: 24,
-          ),
-          const SizedBox(width: 8),
-          Text(widget.isEdit ? 'Edit Assignment' : 'Create Assignment'),
-          const Spacer(),
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close),
-            iconSize: 20,
-          ),
-        ],
-      ),
+      title: Text(widget.isEdit ? 'Edit Assignment' : 'Create Assignment'),
       content: SizedBox(
-        width: MediaQuery.of(context).size.width * 0.6,
-        height: MediaQuery.of(context).size.height * 0.7,
+        width: 600,
+        height: 700,
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Student Selection
-                const Text(
-                  'Student Information',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
+                // Student Dropdown
                 DropdownButtonFormField<String>(
                   value: selectedStudentId,
                   decoration: const InputDecoration(
-                    labelText: 'Select Student',
+                    labelText: 'Student',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
                   ),
-                  validator:
-                      (value) =>
-                          value == null ? 'Please select a student' : null,
                   items:
-                      _students.map((student) {
+                      widget.students.map((student) {
                         return DropdownMenuItem<String>(
-                          value: student['id'],
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                student['name'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Text(
-                                '${student['grade']} - ${student['section']}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
+                          value: student['id'].toString(),
+                          child: Text(
+                            '${student['fname']} ${student['lname']} - ${student['grade_level'] ?? ''}',
                           ),
                         );
                       }).toList(),
                   onChanged: (value) {
                     setState(() => selectedStudentId = value);
-                    if (value != null) {
-                      _updateStudentData(value);
-                    }
+                    _loadStudentScheduleReference();
                   },
+                  validator:
+                      (value) =>
+                          value == null ? 'Please select a student' : null,
                 ),
+                const SizedBox(height: 16),
 
-                // Student Address Display
-                if (_studentAddress.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.location_on,
-                              color: Colors.blue,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 4),
-                            const Text(
-                              'Student Address',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                color: Colors.blue,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _studentAddress,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 20),
-
-                // Driver Selection
-                const Text(
-                  'Driver Assignment',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
+                // Driver Dropdown
                 DropdownButtonFormField<String>(
                   value: selectedDriverId,
                   decoration: const InputDecoration(
-                    labelText: 'Select Driver',
+                    labelText: 'Driver',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.directions_bus),
                   ),
-                  validator:
-                      (value) =>
-                          value == null ? 'Please select a driver' : null,
                   items:
-                      _drivers.map((driver) {
+                      widget.drivers.map((driver) {
                         return DropdownMenuItem<String>(
-                          value: driver['id'],
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                driver['name'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Text(
-                                '${driver['vehicle']} - ${driver['license']}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ),
+                          value: driver['id'].toString(),
+                          child: Text('${driver['fname']} ${driver['lname']}'),
                         );
                       }).toList(),
                   onChanged:
                       (value) => setState(() => selectedDriverId = value),
+                  validator:
+                      (value) =>
+                          value == null ? 'Please select a driver' : null,
                 ),
+                const SizedBox(height: 16),
 
-                const SizedBox(height: 20),
-
-                // Schedule Information (Auto-calculated)
-                const Text(
-                  'Schedule Information',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-
-                if (_studentScheduleDays.isNotEmpty) ...[
+                // Student Schedule Reference (Read-only display)
+                if (studentSchedule.isNotEmpty || isLoadingSchedule) ...[
                   Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
+                      color: Colors.blue.withOpacity(0.05),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.withOpacity(0.3)),
+                      border: Border.all(color: Colors.blue.withOpacity(0.2)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.schedule, color: Colors.green, size: 16),
-                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.schedule,
+                              color: Colors.blue,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
                             const Text(
-                              'Auto-Generated Schedule',
+                              'Student\'s Academic Schedule (Reference)',
                               style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
+                                fontSize: 16,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'School Days',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  Text(
-                                    _studentScheduleDays.join(', '),
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
-                                ],
-                              ),
+                        const SizedBox(height: 12),
+                        if (isLoadingSchedule)
+                          const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: CircularProgressIndicator(),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Pickup Time',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  Text(
-                                    _pickupTime.isNotEmpty
-                                        ? _pickupTime
-                                        : 'Not set',
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Dropoff Time',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  Text(
-                                    _dropoffTime.isNotEmpty
-                                        ? _dropoffTime
-                                        : 'Not set',
-                                    style: const TextStyle(fontSize: 14),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '* Pickup time is set 30 minutes before the first class. Dropoff time matches the end of the last class.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ] else ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info, color: Colors.orange, size: 16),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Select a student to view schedule',
-                          style: TextStyle(color: Colors.orange),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                          )
+                        else if (studentSchedule.isNotEmpty) ...[
+                          ...studentSchedule.map((subject) {
+                            final teacher =
+                                subject['users']; // Changed from 'teachers' to 'users'
+                            final teacherName =
+                                teacher != null
+                                    ? '${teacher['fname'] ?? ''} ${teacher['lname'] ?? ''}'
+                                        .trim()
+                                    : 'No teacher assigned';
 
-                const SizedBox(height: 20),
-
-                // Student Schedule Details
-                if (selectedStudentId != null &&
-                    _studentSchedules.containsKey(
-                      _students.firstWhere(
-                        (s) => s['id'] == selectedStudentId,
-                      )['section_id'],
-                    )) ...[
-                  const Text(
-                    'Class Schedule Details',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey[300]!),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(8),
-                              topRight: Radius.circular(8),
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    flex: 2,
+                                    child: Text(
+                                      subject['subject'] ?? 'No subject',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(flex: 2, child: Text(teacherName)),
+                                  Expanded(
+                                    flex: 1,
+                                    child: Text(
+                                      '${subject['start_time'] ?? ''} - ${subject['end_time'] ?? ''}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Text(
+                                      _formatDays(subject['days']),
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                          const Divider(),
+                          Text(
+                            'Earliest class: ${_getEarliestTime()} | Latest class: ${_getLatestTime()}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              color: Colors.grey,
                             ),
                           ),
-                          child: const Row(
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: Text(
-                                  'Subject',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  'Days',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  'Time',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
+                        ] else
+                          const Text(
+                            'No academic schedule found for this student',
+                            style: TextStyle(color: Colors.grey),
                           ),
-                        ),
-                        ...(_studentSchedules[_students.firstWhere(
-                                  (s) => s['id'] == selectedStudentId,
-                                )['section_id']] ??
-                                [])
-                            .map((schedule) {
-                              return Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    top: BorderSide(color: Colors.grey[200]!),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      flex: 2,
-                                      child: Text(
-                                        schedule['subject'],
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Text(
-                                        (schedule['days'] as List).join(', '),
-                                        style: const TextStyle(fontSize: 12),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Text(
-                                        '${schedule['start_time']} - ${schedule['end_time']}',
-                                        style: const TextStyle(fontSize: 12),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            })
-                            .toList(),
                       ],
                     ),
                   ),
                   const SizedBox(height: 20),
                 ],
 
-                // Status Selection
-                const Text(
-                  'Assignment Status',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  value: _status,
-                  decoration: const InputDecoration(
-                    labelText: 'Status',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.flag),
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'active',
-                      child: Row(
-                        children: [
-                          Icon(Icons.circle, color: Colors.green, size: 12),
-                          SizedBox(width: 8),
-                          Text('Active'),
-                        ],
+                // Manual Pickup Time Input
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        initialValue: pickupTime,
+                        decoration: const InputDecoration(
+                          labelText: 'Pickup Time *',
+                          hintText: 'e.g., 07:00',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.access_time),
+                        ),
+                        onChanged: (value) => pickupTime = value,
+                        validator: (value) {
+                          if (value?.isEmpty == true) {
+                            return 'Please enter pickup time';
+                          }
+                          // Basic time format validation
+                          final timeRegex = RegExp(
+                            r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$',
+                          );
+                          if (!timeRegex.hasMatch(value!)) {
+                            return 'Please enter time in HH:MM format';
+                          }
+                          return null;
+                        },
                       ),
                     ),
-                    DropdownMenuItem(
-                      value: 'inactive',
-                      child: Row(
-                        children: [
-                          Icon(Icons.circle, color: Colors.red, size: 12),
-                          SizedBox(width: 8),
-                          Text('Inactive'),
-                        ],
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'pending',
-                      child: Row(
-                        children: [
-                          Icon(Icons.circle, color: Colors.orange, size: 12),
-                          SizedBox(width: 8),
-                          Text('Pending'),
-                        ],
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextFormField(
+                        initialValue: dropoffTime,
+                        decoration: const InputDecoration(
+                          labelText: 'Dropoff Time *',
+                          hintText: 'e.g., 15:30',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.access_time_filled),
+                        ),
+                        onChanged: (value) => dropoffTime = value,
+                        validator: (value) {
+                          if (value?.isEmpty == true) {
+                            return 'Please enter dropoff time';
+                          }
+                          // Basic time format validation
+                          final timeRegex = RegExp(
+                            r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$',
+                          );
+                          if (!timeRegex.hasMatch(value!)) {
+                            return 'Please enter time in HH:MM format';
+                          }
+                          return null;
+                        },
                       ),
                     ),
                   ],
-                  onChanged: (value) => setState(() => _status = value!),
+                ),
+                const SizedBox(height: 16),
+
+                // Schedule Days Selection
+                const Text(
+                  'Schedule Days *',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children:
+                      [
+                        'Monday',
+                        'Tuesday',
+                        'Wednesday',
+                        'Thursday',
+                        'Friday',
+                        'Saturday',
+                        'Sunday',
+                      ].map((day) {
+                        return FilterChip(
+                          label: Text(day),
+                          selected: scheduleDays.contains(day),
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                scheduleDays.add(day);
+                              } else {
+                                scheduleDays.remove(day);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                ),
+                if (scheduleDays.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4.0),
+                    child: Text(
+                      'Please select at least one day',
+                      style: TextStyle(color: Colors.red, fontSize: 12),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+
+                // Pickup Address
+                TextFormField(
+                  initialValue: pickupAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Pickup Address',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.location_on),
+                  ),
+                  onChanged: (value) => pickupAddress = value,
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 16),
+
+                // Status
+                DropdownButtonFormField<String>(
+                  value: status,
+                  decoration: const InputDecoration(
+                    labelText: 'Status',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'active', child: Text('Active')),
+                    DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                    DropdownMenuItem(
+                      value: 'inactive',
+                      child: Text('Inactive'),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => status = value!),
+                ),
+                const SizedBox(height: 16),
+
+                // Notes
+                TextFormField(
+                  initialValue: notes,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.note),
+                  ),
+                  onChanged: (value) => notes = value,
+                  maxLines: 3,
                 ),
               ],
             ),
@@ -1927,11 +2445,20 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
           child: const Text('Cancel'),
         ),
         ElevatedButton(
-          onPressed: _saveAssignment,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
-          ),
+          onPressed: () {
+            if (_formKey.currentState!.validate() && scheduleDays.isNotEmpty) {
+              Navigator.of(context).pop({
+                'student_id': selectedStudentId,
+                'driver_id': selectedDriverId,
+                'pickup_time': pickupTime,
+                'dropoff_time': dropoffTime,
+                'pickup_address': pickupAddress,
+                'schedule_days': scheduleDays,
+                'status': status,
+                'notes': notes,
+              });
+            }
+          },
           child: Text(
             widget.isEdit ? 'Update Assignment' : 'Create Assignment',
           ),
@@ -1940,415 +2467,265 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
     );
   }
 
-  void _saveAssignment() {
-    if (_formKey.currentState?.validate() ?? false) {
-      if (selectedStudentId == null || selectedDriverId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please select both student and driver'),
-          ),
-        );
-        return;
+  String _formatDays(dynamic days) {
+    if (days == null) return '';
+
+    if (days is List) {
+      return days.cast<String>().join(', ');
+    } else if (days is String) {
+      // Handle different possible formats
+      if (days.startsWith('[') && days.endsWith(']')) {
+        // JSON array format: ["Monday", "Tuesday"]
+        final cleanDays = days
+            .substring(1, days.length - 1)
+            .split(',')
+            .map((day) => day.trim().replaceAll('"', ''))
+            .where((day) => day.isNotEmpty)
+            .join(', ');
+        return cleanDays;
+      } else if (days.startsWith('{') && days.endsWith('}')) {
+        // PostgreSQL array format: {Monday,Tuesday}
+        final cleanDays = days
+            .substring(1, days.length - 1)
+            .split(',')
+            .map((day) => day.trim())
+            .where((day) => day.isNotEmpty)
+            .join(', ');
+        return cleanDays;
+      } else {
+        // Comma-separated format: "Monday,Tuesday,Wednesday"
+        return days
+            .split(',')
+            .map((day) => day.trim())
+            .where((day) => day.isNotEmpty)
+            .join(', ');
       }
-
-      final selectedStudent = _students.firstWhere(
-        (s) => s['id'] == selectedStudentId,
-      );
-      final selectedDriver = _drivers.firstWhere(
-        (d) => d['id'] == selectedDriverId,
-      );
-
-      final assignmentData = {
-        'student_id': selectedStudentId,
-        'driver_id': selectedDriverId,
-        'student_address': _studentAddress,
-        'pickup_time': _pickupTime,
-        'dropoff_time': _dropoffTime,
-        'schedule_days': _studentScheduleDays,
-        'status': _status,
-        'student_name': selectedStudent['name'],
-        'student_phone': selectedStudent['phone'],
-        'driver_name': selectedDriver['name'],
-        'driver_vehicle': selectedDriver['vehicle'],
-        'driver_phone': selectedDriver['phone'],
-      };
-
-      Navigator.of(context).pop(assignmentData);
     }
+
+    return days.toString();
+  }
+
+  String _getEarliestTime() {
+    if (studentSchedule.isEmpty) return 'N/A';
+
+    String? earliest;
+    for (var subject in studentSchedule) {
+      final startTime = subject['start_time'] as String?;
+      if (startTime != null) {
+        if (earliest == null || startTime.compareTo(earliest) < 0) {
+          earliest = startTime;
+        }
+      }
+    }
+    return earliest ?? 'N/A';
+  }
+
+  String _getLatestTime() {
+    if (studentSchedule.isEmpty) return 'N/A';
+
+    String? latest;
+    for (var subject in studentSchedule) {
+      final endTime = subject['end_time'] as String?;
+      if (endTime != null) {
+        if (latest == null || endTime.compareTo(latest) > 0) {
+          latest = endTime;
+        }
+      }
+    }
+    return latest ?? 'N/A';
   }
 }
 
-// 2. Bulk Assignment Modal - Updated to remove routes
 class _BulkAssignmentDialog extends StatefulWidget {
-  const _BulkAssignmentDialog({Key? key}) : super(key: key);
+  final List<Map<String, dynamic>> students;
+  final List<Map<String, dynamic>> drivers;
+
+  const _BulkAssignmentDialog({
+    Key? key,
+    required this.students,
+    required this.drivers,
+  }) : super(key: key);
 
   @override
   State<_BulkAssignmentDialog> createState() => _BulkAssignmentDialogState();
 }
 
 class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
-  final Color primaryColor = const Color(0xFF2E7D32);
+  final _formKey = GlobalKey<FormState>();
   String? selectedDriverId;
-  String _filterGrade = 'All';
-  String _filterSection = 'All';
-  final Set<String> _selectedStudents = {};
-
-  final List<Map<String, dynamic>> _students = [
-    {
-      'id': '1',
-      'name': 'Emma Johnson',
-      'grade': 'Grade 1',
-      'section': 'Section A',
-      'assigned': false,
-      'address': '123 Maple Street',
-    },
-    {
-      'id': '2',
-      'name': 'Liam Smith',
-      'grade': 'Grade 2',
-      'section': 'Section B',
-      'assigned': true,
-      'address': '456 Oak Avenue',
-    },
-    {
-      'id': '3',
-      'name': 'Olivia Brown',
-      'grade': 'Grade 1',
-      'section': 'Section A',
-      'assigned': false,
-      'address': '789 Pine Road',
-    },
-    {
-      'id': '4',
-      'name': 'Noah Davis',
-      'grade': 'Grade 3',
-      'section': 'Section C',
-      'assigned': false,
-      'address': '321 Elm Street',
-    },
-    {
-      'id': '5',
-      'name': 'Ava Wilson',
-      'grade': 'Grade 2',
-      'section': 'Section B',
-      'assigned': false,
-      'address': '654 Birch Lane',
-    },
-    {
-      'id': '6',
-      'name': 'William Brown',
-      'grade': 'Grade 1',
-      'section': 'Section A',
-      'assigned': false,
-      'address': '987 Cedar Ave',
-    },
+  List<String> selectedStudentIds = [];
+  String pickupTime = '07:00';
+  String dropoffTime = '15:00';
+  List<String> scheduleDays = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
   ];
-
-  final List<Map<String, dynamic>> _drivers = [
-    {'id': '1', 'name': 'John Smith', 'vehicle': 'Bus A1', 'capacity': 25},
-    {'id': '2', 'name': 'Sarah Johnson', 'vehicle': 'Van B2', 'capacity': 15},
-    {'id': '3', 'name': 'Mike Wilson', 'vehicle': 'Bus C3', 'capacity': 30},
-  ];
-
-  List<Map<String, dynamic>> get _filteredStudents {
-    return _students.where((student) {
-      if (_filterGrade != 'All' && student['grade'] != _filterGrade)
-        return false;
-      if (_filterSection != 'All' && student['section'] != _filterSection)
-        return false;
-      return true;
-    }).toList();
-  }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Row(
-        children: [
-          Icon(Icons.group_add, color: primaryColor, size: 24),
-          const SizedBox(width: 8),
-          const Text('Bulk Assignment'),
-          const Spacer(),
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close),
-            iconSize: 20,
-          ),
-        ],
-      ),
+      title: const Text('Bulk Assignment'),
       content: SizedBox(
-        width: MediaQuery.of(context).size.width * 0.7,
-        height: MediaQuery.of(context).size.height * 0.7,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Driver Selection
-            const Text(
-              'Select Driver',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: selectedDriverId,
-              decoration: const InputDecoration(
-                labelText: 'Choose Driver for Bulk Assignment',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.directions_bus),
+        width: 600,
+        height: 700,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Driver Selection
+              DropdownButtonFormField<String>(
+                value: selectedDriverId,
+                decoration: const InputDecoration(
+                  labelText: 'Select Driver *',
+                  border: OutlineInputBorder(),
+                ),
+                items:
+                    widget.drivers.map((driver) {
+                      return DropdownMenuItem<String>(
+                        value: driver['id'].toString(),
+                        child: Text('${driver['fname']} ${driver['lname']}'),
+                      );
+                    }).toList(),
+                onChanged: (value) => setState(() => selectedDriverId = value),
+                validator:
+                    (value) => value == null ? 'Please select a driver' : null,
               ),
-              items:
-                  _drivers.map((driver) {
-                    return DropdownMenuItem<String>(
-                      value: driver['id'],
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            driver['name'],
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          Text(
-                            '${driver['vehicle']} - Capacity: ${driver['capacity']} students',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-              onChanged: (value) => setState(() => selectedDriverId = value),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-            // Filters
-            Row(
-              children: [
-                SizedBox(
-                  width: 150,
-                  child: DropdownButtonFormField<String>(
-                    value: _filterGrade,
-                    decoration: const InputDecoration(
-                      labelText: 'Filter by Grade',
-                      border: OutlineInputBorder(),
+              // Time inputs
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      initialValue: pickupTime,
+                      decoration: const InputDecoration(
+                        labelText: 'Pickup Time *',
+                        hintText: 'e.g., 07:00',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => pickupTime = value,
+                      validator: (value) {
+                        if (value?.isEmpty == true) return 'Required';
+                        final timeRegex = RegExp(
+                          r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$',
+                        );
+                        if (!timeRegex.hasMatch(value!))
+                          return 'Invalid format';
+                        return null;
+                      },
                     ),
-                    items: const [
-                      DropdownMenuItem(value: 'All', child: Text('All Grades')),
-                      DropdownMenuItem(
-                        value: 'Grade 1',
-                        child: Text('Grade 1'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Grade 2',
-                        child: Text('Grade 2'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Grade 3',
-                        child: Text('Grade 3'),
-                      ),
-                    ],
-                    onChanged: (value) => setState(() => _filterGrade = value!),
                   ),
-                ),
-                const SizedBox(width: 16),
-                SizedBox(
-                  width: 150,
-                  child: DropdownButtonFormField<String>(
-                    value: _filterSection,
-                    decoration: const InputDecoration(
-                      labelText: 'Filter by Section',
-                      border: OutlineInputBorder(),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      initialValue: dropoffTime,
+                      decoration: const InputDecoration(
+                        labelText: 'Dropoff Time *',
+                        hintText: 'e.g., 15:30',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) => dropoffTime = value,
+                      validator: (value) {
+                        if (value?.isEmpty == true) return 'Required';
+                        final timeRegex = RegExp(
+                          r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$',
+                        );
+                        if (!timeRegex.hasMatch(value!))
+                          return 'Invalid format';
+                        return null;
+                      },
                     ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'All',
-                        child: Text('All Sections'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Section A',
-                        child: Text('Section A'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Section B',
-                        child: Text('Section B'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Section C',
-                        child: Text('Section C'),
-                      ),
-                    ],
-                    onChanged:
-                        (value) => setState(() => _filterSection = value!),
                   ),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Schedule Days
+              const Text(
+                'Schedule Days *',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children:
+                    [
+                      'Monday',
+                      'Tuesday',
+                      'Wednesday',
+                      'Thursday',
+                      'Friday',
+                      'Saturday',
+                      'Sunday',
+                    ].map((day) {
+                      return FilterChip(
+                        label: Text(day),
+                        selected: scheduleDays.contains(day),
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              scheduleDays.add(day);
+                            } else {
+                              scheduleDays.remove(day);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // Student Selection
+              const Text(
+                'Select Students:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: Container(
                   decoration: BoxDecoration(
-                    color: primaryColor.withOpacity(0.1),
+                    border: Border.all(color: Colors.grey[300]!),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(
-                    '${_selectedStudents.length} selected',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: primaryColor,
-                    ),
+                  child: ListView.builder(
+                    itemCount: widget.students.length,
+                    itemBuilder: (context, index) {
+                      final student = widget.students[index];
+                      final studentId = student['id'].toString();
+                      return CheckboxListTile(
+                        value: selectedStudentIds.contains(studentId),
+                        onChanged: (bool? value) {
+                          setState(() {
+                            if (value == true) {
+                              selectedStudentIds.add(studentId);
+                            } else {
+                              selectedStudentIds.remove(studentId);
+                            }
+                          });
+                        },
+                        title: Text('${student['fname']} ${student['lname']}'),
+                        subtitle: Text('Grade ${student['grade_level'] ?? ''}'),
+                      );
+                    },
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Student List
-            const Text(
-              'Select Students:',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  children: [
-                    // Select All Header
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(8),
-                          topRight: Radius.circular(8),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Checkbox(
-                            value:
-                                _filteredStudents.isNotEmpty &&
-                                _filteredStudents
-                                    .where((s) => !s['assigned'])
-                                    .every(
-                                      (s) =>
-                                          _selectedStudents.contains(s['id']),
-                                    ),
-                            onChanged: (value) {
-                              setState(() {
-                                if (value == true) {
-                                  _selectedStudents.addAll(
-                                    _filteredStudents
-                                        .where((s) => !s['assigned'])
-                                        .map((s) => s['id'] as String),
-                                  );
-                                } else {
-                                  for (final student in _filteredStudents.where(
-                                    (s) => !s['assigned'],
-                                  )) {
-                                    _selectedStudents.remove(student['id']);
-                                  }
-                                }
-                              });
-                            },
-                          ),
-                          const Text(
-                            'Select All Unassigned',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Student List
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: _filteredStudents.length,
-                        itemBuilder: (context, index) {
-                          final student = _filteredStudents[index];
-                          final isAssigned = student['assigned'] as bool;
-                          final isSelected = _selectedStudents.contains(
-                            student['id'],
-                          );
-
-                          return ListTile(
-                            leading: Checkbox(
-                              value: isSelected,
-                              onChanged:
-                                  isAssigned
-                                      ? null
-                                      : (value) {
-                                        setState(() {
-                                          if (value == true) {
-                                            _selectedStudents.add(
-                                              student['id'],
-                                            );
-                                          } else {
-                                            _selectedStudents.remove(
-                                              student['id'],
-                                            );
-                                          }
-                                        });
-                                      },
-                            ),
-                            title: Text(
-                              student['name'],
-                              style: TextStyle(
-                                color: isAssigned ? Colors.grey : Colors.black,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${student['grade']} - ${student['section']}',
-                                ),
-                                Text(
-                                  student['address'],
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey[500],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            trailing:
-                                isAssigned
-                                    ? Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: const Text(
-                                        'Assigned',
-                                        style: TextStyle(
-                                          color: Colors.green,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    )
-                                    : null,
-                            isThreeLine: true,
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
               ),
-            ),
-          ],
+
+              if (selectedStudentIds.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    '${selectedStudentIds.length} students selected',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
       actions: [
@@ -2358,35 +2735,28 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
         ),
         ElevatedButton(
           onPressed:
-              _selectedStudents.isNotEmpty && selectedDriverId != null
-                  ? _performBulkAssignment
+              selectedDriverId != null &&
+                      selectedStudentIds.isNotEmpty &&
+                      scheduleDays.isNotEmpty
+                  ? () {
+                    if (_formKey.currentState!.validate()) {
+                      Navigator.of(context).pop({
+                        'driver_id': selectedDriverId,
+                        'student_ids': selectedStudentIds,
+                        'pickup_time': pickupTime,
+                        'dropoff_time': dropoffTime,
+                        'schedule_days': scheduleDays,
+                      });
+                    }
+                  }
                   : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
-          ),
-          child: Text('Assign ${_selectedStudents.length} Students'),
+          child: const Text('Assign All'),
         ),
       ],
     );
   }
-
-  void _performBulkAssignment() {
-    final selectedDriver = _drivers.firstWhere(
-      (d) => d['id'] == selectedDriverId,
-    );
-    final assignmentData = {
-      'driver_id': selectedDriverId,
-      'driver_name': selectedDriver['name'],
-      'driver_vehicle': selectedDriver['vehicle'],
-      'student_ids': _selectedStudents.toList(),
-      'student_count': _selectedStudents.length,
-    };
-    Navigator.of(context).pop(assignmentData);
-  }
 }
 
-// 3. Delete Confirmation Dialog - Simplified
 class _DeleteAssignmentDialog extends StatelessWidget {
   final String studentName;
   final String driverName;
@@ -2400,47 +2770,9 @@ class _DeleteAssignmentDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Row(
-        children: [
-          Icon(Icons.warning, color: Colors.red, size: 24),
-          SizedBox(width: 8),
-          Text('Confirm Deletion'),
-        ],
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Are you sure you want to remove this assignment?'),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey[200]!),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Student: $studentName',
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Driver: $driverName',
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'This action cannot be undone.',
-            style: TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
-          ),
-        ],
+      title: const Text('Delete Assignment'),
+      content: Text(
+        'Are you sure you want to delete the assignment for $studentName with driver $driverName?',
       ),
       actions: [
         TextButton(
@@ -2449,11 +2781,8 @@ class _DeleteAssignmentDialog extends StatelessWidget {
         ),
         ElevatedButton(
           onPressed: () => Navigator.of(context).pop(true),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Delete'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          child: const Text('Delete', style: TextStyle(color: Colors.white)),
         ),
       ],
     );
