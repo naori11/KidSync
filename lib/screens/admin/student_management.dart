@@ -1874,7 +1874,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         borderSide: const BorderSide(color: Colors.red, width: 2),
       ),
       filled: true,
-      fillColor: Colors.grey[50],
+      fillColor: Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
     );
@@ -2207,6 +2207,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   width: 240,
                   height: 40,
                   decoration: BoxDecoration(
+                    color: Colors.white,
                     border: Border.all(color: const Color(0xFFE0E0E0)),
                     borderRadius: BorderRadius.circular(4),
                   ),
@@ -2260,6 +2261,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       style: TextStyle(color: Color(0xFF333333)),
                     ),
                     style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
                       side: const BorderSide(color: Color(0xFFE0E0E0)),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4),
@@ -2293,6 +2295,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                     height: 40,
                     padding: const EdgeInsets.symmetric(horizontal: 12.0),
                     decoration: BoxDecoration(
+                      color: Colors.white,
                       border: Border.all(color: const Color(0xFFE0E0E0)),
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -2322,6 +2325,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                     height: 40,
                     padding: const EdgeInsets.symmetric(horizontal: 12.0),
                     decoration: BoxDecoration(
+                      color: Colors.white,
                       border: Border.all(color: const Color(0xFFE0E0E0)),
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -2355,6 +2359,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                     height: 40,
                     padding: const EdgeInsets.symmetric(horizontal: 12.0),
                     decoration: BoxDecoration(
+                      color: Colors.white,
                       border: Border.all(color: const Color(0xFFE0E0E0)),
                       borderRadius: BorderRadius.circular(4),
                     ),

@@ -110,7 +110,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           filled: true,
-                          fillColor: Colors.grey[50],
+                          fillColor: Colors.white,
                           labelStyle: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 14,
@@ -135,7 +135,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           filled: true,
-                          fillColor: Colors.grey[50],
+                          fillColor: Colors.white,
                           labelStyle: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 14,
@@ -173,7 +173,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromARGB(10, 78, 241, 157),
+                    backgroundColor: const Color(0xFF2ECC71),
                     foregroundColor: Colors.white,
                   ),
                   onPressed: () async {
@@ -445,7 +445,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           filled: true,
-                          fillColor: Colors.grey[50],
+                          fillColor: Colors.white,
                           labelStyle: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 14,
@@ -473,7 +473,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           filled: true,
-                          fillColor: Colors.grey[50],
+                          fillColor: Colors.white,
                           labelStyle: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 14,
@@ -1465,6 +1465,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                   width: 240,
                   height: 40,
                   decoration: BoxDecoration(
+                    color: Colors.white,
                     border: Border.all(color: const Color(0xFFE0E0E0)),
                     borderRadius: BorderRadius.circular(4),
                   ),
@@ -1517,6 +1518,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                       style: TextStyle(color: Color(0xFF333333)),
                     ),
                     style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
                       side: const BorderSide(color: Color(0xFFE0E0E0)),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4),
@@ -1557,6 +1559,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                     height: 40,
                     padding: const EdgeInsets.symmetric(horizontal: 12.0),
                     decoration: BoxDecoration(
+                      color: Colors.white,
                       border: Border.all(color: const Color(0xFFE0E0E0)),
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -1593,6 +1596,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                     height: 40,
                     padding: const EdgeInsets.symmetric(horizontal: 12.0),
                     decoration: BoxDecoration(
+                      color: Colors.white,
                       border: Border.all(color: const Color(0xFFE0E0E0)),
                       borderRadius: BorderRadius.circular(4),
                     ),

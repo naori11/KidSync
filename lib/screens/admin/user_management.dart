@@ -1022,7 +1022,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
         borderSide: const BorderSide(color: Colors.red, width: 2),
       ),
       filled: true,
-      fillColor: Colors.grey[50],
+      fillColor: Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
     );
@@ -1276,6 +1276,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   width: 240,
                   height: 40,
                   decoration: BoxDecoration(
+                    color: Colors.white,
                     border: Border.all(color: const Color(0xFFE0E0E0)),
                     borderRadius: BorderRadius.circular(4),
                   ),
@@ -1304,7 +1305,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       style: TextStyle(color: Colors.white),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
+                      backgroundColor: const Color(0xFF2ECC71),
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4),
@@ -1340,6 +1341,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     height: 40,
                     padding: const EdgeInsets.symmetric(horizontal: 12.0),
                     decoration: BoxDecoration(
+                      color: Colors.white,
                       border: Border.all(color: const Color(0xFFE0E0E0)),
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -1369,6 +1371,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     height: 40,
                     padding: const EdgeInsets.symmetric(horizontal: 12.0),
                     decoration: BoxDecoration(
+                      color: Colors.white,
                       border: Border.all(color: const Color(0xFFE0E0E0)),
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -1420,6 +1423,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         child: Container(
                           width: double.infinity,
                           decoration: BoxDecoration(
+                            color: Colors.white,
                             border: Border.all(color: const Color(0xFFEEEEEE)),
                             borderRadius: BorderRadius.circular(8),
                           ),
