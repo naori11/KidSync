@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/driver_models.dart';
 import '../../models/pickup_status.dart';
+import '../../services/driver_service.dart';
 
 class DriverPickupTab extends StatefulWidget {
   final Color primaryColor;
@@ -21,13 +23,113 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
   late PickupTask? todaysTask;
   List<Student> pickedUpStudents = [];
   List<Student> droppedOffStudents = [];
+  final DriverService _driverService = DriverService();
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    todaysTask = StaticDriverData.getTodaysTask();
-    // Load sample pickup status data for demonstration
-    StaticPickupStatusStorage.loadSampleData();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      // Get current user (driver)
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) {
+        setState(() {
+          _error = 'User not authenticated';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Get today's pickup tasks
+      final tasks = await _driverService.getTodaysPickupTasks(user.id);
+      
+      if (tasks.isNotEmpty) {
+        todaysTask = tasks.first; // For now, take the first task
+        
+        // Load pickup/dropoff status for today
+        await _loadTodaysStatus();
+      } else {
+        todaysTask = null;
+      }
+
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Error loading data: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadTodaysStatus() async {
+    if (todaysTask == null) return;
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser!;
+      
+      // Clear current lists
+      pickedUpStudents.clear();
+      droppedOffStudents.clear();
+
+      // Check status for each student
+      for (final student in todaysTask!.students) {
+        if (student.studentDbId != null) {
+          final wasPickedUp = await _driverService.wasStudentPickedUpToday(
+            student.studentDbId!,
+            user.id,
+          );
+          
+          final wasDroppedOff = await _driverService.wasStudentDroppedOffToday(
+            student.studentDbId!,
+            user.id,
+          );
+
+          if (wasPickedUp) {
+            final pickupTime = await _driverService.getStudentPickupTime(
+              student.studentDbId!,
+              user.id,
+            );
+            
+            final updatedStudent = student.copyWith(
+              isPickedUp: true,
+              pickupTime: pickupTime,
+              driverName: user.userMetadata?['fname'] ?? 'Driver',
+            );
+            
+            pickedUpStudents.add(updatedStudent);
+          }
+
+          if (wasDroppedOff) {
+            final updatedStudent = student.copyWith(
+              isPickedUp: true,
+              pickupTime: await _driverService.getStudentPickupTime(
+                student.studentDbId!,
+                user.id,
+              ),
+              driverName: user.userMetadata?['fname'] ?? 'Driver',
+            );
+            
+            droppedOffStudents.add(updatedStudent);
+          }
+        }
+      }
+
+      setState(() {});
+    } catch (e) {
+      print('Error loading today\'s status: $e');
+    }
   }
 
   void _showPickupConfirmation(Student student) {
@@ -209,74 +311,154 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
     );
   }
 
-  void _confirmStudentPickup(Student student) {
-    setState(() {
-      if (pickedUpStudents.any((s) => s.id == student.id)) {
-        // Remove student from picked up list
-        pickedUpStudents.removeWhere((s) => s.id == student.id);
-        // Also remove from dropped off list if they were there
-        droppedOffStudents.removeWhere((s) => s.id == student.id);
+  Future<void> _confirmStudentPickup(Student student) async {
+    if (student.studentDbId == null) {
+      _showConfirmationDialog(
+        'Error: Student database ID not found',
+        Colors.red,
+      );
+      return;
+    }
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser!;
+      final isCurrentlyPickedUp = pickedUpStudents.any((s) => s.id == student.id);
+
+      if (isCurrentlyPickedUp) {
+        // Remove student from picked up list (cancel pickup)
+        setState(() {
+          pickedUpStudents.removeWhere((s) => s.id == student.id);
+          droppedOffStudents.removeWhere((s) => s.id == student.id);
+        });
+
+        _showConfirmationDialog(
+          '${student.name} pickup cancelled',
+          Colors.orange,
+        );
       } else {
-        // Add student to picked up list with pickup time
+        // Record pickup in database
         final pickupTime = DateTime.now();
-        final updatedStudent = student.copyWith(
-          isPickedUp: true,
+        final success = await _driverService.recordPickup(
+          studentId: student.studentDbId!,
+          driverId: user.id,
           pickupTime: pickupTime,
-          driverName: StaticDriverData.driverInfo.name,
-        );
-        pickedUpStudents.add(updatedStudent);
-
-        // Create pickup status for parents (static)
-        final pickupStatus = PickupStatus.fromPickup(
-          studentId: student.id,
-          studentName: student.name,
-          pickupTime: pickupTime,
-          driverName: StaticDriverData.driverInfo.name,
-          vehicleNumber: StaticDriverData.driverInfo.vehicleNumber,
-          schoolName: todaysTask!.schoolName,
+          notes: 'Picked up via driver app',
         );
 
-        // Store pickup status (this would normally be sent to backend/parents app)
-        StaticPickupStatusStorage.addPickupStatus(pickupStatus);
+        if (success) {
+          // Add student to picked up list
+          final updatedStudent = student.copyWith(
+            isPickedUp: true,
+            pickupTime: pickupTime,
+            driverName: user.userMetadata?['fname'] ?? 'Driver',
+          );
+          
+          setState(() {
+            pickedUpStudents.add(updatedStudent);
+          });
+
+          // Create pickup status for parents (static - for backward compatibility)
+          final pickupStatus = PickupStatus.fromPickup(
+            studentId: student.id,
+            studentName: student.name,
+            pickupTime: pickupTime,
+            driverName: user.userMetadata?['fname'] ?? 'Driver',
+            vehicleNumber: 'N/A', // Vehicle info not in scope
+            schoolName: todaysTask!.schoolName,
+          );
+
+          StaticPickupStatusStorage.addPickupStatus(pickupStatus);
+
+          _showConfirmationDialog(
+            '✓ ${student.name} marked as picked up - Parents notified',
+            widget.primaryColor,
+          );
+        } else {
+          _showConfirmationDialog(
+            'Error recording pickup for ${student.name}',
+            Colors.red,
+          );
+        }
       }
-    });
-
-    // Show confirmation popup
-    final isPickedUp = pickedUpStudents.any((s) => s.id == student.id);
-    _showConfirmationDialog(
-      isPickedUp
-          ? '✓ ${student.name} marked as picked up - Parents notified'
-          : '${student.name} pickup cancelled',
-      isPickedUp ? widget.primaryColor : Colors.orange,
-    );
+    } catch (e) {
+      _showConfirmationDialog(
+        'Error: $e',
+        Colors.red,
+      );
+    }
   }
 
-  void _confirmStudentDropoff(Student student) {
-    setState(() {
-      if (droppedOffStudents.any((s) => s.id == student.id)) {
-        // Remove student from dropped off list
-        droppedOffStudents.removeWhere((s) => s.id == student.id);
-      } else {
-        // Add student to dropped off list with dropoff time
-        final dropoffTime = DateTime.now();
-        final updatedStudent = student.copyWith(
-          isPickedUp: true,
-          pickupTime:
-              pickedUpStudents.firstWhere((s) => s.id == student.id).pickupTime,
-          driverName: StaticDriverData.driverInfo.name,
-        );
-        droppedOffStudents.add(updatedStudent);
-      }
-    });
+  Future<void> _confirmStudentDropoff(Student student) async {
+    if (student.studentDbId == null) {
+      _showConfirmationDialog(
+        'Error: Student database ID not found',
+        Colors.red,
+      );
+      return;
+    }
 
-    // Show confirmation popup
-    final isDroppedOff = droppedOffStudents.any((s) => s.id == student.id);
-    _showConfirmationDialog(
-      isDroppedOff
-          ? '✓ ${student.name} marked as dropped off - Parents notified'
-          : '${student.name} dropoff cancelled',
-      isDroppedOff ? Colors.green : Colors.orange,
-    );
+    try {
+      final user = Supabase.instance.client.auth.currentUser!;
+      final isCurrentlyDroppedOff = droppedOffStudents.any((s) => s.id == student.id);
+
+      if (isCurrentlyDroppedOff) {
+        // Remove student from dropped off list (cancel dropoff)
+        setState(() {
+          droppedOffStudents.removeWhere((s) => s.id == student.id);
+        });
+
+        _showConfirmationDialog(
+          '${student.name} dropoff cancelled',
+          Colors.orange,
+        );
+      } else {
+        // Check if student was picked up first
+        if (!pickedUpStudents.any((s) => s.id == student.id)) {
+          _showConfirmationDialog(
+            'Student must be picked up before dropoff',
+            Colors.orange,
+          );
+          return;
+        }
+
+        // Record dropoff in database
+        final dropoffTime = DateTime.now();
+        final success = await _driverService.recordDropoff(
+          studentId: student.studentDbId!,
+          driverId: user.id,
+          dropoffTime: dropoffTime,
+          notes: 'Dropped off via driver app',
+        );
+
+        if (success) {
+          // Add student to dropped off list
+          final updatedStudent = student.copyWith(
+            isPickedUp: true,
+            pickupTime: pickedUpStudents.firstWhere((s) => s.id == student.id).pickupTime,
+            driverName: user.userMetadata?['fname'] ?? 'Driver',
+          );
+          
+          setState(() {
+            droppedOffStudents.add(updatedStudent);
+          });
+
+          _showConfirmationDialog(
+            '✓ ${student.name} marked as dropped off - Parents notified',
+            Colors.green,
+          );
+        } else {
+          _showConfirmationDialog(
+            'Error recording dropoff for ${student.name}',
+            Colors.red,
+          );
+        }
+      }
+    } catch (e) {
+      _showConfirmationDialog(
+        'Error: $e',
+        Colors.red,
+      );
+    }
   }
 
   bool _isStudentPickedUp(Student student) {
@@ -289,6 +471,73 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(widget.primaryColor),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Loading pickup tasks...',
+              style: TextStyle(
+                fontSize: 18,
+                color: const Color(0xFF000000).withOpacity(0.7),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.red.withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Error Loading Data',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.red.withOpacity(0.7),
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              style: TextStyle(
+                fontSize: 14,
+                color: const Color(0xFF000000).withOpacity(0.5),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _initializeData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (todaysTask == null) {
       return Container(
         padding: const EdgeInsets.all(32),
@@ -311,12 +560,21 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Check back tomorrow or view all tasks in the Dashboard',
+              'Check back tomorrow or contact your administrator',
               style: TextStyle(
                 fontSize: 14,
                 color: const Color(0xFF000000).withOpacity(0.5),
               ),
               textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _initializeData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Refresh'),
             ),
           ],
         ),
@@ -957,100 +1215,124 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               ],
             ),
             content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildInfoRow('Name', student.name),
-                  _buildInfoRow('Grade', student.grade),
-                  _buildInfoRow('Student ID', student.id),
+              child: FutureBuilder<Map<String, dynamic>>(
+                future: _getStudentDetails(student),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  }
 
-                  // Contact Information Section
-                  const Divider(),
-                  Row(
+                  final studentDetails = snapshot.data ?? {};
+                  final parents = studentDetails['parents'] as List<dynamic>? ?? [];
+
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.contact_phone,
-                        color: widget.primaryColor,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Contact Information',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: widget.primaryColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  _buildInfoRow('Parent/Guardian', 'Sarah Johnson'),
-                  _buildInfoRow('Phone', '+1 (555) 123-4567'),
-                  _buildInfoRow('Email', 'sarah.johnson@email.com'),
-                  _buildInfoRow('Emergency Contact', 'Mike Johnson'),
-                  _buildInfoRow('Emergency Phone', '+1 (555) 987-6543'),
+                      _buildInfoRow('Name', student.name),
+                      _buildInfoRow('Grade', student.grade),
+                      _buildInfoRow('Student ID', student.id),
+                      if (student.sectionName != null)
+                        _buildInfoRow('Section', student.sectionName!),
 
-                  if (_isStudentPickedUp(student)) ...[
-                    const Divider(),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.directions_car,
-                          color: widget.primaryColor,
-                          size: 20,
+                      // Contact Information Section
+                      if (parents.isNotEmpty) ...[
+                        const Divider(),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.contact_phone,
+                              color: widget.primaryColor,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Parent/Guardian Information',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: widget.primaryColor,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Pickup Details',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: widget.primaryColor,
+                        const SizedBox(height: 8),
+                        ...parents.map((parent) => Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildInfoRow(
+                              'Name',
+                              '${parent['fname']} ${parent['lname']}',
+                            ),
+                            _buildInfoRow('Phone', parent['phone'] ?? 'N/A'),
+                            _buildInfoRow('Email', parent['email'] ?? 'N/A'),
+                            if (parents.length > 1) const SizedBox(height: 8),
+                          ],
+                        )).toList(),
+                      ],
+
+                      if (_isStudentPickedUp(student)) ...[
+                        const Divider(),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.directions_car,
+                              color: widget.primaryColor,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Pickup Details',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: widget.primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        _buildInfoRow(
+                          'Pickup Time',
+                          DateFormat('h:mm a').format(
+                            pickedUpStudents
+                                .firstWhere((s) => s.id == student.id)
+                                .pickupTime!,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    _buildInfoRow(
-                      'Pickup Time',
-                      DateFormat('h:mm a').format(
-                        pickedUpStudents
-                            .firstWhere((s) => s.id == student.id)
-                            .pickupTime!,
-                      ),
-                    ),
-                    _buildInfoRow('Driver', StaticDriverData.driverInfo.name),
-                    _buildInfoRow(
-                      'Vehicle',
-                      StaticDriverData.driverInfo.vehicleNumber,
-                    ),
-                  ],
-                  if (_isStudentDroppedOff(student)) ...[
-                    const Divider(),
-                    Row(
-                      children: [
-                        Icon(Icons.home, color: Colors.green, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Dropoff Details',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
-                          ),
+                        _buildInfoRow(
+                          'Driver',
+                          Supabase.instance.client.auth.currentUser?.userMetadata?['fname'] ?? 'Driver',
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 8),
-                    _buildInfoRow(
-                      'Dropoff Time',
-                      DateFormat('h:mm a').format(DateTime.now()),
-                    ),
-                    _buildInfoRow('Status', 'Completed'),
-                  ],
-                ],
+                      if (_isStudentDroppedOff(student)) ...[
+                        const Divider(),
+                        Row(
+                          children: [
+                            Icon(Icons.home, color: Colors.green, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Dropoff Details',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        _buildInfoRow(
+                          'Dropoff Time',
+                          DateFormat('h:mm a').format(DateTime.now()),
+                        ),
+                        _buildInfoRow('Status', 'Completed'),
+                      ],
+                    ],
+                  );
+                },
               ),
             ),
             actions: [
@@ -1063,6 +1345,37 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
         );
       },
     );
+  }
+
+  Future<Map<String, dynamic>> _getStudentDetails(Student student) async {
+    if (student.studentDbId == null) {
+      return {};
+    }
+
+    try {
+      // Get parent information for the student
+      final parentResponse = await Supabase.instance.client
+          .from('parent_student')
+          .select('''
+            parents!parent_student_parent_id_fkey (
+              id,
+              fname,
+              lname,
+              phone,
+              email
+            )
+          ''')
+          .eq('student_id', student.studentDbId!);
+
+      final parents = parentResponse.map((item) => item['parents']).where((parent) => parent != null).toList();
+
+      return {
+        'parents': parents,
+      };
+    } catch (e) {
+      print('Error fetching student details: $e');
+      return {};
+    }
   }
 
   Widget _buildInfoRow(String label, String value) {
