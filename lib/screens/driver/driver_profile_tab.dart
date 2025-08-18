@@ -1,9 +1,76 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class DriverProfileTab extends StatelessWidget {
+class DriverProfileTab extends StatefulWidget {
   final VoidCallback logout;
 
   const DriverProfileTab({required this.logout, Key? key}) : super(key: key);
+
+  @override
+  State<DriverProfileTab> createState() => _DriverProfileTabState();
+}
+
+class _DriverProfileTabState extends State<DriverProfileTab> {
+  String driverName = 'Loading...';
+  String? profileImageUrl;
+  bool isLoadingProfile = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDriverProfile();
+  }
+
+  Future<void> _loadDriverProfile() async {
+    final supabase = Supabase.instance.client;
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        setState(() => isLoadingProfile = false);
+        return;
+      }
+
+      final response =
+          await supabase
+              .from('users')
+              .select('fname, mname, lname, profile_image_url')
+              .eq('id', user.id)
+              .maybeSingle();
+
+      if (response != null) {
+        String firstName = response['fname'] ?? '';
+        String middleName = response['mname'] ?? '';
+        String lastName = response['lname'] ?? '';
+
+        String fullName = '';
+        if (firstName.isNotEmpty) fullName += firstName;
+        if (middleName.isNotEmpty) fullName += ' $middleName';
+        if (lastName.isNotEmpty) fullName += ' $lastName';
+
+        if (fullName.trim().isEmpty) {
+          fullName = user.email?.split('@')[0] ?? 'Driver';
+        }
+
+        setState(() {
+          driverName = fullName.trim();
+          profileImageUrl = response['profile_image_url'];
+          isLoadingProfile = false;
+        });
+      } else {
+        setState(() {
+          driverName = user.email?.split('@')[0] ?? 'Driver';
+          isLoadingProfile = false;
+        });
+      }
+    } catch (error) {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      setState(() {
+        driverName = user?.email?.split('@')[0] ?? 'Driver';
+        isLoadingProfile = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,11 +85,18 @@ class DriverProfileTab extends StatelessWidget {
               CircleAvatar(
                 backgroundColor: const Color.fromRGBO(25, 174, 97, 0.171),
                 radius: 20,
-                child: Icon(
-                  Icons.person,
-                  color: const Color(0xFF19AE61),
-                  size: 24,
-                ),
+                backgroundImage:
+                    profileImageUrl != null
+                        ? NetworkImage(profileImageUrl!)
+                        : null,
+                child:
+                    profileImageUrl == null
+                        ? Icon(
+                          Icons.person,
+                          color: const Color(0xFF19AE61),
+                          size: 24,
+                        )
+                        : null,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -30,12 +104,13 @@ class DriverProfileTab extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Driver',
+                      isLoadingProfile ? 'Loading...' : driverName,
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: const Color(0xFF000000),
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       'Online',
@@ -50,14 +125,12 @@ class DriverProfileTab extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          // Divider
           Divider(color: const Color(0xFF000000).withOpacity(0.1)),
           const SizedBox(height: 8),
-          // Logout Button
           SizedBox(
             width: double.infinity,
             child: TextButton.icon(
-              onPressed: logout,
+              onPressed: widget.logout,
               icon: Icon(
                 Icons.logout,
                 color: const Color(0xFF19AE61),
