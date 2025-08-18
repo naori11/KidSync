@@ -417,7 +417,23 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
             children: [
               // Top Bar
               Container(
-                color: white,
+                decoration: BoxDecoration(
+                  color: white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF000000).withOpacity(0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                      spreadRadius: 2,
+                    ),
+                    BoxShadow(
+                      color: widget.primaryColor.withOpacity(0.08),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
@@ -433,6 +449,16 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                               color: widget.primaryColor,
                               size: 28,
                             ),
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    // Panel Name
+                    Text(
+                      widget.navItems[selectedIndex].label,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF000000),
                       ),
                     ),
                     Spacer(),
@@ -522,7 +548,23 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
               ),
               // Bottom Navigation Bar
               Container(
-                color: white,
+                decoration: BoxDecoration(
+                  color: white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF000000).withOpacity(0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, -4),
+                      spreadRadius: 2,
+                    ),
+                    BoxShadow(
+                      color: widget.primaryColor.withOpacity(0.08),
+                      blurRadius: 6,
+                      offset: const Offset(0, -2),
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
                 padding: EdgeInsets.only(top: 8, bottom: 8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
