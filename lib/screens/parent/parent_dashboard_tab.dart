@@ -6,10 +6,12 @@ import '../../../models/driver_models.dart';
 class ParentDashboardTab extends StatefulWidget {
   final Color primaryColor;
   final bool isMobile;
+  final int? selectedStudentId; // ADD THIS
 
   const ParentDashboardTab({
     required this.primaryColor,
     required this.isMobile,
+    this.selectedStudentId, // ADD THIS
     Key? key,
   }) : super(key: key);
 
@@ -28,40 +30,28 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     _loadDashboardFetchers();
   }
 
+  @override
+  void didUpdateWidget(ParentDashboardTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reload data when selectedStudentId changes
+    if (widget.selectedStudentId != oldWidget.selectedStudentId) {
+      _loadDashboardFetchers();
+    }
+  }
+
   Future<void> _loadDashboardFetchers() async {
+    if (widget.selectedStudentId == null) {
+      setState(() => isDashboardLoading = false);
+      return;
+    }
+
     try {
-      final user = supabase.auth.currentUser;
-      if (user == null) return;
+      setState(() => isDashboardLoading = true);
 
-      final parentResponse =
-          await supabase
-              .from('parents')
-              .select('id')
-              .eq('user_id', user.id)
-              .eq('status', 'active')
-              .maybeSingle();
-
-      if (parentResponse == null) {
-        setState(() => isDashboardLoading = false);
-        return;
-      }
-
-      final parentId = parentResponse['id'];
-
-      // Remove is_primary filter - get any student relationship
-      final studentResponse = await supabase
+      // Use the provided student ID directly
+      final fetchersResponse = await supabase
           .from('parent_student')
-          .select('student_id')
-          .eq('parent_id', parentId)
-          .limit(1); // Just get the first student relationship
-
-      if (studentResponse.isNotEmpty) {
-        final studentId = studentResponse.first['student_id'];
-
-        // Updated query to include profile images and remove role filter if needed
-        final fetchersResponse = await supabase
-            .from('parent_student')
-            .select('''
+          .select('''
             relationship_type,
             is_primary,
             parents!inner(
@@ -71,26 +61,20 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
               )
             )
           ''')
-            .eq('student_id', studentId)
-            .eq('parents.status', 'active')
-            .eq(
-              'parents.users.role',
-              'Parent',
-            ) // Only get parents with Parent role
-            .limit(3);
+          .eq('student_id', widget.selectedStudentId!)
+          .eq('parents.status', 'active')
+          .eq('parents.users.role', 'Parent')
+          .limit(3);
 
-        final List<AuthorizedFetcher> fetchers =
-            fetchersResponse
-                .map((data) => AuthorizedFetcher.fromJson(data))
-                .toList();
+      final List<AuthorizedFetcher> fetchers =
+          fetchersResponse
+              .map((data) => AuthorizedFetcher.fromJson(data))
+              .toList();
 
-        setState(() {
-          dashboardFetchers = fetchers;
-          isDashboardLoading = false;
-        });
-      } else {
-        setState(() => isDashboardLoading = false);
-      }
+      setState(() {
+        dashboardFetchers = fetchers;
+        isDashboardLoading = false;
+      });
     } catch (error) {
       print('Error loading dashboard fetchers: $error');
       setState(() => isDashboardLoading = false);
@@ -604,6 +588,30 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
   Widget build(BuildContext context) {
     const Color white = Color(0xFFFFFFFF);
     const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
+
+    // Show message if no student selected
+    if (widget.selectedStudentId == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.person_search,
+              size: 64,
+              color: widget.primaryColor.withOpacity(0.5),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Please select a student',
+              style: TextStyle(
+                fontSize: 18,
+                color: Color(0xFF000000).withOpacity(0.6),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

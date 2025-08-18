@@ -15,6 +15,53 @@ class _NavItem {
   _NavItem(this.label, this.icon, this.route);
 }
 
+// Add Student model for the selector
+class Student {
+  final int id;
+  final String firstName;
+  final String middleName;
+  final String lastName;
+  final String gradeLevel;
+  final String section; // This will hold the section_id value
+
+  Student({
+    required this.id,
+    required this.firstName,
+    required this.middleName,
+    required this.lastName,
+    required this.gradeLevel,
+    required this.section,
+  });
+
+  String get fullName {
+    String name = firstName;
+    if (middleName.isNotEmpty) name += ' $middleName';
+    if (lastName.isNotEmpty) name += ' $lastName';
+    return name.trim();
+  }
+
+  String get initials {
+    String initials = firstName.isNotEmpty ? firstName[0] : '';
+    if (lastName.isNotEmpty) initials += lastName[0];
+    return initials.toUpperCase();
+  }
+
+  factory Student.fromJson(Map<String, dynamic> json) {
+    return Student(
+      id: json['student_id'] ?? json['id'],
+      firstName: json['students']?['fname'] ?? json['fname'] ?? '',
+      middleName: json['students']?['mname'] ?? json['mname'] ?? '',
+      lastName: json['students']?['lname'] ?? json['lname'] ?? '',
+      gradeLevel: json['students']?['grade_level'] ?? json['grade_level'] ?? '',
+      section:
+          json['students']?['sections']?['section_name'] ??
+          json['students']?['section_id']?.toString() ??
+          json['section_id']?.toString() ??
+          '',
+    );
+  }
+}
+
 class ParentHomeScreen extends StatelessWidget {
   const ParentHomeScreen({Key? key}) : super(key: key);
 
@@ -90,6 +137,11 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
   String? profileImageUrl;
   bool isLoadingProfile = true;
 
+  // Add student selector properties
+  List<Student> parentStudents = [];
+  Student? selectedStudent;
+  bool isLoadingStudents = true;
+
   @override
   void initState() {
     super.initState();
@@ -111,9 +163,78 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
 
-    // Load dashboard data and user profile
-    _loadDashboardFetchers();
+    // Load all data
     _loadUserProfile();
+    _loadStudents();
+  }
+
+  // Add method to load all students for this parent
+  Future<void> _loadStudents() async {
+    try {
+      setState(() => isLoadingStudents = true);
+
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        setState(() => isLoadingStudents = false);
+        return;
+      }
+
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .maybeSingle();
+
+      if (parentResponse == null) {
+        setState(() => isLoadingStudents = false);
+        return;
+      }
+
+      final parentId = parentResponse['id'];
+
+      // Get all students for this parent - FIXED QUERY
+      final studentResponse = await supabase
+          .from('parent_student')
+          .select('''
+          student_id,
+          students!inner(
+            id, fname, mname, lname, grade_level, section_id
+          )
+        ''')
+          .eq('parent_id', parentId);
+
+      if (studentResponse.isNotEmpty) {
+        final students =
+            studentResponse.map((data) => Student.fromJson(data)).toList();
+
+        setState(() {
+          parentStudents = students;
+          selectedStudent = students.isNotEmpty ? students.first : null;
+          isLoadingStudents = false;
+        });
+
+        // Load dashboard data for the selected student
+        if (selectedStudent != null) {
+          _loadDashboardFetchers();
+        }
+      } else {
+        setState(() => isLoadingStudents = false);
+      }
+    } catch (error) {
+      print('Error loading students: $error');
+      setState(() => isLoadingStudents = false);
+    }
+  }
+
+  // Add method to switch students
+  void _switchToStudent(Student student) {
+    setState(() {
+      selectedStudent = student;
+    });
+    // Reload dashboard data for the new student
+    _loadDashboardFetchers();
   }
 
   // Add this new method to load user profile
@@ -182,56 +303,41 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
   }
 
   Future<void> _loadDashboardFetchers() async {
+    if (selectedStudent == null) return;
+
     try {
-      final user = supabase.auth.currentUser;
-      if (user == null) return;
+      setState(() => isDashboardLoading = true);
 
-      final parentResponse =
-          await supabase
-              .from('parents')
-              .select('id')
-              .eq('user_id', user.id)
-              .eq('status', 'active')
-              .maybeSingle();
-
-      if (parentResponse == null) {
-        setState(() => isDashboardLoading = false);
-        return;
-      }
-
-      final parentId = parentResponse['id'];
-      final studentResponse = await supabase
+      // Updated query to include profile images and remove role filter if needed
+      final fetchersResponse = await supabase
           .from('parent_student')
-          .select('student_id')
-          .eq('parent_id', parentId)
-          .eq('is_primary', true);
-
-      if (studentResponse.isNotEmpty) {
-        final studentId = studentResponse.first['student_id'];
-        final fetchersResponse = await supabase
-            .from('parent_student')
-            .select('''
-              relationship_type,
-              is_primary,
-              parents!inner(
-                id, fname, mname, lname, phone, email, status
+          .select('''
+            relationship_type,
+            is_primary,
+            parents!inner(
+              id, fname, mname, lname, phone, email, status, user_id,
+              users!inner(
+                profile_image_url, role
               )
-            ''')
-            .eq('student_id', studentId)
-            .limit(3); // Only show first 3 in dashboard
+            )
+          ''')
+          .eq('student_id', selectedStudent!.id)
+          .eq('parents.status', 'active')
+          .eq(
+            'parents.users.role',
+            'Parent',
+          ) // Only get parents with Parent role
+          .limit(3);
 
-        final List<AuthorizedFetcher> fetchers =
-            fetchersResponse
-                .map((data) => AuthorizedFetcher.fromJson(data))
-                .toList();
+      final List<AuthorizedFetcher> fetchers =
+          fetchersResponse
+              .map((data) => AuthorizedFetcher.fromJson(data))
+              .toList();
 
-        setState(() {
-          dashboardFetchers = fetchers;
-          isDashboardLoading = false;
-        });
-      } else {
-        setState(() => isDashboardLoading = false);
-      }
+      setState(() {
+        dashboardFetchers = fetchers;
+        isDashboardLoading = false;
+      });
     } catch (error) {
       print('Error loading dashboard fetchers: $error');
       setState(() => isDashboardLoading = false);
@@ -271,6 +377,181 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
         _animationController.reverse();
       }
     });
+  }
+
+  // Add method to show student selector
+  void _showStudentSelector() {
+    if (parentStudents.length <= 1) return; // Don't show if only one student
+
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder:
+          (context) => Container(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Select Student',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF000000),
+                  ),
+                ),
+                SizedBox(height: 16),
+                ...parentStudents.map(
+                  (student) => ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Color.fromRGBO(25, 174, 97, 0.1),
+                      child: Text(
+                        student.initials,
+                        style: TextStyle(
+                          color: widget.primaryColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    title: Text(student.fullName),
+                    subtitle: Text(
+                      '${student.gradeLevel} - ${student.section}',
+                    ),
+                    trailing:
+                        selectedStudent?.id == student.id
+                            ? Icon(
+                              Icons.check_circle,
+                              color: widget.primaryColor,
+                            )
+                            : null,
+                    onTap: () {
+                      _switchToStudent(student);
+                      Navigator.pop(context);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  // Add method to build student selector widget
+  Widget _buildStudentSelector(bool isMobile) {
+    if (isLoadingStudents) {
+      return Container(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: widget.primaryColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: widget.primaryColor,
+          ),
+        ),
+      );
+    }
+
+    if (parentStudents.isEmpty || selectedStudent == null) {
+      return SizedBox.shrink(); // Hide if no students
+    }
+
+    // Don't show selector if only one student
+    if (parentStudents.length == 1) {
+      return Container(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: widget.primaryColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: widget.primaryColor.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 12,
+              backgroundColor: widget.primaryColor.withOpacity(0.2),
+              child: Text(
+                selectedStudent!.initials,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: widget.primaryColor,
+                ),
+              ),
+            ),
+            SizedBox(width: 8),
+            Text(
+              isMobile ? selectedStudent!.firstName : selectedStudent!.fullName,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: isMobile ? 14 : 16,
+                color: Color(0xFF000000),
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Show clickable selector for multiple students
+    return GestureDetector(
+      onTap: _showStudentSelector,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: widget.primaryColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: widget.primaryColor.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 12,
+              backgroundColor: widget.primaryColor.withOpacity(0.2),
+              child: Text(
+                selectedStudent!.initials,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: widget.primaryColor,
+                ),
+              ),
+            ),
+            SizedBox(width: 8),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: isMobile ? 100 : 150),
+              child: Text(
+                isMobile
+                    ? selectedStudent!.firstName
+                    : selectedStudent!.fullName,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: isMobile ? 14 : 16,
+                  color: Color(0xFF000000),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            SizedBox(width: 4),
+            Icon(
+              Icons.keyboard_arrow_down,
+              size: 16,
+              color: widget.primaryColor,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showLogoutConfirmation(BuildContext context) async {
@@ -461,6 +742,11 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                         color: const Color(0xFF000000),
                       ),
                     ),
+
+                    SizedBox(width: 16),
+                    // Student Selector
+                    _buildStudentSelector(isMobile),
+
                     Spacer(),
                     // Notification Bell
                     GestureDetector(
@@ -794,27 +1080,58 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
   }
 
   Widget _buildTabContent(int index, Color primaryColor, bool isMobile) {
+    // Don't render tab content if no student is selected
+    if (selectedStudent == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.person_search,
+              size: 64,
+              color: primaryColor.withOpacity(0.5),
+            ),
+            SizedBox(height: 16),
+            Text(
+              isLoadingStudents ? 'Loading students...' : 'No students found',
+              style: TextStyle(
+                fontSize: 18,
+                color: Color(0xFF000000).withOpacity(0.6),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     switch (index) {
       case 0:
-        // Use the separated ParentDashboardTab but with your existing dashboard content
+        // Pass selected student to ParentDashboardTab
         return ParentDashboardTab(
           primaryColor: primaryColor,
           isMobile: isMobile,
+          selectedStudentId: selectedStudent!.id,
         );
       case 1:
-        // Use the separated PickupDropoffScreen
+        // Pass selected student to PickupDropoffScreen
         return PickupDropoffScreen(
           primaryColor: primaryColor,
           isMobile: isMobile,
+          selectedStudentId: selectedStudent!.id,
         );
       case 2:
-        // Use the separated FetchersScreen
-        return FetchersScreen(primaryColor: primaryColor, isMobile: isMobile);
+        // Pass selected student to FetchersScreen
+        return FetchersScreen(
+          primaryColor: primaryColor,
+          isMobile: isMobile,
+          selectedStudentId: selectedStudent!.id,
+        );
       case 3:
-        // Use the separated ConfirmationLogsScreen
+        // Pass selected student to ConfirmationLogsScreen
         return ConfirmationLogsScreen(
           primaryColor: primaryColor,
           isMobile: isMobile,
+          selectedStudentId: selectedStudent!.id,
         );
       default:
         return const SizedBox.shrink();

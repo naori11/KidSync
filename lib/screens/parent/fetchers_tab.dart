@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter/services.dart'; // Add this import for clipboard functionality
+import 'package:flutter/services.dart';
 import 'dart:math';
 import '../../models/parent_models.dart';
 
 class FetchersScreen extends StatefulWidget {
   final Color primaryColor;
   final bool isMobile;
+  final int? selectedStudentId; // Add this parameter
 
   const FetchersScreen({
     required this.primaryColor,
     required this.isMobile,
+    this.selectedStudentId, // Add this parameter
     super.key,
   });
 
@@ -21,11 +23,9 @@ class FetchersScreen extends StatefulWidget {
 class _FetchersScreenState extends State<FetchersScreen> {
   // Enhanced controllers for all fields
   final TextEditingController _fetcherNameController = TextEditingController();
-  final TextEditingController _contactNumberController =
-      TextEditingController();
+  final TextEditingController _contactNumberController = TextEditingController();
   final TextEditingController _idNumberController = TextEditingController();
-  final TextEditingController _emergencyContactController =
-      TextEditingController();
+  final TextEditingController _emergencyContactController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
 
   final supabase = Supabase.instance.client;
@@ -40,25 +40,13 @@ class _FetchersScreenState extends State<FetchersScreen> {
 
   // Dropdown options
   final List<String> _relationships = [
-    'Parent',
-    'Guardian',
-    'Grandparent',
-    'Uncle',
-    'Aunt',
-    'Sibling',
-    'Family Friend',
-    'Relative',
-    'Other',
+    'Parent', 'Guardian', 'Grandparent', 'Uncle', 'Aunt',
+    'Sibling', 'Family Friend', 'Relative', 'Other',
   ];
 
   final List<String> _idTypes = [
-    'Driver\'s License',
-    'Government ID',
-    'Passport',
-    'Senior Citizen ID',
-    'PWD ID',
-    'Company ID',
-    'Other Valid ID',
+    'Driver\'s License', 'Government ID', 'Passport', 'Senior Citizen ID',
+    'PWD ID', 'Company ID', 'Other Valid ID',
   ];
 
   // Add these new variables for fetchers data
@@ -68,13 +56,26 @@ class _FetchersScreenState extends State<FetchersScreen> {
   bool isLoadingTempFetchers = false;
   String? currentParentName;
   String? childName;
-  int? currentStudentId;
+  int? currentStudentId; // Internal tracking
 
   @override
   void initState() {
     super.initState();
+    // Use the passed selectedStudentId from parent
+    currentStudentId = widget.selectedStudentId;
     _loadFetchersData();
     _loadTemporaryFetchers();
+  }
+
+  @override
+  void didUpdateWidget(FetchersScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reload data when selectedStudentId changes
+    if (widget.selectedStudentId != oldWidget.selectedStudentId) {
+      currentStudentId = widget.selectedStudentId;
+      _loadFetchersData();
+      _loadTemporaryFetchers();
+    }
   }
 
   @override
@@ -87,52 +88,36 @@ class _FetchersScreenState extends State<FetchersScreen> {
     super.dispose();
   }
 
-  // ...existing code for _loadFetchersData()...
+  // Updated _loadFetchersData method
   Future<void> _loadFetchersData() async {
+    if (currentStudentId == null) {
+      setState(() => isLoadingFetchers = false);
+      return;
+    }
+
     try {
-      final user = supabase.auth.currentUser;
-      if (user == null) return;
+      setState(() => isLoadingFetchers = true);
 
-      // Get current parent data
-      final parentResponse =
-          await supabase
-              .from('parents')
-              .select('id, fname, mname, lname')
-              .eq('user_id', user.id)
-              .eq('status', 'active')
-              .maybeSingle();
+      // Get student name for display
+      final studentResponse = await supabase
+          .from('students')
+          .select('fname, mname, lname')
+          .eq('id', currentStudentId!)
+          .maybeSingle();
 
-      if (parentResponse == null) {
-        setState(() => isLoadingFetchers = false);
-        return;
+      if (studentResponse != null) {
+        final fname = studentResponse['fname'] ?? '';
+        final mname = studentResponse['mname'] ?? '';
+        final lname = studentResponse['lname'] ?? '';
+        setState(() {
+          childName = '$fname${mname.isNotEmpty ? ' $mname' : ''} $lname'.trim();
+        });
       }
 
-      final parentId = parentResponse['id'];
-
-      // Get the child(ren) of this parent
-      final studentResponse = await supabase
+      // Get all authorized fetchers for this student with profile images
+      final fetchersResponse = await supabase
           .from('parent_student')
-          .select('student_id, students(fname, mname, lname)')
-          .eq('parent_id', parentId)
-          .limit(1);
-
-      if (studentResponse.isNotEmpty) {
-        final student = studentResponse.first['students'];
-        final fname = student['fname'] ?? '';
-        final mname = student['mname'] ?? '';
-        final lname = student['lname'] ?? '';
-        setState(() {
-          childName =
-              '$fname${mname.isNotEmpty ? ' $mname' : ''} $lname'.trim();
-          currentStudentId = studentResponse.first['student_id'];
-        });
-
-        final studentId = studentResponse.first['student_id'];
-
-        // Get all authorized fetchers for this student with profile images
-        final fetchersResponse = await supabase
-            .from('parent_student')
-            .select('''
+          .select('''
             relationship_type,
             is_primary,
             parents!inner(
@@ -142,29 +127,24 @@ class _FetchersScreenState extends State<FetchersScreen> {
               )
             )
           ''')
-            .eq('student_id', studentId)
-            .eq('parents.status', 'active')
-            .eq('parents.users.role', 'Parent');
+          .eq('student_id', currentStudentId!)
+          .eq('parents.status', 'active')
+          .eq('parents.users.role', 'Parent');
 
-        final List<AuthorizedFetcher> fetchers =
-            fetchersResponse
-                .map((data) => AuthorizedFetcher.fromJson(data))
-                .toList();
+      final List<AuthorizedFetcher> fetchers =
+          fetchersResponse.map((data) => AuthorizedFetcher.fromJson(data)).toList();
 
-        // Sort: primary first, then by relationship type
-        fetchers.sort((a, b) {
-          if (a.isPrimary && !b.isPrimary) return -1;
-          if (!a.isPrimary && b.isPrimary) return 1;
-          return a.relationship.compareTo(b.relationship);
-        });
+      // Sort: primary first, then by relationship type
+      fetchers.sort((a, b) {
+        if (a.isPrimary && !b.isPrimary) return -1;
+        if (!a.isPrimary && b.isPrimary) return 1;
+        return a.relationship.compareTo(b.relationship);
+      });
 
-        setState(() {
-          authorizedFetchers = fetchers;
-          isLoadingFetchers = false;
-        });
-      } else {
-        setState(() => isLoadingFetchers = false);
-      }
+      setState(() {
+        authorizedFetchers = fetchers;
+        isLoadingFetchers = false;
+      });
     } catch (error) {
       print('Error loading fetchers data: $error');
       setState(() => isLoadingFetchers = false);
@@ -179,9 +159,12 @@ class _FetchersScreenState extends State<FetchersScreen> {
     }
   }
 
-  // New method to load today's temporary fetchers
+  // Updated _loadTemporaryFetchers method
   Future<void> _loadTemporaryFetchers() async {
-    if (currentStudentId == null) return;
+    if (currentStudentId == null) {
+      setState(() => isLoadingTempFetchers = false);
+      return;
+    }
 
     setState(() => isLoadingTempFetchers = true);
 
@@ -212,17 +195,11 @@ class _FetchersScreenState extends State<FetchersScreen> {
           .from('temporary_fetchers')
           .select('status, is_used, created_at')
           .eq('student_id', studentId)
-          .gte(
-            'created_at',
-            DateTime.now().subtract(Duration(days: 30)).toIso8601String(),
-          );
+          .gte('created_at', DateTime.now().subtract(Duration(days: 30)).toIso8601String());
 
       final total = response.length;
       final used = response.where((r) => r['is_used'] == true).length;
-      final active =
-          response
-              .where((r) => r['status'] == 'active' && r['is_used'] != true)
-              .length;
+      final active = response.where((r) => r['status'] == 'active' && r['is_used'] != true).length;
 
       return {
         'total': total,
@@ -275,10 +252,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     if (currentStudentId == null) {
-      _showErrorDialog(
-        'Error',
-        'Student information not found. Please try again.',
-      );
+      _showErrorDialog('Error', 'Student information not found. Please try again.');
       return;
     }
 
@@ -288,21 +262,18 @@ class _FetchersScreenState extends State<FetchersScreen> {
       final user = supabase.auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
-      final parentResponse =
-          await supabase
-              .from('parents')
-              .select('id')
-              .eq('user_id', user.id)
-              .single();
+      final parentResponse = await supabase
+          .from('parents')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
 
       final parentId = parentResponse['id'];
 
       // Check daily limit
       final canCreate = await _checkDailyLimit(parentId, currentStudentId!);
       if (!canCreate) {
-        throw Exception(
-          'Daily limit reached. You can only create 3 temporary fetchers per day.',
-        );
+        throw Exception('Daily limit reached. You can only create 3 temporary fetchers per day.');
       }
 
       // Generate unique PIN
@@ -314,14 +285,13 @@ class _FetchersScreenState extends State<FetchersScreen> {
         pin = _generatePin();
         final today = DateTime.now().toIso8601String().split('T')[0];
 
-        final existingPin =
-            await supabase
-                .from('temporary_fetchers')
-                .select('id')
-                .eq('pin_code', pin)
-                .eq('valid_date', today)
-                .eq('status', 'active')
-                .maybeSingle();
+        final existingPin = await supabase
+            .from('temporary_fetchers')
+            .select('id')
+            .eq('pin_code', pin)
+            .eq('valid_date', today)
+            .eq('status', 'active')
+            .maybeSingle();
 
         isUnique = existingPin == null;
         attempts++;
@@ -341,14 +311,12 @@ class _FetchersScreenState extends State<FetchersScreen> {
         'id_type': _selectedIdType,
         'id_number': _idNumberController.text.trim(),
         'pin_code': pin,
-        'emergency_contact':
-            _emergencyContactController.text.trim().isEmpty
-                ? null
-                : _emergencyContactController.text.trim(),
-        'notes':
-            _notesController.text.trim().isEmpty
-                ? null
-                : _notesController.text.trim(),
+        'emergency_contact': _emergencyContactController.text.trim().isEmpty
+            ? null
+            : _emergencyContactController.text.trim(),
+        'notes': _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
         'valid_date': DateTime.now().toIso8601String().split('T')[0],
         'status': 'active',
       };
@@ -370,7 +338,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
       // Show success dialog
       _showSuccessDialog(
         'PIN Generated Successfully',
-        'Temporary fetcher access has been created for ${_currentFetcherName}',
+        'Temporary fetcher access has been created for $_currentFetcherName',
       );
     } catch (error) {
       setState(() => _isGeneratingPin = false);
@@ -379,6 +347,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
     }
   }
 
+  // ...rest of existing methods remain the same...
   void _clearForm() {
     _fetcherNameController.clear();
     _contactNumberController.clear();
@@ -396,9 +365,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
               Icon(Icons.check_circle, color: widget.primaryColor, size: 24),
@@ -413,9 +380,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: widget.primaryColor,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               child: Text('OK'),
             ),
@@ -430,9 +395,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
               Icon(Icons.error_outline, color: Colors.red, size: 24),
@@ -447,9 +410,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: widget.primaryColor,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               child: Text('OK'),
             ),
@@ -493,6 +454,30 @@ class _FetchersScreenState extends State<FetchersScreen> {
     const Color black = Color(0xFF000000);
     const Color white = Color(0xFFFFFFFF);
     const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.6);
+
+        // Show message if no student selected
+    if (currentStudentId == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.person_search,
+              size: 64,
+              color: widget.primaryColor.withOpacity(0.5),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Please select a student',
+              style: TextStyle(
+                fontSize: 18,
+                color: Color(0xFF000000).withOpacity(0.6),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(widget.isMobile ? 8 : 16),
@@ -805,7 +790,6 @@ class _FetchersScreenState extends State<FetchersScreen> {
 
           // Current/Recent Temporary Fetchers
           if (temporaryFetchers.isNotEmpty) _buildCurrentTemporaryFetchers(),
-
           SizedBox(height: widget.isMobile ? 12 : 16),
 
           // Existing Authorized Fetchers List (keep your existing code)

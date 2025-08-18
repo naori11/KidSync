@@ -6,12 +6,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class PickupDropoffScreen extends StatefulWidget {
   final Color primaryColor;
   final bool isMobile;
-  final int? studentId; // Add this parameter
+  final int? selectedStudentId; // Updated parameter name
 
   const PickupDropoffScreen({
     required this.primaryColor,
     required this.isMobile,
-    this.studentId,
+    this.selectedStudentId, // Updated parameter name
     super.key,
   });
 
@@ -40,7 +40,7 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
   final PickupDropoffService _service = PickupDropoffService();
   StudentSchedule? _studentSchedule;
   List<PickupDropoffPattern> _patterns = [];
-  int? _currentStudentId; // You'll need to pass this from parent widget
+  int? _currentStudentId; // Internal student ID tracking
   bool _isLoading = false;
 
   // Get current week date range
@@ -80,60 +80,38 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
   @override
   void initState() {
     super.initState();
-    // Don't rely on passed studentId - fetch it internally like fetchers_tab does
+    // Use the passed selectedStudentId from parent
+    _currentStudentId = widget.selectedStudentId;
     _loadData();
   }
 
+  @override
+  void didUpdateWidget(PickupDropoffScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reload data when selectedStudentId changes
+    if (widget.selectedStudentId != oldWidget.selectedStudentId) {
+      _currentStudentId = widget.selectedStudentId;
+      _loadData();
+    }
+  }
+
   Future<void> _loadData() async {
+    if (_currentStudentId == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      // Get current user (same pattern as fetchers_tab.dart)
-      final user = supabase.auth.currentUser;
-      if (user == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // Get current parent data (same pattern as fetchers_tab.dart)
-      final parentResponse =
-          await supabase
-              .from('parents')
-              .select('id, fname, mname, lname')
-              .eq('user_id', user.id)
-              .eq('status', 'active')
-              .maybeSingle();
-
-      if (parentResponse == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      final parentId = parentResponse['id'];
-
-      // Get the child(ren) of this parent (same pattern as fetchers_tab.dart)
-      final studentResponse = await supabase
-          .from('parent_student')
-          .select('student_id, students(fname, mname, lname)')
-          .eq('parent_id', parentId)
-          .limit(1);
-
-      if (studentResponse.isEmpty) {
-        setState(() => _isLoading = false);
-        return;
-      }
-
-      // Set the student ID from the query result
-      _currentStudentId = studentResponse.first['student_id'];
-
-      // Now load the pickup/dropoff data with the fetched student ID
+      // Load pickup/dropoff data directly with the provided student ID
       await _loadPickupDropoffData();
     } catch (e) {
       setState(() => _isLoading = false);
     }
   }
 
-  // Separate the pickup/dropoff specific data loading
+  // Simplified the pickup/dropoff specific data loading
   Future<void> _loadPickupDropoffData() async {
     if (_currentStudentId == null) {
       setState(() => _isLoading = false);
@@ -199,7 +177,7 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
     }
   }
 
-  // Add this method to get today's schedule
+  // ...existing code for _getTodaySchedule, _getNextDateForDay, etc...
   Map<String, dynamic> _getTodaySchedule() {
     if (_studentSchedule == null || _studentSchedule!.classDays.isEmpty) {
       return {'hasClassToday': false};
@@ -305,9 +283,33 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
     const Color white = Color(0xFFFFFFFF);
     const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
 
+    // Show loading or no student selected state
     if (_isLoading) {
       return Center(
         child: CircularProgressIndicator(color: widget.primaryColor),
+      );
+    }
+
+    if (_currentStudentId == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.person_search,
+              size: 64,
+              color: widget.primaryColor.withOpacity(0.5),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Please select a student',
+              style: TextStyle(
+                fontSize: 18,
+                color: Color(0xFF000000).withOpacity(0.6),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
@@ -318,17 +320,12 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
         children: [
           // Today's Status Card
           _buildTodayStatusCard(),
-
           SizedBox(height: widget.isMobile ? 12 : 16),
-
           // Weekly Pattern Card
           _buildWeeklyPatternCard(),
-
           SizedBox(height: widget.isMobile ? 12 : 16),
-
           // Quick Actions
           _buildQuickActionsCard(),
-
           if (_exceptions.isNotEmpty) ...[
             SizedBox(height: widget.isMobile ? 12 : 16),
             _buildExceptionsCard(),

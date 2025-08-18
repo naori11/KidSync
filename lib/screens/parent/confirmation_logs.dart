@@ -4,11 +4,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class ConfirmationLogsScreen extends StatefulWidget {
   final Color primaryColor;
   final bool isMobile;
+  final int? selectedStudentId; // ADD THIS
 
   const ConfirmationLogsScreen({
     Key? key,
     required this.primaryColor,
     required this.isMobile,
+    this.selectedStudentId, // ADD THIS
   }) : super(key: key);
 
   @override
@@ -27,58 +29,33 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
     _loadConfirmationLogs();
   }
 
+  @override
+  void didUpdateWidget(ConfirmationLogsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reload data when selectedStudentId changes
+    if (widget.selectedStudentId != oldWidget.selectedStudentId) {
+      _loadConfirmationLogs();
+    }
+  }
+
   Future<void> _loadConfirmationLogs() async {
+    // Show message if no student selected
+    if (widget.selectedStudentId == null) {
+      setState(() {
+        confirmationLogs = [];
+        isLoading = false;
+        errorMessage = null;
+      });
+      return;
+    }
+
     try {
       setState(() {
         isLoading = true;
         errorMessage = null;
       });
 
-      final user = supabase.auth.currentUser;
-      if (user == null) {
-        setState(() {
-          errorMessage = 'User not authenticated';
-          isLoading = false;
-        });
-        return;
-      }
-
-      // Get parent ID
-      final parentResponse =
-          await supabase
-              .from('parents')
-              .select('id')
-              .eq('user_id', user.id)
-              .eq('status', 'active')
-              .maybeSingle();
-
-      if (parentResponse == null) {
-        setState(() {
-          errorMessage = 'Parent profile not found';
-          isLoading = false;
-        });
-        return;
-      }
-
-      final parentId = parentResponse['id'];
-
-      // Get student IDs for this parent
-      final studentResponse = await supabase
-          .from('parent_student')
-          .select('student_id')
-          .eq('parent_id', parentId);
-
-      if (studentResponse.isEmpty) {
-        setState(() {
-          confirmationLogs = [];
-          isLoading = false;
-        });
-        return;
-      }
-
-      final studentIds = studentResponse.map((s) => s['student_id']).toList();
-
-      // Get confirmation logs for these students
+      // Use the provided selectedStudentId directly
       final logsResponse = await supabase
           .from('pickup_confirmations')
           .select('''
@@ -100,7 +77,7 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
               lname
             )
           ''')
-          .inFilter('student_id', studentIds)
+          .eq('student_id', widget.selectedStudentId!)
           .order('confirmed_at', ascending: false)
           .limit(50);
 
@@ -348,6 +325,30 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
   Widget build(BuildContext context) {
     const Color white = Color(0xFFFFFFFF);
     const Color black = Color(0xFF000000);
+
+    // Show message if no student selected
+    if (widget.selectedStudentId == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.person_search,
+              size: 64,
+              color: widget.primaryColor.withOpacity(0.5),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Please select a student',
+              style: TextStyle(
+                fontSize: 18,
+                color: Color(0xFF000000).withOpacity(0.6),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
