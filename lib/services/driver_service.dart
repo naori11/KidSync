@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 import '../models/driver_models.dart';
 
 class DriverService {
@@ -129,6 +130,158 @@ class DriverService {
     } catch (e) {
       print('Error fetching today\'s pickup tasks: $e');
       return [];
+    }
+  }
+
+  /// Get today's students with pickup/dropoff patterns for driver
+  Future<Map<String, dynamic>> getTodaysStudentsWithPatterns(String driverId) async {
+    try {
+      final today = DateTime.now();
+      final dayOfWeek = today.weekday; // 1 = Monday, 7 = Sunday
+      final todayDate = DateFormat('yyyy-MM-dd').format(today);
+
+      print('Loading students for driver: $driverId, day: $dayOfWeek, date: $todayDate');
+
+      // Get students assigned to this driver
+      final assignedStudentsResponse = await supabase
+          .from('driver_assignments')
+          .select('''
+            student_id,
+            pickup_time,
+            dropoff_time,
+            schedule_days,
+            students!inner(
+              id,
+              fname,
+              lname,
+              grade_level,
+              address,
+              sections(name, grade_level)
+            )
+          ''')
+          .eq('driver_id', driverId)
+          .eq('status', 'active');
+
+      print('Found ${assignedStudentsResponse.length} assigned students');
+
+      List<Map<String, dynamic>> allStudents = [];
+      List<Map<String, dynamic>> morningPickupList = [];
+      List<Map<String, dynamic>> afternoonDropoffList = [];
+
+      for (var assignment in assignedStudentsResponse) {
+        final student = assignment['students'];
+        final studentId = student['id'];
+
+        // Check if today is in the schedule days
+        final scheduleDays = assignment['schedule_days'];
+        bool isScheduledToday = false;
+
+        if (scheduleDays != null) {
+          List<String> days = [];
+          if (scheduleDays is List) {
+            days = scheduleDays.cast<String>();
+          } else if (scheduleDays is String) {
+            // Handle PostgreSQL array format
+            String daysStr = scheduleDays.toString();
+            if (daysStr.startsWith('{') && daysStr.endsWith('}')) {
+              daysStr = daysStr.substring(1, daysStr.length - 1);
+            }
+            days = daysStr
+                .split(',')
+                .map((s) => s.trim())
+                .where((s) => s.isNotEmpty)
+                .toList();
+          }
+
+          // Check if today's day name is in the schedule
+          final dayNames = [
+            'Monday',
+            'Tuesday',
+            'Wednesday',
+            'Thursday',
+            'Friday',
+            'Saturday',
+            'Sunday',
+          ];
+          final todayName = dayNames[dayOfWeek - 1];
+          isScheduledToday = days.contains(todayName);
+        }
+
+        if (!isScheduledToday) continue; // Skip if not scheduled today
+
+        // Check for exceptions for today
+        final exceptionResponse = await supabase
+            .from('pickup_dropoff_exceptions')
+            .select('pickup_person, dropoff_person, reason')
+            .eq('student_id', studentId)
+            .eq('exception_date', todayDate);
+
+        // Check pattern for today
+        final patternResponse = await supabase
+            .from('pickup_dropoff_patterns')
+            .select('pickup_person, dropoff_person')
+            .eq('student_id', studentId)
+            .eq('day_of_week', dayOfWeek);
+
+        String pickupPerson = 'driver'; // default
+        String dropoffPerson = 'driver'; // default
+        String? exceptionReason;
+
+        // Use exception if exists, otherwise use pattern, otherwise default
+        if (exceptionResponse.isNotEmpty) {
+          final exception = exceptionResponse.first;
+          pickupPerson = exception['pickup_person'] ?? 'driver';
+          dropoffPerson = exception['dropoff_person'] ?? 'driver';
+          exceptionReason = exception['reason'];
+        } else if (patternResponse.isNotEmpty) {
+          final pattern = patternResponse.first;
+          pickupPerson = pattern['pickup_person'] ?? 'driver';
+          dropoffPerson = pattern['dropoff_person'] ?? 'driver';
+        }
+
+        final studentData = {
+          ...assignment,
+          'pickup_person': pickupPerson,
+          'dropoff_person': dropoffPerson,
+          'exception_reason': exceptionReason,
+          'full_name': '${student['fname']} ${student['lname']}',
+          'is_driver_responsible_pickup': pickupPerson == 'driver',
+          'is_driver_responsible_dropoff': dropoffPerson == 'driver',
+        };
+
+        allStudents.add(studentData);
+
+        // Add to morning pickup list if driver should pick up (dropoff_person = driver means morning pickup)
+        if (dropoffPerson == 'driver') {
+          morningPickupList.add({...studentData, 'task_type': 'morning_pickup'});
+        }
+
+        // Add to afternoon dropoff list if driver should drop off (pickup_person = driver means afternoon dropoff)
+        if (pickupPerson == 'driver') {
+          afternoonDropoffList.add({...studentData, 'task_type': 'afternoon_dropoff'});
+        }
+      }
+
+      // Sort by time
+      morningPickupList.sort(
+        (a, b) => (a['pickup_time'] ?? '').compareTo(b['pickup_time'] ?? ''),
+      );
+      afternoonDropoffList.sort(
+        (a, b) => (a['dropoff_time'] ?? '').compareTo(b['dropoff_time'] ?? ''),
+      );
+
+      print('Loaded ${allStudents.length} students for today');
+      print('Morning pickup tasks: ${morningPickupList.length}');
+      print('Afternoon dropoff tasks: ${afternoonDropoffList.length}');
+
+      return {
+        'all_students': allStudents,
+        'morning_pickup': morningPickupList,
+        'afternoon_dropoff': afternoonDropoffList,
+      };
+    } catch (e) {
+      print('Error loading today\'s students with patterns: $e');
+      rethrow;
     }
   }
 

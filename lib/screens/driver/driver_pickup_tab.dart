@@ -20,7 +20,8 @@ class DriverPickupTab extends StatefulWidget {
 }
 
 class _DriverPickupTabState extends State<DriverPickupTab> {
-  late PickupTask? todaysTask;
+  List<Map<String, dynamic>> morningPickupStudents = [];
+  List<Map<String, dynamic>> afternoonDropoffStudents = [];
   List<Student> pickedUpStudents = [];
   List<Student> droppedOffStudents = [];
   final DriverService _driverService = DriverService();
@@ -50,17 +51,46 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
         return;
       }
 
-      // Get today's pickup tasks
-      final tasks = await _driverService.getTodaysPickupTasks(user.id);
-      
-      if (tasks.isNotEmpty) {
-        todaysTask = tasks.first; // For now, take the first task
-        
-        // Load pickup/dropoff status for today
-        await _loadTodaysStatus();
-      } else {
-        todaysTask = null;
+      // Get today's students with pickup/dropoff patterns
+      final studentsData = await _driverService.getTodaysStudentsWithPatterns(
+        user.id,
+      );
+
+      // Get all students (both driver and parent responsible)
+      final allStudents = studentsData['all_students'];
+
+      // Separate into morning pickup and afternoon dropoff based on patterns
+      morningPickupStudents = [];
+      afternoonDropoffStudents = [];
+
+      // Only include students where the driver is responsible for that task.
+      for (final studentData in allStudents) {
+        final dropoffPerson =
+            studentData['dropoff_person']?.toString().toLowerCase();
+        final pickupPerson =
+            studentData['pickup_person']?.toString().toLowerCase();
+
+        // Morning pickup: include only if dropoff_person is 'driver'
+        if (dropoffPerson == 'driver') {
+          morningPickupStudents.add({
+            ...studentData,
+            'task_type': 'morning_pickup',
+            'is_driver_responsible': true,
+          });
+        }
+
+        // Afternoon dropoff: include only if pickup_person is 'driver'
+        if (pickupPerson == 'driver') {
+          afternoonDropoffStudents.add({
+            ...studentData,
+            'task_type': 'afternoon_dropoff',
+            'is_driver_responsible': true,
+          });
+        }
       }
+
+      // Load pickup/dropoff status for today
+      await _loadTodaysStatus();
 
       setState(() {
         _isLoading = false;
@@ -74,55 +104,74 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
   }
 
   Future<void> _loadTodaysStatus() async {
-    if (todaysTask == null) return;
-
     try {
       final user = Supabase.instance.client.auth.currentUser!;
-      
+
       // Clear current lists
       pickedUpStudents.clear();
       droppedOffStudents.clear();
 
-      // Check status for each student
-      for (final student in todaysTask!.students) {
-        if (student.studentDbId != null) {
-          final wasPickedUp = await _driverService.wasStudentPickedUpToday(
-            student.studentDbId!,
-            user.id,
-          );
-          
-          final wasDroppedOff = await _driverService.wasStudentDroppedOffToday(
-            student.studentDbId!,
+      // Combine all students from both morning pickup and afternoon dropoff
+      final allStudents = <Map<String, dynamic>>[];
+      allStudents.addAll(morningPickupStudents);
+      allStudents.addAll(afternoonDropoffStudents);
+
+      // Remove duplicates based on student ID
+      final uniqueStudents = <int, Map<String, dynamic>>{};
+      for (final studentData in allStudents) {
+        final studentId = studentData['students']['id'];
+        uniqueStudents[studentId] = studentData;
+      }
+
+      // Check status for each unique student
+      for (final studentData in uniqueStudents.values) {
+        final student = studentData['students'];
+        final studentId = student['id'];
+
+        final wasPickedUp = await _driverService.wasStudentPickedUpToday(
+          studentId,
+          user.id,
+        );
+
+        final wasDroppedOff = await _driverService.wasStudentDroppedOffToday(
+          studentId,
+          user.id,
+        );
+
+        final studentModel = Student(
+          id: studentId.toString(),
+          name: '${student['fname']} ${student['lname']}',
+          grade: student['grade_level'] ?? 'Unknown',
+          studentDbId: studentId,
+          sectionName: student['sections']?['name'],
+        );
+
+        if (wasPickedUp) {
+          final pickupTime = await _driverService.getStudentPickupTime(
+            studentId,
             user.id,
           );
 
-          if (wasPickedUp) {
-            final pickupTime = await _driverService.getStudentPickupTime(
-              student.studentDbId!,
+          final updatedStudent = studentModel.copyWith(
+            isPickedUp: true,
+            pickupTime: pickupTime,
+            driverName: user.userMetadata?['fname'] ?? 'Driver',
+          );
+
+          pickedUpStudents.add(updatedStudent);
+        }
+
+        if (wasDroppedOff) {
+          final updatedStudent = studentModel.copyWith(
+            isPickedUp: true,
+            pickupTime: await _driverService.getStudentPickupTime(
+              studentId,
               user.id,
-            );
-            
-            final updatedStudent = student.copyWith(
-              isPickedUp: true,
-              pickupTime: pickupTime,
-              driverName: user.userMetadata?['fname'] ?? 'Driver',
-            );
-            
-            pickedUpStudents.add(updatedStudent);
-          }
+            ),
+            driverName: user.userMetadata?['fname'] ?? 'Driver',
+          );
 
-          if (wasDroppedOff) {
-            final updatedStudent = student.copyWith(
-              isPickedUp: true,
-              pickupTime: await _driverService.getStudentPickupTime(
-                student.studentDbId!,
-                user.id,
-              ),
-              driverName: user.userMetadata?['fname'] ?? 'Driver',
-            );
-            
-            droppedOffStudents.add(updatedStudent);
-          }
+          droppedOffStudents.add(updatedStudent);
         }
       }
 
@@ -135,7 +184,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
   void _showPickupConfirmation(Student student) {
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (BuildContext context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
@@ -226,7 +275,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
   void _showDropoffConfirmation(Student student) {
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (BuildContext context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
@@ -322,7 +371,9 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
 
     try {
       final user = Supabase.instance.client.auth.currentUser!;
-      final isCurrentlyPickedUp = pickedUpStudents.any((s) => s.id == student.id);
+      final isCurrentlyPickedUp = pickedUpStudents.any(
+        (s) => s.id == student.id,
+      );
 
       if (isCurrentlyPickedUp) {
         // Remove student from picked up list (cancel pickup)
@@ -352,22 +403,12 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             pickupTime: pickupTime,
             driverName: user.userMetadata?['fname'] ?? 'Driver',
           );
-          
+
           setState(() {
             pickedUpStudents.add(updatedStudent);
           });
 
-          // Create pickup status for parents (static - for backward compatibility)
-          final pickupStatus = PickupStatus.fromPickup(
-            studentId: student.id,
-            studentName: student.name,
-            pickupTime: pickupTime,
-            driverName: user.userMetadata?['fname'] ?? 'Driver',
-            vehicleNumber: 'N/A', // Vehicle info not in scope
-            schoolName: todaysTask!.schoolName,
-          );
-
-          StaticPickupStatusStorage.addPickupStatus(pickupStatus);
+          // Pickup recorded successfully in database
 
           _showConfirmationDialog(
             '✓ ${student.name} marked as picked up - Parents notified',
@@ -381,10 +422,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
         }
       }
     } catch (e) {
-      _showConfirmationDialog(
-        'Error: $e',
-        Colors.red,
-      );
+      _showConfirmationDialog('Error: $e', Colors.red);
     }
   }
 
@@ -399,7 +437,9 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
 
     try {
       final user = Supabase.instance.client.auth.currentUser!;
-      final isCurrentlyDroppedOff = droppedOffStudents.any((s) => s.id == student.id);
+      final isCurrentlyDroppedOff = droppedOffStudents.any(
+        (s) => s.id == student.id,
+      );
 
       if (isCurrentlyDroppedOff) {
         // Remove student from dropped off list (cancel dropoff)
@@ -434,10 +474,13 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           // Add student to dropped off list
           final updatedStudent = student.copyWith(
             isPickedUp: true,
-            pickupTime: pickedUpStudents.firstWhere((s) => s.id == student.id).pickupTime,
+            pickupTime:
+                pickedUpStudents
+                    .firstWhere((s) => s.id == student.id)
+                    .pickupTime,
             driverName: user.userMetadata?['fname'] ?? 'Driver',
           );
-          
+
           setState(() {
             droppedOffStudents.add(updatedStudent);
           });
@@ -454,10 +497,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
         }
       }
     } catch (e) {
-      _showConfirmationDialog(
-        'Error: $e',
-        Colors.red,
-      );
+      _showConfirmationDialog('Error: $e', Colors.red);
     }
   }
 
@@ -538,7 +578,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       );
     }
 
-    if (todaysTask == null) {
+    if (morningPickupStudents.isEmpty && afternoonDropoffStudents.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(32),
         child: Column(
@@ -551,7 +591,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No pickup tasks scheduled for today',
+              'No pickup/dropoff tasks scheduled for today',
               style: TextStyle(
                 fontSize: 18,
                 color: const Color(0xFF000000).withOpacity(0.7),
@@ -581,8 +621,17 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       );
     }
 
+    // Get unique students count for progress calculation
+    final uniqueStudents = <int>{};
+    for (final studentData in morningPickupStudents) {
+      uniqueStudents.add(studentData['students']['id']);
+    }
+    for (final studentData in afternoonDropoffStudents) {
+      uniqueStudents.add(studentData['students']['id']);
+    }
+
     final completedCount = pickedUpStudents.length;
-    final totalCount = todaysTask!.studentCount;
+    final totalCount = uniqueStudents.length;
     final progress = totalCount > 0 ? completedCount / totalCount : 0.0;
 
     return SingleChildScrollView(
@@ -651,7 +700,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          todaysTask!.pickupTime,
+                          DateFormat('h:mm a').format(DateTime.now()),
                           style: TextStyle(
                             color: widget.primaryColor,
                             fontWeight: FontWeight.bold,
@@ -668,7 +717,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          todaysTask!.schoolName,
+                          'Today\'s Pickup & Dropoff Tasks',
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -724,60 +773,47 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
 
           const SizedBox(height: 24),
 
-          // Student List Header
-          Row(
-            children: [
-              Text(
-                'Students to Pick Up',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF000000),
-                ),
-              ),
-              const Spacer(),
-              if (completedCount == totalCount)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.green,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.check_circle, color: Colors.white, size: 16),
-                      SizedBox(width: 4),
-                      Text(
-                        'COMPLETE',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          Text(
-            'Tap on a student\'s name to mark them as picked up, then tap again to mark as dropped off',
-            style: TextStyle(
-              fontSize: 14,
-              color: const Color(0xFF000000).withOpacity(0.6),
-              fontStyle: FontStyle.italic,
+          // Morning Pickup Section
+          if (morningPickupStudents.isNotEmpty) ...[
+            _buildSectionHeader(
+              'Morning Pickup',
+              morningPickupStudents.length,
+              Colors.blue,
+              Icons.upload,
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
+            ...morningPickupStudents.map(
+              (studentData) => _buildStudentCard(
+                _convertToStudentModel(studentData),
+                isDriverResponsible:
+                    studentData['is_driver_responsible'] ?? false,
+                taskType: 'morning_pickup',
+                studentData: studentData,
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
 
-          // Student Cards
-          ...todaysTask!.students.map((student) => _buildStudentCard(student)),
+          // Afternoon Dropoff Section
+          if (afternoonDropoffStudents.isNotEmpty) ...[
+            _buildSectionHeader(
+              'Afternoon Dropoff',
+              afternoonDropoffStudents.length,
+              Colors.green,
+              Icons.download,
+            ),
+            const SizedBox(height: 16),
+            ...afternoonDropoffStudents.map(
+              (studentData) => _buildStudentCard(
+                _convertToStudentModel(studentData),
+                isDriverResponsible:
+                    studentData['is_driver_responsible'] ?? false,
+                taskType: 'afternoon_dropoff',
+                studentData: studentData,
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
 
           const SizedBox(height: 24),
 
@@ -867,7 +903,117 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
     );
   }
 
-  Widget _buildStudentCard(Student student) {
+  // Helper method to convert student data to Student model
+  Student _convertToStudentModel(Map<String, dynamic> studentData) {
+    final student = studentData['students'];
+    return Student(
+      id: student['id'].toString(),
+      name: '${student['fname']} ${student['lname']}',
+      grade: student['grade_level'] ?? 'Unknown',
+      studentDbId: student['id'],
+      sectionName: student['sections']?['name'],
+    );
+  }
+
+  // Helper method to get scheduled time
+  String _getScheduledTime(
+    Map<String, dynamic>? studentData,
+    bool isMorningPickup,
+  ) {
+    if (studentData == null) return 'No time set';
+
+    final time =
+        isMorningPickup
+            ? studentData['pickup_time']
+            : studentData['dropoff_time'];
+
+    if (time == null) return 'No time set';
+
+    try {
+      // Parse time string (format: HH:mm:ss or HH:mm)
+      final timeParts = time.toString().split(':');
+      if (timeParts.length >= 2) {
+        final hour = int.parse(timeParts[0]);
+        final minute = int.parse(timeParts[1]);
+        final timeOfDay = TimeOfDay(hour: hour, minute: minute);
+
+        // Format to 12-hour format
+        final now = DateTime.now();
+        final dateTime = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          timeOfDay.hour,
+          timeOfDay.minute,
+        );
+        return DateFormat('h:mm a').format(dateTime);
+      }
+    } catch (e) {
+      print('Error parsing time: $e');
+    }
+
+    return time.toString();
+  }
+
+  // Helper method to get student address
+  String _getStudentAddress(Map<String, dynamic>? studentData) {
+    if (studentData == null) return 'No address';
+
+    final student = studentData['students'];
+    final address = student?['address'];
+
+    if (address == null || address.toString().trim().isEmpty) {
+      return 'No address provided';
+    }
+
+    return address.toString();
+  }
+
+  // Helper method to build section headers
+  Widget _buildSectionHeader(
+    String title,
+    int count,
+    Color color,
+    IconData icon,
+  ) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 24),
+        const SizedBox(width: 12),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            '$count student${count != 1 ? 's' : ''}',
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStudentCard(
+    Student student, {
+    required bool isDriverResponsible,
+    required String taskType,
+    Map<String, dynamic>? studentData,
+  }) {
     final isPickedUp = _isStudentPickedUp(student);
     final isDroppedOff = _isStudentDroppedOff(student);
     final pickedUpStudent = pickedUpStudents.firstWhere(
@@ -893,6 +1039,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       statusText = 'Waiting';
     }
 
+    // Determine if this is a morning pickup or afternoon dropoff task
+    final isMorningPickup = taskType == 'morning_pickup';
+    final isAfternoonDropoff = taskType == 'afternoon_dropoff';
+
     return Card(
       elevation: isPickedUp || isDroppedOff ? 6 : 3,
       shadowColor:
@@ -902,27 +1052,21 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: () {
-          if (isDroppedOff) {
-            // Already dropped off, show info
-            _showStudentInfo(student);
-          } else if (isPickedUp) {
-            // Show dropoff confirmation
-            _showDropoffConfirmation(student);
-          } else {
-            // Show pickup confirmation
-            _showPickupConfirmation(student);
-          }
-        },
+        onTap: () => _showStudentInfo(student),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color:
+                isDriverResponsible
+                    ? Colors.white
+                    : Colors.grey.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
             border:
                 isPickedUp || isDroppedOff
                     ? Border.all(color: statusColor, width: 2)
-                    : null,
+                    : isDriverResponsible
+                    ? null
+                    : Border.all(color: Colors.grey.withOpacity(0.3), width: 1),
             boxShadow: [
               BoxShadow(
                 color:
@@ -937,144 +1081,368 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           ),
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
+            child: Column(
               children: [
-                // Student Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                // Top Row: Student Info and Status
+                Row(
+                  children: [
+                    // Student Avatar
+                    CircleAvatar(
+                      backgroundColor: statusColor.withOpacity(0.1),
+                      radius: 24,
+                      child: Text(
+                        student.name.split(' ').map((n) => n[0]).take(2).join(),
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+
+                    // Student Details
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             student.name,
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 18,
                               fontWeight: FontWeight.bold,
                               color:
-                                  isPickedUp || isDroppedOff
-                                      ? statusColor
-                                      : const Color(0xFF000000),
+                                  isDriverResponsible
+                                      ? const Color(0xFF000000)
+                                      : Colors.grey[600],
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Icon(statusIcon, color: statusColor, size: 20),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${student.grade}${student.sectionName != null ? ' • ${student.sectionName}' : ''}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        student.grade,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: const Color(0xFF000000).withOpacity(0.7),
+                    ),
+
+                    // Status Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(statusIcon, color: Colors.white, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            statusText,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Time and Location Row
+                Row(
+                  children: [
+                    // Time Display
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: (isMorningPickup ? Colors.blue : Colors.green)
+                              .withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  isMorningPickup
+                                      ? Icons.schedule
+                                      : Icons.access_time,
+                                  size: 16,
+                                  color:
+                                      isMorningPickup
+                                          ? Colors.blue
+                                          : Colors.green,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isMorningPickup
+                                      ? 'Pickup Time'
+                                      : 'Dropoff Time',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _getScheduledTime(studentData, isMorningPickup),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color:
+                                    isMorningPickup
+                                        ? Colors.blue
+                                        : Colors.green,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      if (isPickedUp && pickedUpStudent.pickupTime != null) ...[
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: widget.primaryColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    // Address Display
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  isMorningPickup ? Icons.home : Icons.school,
+                                  size: 16,
+                                  color: Colors.grey[600],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isMorningPickup ? 'From Home' : 'To Home',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _getStudentAddress(studentData),
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey[800],
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Exception Information
+                if (studentData?['exception_reason'] != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning, size: 16, color: Colors.orange),
+                        const SizedBox(width: 8),
+                        Expanded(
                           child: Text(
-                            'Picked up at ${DateFormat('h:mm a').format(pickedUpStudent.pickupTime!)}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: widget.primaryColor,
+                            'Exception: ${studentData!['exception_reason']}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Colors.orange,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
                       ],
-                      if (isDroppedOff) ...[
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
+                    ),
+                  ),
+                ],
+
+                // Pickup Time Display (if already picked up)
+                if (isPickedUp && pickedUpStudent.pickupTime != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: widget.primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          size: 16,
+                          color: widget.primaryColor,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Picked up at ${DateFormat('h:mm a').format(pickedUpStudent.pickupTime!)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: widget.primaryColor,
+                            fontWeight: FontWeight.w600,
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 16),
+
+                // Action Buttons
+                Row(
+                  children: [
+                    // Driver Responsibility Indicator
+                    if (!isDriverResponsible) ...[
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.1),
+                            color: Colors.grey.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.grey.withOpacity(0.3),
+                            ),
                           ),
-                          child: Text(
-                            'Dropped off at ${DateFormat('h:mm a').format(DateTime.now())}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.green,
-                              fontWeight: FontWeight.w500,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.person,
+                                size: 16,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                isMorningPickup
+                                    ? 'Parent Pickup'
+                                    : 'Parent Dropoff',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      // Morning Pickup Button
+                      if (isMorningPickup) ...[
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed:
+                                !isDroppedOff
+                                    ? (isPickedUp
+                                        ? () => _confirmStudentPickup(student)
+                                        : () =>
+                                            _showPickupConfirmation(student))
+                                    : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  isPickedUp
+                                      ? widget.primaryColor.withOpacity(0.7)
+                                      : widget.primaryColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 2,
+                            ),
+                            icon: Icon(
+                              isPickedUp ? Icons.check : Icons.directions_car,
+                              size: 18,
+                            ),
+                            label: Text(
+                              isPickedUp ? 'Picked Up' : 'Mark as Picked Up',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+
+                      // Afternoon Dropoff Button
+                      if (isAfternoonDropoff) ...[
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed:
+                                !isDroppedOff && isPickedUp
+                                    ? () => _showDropoffConfirmation(student)
+                                    : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  isDroppedOff
+                                      ? Colors.green.withOpacity(0.7)
+                                      : Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 2,
+                            ),
+                            icon: Icon(
+                              isDroppedOff ? Icons.check : Icons.home,
+                              size: 18,
+                            ),
+                            label: Text(
+                              isDroppedOff
+                                  ? 'Dropped Off'
+                                  : 'Mark as Dropped Off',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
                       ],
                     ],
-                  ),
-                ),
-
-                // Status Indicator
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(statusIcon, color: Colors.white, size: 20),
-                ),
-
-                // Action Buttons
-                const SizedBox(width: 12),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Pick Up Button
-                    ElevatedButton(
-                      onPressed:
-                          isDroppedOff
-                              ? null
-                              : () => _showPickupConfirmation(student),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            isPickedUp
-                                ? widget.primaryColor.withOpacity(0.7)
-                                : widget.primaryColor,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(70, 32),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: const Text(
-                        'Pick Up',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    // Drop Off Button
-                    ElevatedButton(
-                      onPressed:
-                          isDroppedOff
-                              ? null
-                              : () => _showDropoffConfirmation(student),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            isDroppedOff
-                                ? Colors.green.withOpacity(0.7)
-                                : Colors.green,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(70, 32),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: const Text(
-                        'Drop Off',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                    ),
                   ],
                 ),
               ],
@@ -1197,7 +1565,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
   void _showStudentInfo(Student student) {
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (BuildContext context) {
         return Center(
           child: AlertDialog(
@@ -1219,13 +1587,12 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                 future: _getStudentDetails(student),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
+                    return const Center(child: CircularProgressIndicator());
                   }
 
                   final studentDetails = snapshot.data ?? {};
-                  final parents = studentDetails['parents'] as List<dynamic>? ?? [];
+                  final parents =
+                      studentDetails['parents'] as List<dynamic>? ?? [];
 
                   return Column(
                     mainAxisSize: MainAxisSize.min,
@@ -1259,18 +1626,29 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        ...parents.map((parent) => Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildInfoRow(
-                              'Name',
-                              '${parent['fname']} ${parent['lname']}',
-                            ),
-                            _buildInfoRow('Phone', parent['phone'] ?? 'N/A'),
-                            _buildInfoRow('Email', parent['email'] ?? 'N/A'),
-                            if (parents.length > 1) const SizedBox(height: 8),
-                          ],
-                        )).toList(),
+                        ...parents
+                            .map(
+                              (parent) => Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildInfoRow(
+                                    'Name',
+                                    '${parent['fname']} ${parent['lname']}',
+                                  ),
+                                  _buildInfoRow(
+                                    'Phone',
+                                    parent['phone'] ?? 'N/A',
+                                  ),
+                                  _buildInfoRow(
+                                    'Email',
+                                    parent['email'] ?? 'N/A',
+                                  ),
+                                  if (parents.length > 1)
+                                    const SizedBox(height: 8),
+                                ],
+                              ),
+                            )
+                            .toList(),
                       ],
 
                       if (_isStudentPickedUp(student)) ...[
@@ -1304,7 +1682,13 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                         ),
                         _buildInfoRow(
                           'Driver',
-                          Supabase.instance.client.auth.currentUser?.userMetadata?['fname'] ?? 'Driver',
+                          Supabase
+                                  .instance
+                                  .client
+                                  .auth
+                                  .currentUser
+                                  ?.userMetadata?['fname'] ??
+                              'Driver',
                         ),
                       ],
                       if (_isStudentDroppedOff(student)) ...[
@@ -1367,11 +1751,13 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           ''')
           .eq('student_id', student.studentDbId!);
 
-      final parents = parentResponse.map((item) => item['parents']).where((parent) => parent != null).toList();
+      final parents =
+          parentResponse
+              .map((item) => item['parents'])
+              .where((parent) => parent != null)
+              .toList();
 
-      return {
-        'parents': parents,
-      };
+      return {'parents': parents};
     } catch (e) {
       print('Error fetching student details: $e');
       return {};

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/driver_service.dart';
 
 class DriverStudentsTab extends StatefulWidget {
   final Color primaryColor;
@@ -18,9 +19,10 @@ class DriverStudentsTab extends StatefulWidget {
 
 class _DriverStudentsTabState extends State<DriverStudentsTab> {
   final supabase = Supabase.instance.client;
+  final DriverService _driverService = DriverService();
   List<Map<String, dynamic>> todayStudents = [];
-  List<Map<String, dynamic>> pickupStudents = [];
-  List<Map<String, dynamic>> dropoffStudents = [];
+  List<Map<String, dynamic>> morningPickupStudents = [];
+  List<Map<String, dynamic>> afternoonDropoffStudents = [];
   bool isLoading = true;
   String? error;
 
@@ -43,151 +45,20 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
       }
 
       final currentUserId = currentUser.id;
-      final today = DateTime.now();
-      final dayOfWeek = today.weekday; // 1 = Monday, 7 = Sunday
-      final todayDate = DateFormat('yyyy-MM-dd').format(today);
 
-      print(
-        'Loading students for driver: $currentUserId, day: $dayOfWeek, date: $todayDate',
-      );
-
-      // Get students assigned to this driver
-      final assignedStudentsResponse = await supabase
-          .from('driver_assignments')
-          .select('''
-            student_id,
-            pickup_time,
-            dropoff_time,
-            schedule_days,
-            students!inner(
-              id,
-              fname,
-              lname,
-              grade_level,
-              address,
-              sections(name, grade_level)
-            )
-          ''')
-          .eq('driver_id', currentUserId)
-          .eq('status', 'active');
-
-      print('Found ${assignedStudentsResponse.length} assigned students');
-
-      List<Map<String, dynamic>> allStudents = [];
-      List<Map<String, dynamic>> todayPickupList = [];
-      List<Map<String, dynamic>> todayDropoffList = [];
-
-      for (var assignment in assignedStudentsResponse) {
-        final student = assignment['students'];
-        final studentId = student['id'];
-
-        // Check if today is in the schedule days
-        final scheduleDays = assignment['schedule_days'];
-        bool isScheduledToday = false;
-
-        if (scheduleDays != null) {
-          List<String> days = [];
-          if (scheduleDays is List) {
-            days = scheduleDays.cast<String>();
-          } else if (scheduleDays is String) {
-            // Handle PostgreSQL array format
-            String daysStr = scheduleDays.toString();
-            if (daysStr.startsWith('{') && daysStr.endsWith('}')) {
-              daysStr = daysStr.substring(1, daysStr.length - 1);
-            }
-            days =
-                daysStr
-                    .split(',')
-                    .map((s) => s.trim())
-                    .where((s) => s.isNotEmpty)
-                    .toList();
-          }
-
-          // Check if today's day name is in the schedule
-          final dayNames = [
-            'Monday',
-            'Tuesday',
-            'Wednesday',
-            'Thursday',
-            'Friday',
-            'Saturday',
-            'Sunday',
-          ];
-          final todayName = dayNames[dayOfWeek - 1];
-          isScheduledToday = days.contains(todayName);
-        }
-
-        if (!isScheduledToday) continue; // Skip if not scheduled today
-
-        // Check for exceptions for today
-        final exceptionResponse = await supabase
-            .from('pickup_dropoff_exceptions')
-            .select('pickup_person, dropoff_person, reason')
-            .eq('student_id', studentId)
-            .eq('exception_date', todayDate);
-
-        // Check pattern for today
-        final patternResponse = await supabase
-            .from('pickup_dropoff_patterns')
-            .select('pickup_person, dropoff_person')
-            .eq('student_id', studentId)
-            .eq('day_of_week', dayOfWeek);
-
-        String pickupPerson = 'driver'; // default
-        String dropoffPerson = 'driver'; // default
-        String? exceptionReason;
-
-        // Use exception if exists, otherwise use pattern, otherwise default
-        if (exceptionResponse.isNotEmpty) {
-          final exception = exceptionResponse.first;
-          pickupPerson = exception['pickup_person'] ?? 'driver';
-          dropoffPerson = exception['dropoff_person'] ?? 'driver';
-          exceptionReason = exception['reason'];
-        } else if (patternResponse.isNotEmpty) {
-          final pattern = patternResponse.first;
-          pickupPerson = pattern['pickup_person'] ?? 'driver';
-          dropoffPerson = pattern['dropoff_person'] ?? 'driver';
-        }
-
-        final studentData = {
-          ...assignment,
-          'pickup_person': pickupPerson,
-          'dropoff_person': dropoffPerson,
-          'exception_reason': exceptionReason,
-          'full_name': '${student['fname']} ${student['lname']}',
-        };
-
-        allStudents.add(studentData);
-
-        // Add to pickup list if driver should pick up
-        if (pickupPerson == 'driver') {
-          todayPickupList.add({...studentData, 'task_type': 'pickup'});
-        }
-
-        // Add to dropoff list if driver should drop off
-        if (dropoffPerson == 'driver') {
-          todayDropoffList.add({...studentData, 'task_type': 'dropoff'});
-        }
-      }
-
-      // Sort by time
-      todayPickupList.sort(
-        (a, b) => (a['pickup_time'] ?? '').compareTo(b['pickup_time'] ?? ''),
-      );
-      todayDropoffList.sort(
-        (a, b) => (a['dropoff_time'] ?? '').compareTo(b['dropoff_time'] ?? ''),
-      );
+      // Use the new service method
+      final studentsData = await _driverService.getTodaysStudentsWithPatterns(currentUserId);
 
       setState(() {
-        todayStudents = allStudents;
-        pickupStudents = todayPickupList;
-        dropoffStudents = todayDropoffList;
+        todayStudents = studentsData['all_students'];
+        morningPickupStudents = studentsData['morning_pickup'];
+        afternoonDropoffStudents = studentsData['afternoon_dropoff'];
         isLoading = false;
       });
 
-      print('Loaded ${allStudents.length} students for today');
-      print('Pickup tasks: ${todayPickupList.length}');
-      print('Dropoff tasks: ${todayDropoffList.length}');
+      print('Loaded ${todayStudents.length} students for today');
+      print('Morning pickup tasks: ${morningPickupStudents.length}');
+      print('Afternoon dropoff tasks: ${afternoonDropoffStudents.length}');
     } catch (e) {
       print('Error loading today\'s students: $e');
       setState(() {
@@ -296,8 +167,8 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
               const SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
-                  'Pickup Tasks',
-                  pickupStudents.length.toString(),
+                  'Morning Pickup',
+                  morningPickupStudents.length.toString(),
                   Icons.upload,
                   Colors.blue,
                 ),
@@ -305,8 +176,8 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
               const SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
-                  'Dropoff Tasks',
-                  dropoffStudents.length.toString(),
+                  'Afternoon Dropoff',
+                  afternoonDropoffStudents.length.toString(),
                   Icons.download,
                   Colors.green,
                 ),
@@ -317,7 +188,7 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
           const SizedBox(height: 24),
 
           // Today's Tasks Summary
-          if (pickupStudents.isNotEmpty || dropoffStudents.isNotEmpty) ...[
+          if (morningPickupStudents.isNotEmpty || afternoonDropoffStudents.isNotEmpty) ...[
             _buildTasksSection(),
             const SizedBox(height: 24),
           ],
@@ -369,22 +240,22 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
         ),
         const SizedBox(height: 16),
 
-        // Pickup Tasks
-        if (pickupStudents.isNotEmpty) ...[
+        // Morning Pickup Tasks
+        if (morningPickupStudents.isNotEmpty) ...[
           _buildTaskTypeSection(
             'Morning Pickup',
-            pickupStudents,
+            morningPickupStudents,
             Colors.blue,
             Icons.upload,
           ),
           const SizedBox(height: 16),
         ],
 
-        // Dropoff Tasks
-        if (dropoffStudents.isNotEmpty) ...[
+        // Afternoon Dropoff Tasks
+        if (afternoonDropoffStudents.isNotEmpty) ...[
           _buildTaskTypeSection(
             'Afternoon Dropoff',
-            dropoffStudents,
+            afternoonDropoffStudents,
             Colors.green,
             Icons.download,
           ),
@@ -440,93 +311,234 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
 
   Widget _buildTaskItem(Map<String, dynamic> task, Color color) {
     final student = task['students'];
-    final isPickup = task['task_type'] == 'pickup';
-    final time = isPickup ? task['pickup_time'] : task['dropoff_time'];
+    final isMorningPickup = task['task_type'] == 'morning_pickup';
+    final time = isMorningPickup ? task['pickup_time'] : task['dropoff_time'];
     final hasException = task['exception_reason'] != null;
+    final isDriverResponsible = isMorningPickup 
+        ? task['dropoff_person'] == 'driver'
+        : task['pickup_person'] == 'driver';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: hasException ? Colors.orange : color.withOpacity(0.2),
+          color: hasException 
+              ? Colors.orange 
+              : isDriverResponsible 
+                  ? color.withOpacity(0.3)
+                  : Colors.grey.withOpacity(0.3),
           width: hasException ? 2 : 1,
         ),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: color.withOpacity(0.1),
-            radius: 20,
-            child: Text(
-              '${student['fname'][0]}${student['lname'][0]}',
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task['full_name'],
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  '${student['grade_level']} • ${student['address'] ?? 'No address'}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-                if (hasException) ...[
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.warning, size: 14, color: Colors.orange),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          'Exception: ${task['exception_reason']}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.orange,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                time ?? 'No time',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-              Text(
-                isPickup ? 'Pickup' : 'Dropoff',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
-            ],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
+      child: Column(
+        children: [
+          // Top Row: Student Info and Time
+          Row(
+            children: [
+              // Student Avatar
+              CircleAvatar(
+                backgroundColor: color.withOpacity(0.1),
+                radius: 24,
+                child: Text(
+                  '${student['fname'][0]}${student['lname'][0]}',
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              
+              // Student Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task['full_name'],
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDriverResponsible 
+                            ? const Color(0xFF000000)
+                            : Colors.grey[600],
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${student['grade_level']}${student['sections']?['name'] != null ? ' • ${student['sections']['name']}' : ''}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Time Display
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      _formatTime(time),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                    Text(
+                      isMorningPickup ? 'Pickup' : 'Dropoff',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Address Row
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isMorningPickup ? Icons.home : Icons.school,
+                  size: 16,
+                  color: Colors.grey[600],
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    student['address'] ?? 'No address provided',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Exception Information
+          if (hasException) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning, size: 16, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Exception: ${task['exception_reason']}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.orange,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          
+          // Driver Responsibility Indicator
+          if (!isDriverResponsible) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.person, size: 14, color: Colors.grey[600]),
+                  const SizedBox(width: 6),
+                  Text(
+                    isMorningPickup ? 'Parent Pickup' : 'Parent Dropoff',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
+  }
+
+  // Helper method to format time
+  String _formatTime(String? time) {
+    if (time == null) return 'No time';
+    
+    try {
+      // Parse time string (format: HH:mm:ss or HH:mm)
+      final timeParts = time.split(':');
+      if (timeParts.length >= 2) {
+        final hour = int.parse(timeParts[0]);
+        final minute = int.parse(timeParts[1]);
+        final timeOfDay = TimeOfDay(hour: hour, minute: minute);
+        
+        // Format to 12-hour format
+        final now = DateTime.now();
+        final dateTime = DateTime(now.year, now.month, now.day, timeOfDay.hour, timeOfDay.minute);
+        return DateFormat('h:mm a').format(dateTime);
+      }
+    } catch (e) {
+      print('Error parsing time: $e');
+    }
+    
+    return time;
   }
 
   // Keep your existing helper methods
