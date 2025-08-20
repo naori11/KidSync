@@ -346,7 +346,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
         '/guard': (_) => GuardPanel(),
         '/teacher': (_) => const TeacherPanel(),
         '/parent': (_) => const ParentHomeScreen(),
-        '/parent/notifications': (_) => const ParentNotificationsScreen(),
+        // '/parent/notifications': (_) => const ParentNotificationsScreen(),
         '/parent/child_status': (_) => const ChildStatusScreen(),
         '/parent/pickup_confirmation':
             (_) => const PickupConfirmationScreen(

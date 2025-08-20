@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../models/parent_models.dart';
-import '../../../models/driver_models.dart';
+import 'package:intl/intl.dart';
+import 'dart:async';
+import '../../models/parent_models.dart';
+import '../../models/driver_models.dart';
+import '../../services/notification_service.dart';
 
 class ParentDashboardTab extends StatefulWidget {
   final Color primaryColor;
@@ -23,11 +26,18 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
   List<AuthorizedFetcher> dashboardFetchers = [];
   bool isDashboardLoading = true;
   final supabase = Supabase.instance.client;
+  final NotificationService _notificationService = NotificationService();
+  
+  // Real-time data
+  Map<String, dynamic>? driverInfo;
+  Map<String, dynamic> todayStatus = {};
+  List<Map<String, dynamic>> recentNotifications = [];
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadDashboardFetchers();
+    _initializeData();
   }
 
   @override
@@ -35,19 +45,120 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     super.didUpdateWidget(oldWidget);
     // Reload data when selectedStudentId changes
     if (widget.selectedStudentId != oldWidget.selectedStudentId) {
-      _loadDashboardFetchers();
+      _refreshTimer?.cancel();
+      _initializeData();
     }
   }
 
-  Future<void> _loadDashboardFetchers() async {
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _initializeData() async {
     if (widget.selectedStudentId == null) {
       setState(() => isDashboardLoading = false);
       return;
     }
 
-    try {
-      setState(() => isDashboardLoading = true);
+    setState(() => isDashboardLoading = true);
 
+    try {
+      await _loadAllData();
+      _setupPeriodicRefresh();
+    } catch (e) {
+      print('Error initializing data: $e');
+    } finally {
+      setState(() => isDashboardLoading = false);
+    }
+  }
+
+  Future<void> _loadAllData() async {
+    if (widget.selectedStudentId == null) return;
+
+    final studentId = widget.selectedStudentId!;
+
+    // Load all data concurrently
+    final results = await Future.wait([
+      _notificationService.getStudentDriver(studentId),
+      _notificationService.getTodayStatus(studentId),
+      _loadDashboardFetchers(),
+      _loadRecentNotifications(),
+    ]);
+
+    setState(() {
+      driverInfo = results[0] as Map<String, dynamic>?;
+      todayStatus = results[1] as Map<String, dynamic>;
+    });
+  }
+
+  Future<void> _loadRecentNotifications() async {
+    if (widget.selectedStudentId == null) return;
+
+    try {
+      // Get current user (parent)
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      // Get parent ID from user metadata or database
+      final parentResponse = await supabase
+          .from('parents')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (parentResponse != null) {
+        final parentId = parentResponse['id'];
+        // Get notifications for the selected student, today only
+        final notifications = await _notificationService.getParentNotifications(
+          parentId, 
+          studentId: widget.selectedStudentId!,
+          todayOnly: true,
+          limit: 5,
+        );
+        setState(() {
+          recentNotifications = notifications;
+        });
+      }
+    } catch (e) {
+      print('Error loading recent notifications: $e');
+    }
+  }
+
+  void _setupPeriodicRefresh() {
+    // Refresh data every 30 seconds
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (widget.selectedStudentId != null) {
+        _refreshData();
+      }
+    });
+  }
+
+  Future<void> _refreshData() async {
+    if (widget.selectedStudentId == null) return;
+
+    try {
+      final studentId = widget.selectedStudentId!;
+      
+      // Refresh today's status and notifications
+      final newTodayStatus = await _notificationService.getTodayStatus(studentId);
+      await _loadRecentNotifications();
+      
+      setState(() {
+        todayStatus = newTodayStatus;
+      });
+    } catch (e) {
+      print('Error refreshing data: $e');
+    }
+  }
+
+  Future<void> _loadDashboardFetchers() async {
+    if (widget.selectedStudentId == null) {
+      return;
+    }
+
+    try {
       // Use the provided student ID directly
       final fetchersResponse = await supabase
           .from('parent_student')
@@ -71,13 +182,9 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
               .map((data) => AuthorizedFetcher.fromJson(data))
               .toList();
 
-      setState(() {
-        dashboardFetchers = fetchers;
-        isDashboardLoading = false;
-      });
+      dashboardFetchers = fetchers;
     } catch (error) {
       print('Error loading dashboard fetchers: $error');
-      setState(() => isDashboardLoading = false);
     }
   }
 
@@ -174,7 +281,16 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     const Color white = Color(0xFFFFFFFF);
     const Color black = Color(0xFF000000);
     const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
-    final driverInfo = StaticDriverData.driverInfo;
+    
+    // Use real driver data or show loading/no driver state
+    if (driverInfo == null) {
+      return _buildNoDriverCard(primaryColor, isMobile);
+    }
+    
+    final driver = driverInfo!['drivers'];
+    final driverName = '${driver['fname']} ${driver['lname']}';
+    final driverPhone = driver['phone'] ?? 'No phone';
+    final profileImageUrl = driver['users']?['profile_image_url'];
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -249,11 +365,16 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                       CircleAvatar(
                         backgroundColor: greenWithOpacity,
                         radius: isMobile ? 24 : 30,
-                        child: Icon(
-                          Icons.person,
-                          color: primaryColor,
-                          size: isMobile ? 24 : 30,
-                        ),
+                        backgroundImage: profileImageUrl != null && profileImageUrl.isNotEmpty
+                            ? NetworkImage(profileImageUrl)
+                            : null,
+                        child: profileImageUrl == null || profileImageUrl.isEmpty
+                            ? Icon(
+                                Icons.person,
+                                color: primaryColor,
+                                size: isMobile ? 24 : 30,
+                              )
+                            : null,
                       ),
                       SizedBox(width: 16),
                       Expanded(
@@ -261,7 +382,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              driverInfo.name,
+                              driverName,
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: isMobile ? 16 : 18,
@@ -278,7 +399,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  'Vehicle: ${driverInfo.vehicleNumber}',
+                                  'License: ${driver['license_number'] ?? 'N/A'}',
                                   style: TextStyle(
                                     fontSize: isMobile ? 13 : 15,
                                     color: black.withOpacity(0.6),
@@ -296,7 +417,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  driverInfo.phoneNumber,
+                                  driverPhone,
                                   style: TextStyle(
                                     fontSize: isMobile ? 13 : 15,
                                     color: black.withOpacity(0.6),
@@ -342,7 +463,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                         onPressed: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Calling ${driverInfo.name}...'),
+                              content: Text('Calling $driverName...'),
                               backgroundColor: primaryColor,
                             ),
                           );
@@ -368,10 +489,13 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                           style: TextStyle(fontSize: isMobile ? 13 : 15),
                         ),
                         onPressed: () {
+                          final driverName = driverInfo?['drivers'] != null
+                              ? '${driverInfo!['drivers']['fname']} ${driverInfo!['drivers']['lname']}'
+                              : 'driver';
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                'Opening message to ${driverInfo.name}...',
+                                'Opening message to $driverName...',
                               ),
                               backgroundColor: primaryColor,
                             ),
@@ -444,38 +568,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                   ],
                 ),
                 SizedBox(height: isMobile ? 12 : 16),
-                _buildSummaryItem(
-                  Icons.school,
-                  'Drop-off',
-                  '8:00 AM - Arrived safely at school',
-                  'Driver: John Smith verified arrival',
-                  true,
-                  primaryColor,
-                  black,
-                  isMobile,
-                ),
-                const SizedBox(height: 8),
-                _buildSummaryItem(
-                  Icons.schedule,
-                  'Current Status',
-                  '2:15 PM - Present in Story Time class',
-                  'Last scanned at classroom entrance',
-                  true,
-                  primaryColor,
-                  black,
-                  isMobile,
-                ),
-                const SizedBox(height: 8),
-                _buildSummaryItem(
-                  Icons.directions_car,
-                  'Pickup',
-                  '3:30 PM - Scheduled pickup time',
-                  'Driver: John Smith will pick up',
-                  false,
-                  primaryColor,
-                  black,
-                  isMobile,
-                ),
+                ..._buildRealTimeSummaryItems(primaryColor, black, isMobile),
                 SizedBox(height: isMobile ? 12 : 16),
                 Container(
                   padding: EdgeInsets.all(isMobile ? 10 : 12),
@@ -505,6 +598,375 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                     ],
                   ),
                 ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoDriverCard(Color primaryColor, bool isMobile) {
+    const Color white = Color(0xFFFFFFFF);
+    const Color black = Color(0xFF000000);
+    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 6,
+        shadowColor: primaryColor.withOpacity(0.2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(isMobile ? 12 : 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: greenWithOpacity,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.local_shipping,
+                        color: primaryColor,
+                        size: isMobile ? 16 : 18,
+                      ),
+                    ),
+                    SizedBox(width: isMobile ? 8 : 12),
+                    Text(
+                      'Driver Information',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: isMobile ? 15 : 16,
+                        color: black,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: isMobile ? 12 : 16),
+                Container(
+                  padding: EdgeInsets.all(isMobile ? 12 : 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.grey.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: Colors.grey.withOpacity(0.2),
+                        radius: isMobile ? 24 : 30,
+                        child: Icon(
+                          Icons.person_off,
+                          color: Colors.grey,
+                          size: isMobile ? 24 : 30,
+                        ),
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'No Driver Assigned',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: isMobile ? 16 : 18,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Please contact school administration',
+                              style: TextStyle(
+                                fontSize: isMobile ? 13 : 15,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildRealTimeSummaryItems(Color primaryColor, Color black, bool isMobile) {
+    final List<Widget> items = [];
+    
+    // Morning dropoff status
+    final pickup = todayStatus['pickup'];
+    if (pickup != null) {
+      final pickupTime = pickup['pickup_time'];
+      final driverName = pickup['drivers'] != null 
+          ? '${pickup['drivers']['fname']} ${pickup['drivers']['lname']}'
+          : 'Driver';
+      
+      items.add(_buildSummaryItem(
+        Icons.school,
+        'Morning Pickup',
+        '${_formatTimeFromString(pickupTime)} - Picked up successfully',
+        'Driver: $driverName confirmed pickup',
+        true,
+        primaryColor,
+        black,
+        isMobile,
+      ));
+      items.add(const SizedBox(height: 8));
+    }
+    
+    // Afternoon dropoff status
+    final dropoff = todayStatus['dropoff'];
+    if (dropoff != null) {
+      final dropoffTime = dropoff['dropoff_time'];
+      final driverName = dropoff['drivers'] != null 
+          ? '${dropoff['drivers']['fname']} ${dropoff['drivers']['lname']}'
+          : 'Driver';
+      
+      items.add(_buildSummaryItem(
+        Icons.home,
+        'Afternoon Dropoff',
+        '${_formatTimeFromString(dropoffTime)} - Dropped off safely',
+        'Driver: $driverName confirmed dropoff',
+        true,
+        primaryColor,
+        black,
+        isMobile,
+      ));
+      items.add(const SizedBox(height: 8));
+    }
+    
+    // Current status based on what's happened
+    if (pickup != null && dropoff == null) {
+      items.add(_buildSummaryItem(
+        Icons.school,
+        'Current Status',
+        'At school - Waiting for pickup',
+        'Student is currently at school',
+        true,
+        primaryColor,
+        black,
+        isMobile,
+      ));
+      items.add(const SizedBox(height: 8));
+    } else if (dropoff != null) {
+      items.add(_buildSummaryItem(
+        Icons.home,
+        'Current Status',
+        'At home - Day completed',
+        'Student has been safely dropped off',
+        true,
+        primaryColor,
+        black,
+        isMobile,
+      ));
+      items.add(const SizedBox(height: 8));
+    } else {
+      // No pickup yet - show scheduled time
+      final scheduledPickupTime = driverInfo?['pickup_time'] ?? '8:00 AM';
+      final driverName = driverInfo != null 
+          ? '${driverInfo!['drivers']['fname']} ${driverInfo!['drivers']['lname']}'
+          : 'Driver';
+      
+      items.add(_buildSummaryItem(
+        Icons.schedule,
+        'Scheduled Pickup',
+        '$scheduledPickupTime - Waiting for pickup',
+        'Driver: $driverName will pick up',
+        false,
+        primaryColor,
+        black,
+        isMobile,
+      ));
+      items.add(const SizedBox(height: 8));
+    }
+    
+    return items;
+  }
+
+  String _formatTimeFromString(String? timeString) {
+    if (timeString == null) return 'Unknown time';
+    
+    try {
+      final dateTime = DateTime.parse(timeString);
+      return DateFormat('h:mm a').format(dateTime);
+    } catch (e) {
+      return timeString;
+    }
+  }
+
+  Widget _buildNotificationsCard(Color primaryColor, bool isMobile) {
+    const Color white = Color(0xFFFFFFFF);
+    const Color black = Color(0xFF000000);
+    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 6,
+        shadowColor: primaryColor.withOpacity(0.2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(isMobile ? 12 : 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: greenWithOpacity,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.notifications,
+                        color: primaryColor,
+                        size: isMobile ? 16 : 18,
+                      ),
+                    ),
+                    SizedBox(width: isMobile ? 8 : 12),
+                    Text(
+                      'Recent Notifications',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: isMobile ? 15 : 16,
+                        color: black,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: isMobile ? 12 : 16),
+                if (recentNotifications.isEmpty)
+                  Container(
+                    padding: EdgeInsets.all(isMobile ? 12 : 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.grey[600],
+                          size: isMobile ? 16 : 18,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'No recent notifications. You\'ll see pickup/dropoff updates here.',
+                            style: TextStyle(
+                              fontSize: isMobile ? 13 : 15,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  ...recentNotifications.take(3).map((notification) {
+                    final type = notification['type'] ?? '';
+                    final title = notification['title'] ?? 'Notification';
+                    final message = notification['message'] ?? '';
+                    
+                    IconData icon;
+                    Color iconColor;
+                    
+                    switch (type) {
+                      case 'pickup':
+                        icon = Icons.school;
+                        iconColor = Colors.blue;
+                        break;
+                      case 'dropoff':
+                        icon = Icons.home;
+                        iconColor = Colors.green;
+                        break;
+                      default:
+                        icon = Icons.info;
+                        iconColor = primaryColor;
+                    }
+
+                    return Container(
+                      margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
+                      padding: EdgeInsets.all(isMobile ? 10 : 12),
+                      decoration: BoxDecoration(
+                        color: iconColor.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: iconColor.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(icon, color: iconColor, size: isMobile ? 16 : 18),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: isMobile ? 14 : 16,
+                                    color: black,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  message,
+                                  style: TextStyle(
+                                    fontSize: isMobile ? 12 : 14,
+                                    color: black.withOpacity(0.7),
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
               ],
             ),
           ),
@@ -769,6 +1231,9 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
         SizedBox(height: widget.isMobile ? 10 : 14),
         // Pickup Summary Card
         _buildPickupSummaryCard(widget.primaryColor, widget.isMobile),
+        SizedBox(height: widget.isMobile ? 10 : 14),
+        // Recent Notifications Card
+        _buildNotificationsCard(widget.primaryColor, widget.isMobile),
         SizedBox(height: widget.isMobile ? 10 : 14),
         // Today's Schedule Card
         AnimatedContainer(

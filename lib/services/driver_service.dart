@@ -1,9 +1,11 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../models/driver_models.dart';
+import 'notification_service.dart';
 
 class DriverService {
   final supabase = Supabase.instance.client;
+  final notificationService = NotificationService();
 
   /// Get driver assignments for the current driver
   Future<List<DriverAssignment>> getDriverAssignments(String driverId) async {
@@ -302,7 +304,33 @@ class DriverService {
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      // Notify parents
+      // Get student and driver names for notification
+      final studentResponse = await supabase
+          .from('students')
+          .select('fname, lname')
+          .eq('id', studentId)
+          .maybeSingle();
+
+      final driverResponse = await supabase
+          .from('drivers')
+          .select('fname, lname')
+          .eq('id', driverId)
+          .maybeSingle();
+
+      if (studentResponse != null && driverResponse != null) {
+        final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
+        final driverName = '${driverResponse['fname']} ${driverResponse['lname']}';
+
+        // Create notification for parents
+        await notificationService.createPickupNotification(
+          studentId: studentId,
+          studentName: studentName,
+          driverName: driverName,
+          pickupTime: pickupTime,
+        );
+      }
+
+      // Notify parents (legacy method)
       await _notifyParents(studentId, 'pickup', pickupTime);
       
       return true;
@@ -329,7 +357,33 @@ class DriverService {
         'created_at': DateTime.now().toIso8601String(),
       });
 
-      // Notify parents
+      // Get student and driver names for notification
+      final studentResponse = await supabase
+          .from('students')
+          .select('fname, lname')
+          .eq('id', studentId)
+          .maybeSingle();
+
+      final driverResponse = await supabase
+          .from('drivers')
+          .select('fname, lname')
+          .eq('id', driverId)
+          .maybeSingle();
+
+      if (studentResponse != null && driverResponse != null) {
+        final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
+        final driverName = '${driverResponse['fname']} ${driverResponse['lname']}';
+
+        // Create notification for parents
+        await notificationService.createDropoffNotification(
+          studentId: studentId,
+          studentName: studentName,
+          driverName: driverName,
+          dropoffTime: dropoffTime,
+        );
+      }
+
+      // Notify parents (legacy method)
       await _notifyParents(studentId, 'dropoff', dropoffTime);
       
       return true;

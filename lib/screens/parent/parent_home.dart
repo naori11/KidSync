@@ -3,10 +3,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
 import '../../models/parent_models.dart';
 import '../../models/driver_models.dart';
+import '../../services/notification_service.dart';
 import 'parent_dashboard_tab.dart';
 import 'pickup_dropoff_tab.dart';
 import 'fetchers_tab.dart';
 import 'confirmation_logs.dart';
+import 'notifications.dart';
 
 class _NavItem {
   final String label;
@@ -142,6 +144,11 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
   Student? selectedStudent;
   bool isLoadingStudents = true;
 
+  // Add notification properties
+  final NotificationService _notificationService = NotificationService();
+  int unreadNotificationCount = 0;
+  bool isLoadingNotifications = false;
+
   @override
   void initState() {
     super.initState();
@@ -218,6 +225,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
         // Load dashboard data for the selected student
         if (selectedStudent != null) {
           _loadDashboardFetchers();
+          _loadNotificationCount();
         }
       } else {
         setState(() => isLoadingStudents = false);
@@ -235,6 +243,41 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     });
     // Reload dashboard data for the new student
     _loadDashboardFetchers();
+    _loadNotificationCount();
+  }
+
+  // Add method to load notification count
+  Future<void> _loadNotificationCount() async {
+    if (selectedStudent == null) return;
+
+    try {
+      setState(() => isLoadingNotifications = true);
+
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      final parentResponse = await supabase
+          .from('parents')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (parentResponse != null) {
+        final parentId = parentResponse['id'];
+        final count = await _notificationService.getUnreadNotificationCount(
+          parentId,
+          studentId: selectedStudent!.id,
+        );
+        
+        setState(() {
+          unreadNotificationCount = count;
+        });
+      }
+    } catch (e) {
+      print('Error loading notification count: $e');
+    } finally {
+      setState(() => isLoadingNotifications = false);
+    }
   }
 
   // Add this new method to load user profile
@@ -349,6 +392,33 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     _animationController.dispose();
     _fadeController.dispose();
     super.dispose();
+  }
+
+  void _navigateToNotifications() async {
+    if (selectedStudent == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please select a student first'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Show notifications as modal overlay
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (BuildContext context) {
+        return ParentNotificationsModal(
+          selectedStudent: selectedStudent!,
+        );
+      },
+    );
+
+    // Always refresh notification count when modal is closed
+    _loadNotificationCount();
   }
 
   void _toggleNotifications() {
@@ -750,37 +820,51 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                     Spacer(),
                     // Notification Bell
                     GestureDetector(
-                      onTap: _toggleNotifications,
+                      onTap: () => _navigateToNotifications(),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color:
-                              showNotifications
-                                  ? greenWithOpacity
-                                  : Colors.transparent,
+                          color: Colors.transparent,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Stack(
                           children: [
                             Icon(
-                              Icons.notifications_none,
+                              unreadNotificationCount > 0 
+                                  ? Icons.notifications 
+                                  : Icons.notifications_none,
                               color: const Color(0xFF000000),
                               size: 28,
                             ),
-                            // Example badge
-                            Positioned(
-                              right: 0,
-                              top: 2,
-                              child: Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: widget.primaryColor,
-                                  shape: BoxShape.circle,
+                            // Notification count badge
+                            if (unreadNotificationCount > 0)
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Container(
+                                  padding: EdgeInsets.all(4),
+                                  constraints: BoxConstraints(
+                                    minWidth: 16,
+                                    minHeight: 16,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    unreadNotificationCount > 99 
+                                        ? '99+' 
+                                        : unreadNotificationCount.toString(),
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
                                 ),
                               ),
-                            ),
                           ],
                         ),
                       ),
