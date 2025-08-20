@@ -2,10 +2,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../models/driver_models.dart';
 import 'notification_service.dart';
+import 'verification_service.dart';
 
 class DriverService {
   final supabase = Supabase.instance.client;
   final notificationService = NotificationService();
+  final verificationService = VerificationService();
 
   /// Get driver assignments for the current driver
   Future<List<DriverAssignment>> getDriverAssignments(String driverId) async {
@@ -295,14 +297,26 @@ class DriverService {
     String? notes,
   }) async {
     try {
-      await supabase.from('pickup_dropoff_logs').insert({
+      // Insert pickup log and get the ID
+      final logResponse = await supabase.from('pickup_dropoff_logs').insert({
         'student_id': studentId,
         'driver_id': driverId,
         'pickup_time': pickupTime.toIso8601String(),
         'event_type': 'pickup',
         'notes': notes,
         'created_at': DateTime.now().toIso8601String(),
-      });
+      }).select('id').single();
+
+      final logId = logResponse['id'];
+
+      // Create verification request for parents
+      await verificationService.createVerificationRequest(
+        studentId: studentId,
+        driverId: driverId,
+        eventType: 'pickup',
+        eventTime: pickupTime,
+        pickupDropoffLogId: logId,
+      );
 
       // Get student and driver names for notification
       final studentResponse = await supabase
@@ -312,7 +326,7 @@ class DriverService {
           .maybeSingle();
 
       final driverResponse = await supabase
-          .from('drivers')
+          .from('users')
           .select('fname, lname')
           .eq('id', driverId)
           .maybeSingle();
@@ -321,13 +335,7 @@ class DriverService {
         final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
         final driverName = '${driverResponse['fname']} ${driverResponse['lname']}';
 
-        // Create notification for parents
-        await notificationService.createPickupNotification(
-          studentId: studentId,
-          studentName: studentName,
-          driverName: driverName,
-          pickupTime: pickupTime,
-        );
+        // Notification is handled by _notifyParents method below
       }
 
       // Notify parents (legacy method)
@@ -348,14 +356,26 @@ class DriverService {
     String? notes,
   }) async {
     try {
-      await supabase.from('pickup_dropoff_logs').insert({
+      // Insert dropoff log and get the ID
+      final logResponse = await supabase.from('pickup_dropoff_logs').insert({
         'student_id': studentId,
         'driver_id': driverId,
         'dropoff_time': dropoffTime.toIso8601String(),
         'event_type': 'dropoff',
         'notes': notes,
         'created_at': DateTime.now().toIso8601String(),
-      });
+      }).select('id').single();
+
+      final logId = logResponse['id'];
+
+      // Create verification request for parents
+      await verificationService.createVerificationRequest(
+        studentId: studentId,
+        driverId: driverId,
+        eventType: 'dropoff',
+        eventTime: dropoffTime,
+        pickupDropoffLogId: logId,
+      );
 
       // Get student and driver names for notification
       final studentResponse = await supabase
@@ -365,7 +385,7 @@ class DriverService {
           .maybeSingle();
 
       final driverResponse = await supabase
-          .from('drivers')
+          .from('users')
           .select('fname, lname')
           .eq('id', driverId)
           .maybeSingle();
@@ -374,13 +394,7 @@ class DriverService {
         final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
         final driverName = '${driverResponse['fname']} ${driverResponse['lname']}';
 
-        // Create notification for parents
-        await notificationService.createDropoffNotification(
-          studentId: studentId,
-          studentName: studentName,
-          driverName: driverName,
-          dropoffTime: dropoffTime,
-        );
+        // Notification is handled by _notifyParents method below
       }
 
       // Notify parents (legacy method)

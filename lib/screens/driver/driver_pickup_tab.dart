@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/driver_models.dart';
 import '../../models/pickup_status.dart';
 import '../../services/driver_service.dart';
+import '../../services/verification_service.dart';
 
 class DriverPickupTab extends StatefulWidget {
   final Color primaryColor;
@@ -25,6 +26,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
   List<Student> pickedUpStudents = [];
   List<Student> droppedOffStudents = [];
   final DriverService _driverService = DriverService();
+  final VerificationService _verificationService = VerificationService();
   bool _isLoading = true;
   String? _error;
 
@@ -408,12 +410,26 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             pickedUpStudents.add(updatedStudent);
           });
 
-          // Pickup recorded successfully in database
-
-          _showConfirmationDialog(
-            '✓ ${student.name} marked as picked up - Parents notified',
-            widget.primaryColor,
-          );
+          // Create verification request for parents
+          try {
+            await _verificationService.createVerificationRequest(
+              studentId: student.studentDbId!,
+              driverId: user.id,
+              eventType: 'pickup',
+              eventTime: pickupTime,
+            );
+            
+            _showConfirmationDialog(
+              '✓ ${student.name} marked as picked up - Verification request sent to parents',
+              widget.primaryColor,
+            );
+          } catch (verificationError) {
+            print('Error creating verification request: $verificationError');
+            _showConfirmationDialog(
+              '✓ ${student.name} marked as picked up - Warning: Could not send verification request',
+              Colors.orange,
+            );
+          }
         } else {
           _showConfirmationDialog(
             'Error recording pickup for ${student.name}',
@@ -485,10 +501,26 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             droppedOffStudents.add(updatedStudent);
           });
 
-          _showConfirmationDialog(
-            '✓ ${student.name} marked as dropped off - Parents notified',
-            Colors.green,
-          );
+          // Create verification request for parents
+          try {
+            await _verificationService.createVerificationRequest(
+              studentId: student.studentDbId!,
+              driverId: user.id,
+              eventType: 'dropoff',
+              eventTime: dropoffTime,
+            );
+            
+            _showConfirmationDialog(
+              '✓ ${student.name} marked as dropped off - Verification request sent to parents',
+              Colors.green,
+            );
+          } catch (verificationError) {
+            print('Error creating verification request: $verificationError');
+            _showConfirmationDialog(
+              '✓ ${student.name} marked as dropped off - Warning: Could not send verification request',
+              Colors.orange,
+            );
+          }
         } else {
           _showConfirmationDialog(
             'Error recording dropoff for ${student.name}',

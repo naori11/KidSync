@@ -14,6 +14,7 @@ import 'screens/parent/fetcher_code_generator.dart';
 import 'screens/parent/profile.dart';
 import 'screens/parent/static_pickup_status_demo.dart';
 import 'screens/driver/driver_panel.dart';
+import 'services/verification_reminder_service.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_strategy/url_strategy.dart';
@@ -77,6 +78,9 @@ Future<void> main() async {
     anonKey:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdWl0Z3BxcXVkaHFkY2J1aGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDk5OTUsImV4cCI6MjA2MzIyNTk5NX0.FuWUR1QHFiWzPwZa0HvW0yLhJfHHw0EhBLibA0t0Dsw',
   );
+
+  // Start the verification reminder service
+  VerificationReminderService().startReminderService();
 
   runApp(KidSyncApp(initialUrl: initialUrlFromMain)); // Pass initialUrl
 }

@@ -121,71 +121,8 @@ class NotificationService {
             .subscribe();
   }
 
-  /// Create a notification record
-  Future<bool> createNotification({
-    required int studentId,
-    required String title,
-    required String message,
-    required String type,
-    Map<String, dynamic>? data,
-  }) async {
-    try {
-      await supabase.from('notifications').insert({
-        'student_id': studentId,
-        'title': title,
-        'message': message,
-        'type': type,
-        'data': data,
-        'created_at': DateTime.now().toIso8601String(),
-      });
-      return true;
-    } catch (e) {
-      print('Error creating notification: $e');
-      return false;
-    }
-  }
-
-  /// Create pickup notification
-  Future<bool> createPickupNotification({
-    required int studentId,
-    required String studentName,
-    required String driverName,
-    required DateTime pickupTime,
-  }) async {
-    return await createNotification(
-      studentId: studentId,
-      title: 'Student Picked Up',
-      message:
-          '$studentName has been picked up by $driverName at ${_formatTime(pickupTime)}',
-      type: 'pickup',
-      data: {
-        'student_name': studentName,
-        'driver_name': driverName,
-        'pickup_time': pickupTime.toIso8601String(),
-      },
-    );
-  }
-
-  /// Create dropoff notification
-  Future<bool> createDropoffNotification({
-    required int studentId,
-    required String studentName,
-    required String driverName,
-    required DateTime dropoffTime,
-  }) async {
-    return await createNotification(
-      studentId: studentId,
-      title: 'Student Dropped Off',
-      message:
-          '$studentName has been dropped off by $driverName at ${_formatTime(dropoffTime)}',
-      type: 'dropoff',
-      data: {
-        'student_name': studentName,
-        'driver_name': driverName,
-        'dropoff_time': dropoffTime.toIso8601String(),
-      },
-    );
-  }
+  // Legacy notification methods removed - notifications are now handled 
+  // directly in driver_service._notifyParents() method
 
   /// Format time for display
   String _formatTime(DateTime dateTime) {

@@ -5,6 +5,9 @@ import 'dart:async';
 import '../../models/parent_models.dart';
 import '../../models/driver_models.dart';
 import '../../services/notification_service.dart';
+import '../../services/verification_service.dart';
+import '../../widgets/verification_modal.dart';
+import '../../widgets/verification_status_card.dart';
 
 class ParentDashboardTab extends StatefulWidget {
   final Color primaryColor;
@@ -27,11 +30,13 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
   bool isDashboardLoading = true;
   final supabase = Supabase.instance.client;
   final NotificationService _notificationService = NotificationService();
+  final VerificationService _verificationService = VerificationService();
   
   // Real-time data
   Map<String, dynamic>? driverInfo;
   Map<String, dynamic> todayStatus = {};
   List<Map<String, dynamic>> recentNotifications = [];
+  List<Map<String, dynamic>> pendingVerifications = [];
   Timer? _refreshTimer;
 
   @override
@@ -85,6 +90,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       _notificationService.getTodayStatus(studentId),
       _loadDashboardFetchers(),
       _loadRecentNotifications(),
+      _loadPendingVerifications(),
     ]);
 
     setState(() {
@@ -126,6 +132,57 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     }
   }
 
+  Future<void> _loadPendingVerifications() async {
+    try {
+      // Get current user (parent)
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      // Get parent ID from user metadata or database
+      final parentResponse = await supabase
+          .from('parents')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (parentResponse != null) {
+        final parentId = parentResponse['id'];
+        // Get pending verifications for this parent
+        final verifications = await _verificationService.getPendingVerifications(parentId);
+        setState(() {
+          pendingVerifications = verifications;
+        });
+
+        // Show verification modal if there are pending verifications
+        if (verifications.isNotEmpty && mounted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _showVerificationModal();
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading pending verifications: $e');
+    }
+  }
+
+  void _showVerificationModal() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Require user action
+      builder: (BuildContext context) {
+        return VerificationModal(
+          pendingVerifications: pendingVerifications,
+          onVerificationUpdated: () {
+            // Reload pending verifications after update
+            _loadPendingVerifications();
+            // Refresh other data
+            _refreshData();
+          },
+        );
+      },
+    );
+  }
+
   void _setupPeriodicRefresh() {
     // Refresh data every 30 seconds
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
@@ -141,9 +198,10 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     try {
       final studentId = widget.selectedStudentId!;
       
-      // Refresh today's status and notifications
+      // Refresh today's status, notifications, and pending verifications
       final newTodayStatus = await _notificationService.getTodayStatus(studentId);
       await _loadRecentNotifications();
+      await _loadPendingVerifications();
       
       setState(() {
         todayStatus = newTodayStatus;
@@ -1078,6 +1136,18 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Verification Status Card (shows when there are pending verifications)
+        if (pendingVerifications.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: VerificationStatusCard(
+              pendingVerifications: pendingVerifications,
+              onTap: _showVerificationModal,
+              primaryColor: widget.primaryColor,
+              isMobile: widget.isMobile,
+            ),
+          ),
+        
         // Notification Card (larger, responsive)
         AnimatedContainer(
           duration: const Duration(milliseconds: 300),
