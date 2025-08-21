@@ -37,6 +37,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
   Map<String, dynamic> todayStatus = {};
   List<Map<String, dynamic>> recentNotifications = [];
   List<Map<String, dynamic>> pendingVerifications = [];
+  Map<String, dynamic> todaySchedule = {};
   Timer? _refreshTimer;
 
   @override
@@ -88,6 +89,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     final results = await Future.wait([
       _notificationService.getStudentDriver(studentId),
       _notificationService.getTodayStatus(studentId),
+      _loadTodaySchedule(studentId),
       _loadDashboardFetchers(),
       _loadRecentNotifications(),
       _loadPendingVerifications(),
@@ -96,6 +98,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     setState(() {
       driverInfo = results[0] as Map<String, dynamic>?;
       todayStatus = results[1] as Map<String, dynamic>;
+      todaySchedule = results[2] as Map<String, dynamic>;
     });
   }
 
@@ -198,16 +201,74 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     try {
       final studentId = widget.selectedStudentId!;
       
-      // Refresh today's status, notifications, and pending verifications
+      // Refresh today's status, schedule, notifications, and pending verifications
       final newTodayStatus = await _notificationService.getTodayStatus(studentId);
+      final newTodaySchedule = await _loadTodaySchedule(studentId);
       await _loadRecentNotifications();
       await _loadPendingVerifications();
       
       setState(() {
         todayStatus = newTodayStatus;
+        todaySchedule = newTodaySchedule;
       });
     } catch (e) {
       print('Error refreshing data: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> _loadTodaySchedule(int studentId) async {
+    try {
+      final today = DateTime.now();
+      final dayOfWeek = today.weekday; // 1 = Monday, 7 = Sunday
+      final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+      // Check for exceptions first (specific date overrides)
+      final exceptionResponse = await supabase
+          .from('pickup_dropoff_exceptions')
+          .select('dropoff_person, pickup_person, reason')
+          .eq('student_id', studentId)
+          .eq('exception_date', todayStr)
+          .maybeSingle();
+
+      if (exceptionResponse != null) {
+        // Exception found for today
+        return {
+          'dropoff_person': exceptionResponse['dropoff_person'],
+          'pickup_person': exceptionResponse['pickup_person'],
+          'reason': exceptionResponse['reason'],
+          'is_exception': true,
+        };
+      }
+
+      // No exception, check regular pattern
+      final patternResponse = await supabase
+          .from('pickup_dropoff_patterns')
+          .select('dropoff_person, pickup_person')
+          .eq('student_id', studentId)
+          .eq('day_of_week', dayOfWeek)
+          .maybeSingle();
+
+      if (patternResponse != null) {
+        return {
+          'dropoff_person': patternResponse['dropoff_person'],
+          'pickup_person': patternResponse['pickup_person'],
+          'is_exception': false,
+        };
+      }
+
+      // No pattern found, default to driver
+      return {
+        'dropoff_person': 'driver',
+        'pickup_person': 'driver',
+        'is_exception': false,
+      };
+    } catch (e) {
+      print('Error loading today schedule: $e');
+      return {
+        'dropoff_person': 'driver',
+        'pickup_person': 'driver',
+        'is_exception': false,
+      };
     }
   }
 
@@ -486,83 +547,12 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                           ],
                         ),
                       ),
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: primaryColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
+                      // Removed the call/message buttons per request
                     ],
                   ),
                 ),
                 SizedBox(height: isMobile ? 12 : 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          foregroundColor: white,
-                          padding: EdgeInsets.symmetric(
-                            vertical: isMobile ? 10 : 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 2,
-                        ),
-                        icon: Icon(Icons.phone, size: isMobile ? 16 : 18),
-                        label: Text(
-                          'Call Driver',
-                          style: TextStyle(fontSize: isMobile ? 13 : 15),
-                        ),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Calling $driverName...'),
-                              backgroundColor: primaryColor,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: primaryColor,
-                          side: BorderSide(color: primaryColor),
-                          padding: EdgeInsets.symmetric(
-                            vertical: isMobile ? 10 : 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        icon: Icon(Icons.message, size: isMobile ? 16 : 18),
-                        label: Text(
-                          'Message',
-                          style: TextStyle(fontSize: isMobile ? 13 : 15),
-                        ),
-                        onPressed: () {
-                          final driverName = driverInfo?['drivers'] != null
-                              ? '${driverInfo!['drivers']['fname']} ${driverInfo!['drivers']['lname']}'
-                              : 'driver';
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Opening message to $driverName...',
-                              ),
-                              backgroundColor: primaryColor,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+                // Call & Message buttons removed
               ],
             ),
           ),
@@ -778,8 +768,12 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
   List<Widget> _buildRealTimeSummaryItems(Color primaryColor, Color black, bool isMobile) {
     final List<Widget> items = [];
     
-    // Morning dropoff status
-    final pickup = todayStatus['pickup'];
+    // Get who is responsible for pickup/dropoff today
+    final dropoffPerson = todaySchedule['dropoff_person'] ?? 'driver';
+    final pickupPerson = todaySchedule['pickup_person'] ?? 'driver';
+    
+    // Morning pickup status (picking up from home to school)
+    final pickup = todayStatus['pickup']; // DB event_type 'pickup' = morning trip
     if (pickup != null) {
       final pickupTime = pickup['pickup_time'];
       final driverName = pickup['drivers'] != null 
@@ -788,9 +782,11 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       
       items.add(_buildSummaryItem(
         Icons.school,
-        'Morning Pickup',
-        '${_formatTimeFromString(pickupTime)} - Picked up successfully',
-        'Driver: $driverName confirmed pickup',
+        'Morning Pick-up',
+        '${_formatTimeFromString(pickupTime)} - Picked up from home',
+        dropoffPerson == 'parent' 
+            ? 'You confirmed pick-up'
+            : 'Driver: $driverName confirmed pick-up',
         true,
         primaryColor,
         black,
@@ -799,8 +795,8 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       items.add(const SizedBox(height: 8));
     }
     
-    // Afternoon dropoff status
-    final dropoff = todayStatus['dropoff'];
+    // Afternoon dropoff status (dropping off from school to home)
+    final dropoff = todayStatus['dropoff']; // DB event_type 'dropoff' = afternoon trip
     if (dropoff != null) {
       final dropoffTime = dropoff['dropoff_time'];
       final driverName = dropoff['drivers'] != null 
@@ -809,9 +805,11 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       
       items.add(_buildSummaryItem(
         Icons.home,
-        'Afternoon Dropoff',
-        '${_formatTimeFromString(dropoffTime)} - Dropped off safely',
-        'Driver: $driverName confirmed dropoff',
+        'Afternoon Drop-off',
+        '${_formatTimeFromString(dropoffTime)} - Dropped off at home',
+        pickupPerson == 'parent' 
+            ? 'You confirmed drop-off'
+            : 'Driver: $driverName confirmed drop-off',
         true,
         primaryColor,
         black,
@@ -820,20 +818,35 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       items.add(const SizedBox(height: 8));
     }
     
-    // Current status based on what's happened
+    // Current status based on what's happened and who's responsible
     if (pickup != null && dropoff == null) {
-      items.add(_buildSummaryItem(
-        Icons.school,
-        'Current Status',
-        'At school - Waiting for pickup',
-        'Student is currently at school',
-        true,
-        primaryColor,
-        black,
-        isMobile,
-      ));
+      // Child has been picked up from home, now at school, waiting for dropoff
+      if (pickupPerson == 'parent') {
+        items.add(_buildSummaryItem(
+          Icons.school,
+          'Current Status',
+          'At school - You need to drop off',
+          'You are responsible for drop-off today',
+          true,
+          primaryColor,
+          black,
+          isMobile,
+        ));
+      } else {
+        items.add(_buildSummaryItem(
+          Icons.school,
+          'Current Status',
+          'At school - Waiting for drop-off',
+          'Driver will drop off student',
+          true,
+          primaryColor,
+          black,
+          isMobile,
+        ));
+      }
       items.add(const SizedBox(height: 8));
     } else if (dropoff != null) {
+      // Child has been dropped off from school and is home
       items.add(_buildSummaryItem(
         Icons.home,
         'Current Status',
@@ -846,22 +859,37 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       ));
       items.add(const SizedBox(height: 8));
     } else {
-      // No pickup yet - show scheduled time
-      final scheduledPickupTime = driverInfo?['pickup_time'] ?? '8:00 AM';
-      final driverName = driverInfo != null 
-          ? '${driverInfo!['drivers']['fname']} ${driverInfo!['drivers']['lname']}'
-          : 'Driver';
+      // No morning pickup yet - show scheduled time and responsible person
+      final scheduledPickupTime = driverInfo?['pickup_time'] ?? '8:00:00';
+      final formattedTime = _formatScheduledTime(scheduledPickupTime);
       
-      items.add(_buildSummaryItem(
-        Icons.schedule,
-        'Scheduled Pickup',
-        '$scheduledPickupTime - Waiting for pickup',
-        'Driver: $driverName will pick up',
-        false,
-        primaryColor,
-        black,
-        isMobile,
-      ));
+      if (dropoffPerson == 'parent') {
+        items.add(_buildSummaryItem(
+          Icons.schedule,
+          'Scheduled Pick-up',
+          '$formattedTime - You will pick up',
+          'You are responsible for pick-up today',
+          false,
+          primaryColor,
+          black,
+          isMobile,
+        ));
+      } else {
+        final driverName = driverInfo != null 
+            ? '${driverInfo!['drivers']['fname']} ${driverInfo!['drivers']['lname']}'
+            : 'Driver';
+        
+        items.add(_buildSummaryItem(
+          Icons.schedule,
+          'Scheduled Pick-up',
+          '$formattedTime - Waiting for pick-up',
+          'Driver: $driverName will pick up',
+          false,
+          primaryColor,
+          black,
+          isMobile,
+        ));
+      }
       items.add(const SizedBox(height: 8));
     }
     
@@ -874,6 +902,151 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     try {
       final dateTime = DateTime.parse(timeString);
       return DateFormat('h:mm a').format(dateTime);
+    } catch (e) {
+      return timeString;
+    }
+  }
+
+  List<Widget> _buildTodayScheduleItems() {
+    final List<Widget> items = [];
+    
+    // Get scheduled times from driver assignment
+    // pickup_time = morning pickup from home (first event of the day)
+    // dropoff_time = afternoon dropoff at home (second event of the day)
+    final scheduledPickupTime = driverInfo?['pickup_time'] ?? '8:00:00';
+    final scheduledDropoffTime = driverInfo?['dropoff_time'] ?? '15:30:00';
+    
+    // Format times
+    final pickupTimeFormatted = _formatScheduledTime(scheduledPickupTime);
+    final dropoffTimeFormatted = _formatScheduledTime(scheduledDropoffTime);
+    
+    // Get who is responsible for pickup/dropoff today
+    final dropoffPerson = todaySchedule['dropoff_person'] ?? 'driver';
+    final pickupPerson = todaySchedule['pickup_person'] ?? 'driver';
+    final isException = todaySchedule['is_exception'] ?? false;
+    
+    // Check actual status from logs
+    // pickup = morning trip (parent perspective: drop-off at school)
+    // dropoff = afternoon trip (parent perspective: pick-up from school)
+    final pickup = todayStatus['pickup'];
+    final dropoff = todayStatus['dropoff'];
+    
+    // Build pickup item first (morning - pick up from home to school)
+    items.add(_buildScheduleItem(
+      pickupTimeFormatted, // Morning pickup time
+      'Pick-up',
+      dropoffPerson == 'parent' ? 'You' : 'Driver',
+      pickup != null, // pickup event = morning pickup completed
+      isException && dropoffPerson == 'parent',
+    ));
+    
+    items.add(SizedBox(height: widget.isMobile ? 4 : 8));
+    
+    // Build dropoff item second (afternoon - drop off from school to home)
+    items.add(_buildScheduleItem(
+      dropoffTimeFormatted, // Afternoon dropoff time
+      'Drop-off',
+      pickupPerson == 'parent' ? 'You' : 'Driver',
+      dropoff != null, // dropoff event = afternoon dropoff completed
+      isException && pickupPerson == 'parent',
+    ));
+    
+    // Add exception note if applicable
+    if (isException && todaySchedule['reason'] != null) {
+      items.add(SizedBox(height: widget.isMobile ? 8 : 12));
+      items.add(Container(
+        padding: EdgeInsets.all(widget.isMobile ? 8 : 10),
+        decoration: BoxDecoration(
+          color: Colors.orange.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.orange.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.info_outline,
+              color: Colors.orange[700],
+              size: widget.isMobile ? 14 : 16,
+            ),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Schedule Exception: ${todaySchedule['reason']}',
+                style: TextStyle(
+                  fontSize: widget.isMobile ? 11 : 13,
+                  color: Colors.orange[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ));
+    }
+    
+    return items;
+  }
+
+  Widget _buildScheduleItem(String time, String event, String person, bool completed, bool isException) {
+    return Row(
+      children: [
+        Icon(
+          completed ? Icons.check_circle : Icons.radio_button_unchecked,
+          size: 18,
+          color: completed 
+              ? widget.primaryColor 
+              : const Color(0xFF000000).withOpacity(0.6),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          time,
+          style: TextStyle(
+            fontWeight: FontWeight.w500,
+            fontSize: widget.isMobile ? 13 : 15,
+            color: const Color(0xFF000000),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          event,
+          style: TextStyle(
+            color: const Color(0xFF000000).withOpacity(0.6),
+            fontSize: widget.isMobile ? 12 : 14,
+          ),
+        ),
+        if (isException) ...[
+          const SizedBox(width: 4),
+          Icon(
+            Icons.warning_amber_rounded,
+            size: 14,
+            color: Colors.orange[600],
+          ),
+        ],
+        const Spacer(),
+        Text(
+          completed ? 'Completed' : person,
+          style: TextStyle(
+            color: completed ? widget.primaryColor : const Color(0xFF000000).withOpacity(0.8),
+            fontWeight: FontWeight.w600,
+            fontSize: widget.isMobile ? 13 : 15,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatScheduledTime(String timeString) {
+    try {
+      // Parse time string (format: HH:mm:ss)
+      final parts = timeString.split(':');
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
+      
+      // Create DateTime for formatting
+      final now = DateTime.now();
+      final time = DateTime(now.year, now.month, now.day, hour, minute);
+      
+      return DateFormat('h:mm a').format(time);
     } catch (e) {
       return timeString;
     }
@@ -1136,30 +1309,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Verification Status Card (shows when there are pending verifications)
-        if (pendingVerifications.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: VerificationStatusCard(
-              pendingVerifications: pendingVerifications,
-              onTap: _showVerificationModal,
-              primaryColor: widget.primaryColor,
-              isMobile: widget.isMobile,
-            ),
-          ),
-        
-        // Removed static Pick-up Status card
-        SizedBox(height: widget.isMobile ? 10 : 14),
-        // Driver Information Card
-        _buildDriverInfoCard(widget.primaryColor, widget.isMobile),
-        SizedBox(height: widget.isMobile ? 10 : 14),
-        // Pickup Summary Card
-        _buildPickupSummaryCard(widget.primaryColor, widget.isMobile),
-        SizedBox(height: widget.isMobile ? 10 : 14),
-        // Recent Notifications Card
-        _buildNotificationsCard(widget.primaryColor, widget.isMobile),
-        SizedBox(height: widget.isMobile ? 10 : 14),
-        // Today's Schedule Card
+        // 1. Today's Schedule Card - TOP PRIORITY (moved to top)
         AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           child: Card(
@@ -1212,77 +1362,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                       ],
                     ),
                     SizedBox(height: widget.isMobile ? 8 : 12),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.radio_button_checked,
-                          size: 18,
-                          color: const Color(0xFF000000).withOpacity(0.6),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '8:00 AM',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: widget.isMobile ? 13 : 15,
-                            color: const Color(0xFF000000),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Drop-off',
-                          style: TextStyle(
-                            color: const Color(0xFF000000).withOpacity(0.6),
-                            fontSize: widget.isMobile ? 12 : 14,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          'Completed',
-                          style: TextStyle(
-                            color: widget.primaryColor,
-                            fontWeight: FontWeight.w600,
-                            fontSize: widget.isMobile ? 13 : 15,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: widget.isMobile ? 4 : 8),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.radio_button_checked,
-                          size: 18,
-                          color: const Color(0xFF000000).withOpacity(0.6),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '3:30 PM',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: widget.isMobile ? 13 : 15,
-                            color: const Color(0xFF000000),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Pick-up',
-                          style: TextStyle(
-                            color: const Color(0xFF000000).withOpacity(0.6),
-                            fontSize: widget.isMobile ? 12 : 14,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          'Pending',
-                          style: TextStyle(
-                            color: widget.primaryColor,
-                            fontWeight: FontWeight.w600,
-                            fontSize: widget.isMobile ? 13 : 15,
-                          ),
-                        ),
-                      ],
-                    ),
+                    ..._buildTodayScheduleItems(),
                   ],
                 ),
               ),
@@ -1290,7 +1370,32 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
           ),
         ),
         SizedBox(height: widget.isMobile ? 10 : 14),
-        // Authorized Fetchers Card
+        
+        // 2. Verification Status Card - CRITICAL ACTIONS (when pending)
+        if (pendingVerifications.isNotEmpty)
+          Padding(
+            padding: EdgeInsets.only(bottom: widget.isMobile ? 10 : 14),
+            child: VerificationStatusCard(
+              pendingVerifications: pendingVerifications,
+              onTap: _showVerificationModal,
+              primaryColor: widget.primaryColor,
+              isMobile: widget.isMobile,
+            ),
+          ),
+        
+        // 3. Pickup Summary Card - REAL-TIME STATUS
+        _buildPickupSummaryCard(widget.primaryColor, widget.isMobile),
+        SizedBox(height: widget.isMobile ? 10 : 14),
+        
+        // 4. Recent Notifications Card - COMMUNICATION
+        _buildNotificationsCard(widget.primaryColor, widget.isMobile),
+        SizedBox(height: widget.isMobile ? 10 : 14),
+        
+        // 5. Driver Information Card - SUPPORT & CONTACT
+        _buildDriverInfoCard(widget.primaryColor, widget.isMobile),
+        SizedBox(height: widget.isMobile ? 10 : 14),
+        
+        // 6. Authorized Fetchers Card - REFERENCE INFORMATION
         AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           child: Card(
@@ -1373,7 +1478,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                                   fetcher.isActive,
                                   widget.primaryColor,
                                   widget.isMobile,
-                                  fetcher.profileImageUrl, // Add this line
+                                  fetcher.profileImageUrl,
                                 );
                               }).toList(),
                         ),
