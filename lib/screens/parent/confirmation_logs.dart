@@ -55,34 +55,89 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
         errorMessage = null;
       });
 
-      // Use the provided selectedStudentId directly
+      // Get current user (parent) to filter verifications
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        setState(() {
+          errorMessage = 'User not authenticated';
+          isLoading = false;
+        });
+        return;
+      }
+
+      // Get parent ID from user
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('id')
+              .eq('user_id', user.id)
+              .maybeSingle();
+
+      if (parentResponse == null) {
+        setState(() {
+          errorMessage = 'Parent information not found';
+          isLoading = false;
+        });
+        return;
+      }
+
+      final parentId = parentResponse['id'];
+
+      // Query pickup_dropoff_logs with left join to pickup_dropoff_verifications
       final logsResponse = await supabase
-          .from('pickup_confirmations')
+          .from('pickup_dropoff_logs')
           .select('''
             id,
             student_id,
-            confirmation_type,
-            confirmed_by,
-            confirmed_at,
-            status,
+            driver_id,
+            pickup_time,
+            dropoff_time,
+            event_type,
             notes,
-            students!inner(
+            created_at,
+            students!pickup_dropoff_logs_student_id_fkey(
               fname,
               lname,
               grade_level,
-              section
+              sections(name)
             ),
-            users!inner(
+            drivers:users!pickup_dropoff_logs_driver_id_fkey(
               fname,
               lname
             )
           ''')
           .eq('student_id', widget.selectedStudentId!)
-          .order('confirmed_at', ascending: false)
+          .order('created_at', ascending: false)
           .limit(50);
 
+      // Get verification data for this parent and student
+      final verificationsResponse = await supabase
+          .from('pickup_dropoff_verifications')
+          .select('''
+            pickup_dropoff_log_id,
+            status,
+            parent_response_time,
+            parent_notes,
+            event_type,
+            event_time
+          ''')
+          .eq('student_id', widget.selectedStudentId!)
+          .eq('parent_id', parentId);
+
+      // Create a map of log_id to verification for quick lookup
+      final Map<int?, Map<String, dynamic>> verificationMap = {};
+      for (final verification in verificationsResponse) {
+        final logId = verification['pickup_dropoff_log_id'];
+        if (logId != null) {
+          verificationMap[logId] = verification;
+        }
+      }
+
       final List<ConfirmationLog> logs =
-          logsResponse.map((data) => ConfirmationLog.fromJson(data)).toList();
+          logsResponse.map((data) {
+            final verification = verificationMap[data['id']];
+            return ConfirmationLog.fromJson(data, verification);
+          }).toList();
 
       setState(() {
         confirmationLogs = logs;
@@ -97,39 +152,191 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
     }
   }
 
-  String _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'confirmed':
-        return '#19AE61'; // Green
-      case 'pending':
-        return '#FFA500'; // Orange
-      case 'rejected':
-        return '#FF0000'; // Red
-      case 'cancelled':
-        return '#808080'; // Gray
-      default:
-        return '#000000'; // Black
-    }
-  }
-
-  String _getConfirmationTypeText(String type) {
+  String _getEventTypeText(String type) {
     switch (type.toLowerCase()) {
       case 'pickup':
         return 'Pickup';
       case 'dropoff':
         return 'Drop-off';
-      case 'early_pickup':
-        return 'Early Pickup';
-      case 'late_dropoff':
-        return 'Late Drop-off';
       default:
-        return type;
+        return type
+            .replaceAll('_', ' ')
+            .split(' ')
+            .map(
+              (word) =>
+                  word.isNotEmpty
+                      ? word[0].toUpperCase() + word.substring(1)
+                      : word,
+            )
+            .join(' ');
     }
   }
 
+  String _formatDateTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} minute${difference.inMinutes > 1 ? 's' : ''} ago';
+    } else {
+      return 'Just now';
+    }
+  }
+
+  // Group logs by date
+  Map<String, List<ConfirmationLog>> _groupLogsByDate(List<ConfirmationLog> logs) {
+    final Map<String, List<ConfirmationLog>> grouped = {};
+    
+    for (final log in logs) {
+      final dateOnly = DateTime(log.eventTime.year, log.eventTime.month, log.eventTime.day);
+      final key = _formatDateKey(dateOnly);
+      grouped.putIfAbsent(key, () => []).add(log);
+    }
+    
+    // Sort each group by time (most recent first)
+    grouped.forEach((key, value) {
+      value.sort((a, b) => b.eventTime.compareTo(a.eventTime));
+    });
+    
+    return grouped;
+  }
+
+  String _formatDateKey(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final dateOnly = DateTime(date.year, date.month, date.day);
+
+    if (dateOnly == today) {
+      return 'Today';
+    } else if (dateOnly == yesterday) {
+      return 'Yesterday';
+    } else {
+      // Format as "Monday, January 15, 2024"
+      const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      const weekdays = [
+        'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+      ];
+      
+      final weekday = weekdays[date.weekday - 1];
+      final month = months[date.month - 1];
+      return '$weekday, $month ${date.day}, ${date.year}';
+    }
+  }
+
+  Widget _buildDateHeader(String dateKey) {
+    return Container(
+      margin: const EdgeInsets.only(top: 24, bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: widget.primaryColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: widget.primaryColor.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.calendar_today,
+            color: widget.primaryColor,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            dateKey,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: widget.primaryColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildGroupedLogs() {
+    final groupedLogs = _groupLogsByDate(confirmationLogs);
+    final List<Widget> widgets = [];
+    
+    // Sort date keys to show most recent first
+    final sortedKeys = groupedLogs.keys.toList();
+    sortedKeys.sort((a, b) {
+      // Custom sorting to put "Today" first, then "Yesterday", then chronological
+      if (a == 'Today') return -1;
+      if (b == 'Today') return 1;
+      if (a == 'Yesterday') return -1;
+      if (b == 'Yesterday') return 1;
+      
+      // For other dates, we need to parse them back to compare
+      // Since they're formatted as "Monday, January 15, 2024", we'll use the original logs to sort
+      final logsA = groupedLogs[a]!;
+      final logsB = groupedLogs[b]!;
+      final dateA = logsA.first.eventTime;
+      final dateB = logsB.first.eventTime;
+      return dateB.compareTo(dateA); // Most recent first
+    });
+    
+    for (int i = 0; i < sortedKeys.length; i++) {
+      final dateKey = sortedKeys[i];
+      final logs = groupedLogs[dateKey]!;
+      
+      // Add date header (no top margin for first header)
+      widgets.add(
+        Container(
+          margin: EdgeInsets.only(top: i == 0 ? 16 : 24, bottom: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: widget.primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: widget.primaryColor.withOpacity(0.2),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.calendar_today,
+                color: widget.primaryColor,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                dateKey,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: widget.primaryColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      
+      // Add logs for this date
+      for (final log in logs) {
+        widgets.add(_buildLogCard(log));
+      }
+    }
+    
+    return widgets;
+  }
+
   Widget _buildLogCard(ConfirmationLog log) {
-    final statusColor = _getStatusColor(log.status);
-    final confirmationType = _getConfirmationTypeText(log.confirmationType);
+    final eventTypeText = _getEventTypeText(log.eventType);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -149,7 +356,7 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header row with student name and status
+            // Header row with student name and verification status
             Row(
               children: [
                 Expanded(
@@ -157,7 +364,7 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${log.studentName}',
+                        log.studentName,
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -175,40 +382,44 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Color(
-                      int.parse(statusColor.replaceAll('#', '0xFF')),
-                    ).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Color(
-                        int.parse(statusColor.replaceAll('#', '0xFF')),
-                      ),
-                      width: 1,
+                // Show verification status badge only for confirmed/denied
+                if (log.verificationStatus != null &&
+                    (log.verificationStatus!.toLowerCase() == 'confirmed' ||
+                        log.verificationStatus!.toLowerCase() == 'denied'))
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
                     ),
-                  ),
-                  child: Text(
-                    log.status.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                    decoration: BoxDecoration(
                       color: Color(
-                        int.parse(statusColor.replaceAll('#', '0xFF')),
+                        int.parse(log.statusColor.replaceAll('#', '0xFF')),
+                      ).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Color(
+                          int.parse(log.statusColor.replaceAll('#', '0xFF')),
+                        ),
+                        width: 1,
                       ),
                     ),
+                    child: Text(
+                      log.displayStatus.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color(
+                          int.parse(log.statusColor.replaceAll('#', '0xFF')),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
               ],
             ),
 
             const SizedBox(height: 16),
 
-            // Confirmation details
+            // Event details
             Row(
               children: [
                 Container(
@@ -218,7 +429,7 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
-                    log.confirmationType.toLowerCase() == 'pickup'
+                    log.eventType.toLowerCase() == 'pickup'
                         ? Icons.directions_car
                         : Icons.directions_walk,
                     color: widget.primaryColor,
@@ -231,7 +442,7 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        confirmationType,
+                        eventTypeText,
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -239,7 +450,7 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
                         ),
                       ),
                       Text(
-                        'Confirmed by ${log.confirmedByName}',
+                        'Driver: ${log.driverName}',
                         style: const TextStyle(
                           fontSize: 14,
                           color: Color(0xFF8F9BB3),
@@ -263,7 +474,7 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  _formatDateTime(log.confirmedAt),
+                  _formatDateTime(log.eventTime),
                   style: const TextStyle(
                     fontSize: 14,
                     color: Color(0xFF8F9BB3),
@@ -273,7 +484,30 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
               ],
             ),
 
-            // Notes if available
+            // Verification response time if available
+            if (log.verificationResponseTime != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(
+                    Icons.verified,
+                    size: 16,
+                    color: const Color(0xFF8F9BB3),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Verified ${_formatDateTime(log.verificationResponseTime!)}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF8F9BB3),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            // Driver notes if available
             if (log.notes != null && log.notes!.isNotEmpty) ...[
               const SizedBox(height: 16),
               Container(
@@ -289,10 +523,44 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        log.notes!,
+                        'Driver Notes: ${log.notes!}',
                         style: const TextStyle(
                           fontSize: 14,
                           color: Color(0xFF8F9BB3),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // Verification notes if available
+            if (log.verificationNotes != null &&
+                log.verificationNotes!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E8),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.comment,
+                      size: 16,
+                      color: const Color(0xFF19AE61),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Your Notes: ${log.verificationNotes!}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF19AE61),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
@@ -304,21 +572,6 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
         ),
       ),
     );
-  }
-
-  String _formatDateTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-
-    if (difference.inDays > 0) {
-      return '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes} minute${difference.inMinutes > 1 ? 's' : ''} ago';
-    } else {
-      return 'Just now';
-    }
   }
 
   @override
@@ -350,206 +603,196 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
-      body: Column(
-        children: [
-          // Header
-          Container(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header
+        Container(
+          color: white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              SizedBox(
+                height: 32,
+                width: 32,
+                child: Image.asset(
+                  'assets/logo.png',
+                  fit: BoxFit.contain,
+                  errorBuilder:
+                      (context, error, stackTrace) => Icon(
+                        Icons.school,
+                        color: widget.primaryColor,
+                        size: 28,
+                      ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Pickup & Drop-off Logs',
+                style: TextStyle(
+                  color: black,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: _loadConfirmationLogs,
+                icon: Icon(Icons.refresh, color: widget.primaryColor, size: 20),
+              ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: widget.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.history,
+                  color: widget.primaryColor,
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Summary Card
+        Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
             color: white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: SafeArea(
-              child: Row(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildSummaryItem(
+                  'Total Events',
+                  '${confirmationLogs.length}',
+                  Icons.event,
+                  widget.primaryColor,
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: _buildSummaryItem(
+                  'This Month',
+                  '${confirmationLogs.where((log) => log.eventTime.month == DateTime.now().month).length}',
+                  Icons.calendar_month,
+                  Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: _buildSummaryItem(
+                  'Verified',
+                  '${confirmationLogs.where((log) => log.verificationStatus?.toLowerCase() == "confirmed").length}',
+                  Icons.verified,
+                  Colors.green,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Logs List
+        if (isLoading)
+          const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (errorMessage != null)
+          Padding(
+            padding: const EdgeInsets.all(32),
+            child: Center(
+              child: Column(
                 children: [
-                  SizedBox(
-                    height: 32,
-                    width: 32,
-                    child: Image.asset(
-                      'assets/logo.png',
-                      fit: BoxFit.contain,
-                      errorBuilder:
-                          (context, error, stackTrace) => Icon(
-                            Icons.school,
-                            color: widget.primaryColor,
-                            size: 28,
-                          ),
-                    ),
+                  Icon(
+                    Icons.error_outline,
+                    size: 48,
+                    color: Colors.red[300],
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(height: 16),
                   Text(
-                    'Confirmation Logs',
-                    style: TextStyle(
-                      color: black,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
+                    errorMessage!,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Color(0xFF8F9BB3),
                     ),
                   ),
-                  const Spacer(),
-                  IconButton(
+                  const SizedBox(height: 16),
+                  ElevatedButton(
                     onPressed: _loadConfirmationLogs,
-                    icon: Icon(
-                      Icons.refresh,
-                      color: widget.primaryColor,
-                      size: 20,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: widget.primaryColor,
+                      foregroundColor: white,
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: widget.primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.history,
-                      color: widget.primaryColor,
-                      size: 20,
-                    ),
+                    child: const Text('Retry'),
                   ),
                 ],
               ),
             ),
-          ),
-
-          // Main Content
-          Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Summary Card
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 10,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: _buildSummaryItem(
-                              'Total Confirmations',
-                              '${confirmationLogs.length}',
-                              Icons.check_circle,
-                              widget.primaryColor,
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: _buildSummaryItem(
-                              'This Month',
-                              '${confirmationLogs.where((log) => log.confirmedAt.month == DateTime.now().month).length}',
-                              Icons.calendar_month,
-                              Colors.blue,
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            child: _buildSummaryItem(
-                              'Pending',
-                              '${confirmationLogs.where((log) => log.status.toLowerCase() == 'pending').length}',
-                              Icons.pending,
-                              Colors.orange,
-                            ),
-                          ),
-                        ],
-                      ),
+          )
+        else if (confirmationLogs.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(32),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.history,
+                    size: 48,
+                    color: Colors.grey[300],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No pickup/drop-off logs found',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Color(0xFF8F9BB3),
                     ),
-
-                    const SizedBox(height: 24),
-
-                    // Logs List
-                    if (isLoading)
-                      const Center(child: CircularProgressIndicator())
-                    else if (errorMessage != null)
-                      Center(
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              size: 48,
-                              color: Colors.red[300],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              errorMessage!,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                color: Color(0xFF8F9BB3),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: _loadConfirmationLogs,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: widget.primaryColor,
-                                foregroundColor: white,
-                              ),
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
-                      )
-                    else if (confirmationLogs.isEmpty)
-                      Center(
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.history,
-                              size: 48,
-                              color: Colors.grey[300],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No confirmation logs found',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                color: Color(0xFF8F9BB3),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Confirmation logs will appear here once you have pickup/drop-off confirmations.',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF8F9BB3),
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Recent Confirmations',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF222B45),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          ...confirmationLogs.map((log) => _buildLogCard(log)),
-                        ],
-                      ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Pickup and drop-off logs will appear here once your child has transportation events.',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF8F9BB3),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
             ),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Recent Pickup & Drop-off Events',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF222B45),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ..._buildGroupedLogs(),
+              ],
+            ),
           ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -599,11 +842,16 @@ class ConfirmationLog {
   final String studentName;
   final String gradeLevel;
   final String section;
-  final String confirmationType;
-  final String confirmedByName;
-  final DateTime confirmedAt;
-  final String status;
+  final String eventType; // 'pickup' or 'dropoff'
+  final String driverName;
+  final DateTime eventTime;
   final String? notes;
+
+  // Verification fields
+  final String?
+  verificationStatus; // 'confirmed', 'denied', 'pending', or null if no verification
+  final DateTime? verificationResponseTime;
+  final String? verificationNotes;
 
   ConfirmationLog({
     required this.id,
@@ -611,31 +859,86 @@ class ConfirmationLog {
     required this.studentName,
     required this.gradeLevel,
     required this.section,
-    required this.confirmationType,
-    required this.confirmedByName,
-    required this.confirmedAt,
-    required this.status,
+    required this.eventType,
+    required this.driverName,
+    required this.eventTime,
     this.notes,
+    this.verificationStatus,
+    this.verificationResponseTime,
+    this.verificationNotes,
   });
 
-  factory ConfirmationLog.fromJson(Map<String, dynamic> json) {
+  factory ConfirmationLog.fromJson(
+    Map<String, dynamic> json,
+    Map<String, dynamic>? verification,
+  ) {
+    // Determine the actual event time based on event type
+    DateTime eventTime;
+    if (json['event_type'] == 'pickup' && json['pickup_time'] != null) {
+      eventTime = DateTime.parse(json['pickup_time']);
+    } else if (json['event_type'] == 'dropoff' &&
+        json['dropoff_time'] != null) {
+      eventTime = DateTime.parse(json['dropoff_time']);
+    } else {
+      eventTime = DateTime.parse(
+        json['created_at'] ?? DateTime.now().toIso8601String(),
+      );
+    }
+
     return ConfirmationLog(
-      id: json['id'] ?? '',
-      studentId: json['student_id'] ?? '',
+      id: json['id']?.toString() ?? '',
+      studentId: json['student_id']?.toString() ?? '',
       studentName:
           '${json['students']?['fname'] ?? ''} ${json['students']?['lname'] ?? ''}'
               .trim(),
       gradeLevel: json['students']?['grade_level'] ?? '',
-      section: json['students']?['section'] ?? '',
-      confirmationType: json['confirmation_type'] ?? '',
-      confirmedByName:
-          '${json['users']?['fname'] ?? ''} ${json['users']?['lname'] ?? ''}'
+      section: json['students']?['sections']?['name'] ?? '',
+      eventType: json['event_type'] ?? '',
+      driverName:
+          '${json['drivers']?['fname'] ?? ''} ${json['drivers']?['lname'] ?? ''}'
               .trim(),
-      confirmedAt: DateTime.parse(
-        json['confirmed_at'] ?? DateTime.now().toIso8601String(),
-      ),
-      status: json['status'] ?? '',
+      eventTime: eventTime,
       notes: json['notes'],
+      verificationStatus: verification?['status'],
+      verificationResponseTime:
+          verification?['parent_response_time'] != null
+              ? DateTime.parse(verification!['parent_response_time'])
+              : null,
+      verificationNotes: verification?['parent_notes'],
     );
+  }
+
+  // Helper getter for display status
+  String get displayStatus {
+    if (verificationStatus != null) {
+      switch (verificationStatus!.toLowerCase()) {
+        case 'confirmed':
+          return 'Verified';
+        case 'denied':
+          return 'Denied';
+        case 'pending':
+          return 'Pending Verification';
+        default:
+          return verificationStatus!;
+      }
+    }
+    return 'No Verification Required';
+  }
+
+  // Helper getter for status color
+  String get statusColor {
+    if (verificationStatus != null) {
+      switch (verificationStatus!.toLowerCase()) {
+        case 'confirmed':
+          return '#19AE61'; // Green
+        case 'denied':
+          return '#FF0000'; // Red
+        case 'pending':
+          return '#FFA500'; // Orange
+        default:
+          return '#808080'; // Gray
+      }
+    }
+    return '#808080'; // Gray for no verification
   }
 }
