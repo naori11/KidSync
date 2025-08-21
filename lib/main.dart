@@ -4,18 +4,10 @@ import 'screens/login_screen.dart';
 import 'screens/guard/guard_panel.dart';
 import 'screens/admin/admin_panel.dart';
 import 'screens/teacher/teacher_panel.dart';
-import 'screens/teacher/teacher_panel_content.dart';
 import 'screens/set_password_screen.dart';
 import 'screens/parent/parent_home.dart';
-import 'screens/parent/notifications.dart';
-import 'screens/parent/child_status.dart';
-import 'screens/parent/pickup_confirmation.dart';
-import 'screens/parent/fetcher_code_generator.dart';
-import 'screens/parent/profile.dart';
-import 'screens/parent/static_pickup_status_demo.dart';
 import 'screens/driver/driver_panel.dart';
 import 'services/verification_reminder_service.dart';
-
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_strategy/url_strategy.dart';
 import 'dart:html' as html;
@@ -350,17 +342,6 @@ class _KidSyncAppState extends State<KidSyncApp> {
         '/guard': (_) => GuardPanel(),
         '/teacher': (_) => const TeacherPanel(),
         '/parent': (_) => const ParentHomeScreen(),
-        // '/parent/notifications': (_) => const ParentNotificationsScreen(),
-        '/parent/child_status': (_) => const ChildStatusScreen(),
-        '/parent/pickup_confirmation':
-            (_) => const PickupConfirmationScreen(
-              primaryColor: Color(0xFF19AE61),
-              backgroundColor: Color.fromARGB(10, 78, 241, 157),
-            ),
-        '/parent/fetcher_code_generator':
-            (_) => const FetcherCodeGeneratorScreen(),
-        '/parent/profile': (_) => const ParentProfileScreen(),
-        '/parent/pickup_status_demo': (_) => const StaticPickupStatusDemo(),
         '/driver': (_) => const DriverPanel(),
       },
     );
