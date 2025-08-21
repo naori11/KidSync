@@ -25,7 +25,9 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
   final NotificationService _notificationService = NotificationService();
   
   List<Map<String, dynamic>> todayNotifications = [];
-  List<Map<String, dynamic>> earlierNotifications = [];
+  // ...existing code...
+  // replaced earlierNotifications list with a map grouped by date (yyyy-MM-dd)
+  Map<String, List<Map<String, dynamic>>> groupedEarlierNotifications = {};
   bool isLoading = true;
 
   @override
@@ -83,7 +85,7 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
           parentId,
           studentId: widget.selectedStudent.id,
           todayOnly: true,
-          limit: 20,
+          limit: 50,
         );
         
         // Load earlier notifications (not today)
@@ -91,26 +93,53 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
           parentId,
           studentId: widget.selectedStudent.id,
           todayOnly: false,
-          limit: 50,
+          limit: 200,
         );
         
-        // Filter out today's notifications from all notifications
-        final today = DateTime.now();
-        final todayStart = DateTime(today.year, today.month, today.day);
+        // Determine date ranges
+        final now = DateTime.now().toLocal();
+        final todayStart = DateTime(now.year, now.month, now.day);
         final todayEnd = todayStart.add(const Duration(days: 1));
-        
+        // last 30 days including today => cutoff is 29 days before today's start
+        final cutoffStart = todayStart.subtract(const Duration(days: 29));
+
+        // Filter earlier notifications to those strictly before todayStart and within last 30 days
         final earlierNotifs = allNotifs.where((notif) {
           try {
-            final createdAt = DateTime.parse(notif['created_at']);
-            return createdAt.isBefore(todayStart);
+            final createdAt = DateTime.parse(notif['created_at']).toLocal();
+            final isBeforeToday = createdAt.isBefore(todayStart);
+            final isWithinCutoff = createdAt.isAtSameMomentAs(cutoffStart) || createdAt.isAfter(cutoffStart);
+            return isBeforeToday && isWithinCutoff;
           } catch (e) {
             return false;
           }
         }).toList();
 
+        // Group earlier notifications by date (yyyy-MM-dd)
+        final Map<String, List<Map<String, dynamic>>> grouped = {};
+        for (final notif in earlierNotifs) {
+          try {
+            final createdAt = DateTime.parse(notif['created_at']).toLocal();
+            final dateOnly = DateTime(createdAt.year, createdAt.month, createdAt.day);
+            final key = DateFormat('yyyy-MM-dd').format(dateOnly);
+            grouped.putIfAbsent(key, () => []).add(notif);
+          } catch (e) {
+            // skip if parse fails
+          }
+        }
+
         setState(() {
-          todayNotifications = todayNotifs;
-          earlierNotifications = earlierNotifs;
+          todayNotifications = todayNotifs.where((notif) {
+            // ensure today's notifications are also within last 30 days (should be)
+            try {
+              final createdAt = DateTime.parse(notif['created_at']).toLocal();
+              return (createdAt.isAtSameMomentAs(todayStart) || (createdAt.isAfter(todayStart) && createdAt.isBefore(todayEnd))) ||
+                     createdAt.isAfter(todayStart) && createdAt.isBefore(todayEnd);
+            } catch (e) {
+              return false;
+            }
+          }).toList();
+          groupedEarlierNotifications = grouped;
         });
 
         // Mark notifications as read after loading
@@ -309,7 +338,7 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
                                 ),
                               ),
                               SizedBox(height: 20),
-                              // Earlier Notifications Section
+                              // Earlier Notifications Section (grouped by date)
                               Container(
                                 padding: EdgeInsets.all(20),
                                 decoration: BoxDecoration(
@@ -342,7 +371,7 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
                                       ],
                                     ),
                                     SizedBox(height: 16),
-                                    if (earlierNotifications.isEmpty)
+                                    if (groupedEarlierNotifications.isEmpty)
                                       Container(
                                         padding: EdgeInsets.all(16),
                                         decoration: BoxDecoration(
@@ -363,7 +392,7 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
                                             SizedBox(width: 12),
                                             Expanded(
                                               child: Text(
-                                                'No earlier notifications',
+                                                'No earlier notifications in the last 30 days',
                                                 style: TextStyle(
                                                   color: Colors.grey[600],
                                                   fontSize: 16,
@@ -374,13 +403,13 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
                                         ),
                                       )
                                     else
-                                      ...earlierNotifications.map((notification) =>
-                                          _buildModalNotificationItem(
-                                            notification,
-                                            primaryGreen,
-                                            black,
-                                            isMobile,
-                                          )).toList(),
+                                      // build date groups sorted descending
+                                      ..._buildEarlierDateGroups(
+                                        groupedEarlierNotifications,
+                                        primaryGreen,
+                                        black,
+                                        isMobile,
+                                      ),
                                   ],
                                 ),
                               ),
@@ -394,6 +423,61 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
         ),
       ),
     );
+  }
+
+  List<Widget> _buildEarlierDateGroups(
+    Map<String, List<Map<String, dynamic>>> grouped,
+    Color primaryGreen,
+    Color black,
+    bool isMobile,
+  ) {
+    // Sort keys (yyyy-MM-dd) descending
+    final keys = grouped.keys.toList()
+      ..sort((a, b) {
+        final da = DateTime.parse(a);
+        final db = DateTime.parse(b);
+        return db.compareTo(da);
+      });
+
+    final List<Widget> widgets = [];
+
+    for (final key in keys) {
+      final date = DateTime.parse(key);
+      final headerLabel = DateFormat('EEEE, MMM d').format(date); // e.g., Friday, Aug 21
+      widgets.add(
+        Container(
+          margin: EdgeInsets.only(bottom: 12),
+          padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.withOpacity(0.08), width: 1),
+          ),
+          child: Text(
+            headerLabel,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: black.withOpacity(0.85),
+            ),
+          ),
+        ),
+      );
+
+      final notifs = grouped[key]!;
+      widgets.addAll(notifs.map((notification) =>
+        _buildModalNotificationItem(
+          notification,
+          primaryGreen,
+          black,
+          isMobile,
+        )
+      ).toList());
+
+      widgets.add(SizedBox(height: 8));
+    }
+
+    return widgets;
   }
 
   Widget _buildModalNotificationItem(
@@ -428,7 +512,7 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
     String timeText = 'Recently';
     if (createdAt != null) {
       try {
-        final dateTime = DateTime.parse(createdAt);
+        final dateTime = DateTime.parse(createdAt).toLocal();
         timeText = DateFormat('h:mm a').format(dateTime);
       } catch (e) {
         timeText = 'Recently';
@@ -521,6 +605,7 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
     Color black,
     bool isMobile,
   ) {
+    // ...existing code...
     final type = notification['type'] ?? '';
     final title = notification['title'] ?? 'Notification';
     final message = notification['message'] ?? '';
