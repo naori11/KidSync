@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import '../../models/parent_models.dart';
-import '../../models/driver_models.dart';
 import '../../services/notification_service.dart';
 import '../../services/verification_service.dart';
 import '../../widgets/verification_modal.dart';
@@ -39,6 +38,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
   List<Map<String, dynamic>> recentNotifications = [];
   List<Map<String, dynamic>> pendingVerifications = [];
   Map<String, dynamic> todaySchedule = {};
+  bool hasClassesToday = false;
   Timer? _refreshTimer;
 
   @override
@@ -92,6 +92,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       _notificationService.getTodayStatus(studentId),
       _notificationService.getTodayRfidStatus(studentId),
       _loadTodaySchedule(studentId),
+      _checkClassScheduleToday(studentId),
       _loadDashboardFetchers(),
       _loadRecentNotifications(),
       _loadPendingVerifications(),
@@ -102,6 +103,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       todayStatus = results[1] as Map<String, dynamic>;
       todayRfidStatus = results[2] as Map<String, dynamic>;
       todaySchedule = results[3] as Map<String, dynamic>;
+      hasClassesToday = results[4] as bool;
     });
   }
 
@@ -208,6 +210,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       final newTodayStatus = await _notificationService.getTodayStatus(studentId);
       final newTodayRfidStatus = await _notificationService.getTodayRfidStatus(studentId);
       final newTodaySchedule = await _loadTodaySchedule(studentId);
+      final newHasClassesToday = await _checkClassScheduleToday(studentId);
       await _loadRecentNotifications();
       await _loadPendingVerifications();
       
@@ -215,6 +218,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
         todayStatus = newTodayStatus;
         todayRfidStatus = newTodayRfidStatus;
         todaySchedule = newTodaySchedule;
+        hasClassesToday = newHasClassesToday;
       });
     } catch (e) {
       print('Error refreshing data: $e');
@@ -274,6 +278,53 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
         'pickup_person': 'driver',
         'is_exception': false,
       };
+    }
+  }
+
+  Future<bool> _checkClassScheduleToday(int studentId) async {
+    try {
+      final today = DateTime.now();
+      final dayOfWeek = today.weekday; // 1 = Monday, 7 = Sunday
+      
+      // Convert numeric day to abbreviated day name used in section_teachers
+      final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      final todayAbbrev = dayNames[dayOfWeek - 1]; // dayOfWeek is 1-based, array is 0-based
+      
+      // First, get the student's section
+      final studentResponse = await supabase
+          .from('students')
+          .select('section_id')
+          .eq('id', studentId)
+          .maybeSingle();
+      
+      if (studentResponse == null || studentResponse['section_id'] == null) {
+        return false; // No section assigned
+      }
+      
+      final sectionId = studentResponse['section_id'];
+      
+      // Check if there are any teachers assigned to this section for today
+      final teacherResponse = await supabase
+          .from('section_teachers')
+          .select('id, days, start_time, end_time')
+          .eq('section_id', sectionId);
+      
+      if (teacherResponse.isEmpty) {
+        return false; // No teachers assigned to section
+      }
+      
+      // Check if any teacher has classes today
+      for (final teacher in teacherResponse) {
+        final days = teacher['days'] as List<dynamic>?;
+        if (days != null && days.contains(todayAbbrev)) {
+          return true; // Found at least one teacher with classes today
+        }
+      }
+      
+      return false; // No teachers have classes today
+    } catch (e) {
+      print('Error checking class schedule: $e');
+      return false; // Default to no classes on error
     }
   }
 
@@ -773,25 +824,72 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
   List<Widget> _buildRealTimeSummaryItems(Color primaryColor, Color black, bool isMobile) {
     final List<Widget> items = [];
     
+    // Check if student has classes today
+    if (!hasClassesToday) {
+      items.add(Container(
+        padding: EdgeInsets.all(widget.isMobile ? 12 : 16),
+        decoration: BoxDecoration(
+          color: Colors.grey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.event_busy,
+              color: Colors.grey[600],
+              size: widget.isMobile ? 18 : 20,
+            ),
+            SizedBox(width: widget.isMobile ? 8 : 12),
+            Expanded(
+              child: Text(
+                'No pickup/dropoff needed - No classes today',
+                style: TextStyle(
+                  // Slightly smaller and muted to match other elements
+                  fontSize: widget.isMobile ? 13 : 14,
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ));
+      return items;
+    }
+    
     // Get who is responsible for pickup/dropoff today
     final dropoffPerson = todaySchedule['dropoff_person'] ?? 'driver';
     final pickupPerson = todaySchedule['pickup_person'] ?? 'driver';
     
+    // Check RFID scan records for today
+    final entryRecord = todayRfidStatus['entry'];
+    final exitRecord = todayRfidStatus['exit'];
+    
     // Morning pickup status (picking up from home to school)
     final pickup = todayStatus['pickup']; // DB event_type 'pickup' = morning trip
-    if (pickup != null) {
-      final pickupTime = pickup['pickup_time'];
-      final driverName = pickup['drivers'] != null 
+    if (pickup != null || entryRecord != null) {
+      final pickupTime = pickup?['pickup_time'] ?? entryRecord?['scan_time'];
+      final driverName = pickup?['drivers'] != null 
           ? '${pickup['drivers']['fname']} ${pickup['drivers']['lname']}'
           : 'Driver';
+      
+      String statusMessage;
+      if (dropoffPerson == 'parent') {
+        statusMessage = entryRecord != null 
+            ? 'Student scanned in - You dropped off'
+            : 'You confirmed pick-up';
+      } else {
+        statusMessage = entryRecord != null 
+            ? 'Student scanned in - Driver: $driverName dropped off'
+            : 'Driver: $driverName confirmed pick-up';
+      }
       
       items.add(_buildSummaryItem(
         Icons.school,
         'Morning Pick-up',
         '${_formatTimeFromString(pickupTime)} - Picked up from home',
-        dropoffPerson == 'parent' 
-            ? 'You confirmed pick-up'
-            : 'Driver: $driverName confirmed pick-up',
+        statusMessage,
         true,
         primaryColor,
         black,
@@ -802,19 +900,28 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     
     // Afternoon dropoff status (dropping off from school to home)
     final dropoff = todayStatus['dropoff']; // DB event_type 'dropoff' = afternoon trip
-    if (dropoff != null) {
-      final dropoffTime = dropoff['dropoff_time'];
-      final driverName = dropoff['drivers'] != null 
+    if (dropoff != null || exitRecord != null) {
+      final dropoffTime = dropoff?['dropoff_time'] ?? exitRecord?['scan_time'];
+      final driverName = dropoff?['drivers'] != null 
           ? '${dropoff['drivers']['fname']} ${dropoff['drivers']['lname']}'
           : 'Driver';
+      
+      String statusMessage;
+      if (pickupPerson == 'parent') {
+        statusMessage = exitRecord != null 
+            ? 'Student scanned out - You picked up'
+            : 'You confirmed drop-off';
+      } else {
+        statusMessage = exitRecord != null 
+            ? 'Student scanned out - Driver: $driverName picked up'
+            : 'Driver: $driverName confirmed drop-off';
+      }
       
       items.add(_buildSummaryItem(
         Icons.home,
         'Afternoon Drop-off',
         '${_formatTimeFromString(dropoffTime)} - Dropped off at home',
-        pickupPerson == 'parent' 
-            ? 'You confirmed drop-off'
-            : 'Driver: $driverName confirmed drop-off',
+        statusMessage,
         true,
         primaryColor,
         black,
@@ -824,14 +931,14 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     }
     
     // Current status based on what's happened and who's responsible
-    if (pickup != null && dropoff == null) {
+    if ((pickup != null || entryRecord != null) && dropoff == null && exitRecord == null) {
       // Child has been picked up from home, now at school, waiting for dropoff
       if (pickupPerson == 'parent') {
         items.add(_buildSummaryItem(
           Icons.school,
           'Current Status',
-          'At school - You need to drop off',
-          'You are responsible for drop-off today',
+          'At school - You need to pick up',
+          'You are responsible for pick-up today',
           true,
           primaryColor,
           black,
@@ -841,8 +948,8 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
         items.add(_buildSummaryItem(
           Icons.school,
           'Current Status',
-          'At school - Waiting for drop-off',
-          'Driver will drop off student',
+          'At school - Waiting for pick-up',
+          'Driver will pick up student',
           true,
           primaryColor,
           black,
@@ -850,13 +957,13 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
         ));
       }
       items.add(const SizedBox(height: 8));
-    } else if (dropoff != null) {
+    } else if (dropoff != null || exitRecord != null) {
       // Child has been dropped off from school and is home
       items.add(_buildSummaryItem(
         Icons.home,
         'Current Status',
         'At home - Day completed',
-        'Student has been safely dropped off',
+        'Student has been safely picked up from school',
         true,
         primaryColor,
         black,
@@ -871,9 +978,9 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       if (dropoffPerson == 'parent') {
         items.add(_buildSummaryItem(
           Icons.schedule,
-          'Scheduled Pick-up',
-          '$formattedTime - You will pick up',
-          'You are responsible for pick-up today',
+          'Scheduled Drop-off',
+          '$formattedTime - You will drop off',
+          'You are responsible for drop-off today',
           false,
           primaryColor,
           black,
@@ -886,9 +993,9 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
         
         items.add(_buildSummaryItem(
           Icons.schedule,
-          'Scheduled Pick-up',
-          '$formattedTime - Waiting for pick-up',
-          'Driver: $driverName will pick up',
+          'Scheduled Drop-off',
+          '$formattedTime - Waiting for drop-off',
+          'Driver: $driverName will drop off',
           false,
           primaryColor,
           black,
@@ -914,6 +1021,40 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
 
   List<Widget> _buildTodayScheduleItems() {
     final List<Widget> items = [];
+    
+    // Check if student has classes today
+    if (!hasClassesToday) {
+      items.add(Container(
+        padding: EdgeInsets.all(widget.isMobile ? 12 : 16),
+        decoration: BoxDecoration(
+          color: Colors.grey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.event_busy,
+              color: Colors.grey[600],
+              size: widget.isMobile ? 18 : 20,
+            ),
+            SizedBox(width: widget.isMobile ? 8 : 12),
+            Expanded(
+              child: Text(
+                'No classes scheduled for today',
+                style: TextStyle(
+                  // Match size/weight with schedule/pickup small text
+                  fontSize: widget.isMobile ? 13 : 14,
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ));
+      return items;
+    }
     
     // Get scheduled times from driver assignment
     // pickup_time = morning pickup from home (first event of the day)
