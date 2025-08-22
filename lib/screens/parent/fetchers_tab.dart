@@ -484,7 +484,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Enhanced Add Temporary Fetcher Form
+          // Enhanced Add Temporary Fetcher Form (refactored to match app cards)
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             child: Card(
@@ -492,66 +492,64 @@ class _FetchersScreenState extends State<FetchersScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
               elevation: 8,
-              shadowColor: widget.primaryColor.withOpacity(0.3),
+              shadowColor: widget.primaryColor.withOpacity(0.18),
               child: Container(
                 decoration: BoxDecoration(
                   color: white,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: widget.primaryColor.withOpacity(0.15),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                      spreadRadius: 2,
+                      color: widget.primaryColor.withOpacity(0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
                     ),
                   ],
                 ),
                 child: Padding(
-                  padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Header
-                        Row(
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: greenWithOpacity,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Icon(
-                                Icons.person_add_alt_1,
-                                color: widget.primaryColor,
-                                size: widget.isMobile ? 16 : 18,
-                              ),
+                  padding: EdgeInsets.all(widget.isMobile ? 12 : 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: greenWithOpacity,
+                              borderRadius: BorderRadius.circular(6),
                             ),
-                            SizedBox(width: widget.isMobile ? 8 : 12),
-                            Text(
-                              'Add Temporary Fetcher',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: widget.isMobile ? 15 : 16,
-                                color: black,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: widget.isMobile ? 16 : 20),
-
-                        // Form Container
-                        Container(
-                          padding: EdgeInsets.all(widget.isMobile ? 12 : 16),
-                          decoration: BoxDecoration(
-                            color: greenWithOpacity,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: widget.primaryColor.withOpacity(0.3),
-                              width: 1,
+                            child: Icon(
+                              Icons.person_add_alt_1,
+                              color: widget.primaryColor,
+                              size: widget.isMobile ? 16 : 18,
                             ),
                           ),
+                          SizedBox(width: widget.isMobile ? 8 : 12),
+                          Text(
+                            'Add Temporary Fetcher',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: widget.isMobile ? 15 : 16,
+                              color: black,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: widget.isMobile ? 10 : 12),
+
+                      // Inner form area with subtle border to match other cards
+                      Container(
+                        padding: EdgeInsets.all(widget.isMobile ? 12 : 16),
+                        decoration: BoxDecoration(
+                          color: white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: widget.primaryColor.withOpacity(0.06),
+                            width: 2,
+                          ),
+                        ),
+                        child: Form(
+                          key: _formKey,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -559,37 +557,30 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                 'Temporary Access Information',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w600,
-                                  fontSize: widget.isMobile ? 14 : 16,
+                                  fontSize: widget.isMobile ? 14 : 15,
                                   color: widget.primaryColor,
                                 ),
                               ),
-                              SizedBox(height: widget.isMobile ? 16 : 20),
+                              SizedBox(height: widget.isMobile ? 12 : 14),
 
                               // Row 1: Fetcher Name and Relationship
                               if (widget.isMobile) ...[
-                                // Mobile: Stack vertically to prevent overflow
                                 _buildTextFormField(
                                   controller: _fetcherNameController,
                                   label: 'Fetcher Name *',
                                   hint: 'Enter full name',
                                   validator: _validateName,
                                 ),
-                                SizedBox(height: 16),
+                                SizedBox(height: 12),
                                 _buildDropdownField(
                                   value: _selectedRelationship,
                                   label: 'Relationship *',
                                   hint: 'Select relationship',
                                   items: _relationships,
-                                  onChanged:
-                                      (value) => setState(
-                                        () => _selectedRelationship = value,
-                                      ),
-                                  validator:
-                                      (value) =>
-                                          value == null ? 'Required' : null,
+                                  onChanged: (value) => setState(() => _selectedRelationship = value),
+                                  validator: (value) => value == null ? 'Required' : null,
                                 ),
                               ] else ...[
-                                // Desktop: Use Row layout
                                 Row(
                                   children: [
                                     Expanded(
@@ -608,26 +599,18 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                         label: 'Relationship *',
                                         hint: 'Select relationship',
                                         items: _relationships,
-                                        onChanged:
-                                            (value) => setState(
-                                              () =>
-                                                  _selectedRelationship = value,
-                                            ),
-                                        validator:
-                                            (value) =>
-                                                value == null
-                                                    ? 'Required'
-                                                    : null,
+                                        onChanged: (value) => setState(() => _selectedRelationship = value),
+                                        validator: (value) => value == null ? 'Required' : null,
                                       ),
                                     ),
                                   ],
                                 ),
                               ],
-                              SizedBox(height: 16),
+
+                              SizedBox(height: 12),
 
                               // Row 2: Contact Number and Emergency Contact
                               if (widget.isMobile) ...[
-                                // Mobile: Stack vertically to prevent overflow
                                 _buildTextFormField(
                                   controller: _contactNumberController,
                                   label: 'Contact Number *',
@@ -635,7 +618,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                   validator: _validatePhoneNumber,
                                   keyboardType: TextInputType.phone,
                                 ),
-                                SizedBox(height: 16),
+                                SizedBox(height: 12),
                                 _buildTextFormField(
                                   controller: _emergencyContactController,
                                   label: 'Emergency Contact',
@@ -643,7 +626,6 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                   keyboardType: TextInputType.phone,
                                 ),
                               ] else ...[
-                                // Desktop: Use Row layout
                                 Row(
                                   children: [
                                     Expanded(
@@ -667,22 +649,19 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                   ],
                                 ),
                               ],
-                              SizedBox(height: 16),
+
+                              SizedBox(height: 12),
 
                               // Row 3: ID Type and ID Number
                               if (widget.isMobile) ...[
-                                // Mobile: Stack vertically to prevent overflow
                                 _buildDropdownField(
                                   value: _selectedIdType,
                                   label: 'Valid ID Type',
                                   hint: 'Select ID type',
                                   items: _idTypes,
-                                  onChanged:
-                                      (value) => setState(
-                                        () => _selectedIdType = value,
-                                      ),
+                                  onChanged: (value) => setState(() => _selectedIdType = value),
                                 ),
-                                SizedBox(height: 16),
+                                SizedBox(height: 12),
                                 _buildTextFormField(
                                   controller: _idNumberController,
                                   label: 'ID Number',
@@ -690,7 +669,6 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                   validator: _validateIdNumber,
                                 ),
                               ] else ...[
-                                // Desktop: Use Row layout
                                 Row(
                                   children: [
                                     Expanded(
@@ -699,10 +677,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                         label: 'Valid ID Type',
                                         hint: 'Select ID type',
                                         items: _idTypes,
-                                        onChanged:
-                                            (value) => setState(
-                                              () => _selectedIdType = value,
-                                            ),
+                                        onChanged: (value) => setState(() => _selectedIdType = value),
                                       ),
                                     ),
                                     SizedBox(width: 12),
@@ -717,7 +692,8 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                   ],
                                 ),
                               ],
-                              SizedBox(height: 16),
+
+                              SizedBox(height: 12),
 
                               // Notes field
                               _buildTextFormField(
@@ -726,7 +702,8 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                 hint: 'Any special instructions or notes',
                                 maxLines: 2,
                               ),
-                              SizedBox(height: widget.isMobile ? 16 : 20),
+
+                              SizedBox(height: widget.isMobile ? 12 : 14),
 
                               // Generate PIN Button
                               SizedBox(
@@ -736,50 +713,43 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                     backgroundColor: widget.primaryColor,
                                     foregroundColor: white,
                                     padding: EdgeInsets.symmetric(
-                                      vertical: widget.isMobile ? 12 : 16,
+                                      vertical: widget.isMobile ? 12 : 14,
                                     ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     elevation: 2,
                                   ),
-                                  icon:
-                                      _isGeneratingPin
-                                          ? SizedBox(
-                                            width: 20,
-                                            height: 20,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor:
-                                                  AlwaysStoppedAnimation<Color>(
-                                                    white,
-                                                  ),
+                                  icon: _isGeneratingPin
+                                      ? SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(
+                                              white,
                                             ),
-                                          )
-                                          : Icon(
-                                            Icons.security,
-                                            size: widget.isMobile ? 18 : 20,
                                           ),
+                                        )
+                                      : Icon(
+                                          Icons.security,
+                                          size: widget.isMobile ? 18 : 20,
+                                        ),
                                   label: Text(
-                                    _isGeneratingPin
-                                        ? 'Generating...'
-                                        : 'Generate Secure PIN',
+                                    _isGeneratingPin ? 'Generating...' : 'Generate Secure PIN',
                                     style: TextStyle(
-                                      fontSize: widget.isMobile ? 14 : 16,
+                                      fontSize: widget.isMobile ? 14 : 15,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  onPressed:
-                                      _isGeneratingPin
-                                          ? null
-                                          : _generateAndSaveTemporaryFetcher,
+                                  onPressed: _isGeneratingPin ? null : _generateAndSaveTemporaryFetcher,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1126,8 +1096,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
     const Color black = Color(0xFF000000);
     const Color white = Color(0xFFFFFFFF);
 
-    final bool isUsed = fetcher['is_used'] == true;
-    final String status = fetcher['status'] ?? 'active';
+  final bool isUsed = fetcher['is_used'] == true;
 
     return Container(
       margin: EdgeInsets.only(bottom: 12),
