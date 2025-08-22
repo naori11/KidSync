@@ -51,7 +51,6 @@ class NotificationService {
                 value: studentId,
               ),
               callback: (payload) {
-                print('Pickup record inserted: ${payload.newRecord}');
                 _pickupStatusController.add({
                   'type': 'pickup',
                   'action': 'insert',
@@ -80,7 +79,6 @@ class NotificationService {
                 value: studentId,
               ),
               callback: (payload) {
-                print('Dropoff record inserted: ${payload.newRecord}');
                 _dropoffStatusController.add({
                   'type': 'dropoff',
                   'action': 'insert',
@@ -109,7 +107,6 @@ class NotificationService {
                 value: studentId,
               ),
               callback: (payload) {
-                print('New notification: ${payload.newRecord}');
                 _notificationController.add({
                   'type': 'notification',
                   'action': 'insert',
@@ -334,6 +331,155 @@ class NotificationService {
     } catch (e) {
       print('Error getting student driver: $e');
       return null;
+    }
+  }
+
+  /// Get today's RFID scan records for a student
+  Future<Map<String, dynamic>> getTodayRfidStatus(int studentId) async {
+    try {
+      final today = DateTime.now();
+      final todayStart = DateTime(today.year, today.month, today.day);
+      final todayEnd = todayStart.add(const Duration(days: 1));
+
+      // Get today's scan records ordered by scan time
+      final scanRecords = await supabase
+          .from('scan_records')
+          .select('''
+            action,
+            scan_time,
+            status,
+            verified_by,
+            notes,
+            guard_id
+          ''')
+          .eq('student_id', studentId)
+          .gte('scan_time', todayStart.toIso8601String())
+          .lt('scan_time', todayEnd.toIso8601String())
+          .order('scan_time', ascending: true);
+
+      // Find the latest entry and exit records
+      Map<String, dynamic>? latestEntry;
+      Map<String, dynamic>? latestExit;
+
+      for (final record in scanRecords) {
+        if (record['action'] == 'entry') {
+          latestEntry = record;
+        } else if (record['action'] == 'exit') {
+          latestExit = record;
+        }
+      }
+
+      return {
+        'entry': latestEntry,
+        'exit': latestExit,
+        'all_records': scanRecords,
+        'date': todayStart.toIso8601String().split('T')[0],
+      };
+    } catch (e) {
+      print('Error getting today RFID status: $e');
+      return {
+        'entry': null,
+        'exit': null,
+        'all_records': [],
+        'date': null,
+      };
+    }
+  }
+
+  /// Send RFID tap notification to all parents of a student
+  Future<bool> sendRfidTapNotification({
+    required int studentId,
+    required String action, // 'entry' or 'exit'
+    required String studentName,
+    String? guardName,
+  }) async {
+    try {
+      // Get all parents for this student
+      final parentStudentResponse = await supabase
+          .from('parent_student')
+          .select('''
+            parent_id,
+            parents!inner(
+              user_id,
+              fname,
+              lname
+            )
+          ''')
+          .eq('student_id', studentId);
+
+      if (parentStudentResponse.isEmpty) {
+        return false;
+      }
+
+      // Prepare notification data
+      String title;
+      String message;
+      String notificationType;
+
+      if (action == 'entry') {
+        title = 'Student Arrival';
+        message = '$studentName has arrived at school and tapped in.';
+        notificationType = 'rfid_entry';
+      } else if (action == 'exit') {
+        title = 'Student Departure';
+        message = '$studentName has left school and tapped out.';
+        notificationType = 'rfid_exit';
+      } else {
+        return false;
+      }
+
+      // Add guard info if available
+      if (guardName != null && guardName.isNotEmpty) {
+        message += ' Verified by: $guardName';
+      }
+
+      // Send notification to each parent
+      final List<Map<String, dynamic>> notifications = [];
+      for (final parentData in parentStudentResponse) {
+        final userId = parentData['parents']['user_id'];
+        if (userId != null) {
+          notifications.add({
+            'recipient_id': userId,
+            'title': title,
+            'message': message,
+            'type': notificationType,
+            'student_id': studentId,
+            'is_read': false,
+            'created_at': DateTime.now().toIso8601String(),
+          });
+        }
+      }
+
+      if (notifications.isNotEmpty) {
+        try {
+          // Try using the RPC function first (better for RLS)
+          final result = await supabase.rpc('create_rfid_notification', params: {
+            'p_student_id': studentId,
+            'p_action': action,
+            'p_student_name': studentName,
+            'p_guard_name': guardName,
+          });
+          
+          if (result == true) {
+            return true;
+          } else {
+            return false;
+          }
+        } catch (rpcError) {
+          // Fallback to direct insert
+          try {
+            await supabase.from('notifications').insert(notifications);
+            return true;
+          } catch (insertError) {
+            return false;
+          }
+        }
+      }
+
+      return false;
+    } catch (e) {
+      print('Error sending RFID tap notification: $e');
+      return false;
     }
   }
 

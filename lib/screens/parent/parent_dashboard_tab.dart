@@ -35,6 +35,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
   // Real-time data
   Map<String, dynamic>? driverInfo;
   Map<String, dynamic> todayStatus = {};
+  Map<String, dynamic> todayRfidStatus = {};
   List<Map<String, dynamic>> recentNotifications = [];
   List<Map<String, dynamic>> pendingVerifications = [];
   Map<String, dynamic> todaySchedule = {};
@@ -89,6 +90,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     final results = await Future.wait([
       _notificationService.getStudentDriver(studentId),
       _notificationService.getTodayStatus(studentId),
+      _notificationService.getTodayRfidStatus(studentId),
       _loadTodaySchedule(studentId),
       _loadDashboardFetchers(),
       _loadRecentNotifications(),
@@ -98,7 +100,8 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     setState(() {
       driverInfo = results[0] as Map<String, dynamic>?;
       todayStatus = results[1] as Map<String, dynamic>;
-      todaySchedule = results[2] as Map<String, dynamic>;
+      todayRfidStatus = results[2] as Map<String, dynamic>;
+      todaySchedule = results[3] as Map<String, dynamic>;
     });
   }
 
@@ -203,12 +206,14 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       
       // Refresh today's status, schedule, notifications, and pending verifications
       final newTodayStatus = await _notificationService.getTodayStatus(studentId);
+      final newTodayRfidStatus = await _notificationService.getTodayRfidStatus(studentId);
       final newTodaySchedule = await _loadTodaySchedule(studentId);
       await _loadRecentNotifications();
       await _loadPendingVerifications();
       
       setState(() {
         todayStatus = newTodayStatus;
+        todayRfidStatus = newTodayRfidStatus;
         todaySchedule = newTodaySchedule;
       });
     } catch (e) {

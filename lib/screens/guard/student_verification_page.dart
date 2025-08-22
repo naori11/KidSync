@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:web_socket_channel/html.dart';
 import 'dart:convert';
 import '../../models/guard_models.dart';
+import '../../services/notification_service.dart';
 
 final supabase = Supabase.instance.client;
 final user = supabase.auth.currentUser;
@@ -36,6 +37,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   TimeOfDay? lastClassEndTime;
 
   late HtmlWebSocketChannel channel;
+  final NotificationService _notificationService = NotificationService();
 
   // Make cooldown tracking static so it persists across page navigations
   static Map<String, DateTime> rfidCooldowns = {};
@@ -373,6 +375,15 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         'notes': 'Automatic entry via RFID scan',
       });
 
+      // Send RFID entry notification to parents
+      print('DEBUG: About to send RFID entry notification for student ${student.id}');
+      final notificationSent = await _notificationService.sendRfidTapNotification(
+        studentId: student.id,
+        action: 'entry',
+        studentName: '${student.fname} ${student.lname}',
+      );
+      print('DEBUG: RFID entry notification sent: $notificationSent');
+
       _showSuccessNotification('Student checked in successfully');
 
       // Auto-hide after 3 seconds
@@ -647,6 +658,15 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'status': 'Checked Out',
           'notes': detailedNotes,
         });
+
+        // Send RFID exit notification to parents
+        print('DEBUG: About to send RFID exit notification for student ${scannedStudent!.id}');
+        final notificationSent = await _notificationService.sendRfidTapNotification(
+          studentId: scannedStudent!.id,
+          action: 'exit',
+          studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
+        );
+        print('DEBUG: RFID exit notification sent: $notificationSent');
 
         _showSuccessNotification(
           'Pickup approved for temporary fetcher: ${verifiedTempFetcher!['fetcher_name']}',
@@ -1153,6 +1173,17 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         'status': status,
         'notes': notes,
       });
+
+      // Send RFID exit notification to parents only if approved
+      if (approved) {
+        print('DEBUG: About to send RFID exit notification for student ${scannedStudent!.id} (regular pickup)');
+        final notificationSent = await _notificationService.sendRfidTapNotification(
+          studentId: scannedStudent!.id,
+          action: 'exit',
+          studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
+        );
+        print('DEBUG: RFID exit notification sent (regular pickup): $notificationSent');
+      }
     } catch (e) {
       print('Error saving pickup record: $e');
     }
@@ -1408,7 +1439,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
   // Simulate RFID scan for testing
   void simulateRFIDScan() {
-    _fetchStudentByRFID('f2e2f603');
+    _fetchStudentByRFID('d9e0c801');
   }
 
   @override

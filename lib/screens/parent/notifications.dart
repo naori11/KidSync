@@ -504,6 +504,14 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
         icon = Icons.home;
         iconColor = Colors.green;
         break;
+      case 'rfid_entry':
+        icon = Icons.login;
+        iconColor = Colors.green;
+        break;
+      case 'rfid_exit':
+        icon = Icons.logout;
+        iconColor = Colors.orange;
+        break;
       default:
         icon = Icons.info;
         iconColor = primaryGreen;
@@ -623,6 +631,14 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
       case 'dropoff':
         icon = Icons.home;
         iconColor = Colors.green;
+        break;
+      case 'rfid_entry':
+        icon = Icons.login;
+        iconColor = Colors.green;
+        break;
+      case 'rfid_exit':
+        icon = Icons.logout;
+        iconColor = Colors.orange;
         break;
       default:
         icon = Icons.info;
