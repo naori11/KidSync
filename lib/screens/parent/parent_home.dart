@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dart:math';
 import '../../models/parent_models.dart';
-import '../../models/driver_models.dart';
 import '../../services/notification_service.dart';
 import 'parent_dashboard_tab.dart';
 import 'pickup_dropoff_tab.dart';
@@ -24,7 +22,8 @@ class Student {
   final String middleName;
   final String lastName;
   final String gradeLevel;
-  final String section; // This will hold the section_id value
+  final String section; // This will hold the section name or id
+  final String? profileImageUrl;
 
   Student({
     required this.id,
@@ -32,7 +31,8 @@ class Student {
     required this.middleName,
     required this.lastName,
     required this.gradeLevel,
-    required this.section,
+  required this.section,
+  this.profileImageUrl,
   });
 
   String get fullName {
@@ -55,11 +55,13 @@ class Student {
       middleName: json['students']?['mname'] ?? json['mname'] ?? '',
       lastName: json['students']?['lname'] ?? json['lname'] ?? '',
       gradeLevel: json['students']?['grade_level'] ?? json['grade_level'] ?? '',
-      section:
-          json['students']?['sections']?['section_name'] ??
-          json['students']?['section_id']?.toString() ??
-          json['section_id']?.toString() ??
-          '',
+    // Prefer the joined section name if available, otherwise fall back to id
+    section:
+      json['students']?['sections']?['name'] ??
+      json['students']?['section_id']?.toString() ??
+      json['section_id']?.toString() ??
+      '',
+  profileImageUrl: json['students']?['profile_image_url'] ?? json['profile_image_url'],
     );
   }
 }
@@ -207,7 +209,9 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
           .select('''
           student_id,
           students!inner(
-            id, fname, mname, lname, grade_level, section_id
+            id, fname, mname, lname, grade_level, section_id,
+            profile_image_url,
+            sections!inner(name)
           )
         ''')
           .eq('parent_id', parentId);
@@ -476,15 +480,39 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                 SizedBox(height: 16),
                 ...parentStudents.map(
                   (student) => ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Color.fromRGBO(25, 174, 97, 0.1),
-                      child: Text(
-                        student.initials,
-                        style: TextStyle(
-                          color: widget.primaryColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    leading: Container(
+                      width: 40,
+                      height: 40,
+                      child: (student.profileImageUrl != null && student.profileImageUrl!.isNotEmpty)
+                          ? ClipOval(
+                              child: Image.network(
+                                student.profileImageUrl!,
+                                width: 40,
+                                height: 40,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => Container(
+                                  color: Color.fromRGBO(25, 174, 97, 0.1),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    student.initials,
+                                    style: TextStyle(
+                                      color: widget.primaryColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : CircleAvatar(
+                              backgroundColor: Color.fromRGBO(25, 174, 97, 0.1),
+                              child: Text(
+                                student.initials,
+                                style: TextStyle(
+                                  color: widget.primaryColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                     ),
                     title: Text(student.fullName),
                     subtitle: Text(
@@ -545,17 +573,42 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircleAvatar(
-              radius: 12,
-              backgroundColor: widget.primaryColor.withOpacity(0.2),
-              child: Text(
-                selectedStudent!.initials,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: widget.primaryColor,
-                ),
-              ),
+            Container(
+              width: 24,
+              height: 24,
+              child: (selectedStudent!.profileImageUrl != null && selectedStudent!.profileImageUrl!.isNotEmpty)
+                  ? ClipOval(
+                      child: Image.network(
+                        selectedStudent!.profileImageUrl!,
+                        width: 24,
+                        height: 24,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => CircleAvatar(
+                          radius: 12,
+                          backgroundColor: widget.primaryColor.withOpacity(0.2),
+                          child: Text(
+                            selectedStudent!.initials,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: widget.primaryColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : CircleAvatar(
+                      radius: 12,
+                      backgroundColor: widget.primaryColor.withOpacity(0.2),
+                      child: Text(
+                        selectedStudent!.initials,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: widget.primaryColor,
+                        ),
+                      ),
+                    ),
             ),
             SizedBox(width: 8),
             Text(
