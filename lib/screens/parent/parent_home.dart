@@ -256,11 +256,12 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
       final user = supabase.auth.currentUser;
       if (user == null) return;
 
-      final parentResponse = await supabase
-          .from('parents')
-          .select('id')
-          .eq('user_id', user.id)
-          .maybeSingle();
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('id')
+              .eq('user_id', user.id)
+              .maybeSingle();
 
       if (parentResponse != null) {
         final parentId = parentResponse['id'];
@@ -268,7 +269,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
           parentId,
           studentId: selectedStudent!.id,
         );
-        
+
         setState(() {
           unreadNotificationCount = count;
         });
@@ -411,9 +412,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
       barrierDismissible: true,
       barrierColor: Colors.black.withOpacity(0.5),
       builder: (BuildContext context) {
-        return ParentNotificationsModal(
-          selectedStudent: selectedStudent!,
-        );
+        return ParentNotificationsModal(selectedStudent: selectedStudent!);
       },
     );
 
@@ -536,38 +535,23 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     // Don't show selector if only one student
     if (parentStudents.length == 1) {
       return Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: EdgeInsets.all(4),
         decoration: BoxDecoration(
           color: widget.primaryColor.withOpacity(0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: widget.primaryColor.withOpacity(0.3)),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircleAvatar(
-              radius: 12,
-              backgroundColor: widget.primaryColor.withOpacity(0.2),
-              child: Text(
-                selectedStudent!.initials,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: widget.primaryColor,
-                ),
-              ),
+        child: CircleAvatar(
+          radius: 16,
+          backgroundColor: widget.primaryColor.withOpacity(0.2),
+          child: Text(
+            selectedStudent!.initials,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: widget.primaryColor,
             ),
-            SizedBox(width: 8),
-            Text(
-              isMobile ? selectedStudent!.firstName : selectedStudent!.fullName,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: isMobile ? 14 : 16,
-                color: Color(0xFF000000),
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+          ),
         ),
       );
     }
@@ -576,47 +560,41 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     return GestureDetector(
       onTap: _showStudentSelector,
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: EdgeInsets.all(4),
         decoration: BoxDecoration(
           color: widget.primaryColor.withOpacity(0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: widget.primaryColor.withOpacity(0.3)),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        child: Stack(
           children: [
             CircleAvatar(
-              radius: 12,
+              radius: 16,
               backgroundColor: widget.primaryColor.withOpacity(0.2),
               child: Text(
                 selectedStudent!.initials,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: widget.primaryColor,
                 ),
               ),
             ),
-            SizedBox(width: 8),
-            ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: isMobile ? 100 : 150),
-              child: Text(
-                isMobile
-                    ? selectedStudent!.firstName
-                    : selectedStudent!.fullName,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: isMobile ? 14 : 16,
-                  color: Color(0xFF000000),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: widget.primaryColor,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                overflow: TextOverflow.ellipsis,
+                child: Icon(
+                  Icons.keyboard_arrow_down,
+                  size: 10,
+                  color: Colors.white,
+                ),
               ),
-            ),
-            SizedBox(width: 4),
-            Icon(
-              Icons.keyboard_arrow_down,
-              size: 16,
-              color: widget.primaryColor,
             ),
           ],
         ),
@@ -788,36 +766,41 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
-                    SizedBox(
-                      height: 32,
-                      width: 32,
-                      child: Image.asset(
-                        'assets/logo.png',
-                        fit: BoxFit.contain,
-                        errorBuilder:
-                            (context, error, stackTrace) => Icon(
-                              Icons.school,
-                              color: widget.primaryColor,
-                              size: 28,
+                    // Left section with fixed positioning
+                    Expanded(
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            height: 32,
+                            width: 32,
+                            child: Image.asset(
+                              'assets/logo.png',
+                              fit: BoxFit.contain,
+                              errorBuilder:
+                                  (context, error, stackTrace) => Icon(
+                                    Icons.school,
+                                    color: widget.primaryColor,
+                                    size: 28,
+                                  ),
                             ),
+                          ),
+                          SizedBox(width: 12),
+                          // Panel Name
+                          Text(
+                            widget.navItems[selectedIndex].label,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF000000),
+                            ),
+                          ),
+
+                          SizedBox(width: 16),
+                          // Student Selector
+                          _buildStudentSelector(isMobile),
+                        ],
                       ),
                     ),
-                    SizedBox(width: 12),
-                    // Panel Name
-                    Text(
-                      widget.navItems[selectedIndex].label,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF000000),
-                      ),
-                    ),
-
-                    SizedBox(width: 16),
-                    // Student Selector
-                    _buildStudentSelector(isMobile),
-
-                    Spacer(),
                     // Notification Bell
                     GestureDetector(
                       onTap: () => _navigateToNotifications(),
@@ -831,8 +814,8 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                         child: Stack(
                           children: [
                             Icon(
-                              unreadNotificationCount > 0 
-                                  ? Icons.notifications 
+                              unreadNotificationCount > 0
+                                  ? Icons.notifications
                                   : Icons.notifications_none,
                               color: const Color(0xFF000000),
                               size: 28,
@@ -853,8 +836,8 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
-                                    unreadNotificationCount > 99 
-                                        ? '99+' 
+                                    unreadNotificationCount > 99
+                                        ? '99+'
                                         : unreadNotificationCount.toString(),
                                     style: TextStyle(
                                       color: Colors.white,
