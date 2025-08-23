@@ -51,9 +51,20 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
   ) async {
     final response = await supabase
         .from('section_teachers')
-        .select('id, subject, assigned_at, users(id, fname, lname)')
+        .select('id, subject, assigned_at, days, start_time, end_time, teacher_id, users(id, fname, lname)')
         .eq('section_id', sectionId)
         .order('subject', ascending: true);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchTeacherAssignments(
+    String teacherId,
+  ) async {
+    final response = await supabase
+        .from('section_teachers')
+        .select('id, subject, days, start_time, end_time, sections(id, name, grade_level)')
+        .eq('teacher_id', teacherId)
+        .order('start_time', ascending: true);
     return List<Map<String, dynamic>>.from(response);
   }
 
@@ -316,6 +327,8 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     List<String> selectedDays = [];
     TimeOfDay? startTime;
     TimeOfDay? endTime;
+    List<Map<String, dynamic>> teacherSchedule = [];
+    bool isLoadingSchedule = false;
 
     final List<String> daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -388,6 +401,11 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
           }
         }
       }
+
+      // Load teacher schedule if editing
+      if (selectedTeacherId != null) {
+        teacherSchedule = await _fetchTeacherAssignments(selectedTeacherId);
+      }
     }
 
     // Debug print to see what data we're working with
@@ -429,12 +447,14 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                 ],
               ),
               content: SizedBox(
-                width: 400,
+                width: 500,
+                height: 600,
                 child: Form(
                   key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                       // Subject Field
                       TextFormField(
                         controller: subjectController,
@@ -490,15 +510,175 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                 ),
                               );
                             }).toList(),
-                        onChanged: (value) {
+                        onChanged: (value) async {
                           setDialogState(() {
                             selectedTeacherId = value;
+                            isLoadingSchedule = true;
                           });
+                          
+                          if (value != null) {
+                            try {
+                              final schedule = await _fetchTeacherAssignments(value);
+                              setDialogState(() {
+                                teacherSchedule = schedule;
+                                isLoadingSchedule = false;
+                              });
+                            } catch (e) {
+                              setDialogState(() {
+                                isLoadingSchedule = false;
+                              });
+                              print('Error fetching teacher schedule: $e');
+                            }
+                          } else {
+                            setDialogState(() {
+                              teacherSchedule = [];
+                              isLoadingSchedule = false;
+                            });
+                          }
                         },
                         validator:
                             (value) => value == null ? 'Select teacher' : null,
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
+
+                      // Teacher Schedule Display
+                      if (selectedTeacherId != null) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            border: Border.all(color: Colors.blue[200]!),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.schedule, size: 16, color: Colors.blue[700]),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Current Teacher Schedule',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.blue[700],
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              if (isLoadingSchedule)
+                                const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(8.0),
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                )
+                              else if (teacherSchedule.isEmpty)
+                                Text(
+                                  'No current assignments',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 13,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                )
+                              else
+                                Column(
+                                  children: teacherSchedule.map((schedule) {
+                                    final section = schedule['sections'];
+                                    final sectionName = section != null ? section['name'] : 'Unknown Section';
+                                    final gradeLevel = section != null ? section['grade_level'] : '';
+                                    final subject = schedule['subject'] ?? '';
+                                    final days = schedule['days'] is List 
+                                        ? (schedule['days'] as List).join(', ')
+                                        : schedule['days']?.toString() ?? '';
+                                    final startTimeStr = schedule['start_time']?.toString() ?? '';
+                                    final endTimeStr = schedule['end_time']?.toString() ?? '';
+                                    
+                                    String timeRange = '';
+                                    if (startTimeStr.isNotEmpty && endTimeStr.isNotEmpty) {
+                                      try {
+                                        final startParts = startTimeStr.split(':');
+                                        final endParts = endTimeStr.split(':');
+                                        if (startParts.length >= 2 && endParts.length >= 2) {
+                                          final startHour = int.parse(startParts[0]);
+                                          final startMin = int.parse(startParts[1]);
+                                          final endHour = int.parse(endParts[0]);
+                                          final endMin = int.parse(endParts[1]);
+                                          
+                                          final startTime = TimeOfDay(hour: startHour, minute: startMin);
+                                          final endTime = TimeOfDay(hour: endHour, minute: endMin);
+                                          
+                                          timeRange = '${startTime.format(context)} - ${endTime.format(context)}';
+                                        }
+                                      } catch (e) {
+                                        timeRange = '$startTimeStr - $endTimeStr';
+                                      }
+                                    }
+                                    
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 6),
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: Colors.grey[300]!),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  '$subject - $sectionName ($gradeLevel)',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w500,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Icon(Icons.access_time, size: 12, color: Colors.grey[600]),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                timeRange,
+                                                style: TextStyle(
+                                                  color: Colors.grey[600],
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Icon(Icons.calendar_today, size: 12, color: Colors.grey[600]),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  days,
+                                                  style: TextStyle(
+                                                    color: Colors.grey[600],
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
 
                       // Days Section
                       Align(
@@ -706,6 +886,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                         ],
                       ),
                     ],
+                    ),
                   ),
                 ),
               ),
