@@ -4,8 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kidsync/widgets/role_protection.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:typed_data';
-import 'package:cross_file/cross_file.dart';
+import 'dart:convert';
 
 class UserManagementPageAdmin extends StatelessWidget {
   const UserManagementPageAdmin({super.key});
@@ -69,7 +68,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
     });
   }
 
-  Future<void> createUserViaEdgeFunction({
+  // ...existing code...
+  Future<Map<String, dynamic>> createUserViaEdgeFunction({
     required String email,
     required String role,
     required String fname,
@@ -92,16 +92,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
         'profile_image_url': profileImageUrl,
       },
     );
-    if (res.status != 200) {
-      final errorMsg =
-          res.data is Map && res.data['error'] != null
-              ? res.data['error']
-              : res.data.toString();
-      throw Exception(errorMsg);
-    }
+    // return status + data for caller to inspect and show field-level errors
+    return {'status': res.status, 'data': res.data};
   }
 
-  Future<void> editUserViaEdgeFunction({
+  Future<Map<String, dynamic>> editUserViaEdgeFunction({
     required String id,
     required String email,
     required String role,
@@ -126,14 +121,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
         'profile_image_url': profileImageUrl,
       },
     );
-    if (res.status != 200) {
-      final errorMsg =
-          res.data is Map && res.data['error'] != null
-              ? res.data['error']
-              : res.data.toString();
-      throw Exception(errorMsg);
-    }
+    return {'status': res.status, 'data': res.data};
   }
+  // ...existing code...
 
   Future<void> deleteUserViaEdgeFunction(String id) async {
     final res = await Supabase.instance.client.functions.invoke(
@@ -199,6 +189,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     print('Debug: selectedRole: $selectedRole'); // Debug print
 
+    // FIELD-LEVEL ERROR MAP used by validators and dialog UI
+    Map<String, String?> fieldErrors = {};
+
     await showDialog(
       context: context,
       builder: (context) {
@@ -224,6 +217,32 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Show general/server error at top of modal (if any)
+                        if (fieldErrors['_general'] != null) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.red[50],
+                              border: Border.all(color: Colors.red[100]!),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error, color: Colors.red, size: 16),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    fieldErrors['_general']!,
+                                    style: const TextStyle(color: Colors.red),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
                         // Personal Information Section
                         _buildSectionHeader('Personal Information'),
                         const SizedBox(height: 16),
@@ -241,6 +260,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   isRequired: true,
                                 ),
                                 validator: (value) {
+                                  // server-provided field error takes precedence
+                                  if (fieldErrors['fname'] != null) return fieldErrors['fname'];
                                   if (value?.trim().isEmpty ?? true) {
                                     return 'First name is required';
                                   }
@@ -253,7 +274,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             Expanded(
                               child: TextFormField(
                                 controller: mnameController,
-                                decoration: _buildInputDecoration(
+                                decoration: _buildCompactInputDecoration(
                                   'Middle Name',
                                   Icons.person_outline,
                                 ),
@@ -271,6 +292,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   isRequired: true,
                                 ),
                                 validator: (value) {
+                                  if (fieldErrors['lname'] != null) return fieldErrors['lname'];
                                   if (value?.trim().isEmpty ?? true) {
                                     return 'Last name is required';
                                   }
@@ -292,6 +314,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             isRequired: true,
                           ),
                           validator: (value) {
+                            if (fieldErrors['email'] != null) return fieldErrors['email'];
                             if (value?.trim().isEmpty ?? true) {
                               return 'Email is required';
                             }
@@ -318,10 +341,20 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 ),
                                 keyboardType: TextInputType.phone,
                                 inputFormatters: [
-                                  FilteringTextInputFormatter.allow(
-                                    RegExp(r'[0-9+\-\(\)\s]'),
-                                  ),
+                                  FilteringTextInputFormatter.digitsOnly,
+                                  LengthLimitingTextInputFormatter(11),
                                 ],
+                                validator: (value) {
+                                  if (fieldErrors['contact_number'] != null) return fieldErrors['contact_number'];
+                                  if (value == null || value.trim().isEmpty) {
+                                    return null; // optional
+                                  }
+                                  final v = value.trim();
+                                  if (!RegExp(r'^0\d{10}$').hasMatch(v)) {
+                                    return 'Contact must be 11 digits and start with 0';
+                                  }
+                                  return null;
+                                },
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -333,6 +366,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   Icons.work,
                                 ),
                                 textCapitalization: TextCapitalization.words,
+                                validator: (value) {
+                                  if (fieldErrors['position'] != null) return fieldErrors['position'];
+                                  return null;
+                                },
                               ),
                             ),
                           ],
@@ -735,41 +772,38 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         String? imageUrl =
                             _currentImageUrl ?? user?['profile_image_url'];
 
-                        // Handle image upload if there's a selected image
-                        if (_selectedImagePath != null &&
-                            _selectedImageBytes != null) {
+                        // helper to set field errors and refresh validators in dialog
+                        void _setFieldErrors(Map<String, String?> errs) {
+                          setDialogState(() {
+                            fieldErrors = errs;
+                          });
+                          // trigger validators to show errors
+                          formKey.currentState!.validate();
+                        }
+
+                        // Handle image upload + create/update flows
+                        if (_selectedImagePath != null && _selectedImageBytes != null) {
                           if (user == null) {
-                            // For new users, create user first, then upload image
-                            await createUserViaEdgeFunction(
+                            // Create user first (no image)
+                            final createRes = await createUserViaEdgeFunction(
                               email: emailController.text.trim(),
                               role: selectedRole!,
                               fname: fnameController.text.trim(),
-                              mname:
-                                  mnameController.text.trim().isEmpty
-                                      ? null
-                                      : mnameController.text.trim(),
+                              mname: mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
                               lname: lnameController.text.trim(),
-                              contactNumber:
-                                  contactController.text.trim().isEmpty
-                                      ? null
-                                      : contactController.text.trim(),
-                              position:
-                                  positionController.text.trim().isEmpty
-                                      ? null
-                                      : positionController.text.trim(),
-                              profileImageUrl:
-                                  null, // Create without image first
+                              contactNumber: contactController.text.trim().isEmpty ? null : contactController.text.trim(),
+                              position: positionController.text.trim().isEmpty ? null : positionController.text.trim(),
+                              profileImageUrl: null,
                             );
 
-                            // Get the created user ID
-                            final createdUser =
-                                await supabase
-                                    .from('users')
-                                    .select('id')
-                                    .eq('email', emailController.text.trim())
-                                    .single();
+                            if (createRes['status'] != 200) {
+                              final errs = _extractFieldErrors(createRes['data']);
+                              _setFieldErrors(errs);
+                              return; // keep dialog open for correction
+                            }
 
-                            // Now upload image with the correct user ID
+                            // fetch created user id
+                            final createdUser = await supabase.from('users').select('id').eq('email', emailController.text.trim()).single();
                             final XFile imageFile = XFile.fromData(
                               _selectedImageBytes!,
                               name: _selectedImagePath!,
@@ -779,14 +813,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               createdUser['id'].toString(),
                             );
 
-                            // Update user with image URL
                             if (uploadedUrl != null) {
-                              await supabase
-                                  .from('users')
-                                  .update({'profile_image_url': uploadedUrl})
-                                  .eq('id', createdUser['id']);
-
-                              // Also update auth metadata
+                              await supabase.from('users').update({'profile_image_url': uploadedUrl}).eq('id', createdUser['id']);
                               await supabase.auth.admin.updateUserById(
                                 createdUser['id'],
                                 attributes: AdminUserAttributes(
@@ -797,7 +825,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               );
                             }
                           } else {
-                            // For existing users, upload image first
+                            // existing user: upload image then edit
                             final XFile imageFile = XFile.fromData(
                               _selectedImageBytes!,
                               name: _selectedImagePath!,
@@ -809,84 +837,66 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
                             if (uploadedUrl != null) {
                               imageUrl = uploadedUrl;
-                              // Delete old image if updating
-                              if (user['profile_image_url'] != null &&
-                                  user['profile_image_url']
-                                      .toString()
-                                      .isNotEmpty) {
-                                await _deleteImageFromSupabase(
-                                  user['profile_image_url'],
-                                );
+                              if (user['profile_image_url'] != null && user['profile_image_url'].toString().isNotEmpty) {
+                                await _deleteImageFromSupabase(user['profile_image_url']);
                               }
                             }
 
-                            // Update user with new data
-                            await editUserViaEdgeFunction(
+                            final editRes = await editUserViaEdgeFunction(
                               id: user['id'].toString(),
                               email: emailController.text.trim(),
                               role: selectedRole!,
                               fname: fnameController.text.trim(),
-                              mname:
-                                  mnameController.text.trim().isEmpty
-                                      ? null
-                                      : mnameController.text.trim(),
+                              mname: mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
                               lname: lnameController.text.trim(),
-                              contactNumber:
-                                  contactController.text.trim().isEmpty
-                                      ? null
-                                      : contactController.text.trim(),
-                              position:
-                                  positionController.text.trim().isEmpty
-                                      ? null
-                                      : positionController.text.trim(),
+                              contactNumber: contactController.text.trim().isEmpty ? null : contactController.text.trim(),
+                              position: positionController.text.trim().isEmpty ? null : positionController.text.trim(),
                               profileImageUrl: imageUrl,
                             );
+
+                            if (editRes['status'] != 200) {
+                              final errs = _extractFieldErrors(editRes['data']);
+                              _setFieldErrors(errs);
+                              return;
+                            }
                           }
                         } else {
                           // No image selected
                           if (user == null) {
-                            // Create new user without image
-                            await createUserViaEdgeFunction(
+                            final createRes = await createUserViaEdgeFunction(
                               email: emailController.text.trim(),
                               role: selectedRole!,
                               fname: fnameController.text.trim(),
-                              mname:
-                                  mnameController.text.trim().isEmpty
-                                      ? null
-                                      : mnameController.text.trim(),
+                              mname: mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
                               lname: lnameController.text.trim(),
-                              contactNumber:
-                                  contactController.text.trim().isEmpty
-                                      ? null
-                                      : contactController.text.trim(),
-                              position:
-                                  positionController.text.trim().isEmpty
-                                      ? null
-                                      : positionController.text.trim(),
+                              contactNumber: contactController.text.trim().isEmpty ? null : contactController.text.trim(),
+                              position: positionController.text.trim().isEmpty ? null : positionController.text.trim(),
                               profileImageUrl: imageUrl,
                             );
+
+                            if (createRes['status'] != 200) {
+                              final errs = _extractFieldErrors(createRes['data']);
+                              _setFieldErrors(errs);
+                              return;
+                            }
                           } else {
-                            // Update existing user
-                            await editUserViaEdgeFunction(
+                            final editRes = await editUserViaEdgeFunction(
                               id: user['id'].toString(),
                               email: emailController.text.trim(),
                               role: selectedRole!,
                               fname: fnameController.text.trim(),
-                              mname:
-                                  mnameController.text.trim().isEmpty
-                                      ? null
-                                      : mnameController.text.trim(),
+                              mname: mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
                               lname: lnameController.text.trim(),
-                              contactNumber:
-                                  contactController.text.trim().isEmpty
-                                      ? null
-                                      : contactController.text.trim(),
-                              position:
-                                  positionController.text.trim().isEmpty
-                                      ? null
-                                      : positionController.text.trim(),
+                              contactNumber: contactController.text.trim().isEmpty ? null : contactController.text.trim(),
+                              position: positionController.text.trim().isEmpty ? null : positionController.text.trim(),
                               profileImageUrl: imageUrl,
                             );
+
+                            if (editRes['status'] != 200) {
+                              final errs = _extractFieldErrors(editRes['data']);
+                              _setFieldErrors(errs);
+                              return;
+                            }
                           }
                         }
 
@@ -925,24 +935,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                           );
                         }
                       } catch (e) {
-                        // Error handling
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Row(
-                                children: [
-                                  const Icon(Icons.error, color: Colors.white),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text('Error: ${e.toString()}'),
-                                  ),
-                                ],
-                              ),
-                              backgroundColor: Colors.red,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
+                        // Unexpected error: show inline general error in dialog
+                        setDialogState(() {
+                          fieldErrors = {'_general': 'Unexpected error: ${e.toString()}'};
+                        });
+                        formKey.currentState!.validate();
                       }
                     }
                   },
@@ -1026,6 +1023,96 @@ class _UserManagementPageState extends State<UserManagementPage> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
     );
+  }
+
+  // Compact decoration for tighter/shorter fields (e.g. middle name)
+  InputDecoration _buildCompactInputDecoration(
+    String label,
+    IconData icon, {
+    bool isRequired = false,
+  }) {
+    return InputDecoration(
+      labelText: isRequired ? '$label *' : label,
+      // use a smaller icon to preserve space, and set isDense to true
+      prefixIcon: Icon(icon, size: 18),
+      isDense: true,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFF2ECC71), width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.red, width: 1),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.red, width: 2),
+      ),
+      filled: true,
+      fillColor: Colors.white,
+      // slightly smaller vertical padding to fit small widths better
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      labelStyle: TextStyle(color: Colors.grey[600], fontSize: 13),
+    );
+  }
+
+  // helper to extract field-level errors (flexible to common shapes)
+  Map<String, String?> _extractFieldErrors(dynamic data) {
+    final Map<String, String?> errors = {};
+    if (data == null) return errors;
+
+    if (data is String) {
+      // try to parse JSON string
+      try {
+        final parsed = jsonDecode(data);
+        return _extractFieldErrors(parsed);
+      } catch (_) {
+        errors['_general'] = data;
+        return errors;
+      }
+    }
+
+    if (data is Map) {
+      // common shapes: { errors: { email: "msg", ... } } or { field_errors: {...} }
+      if (data['errors'] is Map) {
+        (data['errors'] as Map).forEach((k, v) {
+          errors[k.toString()] = v?.toString();
+        });
+        return errors;
+      }
+      if (data['field_errors'] is Map) {
+        (data['field_errors'] as Map).forEach((k, v) {
+          errors[k.toString()] = v?.toString();
+        });
+        return errors;
+      }
+      if (data['error'] != null) {
+        // sometimes a single error string
+        errors['_general'] = data['error'].toString();
+        return errors;
+      }
+      // If the map itself looks like field->message
+      bool looksLikeFields = data.keys.every(
+        (k) => k is String && (data[k] is String || data[k] == null),
+      );
+      if (looksLikeFields) {
+        data.forEach((k, v) {
+          errors[k.toString()] = v?.toString();
+        });
+        return errors;
+      }
+      // fallback
+      errors['_general'] = data.toString();
+      return errors;
+    }
+
+    // fallback for unexpected types
+    errors['_general'] = data.toString();
+    return errors;
   }
 
   String _getUserIdPrefix(String role) {
