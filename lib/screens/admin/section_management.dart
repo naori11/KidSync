@@ -14,6 +14,9 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
   List<Map<String, dynamic>> sections = [];
   List<Map<String, dynamic>> teachers = [];
   bool isLoading = false;
+  // Filtering / sorting state
+  String _gradeFilter = 'All Grades';
+  String _sortOption = 'Name (A-Z)';
 
   @override
   void initState() {
@@ -1311,8 +1314,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                             child: ListView.separated(
                               itemCount: assignments.length,
                               separatorBuilder:
-                                  (context, index) =>
-                                      const SizedBox(height: 12),
+                                  (context, index) => const SizedBox(height: 12),
                               itemBuilder: (context, index) {
                                 final assignment = assignments[index];
                                 final teacher = assignment['users'];
@@ -1622,6 +1624,30 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Prepare sections for display: apply grade filter then sorting
+    List<Map<String, dynamic>> displaySections = sections.where((s) {
+      return _gradeFilter == 'All Grades' ||
+          (s['grade_level']?.toString() ?? '') == _gradeFilter;
+    }).toList();
+
+    // Sorting
+    if (_sortOption == 'Name (A-Z)') {
+      displaySections.sort((a, b) => (a['name'] ?? '').toString().compareTo((b['name'] ?? '').toString()));
+    } else if (_sortOption == 'Name (Z-A)') {
+      displaySections.sort((a, b) => (b['name'] ?? '').toString().compareTo((a['name'] ?? '').toString()));
+    } else if (_sortOption == 'Grade Level') {
+      displaySections.sort((a, b) => (a['grade_level'] ?? '').toString().compareTo((b['grade_level'] ?? '').toString()));
+    } else if (_sortOption == 'Date Created') {
+      displaySections.sort((a, b) {
+        final da = a['created_at'] != null ? DateTime.tryParse(a['created_at'].toString()) : null;
+        final db = b['created_at'] != null ? DateTime.tryParse(b['created_at'].toString()) : null;
+        if (da == null && db == null) return 0;
+        if (da == null) return 1;
+        if (db == null) return -1;
+        return da.compareTo(db);
+      });
+    }
+
     return Scaffold(
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: Padding(
@@ -1746,7 +1772,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        value: 'All Grades',
+                        value: _gradeFilter,
                         icon: const Icon(Icons.keyboard_arrow_down),
                         items:
                             [
@@ -1766,7 +1792,10 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                               );
                             }).toList(),
                         onChanged: (String? newValue) {
-                          // TODO: Implement grade filtering
+                          if (newValue == null) return;
+                          setState(() {
+                            _gradeFilter = newValue;
+                          });
                         },
                       ),
                     ),
@@ -1783,22 +1812,24 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        value: 'Sort by: Name (A-Z)',
+                        value: _sortOption,
                         icon: const Icon(Icons.keyboard_arrow_down),
-                        items:
-                            <String>[
-                              'Sort by: Name (A-Z)',
-                              'Sort by: Name (Z-A)',
-                              'Sort by: Grade Level',
-                              'Sort by: Date Created',
-                            ].map<DropdownMenuItem<String>>((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text(value),
-                              );
-                            }).toList(),
+                        items: <String>[
+                          'Name (A-Z)',
+                          'Name (Z-A)',
+                          'Grade Level',
+                          'Date Created',
+                        ].map<DropdownMenuItem<String>>((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text('Sort by: $value'),
+                          );
+                        }).toList(),
                         onChanged: (String? newValue) {
-                          // TODO: Implement sorting
+                          if (newValue == null) return;
+                          setState(() {
+                            _sortOption = newValue;
+                          });
                         },
                       ),
                     ),
@@ -1941,59 +1972,59 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
               ),
 
             // Enhanced Table with better styling
-            Expanded(
-              child:
-                  isLoading
-                      ? const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF2ECC71),
-                        ),
-                      )
-                      : sections.isEmpty
-                      ? Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(32),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.grey[200]!),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.class_outlined,
-                                size: 64,
-                                color: Colors.grey[400],
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                "No sections found",
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                onPressed: () => _addOrEditSection(),
-                                icon: const Icon(Icons.add),
-                                label: const Text('Add First Section'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF2ECC71),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                      : Container(
+             Expanded(
+               child:
+                   isLoading
+                       ? const Center(
+                         child: CircularProgressIndicator(
+                           color: Color(0xFF2ECC71),
+                         ),
+                       )
+                       : sections.isEmpty
+                       ? Center(
+                         child: Container(
+                           padding: const EdgeInsets.all(32),
+                           decoration: BoxDecoration(
+                             color: Colors.grey[50],
+                             borderRadius: BorderRadius.circular(16),
+                             border: Border.all(color: Colors.grey[200]!),
+                           ),
+                           child: Column(
+                             mainAxisSize: MainAxisSize.min,
+                             children: [
+                               Icon(
+                                 Icons.class_outlined,
+                                 size: 64,
+                                 color: Colors.grey[400],
+                               ),
+                               const SizedBox(height: 16),
+                               Text(
+                                 "No sections found",
+                                 style: TextStyle(
+                                   color: Colors.grey[600],
+                                   fontSize: 16,
+                                   fontWeight: FontWeight.w500,
+                                 ),
+                               ),
+                               const SizedBox(height: 16),
+                               ElevatedButton.icon(
+                                 onPressed: () => _addOrEditSection(),
+                                 icon: const Icon(Icons.add),
+                                 label: const Text('Add First Section'),
+                                 style: ElevatedButton.styleFrom(
+                                   backgroundColor: const Color(0xFF2ECC71),
+                                   foregroundColor: Colors.white,
+                                   padding: const EdgeInsets.symmetric(
+                                     horizontal: 24,
+                                     vertical: 12,
+                                   ),
+                                 ),
+                               ),
+                             ],
+                           ),
+                         ),
+                       )
+                       : Container(
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
@@ -2081,8 +2112,8 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                         TableHeaderCell(text: 'Actions'),
                                       ],
                                     ),
-                                    // Table data rows
-                                    ...sections.map((section) {
+                                    // Table data rows (use displaySections after filter/sort)
+                                    ...displaySections.map((section) {
                                       final createdAt =
                                           section['created_at'] != null
                                               ? DateTime.tryParse(
@@ -2390,7 +2421,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                           ],
                         ),
                       ),
-            ),
+             ),
           ],
         ),
       ),

@@ -15,6 +15,9 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
   bool isLoading = false;
   String _searchQuery = '';
 
+  String _statusFilter = 'All Status';
+  String _sortOption = 'Name (A-Z)';
+
   Map<String, dynamic>? _selectedParent;
   bool _showDetailModal = false;
   bool _showAddEditModal = false;
@@ -619,13 +622,30 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Filter parents by search query
-    final filteredParents =
-        parents.where((parent) {
-          final fullName =
-              "${parent['first_name']} ${parent['last_name']}".toLowerCase();
-          return fullName.contains(_searchQuery.toLowerCase());
-        }).toList();
+
+    // Filter parents by search query and status, then apply sorting
+    List<Map<String, dynamic>> filteredParents = parents.where((parent) {
+      final fullName = "${parent['first_name']} ${parent['last_name']}".toLowerCase();
+      final matchesName = fullName.contains(_searchQuery.toLowerCase());
+      final status = (parent['status']?.toString() ?? '').toLowerCase();
+      final matchesStatus = _statusFilter == 'All Status' || status == _statusFilter.toLowerCase();
+      return matchesName && matchesStatus;
+    }).toList();
+
+    // Sorting
+    if (_sortOption == 'Name (A-Z)') {
+      filteredParents.sort((a, b) => ("${a['first_name']} ${a['last_name']}")
+          .toLowerCase()
+          .compareTo(("${b['first_name']} ${b['last_name']}").toLowerCase()));
+    } else if (_sortOption == 'Name (Z-A)') {
+      filteredParents.sort((a, b) => ("${b['first_name']} ${b['last_name']}")
+          .toLowerCase()
+          .compareTo(("${a['first_name']} ${a['last_name']}").toLowerCase()));
+    } else if (_sortOption == 'Status') {
+      filteredParents.sort((a, b) => (a['status'] ?? '').toString().compareTo((b['status'] ?? '').toString()));
+    } else if (_sortOption == 'Students Count') {
+      filteredParents.sort((a, b) => (b['student_count'] ?? 0).compareTo((a['student_count'] ?? 0)));
+    }
 
     return Scaffold(
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
@@ -836,7 +856,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                               ),
                               child: DropdownButtonHideUnderline(
                                 child: DropdownButton<String>(
-                                  value: 'All Status',
+                                  value: _statusFilter,
                                   icon: const Icon(Icons.keyboard_arrow_down),
                                   items: [
                                     const DropdownMenuItem(
@@ -853,7 +873,10 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                     ),
                                   ],
                                   onChanged: (String? newValue) {
-                                    // TODO: Implement status filtering
+                                    if (newValue == null) return;
+                                    setState(() {
+                                      _statusFilter = newValue;
+                                    });
                                   },
                                 ),
                               ),
@@ -874,7 +897,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                               ),
                               child: DropdownButtonHideUnderline(
                                 child: DropdownButton<String>(
-                                  value: 'Name (A-Z)',
+                                  value: _sortOption,
                                   icon: const Icon(Icons.keyboard_arrow_down),
                                   items: [
                                     const DropdownMenuItem(
@@ -895,7 +918,10 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                     ),
                                   ],
                                   onChanged: (String? newValue) {
-                                    // TODO: Implement sorting
+                                    if (newValue == null) return;
+                                    setState(() {
+                                      _sortOption = newValue;
+                                    });
                                   },
                                 ),
                               ),
