@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:math' as math;
 
 class DriverAssignmentPage extends StatefulWidget {
   const DriverAssignmentPage({Key? key}) : super(key: key);
@@ -844,9 +845,24 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
     }
   }
 
-  // ...existing code...
+  String _displayTime(dynamic timeValue) {
+    if (timeValue == null) return '-';
 
-  // Replace the placeholder methods with these implementations:
+    // If already a TimeOfDay, use localized formatter (handles AM/PM)
+    if (timeValue is TimeOfDay) return timeValue.format(context);
+
+    final timeStr = timeValue.toString();
+    // Match HH:MM or HH:MM:SS (capture hours and minutes)
+    final match = RegExp(r'(\d{1,2}):(\d{2})(?::\d{2})?').firstMatch(timeStr);
+    if (match != null) {
+      final h = int.tryParse(match.group(1)!) ?? 0;
+      final m = int.tryParse(match.group(2)!) ?? 0;
+      final tod = TimeOfDay(hour: h, minute: m);
+      return tod.format(context); // e.g. "7:30 AM"
+    }
+
+    return timeStr;
+  }
 
   Widget _buildAssignmentsView() {
     final filteredAssignments = _getFilteredAssignments();
@@ -978,13 +994,17 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                               // Pickup Time
                               Expanded(
                                 flex: 1,
-                                child: Text(assignment['pickup_time'] ?? '-'),
+                                child: Text(
+                                  _displayTime(assignment['pickup_time']),
+                                ),
                               ),
 
                               // Dropoff Time
                               Expanded(
                                 flex: 1,
-                                child: Text(assignment['dropoff_time'] ?? '-'),
+                                child: Text(
+                                  _displayTime(assignment['dropoff_time']),
+                                ),
                               ),
 
                               // Status
@@ -1804,10 +1824,23 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
       context: context,
       builder:
           (context) => AlertDialog(
-            title: Text('${driver['fname']} ${driver['lname']} - Details'),
+            title: Row(
+              children: [
+                const Icon(Icons.person, color: Color(0xFF2ECC71)),
+                const SizedBox(width: 8),
+                Text(
+                  '${driver['fname']} ${driver['lname']} - Details',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF333333),
+                  ),
+                ),
+              ],
+            ),
             content: SizedBox(
-              width: 400,
-              height: 300,
+              width: 500,
+              height: 400,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1835,7 +1868,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                             '${student['grade_level']} - ${assignment['status']}',
                           ),
                           trailing: Text(
-                            '${assignment['pickup_time']} - ${assignment['dropoff_time']}',
+                            '${_displayTime(assignment['pickup_time'])} - ${_displayTime(assignment['dropoff_time'])}',
                           ),
                         );
                       },
@@ -1847,7 +1880,10 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Close'),
+                child: const Text(
+                  'Close',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
             ],
           ),
@@ -2031,8 +2067,9 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
   final _formKey = GlobalKey<FormState>();
   String? selectedStudentId;
   String? selectedDriverId;
-  String pickupTime = '07:00';
-  String dropoffTime = '15:00';
+  // Use TimeOfDay for uniform time picking and to match section_management UI
+  TimeOfDay? pickupTimeOfDay = const TimeOfDay(hour: 7, minute: 0);
+  TimeOfDay? dropoffTimeOfDay = const TimeOfDay(hour: 15, minute: 0);
   String pickupAddress = '';
   List<String> scheduleDays = [
     'Monday',
@@ -2043,6 +2080,9 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
   ];
   String status = 'active';
   String notes = '';
+  // helper for backward-compatible string representation when editing (if needed)
+  String? _initialPickupRaw;
+  String? _initialDropoffRaw;
 
   // For displaying student schedule as reference
   List<Map<String, dynamic>> studentSchedule = [];
@@ -2063,8 +2103,15 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
     final assignment = widget.existingAssignment!;
     selectedStudentId = assignment['student_id'].toString();
     selectedDriverId = assignment['driver_id'].toString();
-    pickupTime = assignment['pickup_time'] ?? '07:00';
-    dropoffTime = assignment['dropoff_time'] ?? '15:00';
+    // Keep raw strings (may be HH:MM:SS) and parse into TimeOfDay
+    _initialPickupRaw = assignment['pickup_time']?.toString();
+    _initialDropoffRaw = assignment['dropoff_time']?.toString();
+    pickupTimeOfDay =
+        _parseTimeStringToTimeOfDay(_initialPickupRaw) ??
+        const TimeOfDay(hour: 7, minute: 0);
+    dropoffTimeOfDay =
+        _parseTimeStringToTimeOfDay(_initialDropoffRaw) ??
+        const TimeOfDay(hour: 15, minute: 0);
     pickupAddress = assignment['pickup_address'] ?? '';
 
     // Handle schedule_days - it could be a List or a String
@@ -2091,6 +2138,36 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
 
     // Load schedule reference for editing
     _loadStudentScheduleReference();
+  }
+
+  TimeOfDay? _parseTimeStringToTimeOfDay(String? timeStr) {
+    if (timeStr == null) return null;
+    // Accept formats like HH:MM, HH:MM:SS, maybe with trailing timezone - pick first HH:MM
+    try {
+      final match = RegExp(r'(\d{1,2}):(\d{2})').firstMatch(timeStr);
+      if (match != null) {
+        final h = int.parse(match.group(1)!);
+        final m = int.parse(match.group(2)!);
+        if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+          return TimeOfDay(hour: h, minute: m);
+        }
+      }
+    } catch (e) {
+      print('Error parsing time string to TimeOfDay: $e');
+    }
+    return null;
+  }
+
+  String _formatTimeForDB(TimeOfDay? t) {
+    if (t == null) return '07:00:00';
+    final hh = t.hour.toString().padLeft(2, '0');
+    final mm = t.minute.toString().padLeft(2, '0');
+    return '$hh:$mm:00'; // store as HH:MM:SS to match backend table format
+  }
+
+  String _formatTimeDisplay(TimeOfDay? t) {
+    if (t == null) return '';
+    return t.format(context);
   }
 
   Future<void> _loadStudentScheduleReference() async {
@@ -2130,11 +2207,28 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // Adopt section_management style for the modal header
     return AlertDialog(
-      title: Text(widget.isEdit ? 'Edit Assignment' : 'Create Assignment'),
+      title: Row(
+        children: [
+          Icon(
+            widget.isEdit ? Icons.edit : Icons.add,
+            color: const Color(0xFF2ECC71),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            widget.isEdit ? 'Edit Assignment' : 'Create Assignment',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF333333),
+            ),
+          ),
+        ],
+      ),
       content: SizedBox(
-        width: 600,
-        height: 700,
+        width: 500,
+        height: 600,
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -2144,9 +2238,18 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                 // Student Dropdown
                 DropdownButtonFormField<String>(
                   value: selectedStudentId,
-                  decoration: const InputDecoration(
-                    labelText: 'Student',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: 'Student *',
+                    prefixIcon: const Icon(Icons.person, size: 20),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    labelStyle: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
                   ),
                   items:
                       widget.students.map((student) {
@@ -2154,6 +2257,7 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                           value: student['id'].toString(),
                           child: Text(
                             '${student['fname']} ${student['lname']} - ${student['grade_level'] ?? ''}',
+                            style: const TextStyle(fontSize: 15),
                           ),
                         );
                       }).toList(),
@@ -2170,15 +2274,27 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                 // Driver Dropdown
                 DropdownButtonFormField<String>(
                   value: selectedDriverId,
-                  decoration: const InputDecoration(
-                    labelText: 'Driver',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: 'Driver *',
+                    prefixIcon: const Icon(Icons.drive_eta, size: 20),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    labelStyle: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
                   ),
                   items:
                       widget.drivers.map((driver) {
                         return DropdownMenuItem<String>(
                           value: driver['id'].toString(),
-                          child: Text('${driver['fname']} ${driver['lname']}'),
+                          child: Text(
+                            '${driver['fname']} ${driver['lname']}',
+                            style: const TextStyle(fontSize: 15),
+                          ),
                         );
                       }).toList(),
                   onChanged:
@@ -2194,9 +2310,9 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.05),
+                      color: Colors.blue[50],
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                      border: Border.all(color: Colors.blue[200]!),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2289,58 +2405,122 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                   const SizedBox(height: 20),
                 ],
 
-                // Manual Pickup Time Input
+                // Pickup / Dropoff Time (section_management style)
                 Row(
                   children: [
+                    // Pickup Time
                     Expanded(
-                      child: TextFormField(
-                        initialValue: pickupTime,
-                        decoration: const InputDecoration(
-                          labelText: 'Pickup Time *',
-                          hintText: 'e.g., 07:00',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.access_time),
-                        ),
-                        onChanged: (value) => pickupTime = value,
-                        validator: (value) {
-                          if (value?.isEmpty == true) {
-                            return 'Please enter pickup time';
-                          }
-                          // Basic time format validation
-                          final timeRegex = RegExp(
-                            r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$',
-                          );
-                          if (!timeRegex.hasMatch(value!)) {
-                            return 'Please enter time in HH:MM format';
-                          }
-                          return null;
-                        },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Pickup Time *',
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          InkWell(
+                            onTap: () async {
+                              final picked = await showTimePicker(
+                                context: context,
+                                initialTime:
+                                    pickupTimeOfDay ??
+                                    const TimeOfDay(hour: 7, minute: 0),
+                              );
+                              if (picked != null) {
+                                setState(() => pickupTimeOfDay = picked);
+                              }
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey[300]!),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.grey[50],
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.access_time, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    pickupTimeOfDay != null
+                                        ? _formatTimeDisplay(pickupTimeOfDay)
+                                        : 'Select pickup time',
+                                    style: TextStyle(
+                                      color:
+                                          pickupTimeOfDay != null
+                                              ? const Color(0xFF333333)
+                                              : Colors.grey[600],
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 16),
+                    // Dropoff Time
                     Expanded(
-                      child: TextFormField(
-                        initialValue: dropoffTime,
-                        decoration: const InputDecoration(
-                          labelText: 'Dropoff Time *',
-                          hintText: 'e.g., 15:30',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.access_time_filled),
-                        ),
-                        onChanged: (value) => dropoffTime = value,
-                        validator: (value) {
-                          if (value?.isEmpty == true) {
-                            return 'Please enter dropoff time';
-                          }
-                          // Basic time format validation
-                          final timeRegex = RegExp(
-                            r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$',
-                          );
-                          if (!timeRegex.hasMatch(value!)) {
-                            return 'Please enter time in HH:MM format';
-                          }
-                          return null;
-                        },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Dropoff Time *',
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          InkWell(
+                            onTap: () async {
+                              final picked = await showTimePicker(
+                                context: context,
+                                initialTime:
+                                    dropoffTimeOfDay ??
+                                    const TimeOfDay(hour: 15, minute: 0),
+                              );
+                              if (picked != null) {
+                                setState(() => dropoffTimeOfDay = picked);
+                              }
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey[300]!),
+                                borderRadius: BorderRadius.circular(8),
+                                color: Colors.grey[50],
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.access_time, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    dropoffTimeOfDay != null
+                                        ? _formatTimeDisplay(dropoffTimeOfDay)
+                                        : 'Select dropoff time',
+                                    style: TextStyle(
+                                      color:
+                                          dropoffTimeOfDay != null
+                                              ? const Color(0xFF333333)
+                                              : Colors.grey[600],
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -2348,38 +2528,104 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                 const SizedBox(height: 16),
 
                 // Schedule Days Selection
-                const Text(
-                  'Schedule Days *',
-                  style: TextStyle(fontWeight: FontWeight.w500),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Schedule Days *',
+                    style: TextStyle(
+                      color: Colors.grey[700],
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children:
-                      [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.grey[50],
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final days = [
                         'Monday',
                         'Tuesday',
                         'Wednesday',
                         'Thursday',
                         'Friday',
-                        'Saturday',
-                        'Sunday',
-                      ].map((day) {
-                        return FilterChip(
-                          label: Text(day),
-                          selected: scheduleDays.contains(day),
-                          onSelected: (selected) {
-                            setState(() {
-                              if (selected) {
-                                scheduleDays.add(day);
-                              } else {
-                                scheduleDays.remove(day);
-                              }
-                            });
-                          },
-                        );
-                      }).toList(),
+                      ];
+                      const spacing = 8.0;
+                      // Try to fit all buttons in one row when possible; otherwise they wrap.
+                      final availableWidth =
+                          constraints.maxWidth - 16; // small inset
+                      final targetPerRow = days.length;
+                      final rawButtonWidth =
+                          (availableWidth - (spacing * (targetPerRow - 1))) /
+                          targetPerRow;
+                      // clamp width so buttons remain readable and responsive
+                      final buttonWidth = rawButtonWidth.clamp(80.0, 160.0);
+
+                      return Wrap(
+                        alignment: WrapAlignment.center,
+                        runAlignment: WrapAlignment.center,
+                        spacing: spacing,
+                        runSpacing: 8,
+                        children:
+                            days.map((day) {
+                              final selected = scheduleDays.contains(day);
+                              return SizedBox(
+                                width: buttonWidth,
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      if (selected) {
+                                        scheduleDays.remove(day);
+                                      } else {
+                                        scheduleDays.add(day);
+                                      }
+                                    });
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor:
+                                        selected
+                                            ? const Color(0xFF2ECC71)
+                                            : Colors.grey[200],
+                                    foregroundColor:
+                                        selected
+                                            ? Colors.white
+                                            : Colors.black87,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 10,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      side: BorderSide(
+                                        color:
+                                            selected
+                                                ? const Color(0xFF2ECC71)
+                                                : Colors.grey[300]!,
+                                      ),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: Text(
+                                    day,
+                                    style: TextStyle(
+                                      fontWeight:
+                                          selected
+                                              ? FontWeight.w600
+                                              : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                      );
+                    },
+                  ),
                 ),
                 if (scheduleDays.isEmpty)
                   const Padding(
@@ -2394,10 +2640,22 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                 // Pickup Address
                 TextFormField(
                   initialValue: pickupAddress,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Pickup Address',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.location_on),
+                    prefixIcon: const Icon(Icons.location_on, size: 20),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    labelStyle: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: Color(0xFF333333),
                   ),
                   onChanged: (value) => pickupAddress = value,
                   maxLines: 2,
@@ -2407,16 +2665,31 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                 // Status
                 DropdownButtonFormField<String>(
                   value: status,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Status',
-                    border: OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.info, size: 20),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    labelStyle: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'active', child: Text('Active')),
-                    DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                    DropdownMenuItem(
+                      value: 'active',
+                      child: Text('Active', style: TextStyle(fontSize: 15)),
+                    ),
+                    DropdownMenuItem(
+                      value: 'pending',
+                      child: Text('Pending', style: TextStyle(fontSize: 15)),
+                    ),
                     DropdownMenuItem(
                       value: 'inactive',
-                      child: Text('Inactive'),
+                      child: Text('Inactive', style: TextStyle(fontSize: 15)),
                     ),
                   ],
                   onChanged: (value) => setState(() => status = value!),
@@ -2426,10 +2699,22 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                 // Notes
                 TextFormField(
                   initialValue: notes,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Notes',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.note),
+                    prefixIcon: const Icon(Icons.note, size: 20),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    labelStyle: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: Color(0xFF333333),
                   ),
                   onChanged: (value) => notes = value,
                   maxLines: 3,
@@ -2442,25 +2727,55 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
         ),
         ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF2ECC71),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
           onPressed: () {
-            if (_formKey.currentState!.validate() && scheduleDays.isNotEmpty) {
-              Navigator.of(context).pop({
-                'student_id': selectedStudentId,
-                'driver_id': selectedDriverId,
-                'pickup_time': pickupTime,
-                'dropoff_time': dropoffTime,
-                'pickup_address': pickupAddress,
-                'schedule_days': scheduleDays,
-                'status': status,
-                'notes': notes,
-              });
+            // Validate form and ensure days & times selected
+            if (!_formKey.currentState!.validate()) return;
+            if (scheduleDays.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Please select at least one day'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
             }
+            if (pickupTimeOfDay == null || dropoffTimeOfDay == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Please select pickup and dropoff times'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            Navigator.of(context).pop({
+              'student_id': selectedStudentId,
+              'driver_id': selectedDriverId,
+              // format as HH:MM:SS to match backend stored values
+              'pickup_time': _formatTimeForDB(pickupTimeOfDay),
+              'dropoff_time': _formatTimeForDB(dropoffTimeOfDay),
+              'pickup_address': pickupAddress,
+              'schedule_days': scheduleDays,
+              'status': status,
+              'notes': notes,
+            });
           },
-          child: Text(
-            widget.isEdit ? 'Update Assignment' : 'Create Assignment',
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(widget.isEdit ? Icons.save : Icons.add, size: 16),
+              const SizedBox(width: 8),
+              Text(widget.isEdit ? 'Update Assignment' : 'Create Assignment'),
+            ],
           ),
         ),
       ],
@@ -2649,34 +2964,68 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
                 'Schedule Days *',
                 style: TextStyle(fontWeight: FontWeight.w500),
               ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children:
-                    [
-                      'Monday',
-                      'Tuesday',
-                      'Wednesday',
-                      'Thursday',
-                      'Friday',
-                      'Saturday',
-                      'Sunday',
-                    ].map((day) {
-                      return FilterChip(
-                        label: Text(day),
-                        selected: scheduleDays.contains(day),
-                        onSelected: (selected) {
-                          setState(() {
-                            if (selected) {
-                              scheduleDays.add(day);
-                            } else {
-                              scheduleDays.remove(day);
-                            }
-                          });
-                        },
-                      );
-                    }).toList(),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final days = [
+                    'Monday',
+                    'Tuesday',
+                    'Wednesday',
+                    'Thursday',
+                    'Friday',
+                  ];
+                  const spacing = 8.0;
+                  final availableWidth = constraints.maxWidth - 16;
+                  final rawButtonWidth =
+                      (availableWidth - (spacing * (days.length - 1))) /
+                      days.length;
+                  final buttonWidth = rawButtonWidth.clamp(80.0, 160.0);
+
+                  return Wrap(
+                    spacing: spacing,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children:
+                        days.map((day) {
+                          final selected = scheduleDays.contains(day);
+                          return SizedBox(
+                            width: buttonWidth,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                setState(() {
+                                  if (selected) {
+                                    scheduleDays.remove(day);
+                                  } else {
+                                    scheduleDays.add(day);
+                                  }
+                                });
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    selected
+                                        ? const Color(0xFF2ECC71)
+                                        : Colors.grey[200],
+                                foregroundColor:
+                                    selected ? Colors.white : Colors.black87,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  side: BorderSide(
+                                    color:
+                                        selected
+                                            ? const Color(0xFF2ECC71)
+                                            : Colors.grey[300]!,
+                                  ),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: Text(day),
+                            ),
+                          );
+                        }).toList(),
+                  );
+                },
               ),
               const SizedBox(height: 16),
 
