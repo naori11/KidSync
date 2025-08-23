@@ -77,7 +77,16 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
               relationship_type,
               is_primary,
               students!inner(
-                id, fname, mname, lname, grade_level, section_id
+                id,
+                fname,
+                mname,
+                lname,
+                grade_level,
+                section_id,
+                sections(
+                  id,
+                  name
+                )
               )
             ''')
             .eq('parent_id', parentData['id']);
@@ -90,13 +99,18 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
           for (final studentRelation in studentsResponse) {
             final student = studentRelation['students'];
             if (student != null) {
+              final sectionName =
+                  (student['sections'] != null &&
+                          student['sections']['name'] != null)
+                      ? student['sections']['name']
+                      : (student['section_id']?.toString() ?? 'N/A');
               studentsList.add({
                 'id': student['id'],
                 'first_name': student['fname'],
                 'middle_name': student['mname'],
                 'last_name': student['lname'],
                 'grade': student['grade_level'],
-                'section': student['section_id'],
+                'section': sectionName,
                 'relationship_type': studentRelation['relationship_type'],
                 'is_primary': studentRelation['is_primary'],
               });
@@ -1896,7 +1910,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                               ),
                                               const SizedBox(width: 4),
                                               Text(
-                                                'Grade $grade - Section $section',
+                                                '$grade - Section $section',
                                                 style: TextStyle(
                                                   fontSize: 13,
                                                   color: Colors.grey[600],

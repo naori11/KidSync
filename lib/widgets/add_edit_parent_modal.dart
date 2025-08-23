@@ -56,7 +56,15 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                   'student_id': student['id'],
                   'relationship_type': student['relationship_type'] ?? 'parent',
                   'is_primary': student['is_primary'] ?? false,
-                  'student_data': student,
+                  'student_data': {
+                    'id': student['id'],
+                    'fname': student['first_name'],
+                    'mname': student['middle_name'],
+                    'lname': student['last_name'],
+                    'grade_level': student['grade'],
+                    'section_id': student['section'],
+                    'status': 'Active', // Assume active since it's from the parent's students
+                  },
                 },
               )
               .toList();
