@@ -41,6 +41,11 @@ class _TeacherStudentAttendanceCalendarPageState
   int totalExcused = 0;
   int totalDays = 0;
 
+  // Student information
+  String? studentGradeLevel;
+  String? studentSectionName;
+  String? studentProfileImageUrl;
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +59,23 @@ class _TeacherStudentAttendanceCalendarPageState
     });
 
     try {
+      // Load student information
+      final studentInfo = await supabase
+          .from('students')
+          .select('''
+            grade_level,
+            profile_image_url,
+            sections!inner(name)
+          ''')
+          .eq('id', widget.studentId)
+          .maybeSingle();
+
+      if (studentInfo != null) {
+        studentGradeLevel = studentInfo['grade_level'];
+        studentProfileImageUrl = studentInfo['profile_image_url'];
+        studentSectionName = studentInfo['sections']?['name'];
+      }
+
       final teacherAssignment =
           await supabase
               .from('section_teachers')
@@ -741,14 +763,34 @@ class _TeacherStudentAttendanceCalendarPageState
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        CircleAvatar(
-                          backgroundColor: const Color(0xFFEDF1F7),
-                          radius: 24,
-                          child: const Icon(
-                            Icons.person,
-                            size: 28,
-                            color: Color(0xFF8F9BB3),
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F4FD),
+                            borderRadius: BorderRadius.circular(24),
+                            image: studentProfileImageUrl != null && studentProfileImageUrl!.isNotEmpty
+                                ? DecorationImage(
+                                    image: NetworkImage(studentProfileImageUrl!),
+                                    fit: BoxFit.cover,
+                                    onError: (exception, stackTrace) {
+                                      print('Error loading profile image: $exception');
+                                    },
+                                  )
+                                : null,
                           ),
+                          child: studentProfileImageUrl == null || studentProfileImageUrl!.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    widget.studentName.split(' ').map((name) => name.isNotEmpty ? name[0] : '').take(2).join('').toUpperCase(),
+                                    style: const TextStyle(
+                                      color: Color(0xFF2563EB),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                )
+                              : null,
                         ),
                         const SizedBox(width: 18),
                         Expanded(
@@ -765,7 +807,7 @@ class _TeacherStudentAttendanceCalendarPageState
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                "Grade 8-A • Student ID: #ST2024001",
+                                _buildStudentInfo(),
                                 style: const TextStyle(
                                   fontSize: 13,
                                   color: Color(0xFF8F9BB3),
@@ -858,6 +900,22 @@ class _TeacherStudentAttendanceCalendarPageState
         ),
       ),
     );
+  }
+
+  String _buildStudentInfo() {
+    List<String> infoParts = [];
+    
+    if (studentGradeLevel != null && studentGradeLevel!.isNotEmpty) {
+      if (studentSectionName != null && studentSectionName!.isNotEmpty) {
+        infoParts.add("$studentGradeLevel - $studentSectionName");
+      } else {
+        infoParts.add("Grade $studentGradeLevel");
+      }
+    } else if (studentSectionName != null && studentSectionName!.isNotEmpty) {
+      infoParts.add("Section $studentSectionName");
+    }
+    
+    return infoParts.isNotEmpty ? infoParts.join(" • ") : "Student Information";
   }
 
   Widget _compactAttendanceStats() {
