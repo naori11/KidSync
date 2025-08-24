@@ -63,7 +63,8 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                     'lname': student['last_name'],
                     'grade_level': student['grade'],
                     'section_id': student['section'],
-                    'status': 'Active', // Assume active since it's from the parent's students
+                    'status':
+                        'Active', // Assume active since it's from the parent's students
                   },
                 },
               )
@@ -187,11 +188,18 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
     final isEditing = widget.parent != null;
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 20,
+      shadowColor: Colors.black.withOpacity(0.2),
       child: Container(
         width: 900,
         height: 700,
         padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -212,9 +220,10 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                       ? 'Edit Parent/Guardian'
                       : 'Add New Parent/Guardian',
                   style: const TextStyle(
-                    fontSize: 24,
+                    fontSize: 26,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
+                    color: Color(0xFF1A1A1A),
+                    letterSpacing: 0.5,
                   ),
                 ),
                 const Spacer(),
@@ -224,7 +233,11 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.close, color: Color(0xFF666666)),
+                    icon: const Icon(
+                      Icons.close,
+                      color: Color(0xFF666666),
+                      size: 20,
+                    ),
                     onPressed: () => Navigator.of(context).pop(),
                     padding: const EdgeInsets.all(8),
                   ),
@@ -236,491 +249,575 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
               isEditing
                   ? 'Update parent information and student assignments'
                   : 'Fill in the parent information and assign students',
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
             ),
             const SizedBox(height: 24),
 
             // Form content
             Expanded(
-              child: Form(
-                key: _formKey,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Left side - Parent Information
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[50],
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.grey[200]!),
+              child: SingleChildScrollView(
+                child: Form(
+                  key: _formKey,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Left side - Parent Information
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.grey[200]!,
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.06),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.person,
+                                        color: Color(0xFF2ECC71),
+                                        size: 22,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Text(
+                                        'Parent Information',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1A1A1A),
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  // Name fields row
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        flex: 2,
+                                        child: _buildTextField(
+                                          controller: _fnameController,
+                                          label: 'First Name *',
+                                          validator:
+                                              (val) =>
+                                                  val?.trim().isEmpty == true
+                                                      ? 'Required'
+                                                      : null,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        flex:
+                                            2, // Changed from flex: 1 to flex: 2
+                                        child: _buildTextField(
+                                          controller: _mnameController,
+                                          label: 'Middle Name',
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        flex: 2,
+                                        child: _buildTextField(
+                                          controller: _lnameController,
+                                          label: 'Last Name *',
+                                          validator:
+                                              (val) =>
+                                                  val?.trim().isEmpty == true
+                                                      ? 'Required'
+                                                      : null,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  // Contact fields
+                                  _buildTextField(
+                                    controller: _emailController,
+                                    label: 'Email Address *',
+                                    validator: (val) {
+                                      if (val?.trim().isEmpty == true)
+                                        return 'Required';
+                                      if (!RegExp(
+                                        r'^[^@]+@[^@]+\.[^@]+$',
+                                      ).hasMatch(val!)) {
+                                        return 'Invalid email format';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  _buildTextField(
+                                    controller: _phoneController,
+                                    label: 'Phone Number *',
+                                    validator:
+                                        (val) =>
+                                            val?.trim().isEmpty == true
+                                                ? 'Required'
+                                                : null,
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  _buildTextField(
+                                    controller: _addressController,
+                                    label: 'Address',
+                                    maxLines: 2,
+                                  ),
+                                ],
+                              ),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.person,
-                                      color: Color(0xFF2ECC71),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'Parent Information',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF333333),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-
-                                // Name fields row
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      flex: 2,
-                                      child: _buildTextField(
-                                        controller: _fnameController,
-                                        label: 'First Name *',
-                                        validator:
-                                            (val) =>
-                                                val?.trim().isEmpty == true
-                                                    ? 'Required'
-                                                    : null,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      flex:
-                                          2, // Changed from flex: 1 to flex: 2
-                                      child: _buildTextField(
-                                        controller: _mnameController,
-                                        label: 'Middle Name',
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      flex: 2,
-                                      child: _buildTextField(
-                                        controller: _lnameController,
-                                        label: 'Last Name *',
-                                        validator:
-                                            (val) =>
-                                                val?.trim().isEmpty == true
-                                                    ? 'Required'
-                                                    : null,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-
-                                // Contact fields
-                                _buildTextField(
-                                  controller: _emailController,
-                                  label: 'Email Address *',
-                                  validator: (val) {
-                                    if (val?.trim().isEmpty == true)
-                                      return 'Required';
-                                    if (!RegExp(
-                                      r'^[^@]+@[^@]+\.[^@]+$',
-                                    ).hasMatch(val!)) {
-                                      return 'Invalid email format';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 16),
-
-                                _buildTextField(
-                                  controller: _phoneController,
-                                  label: 'Phone Number *',
-                                  validator:
-                                      (val) =>
-                                          val?.trim().isEmpty == true
-                                              ? 'Required'
-                                              : null,
-                                ),
-                                const SizedBox(height: 16),
-
-                                _buildTextField(
-                                  controller: _addressController,
-                                  label: 'Address',
-                                  maxLines: 2,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
 
-                    const SizedBox(width: 24),
+                      const SizedBox(width: 24),
 
-                    // Right side - Student Assignment
-                    Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[50],
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.grey[200]!),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.people,
-                                      color: Color(0xFF2ECC71),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'Student Assignment',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF333333),
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(
-                                          0xFF2ECC71,
-                                        ).withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        '${_selectedStudents.length} Selected',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Color(0xFF2ECC71),
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                      // Right side - Student Assignment
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.grey[200]!,
+                                  width: 2,
                                 ),
-                                const SizedBox(height: 16),
-
-                                // Search bar with dropdown-style results
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Search input
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        border: Border.all(
-                                          color: const Color(0xFFE0E0E0),
-                                        ),
-                                        borderRadius: BorderRadius.circular(8),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.06),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.people,
+                                        color: Color(0xFF2ECC71),
+                                        size: 22,
                                       ),
-                                      child: TextField(
-                                        controller: _studentSearchController,
-                                        decoration: InputDecoration(
-                                          hintText:
-                                              'Search and select students...',
-                                          prefixIcon: const Icon(
-                                            Icons.search,
-                                            color: Color(0xFF9E9E9E),
-                                          ),
-                                          suffixIcon:
-                                              _studentSearchQuery.isNotEmpty
-                                                  ? IconButton(
-                                                    icon: const Icon(
-                                                      Icons.clear,
-                                                      color: Color(0xFF9E9E9E),
-                                                    ),
-                                                    onPressed: () {
-                                                      _studentSearchController
-                                                          .clear();
-                                                      _filterStudents('');
-                                                    },
-                                                  )
-                                                  : null,
-                                          border: InputBorder.none,
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                vertical: 12,
-                                                horizontal: 16,
-                                              ),
+                                      const SizedBox(width: 10),
+                                      const Text(
+                                        'Student Assignment',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1A1A1A),
+                                          letterSpacing: 0.3,
                                         ),
-                                        onChanged: _filterStudents,
                                       ),
-                                    ),
-
-                                    // Search results dropdown
-                                    if (_studentSearchQuery.isNotEmpty &&
-                                        !_isLoadingStudents)
+                                      const Spacer(),
                                       Container(
-                                        margin: const EdgeInsets.only(top: 4),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
                                         decoration: BoxDecoration(
-                                          color: Colors.white,
+                                          color: const Color(
+                                            0xFF2ECC71,
+                                          ).withOpacity(0.1),
                                           borderRadius: BorderRadius.circular(
-                                            8,
+                                            16,
                                           ),
                                           border: Border.all(
+                                            color: const Color(0xFF2ECC71),
+                                            width: 2,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${_selectedStudents.length} Selected',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: Color(0xFF2ECC71),
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  // Search bar with dropdown-style results
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      // Search input
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
                                             color: const Color(0xFFE0E0E0),
+                                            width: 2,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
                                           ),
                                           boxShadow: [
                                             BoxShadow(
                                               color: Colors.black.withOpacity(
-                                                0.1,
+                                                0.06,
                                               ),
                                               blurRadius: 8,
-                                              offset: const Offset(0, 2),
+                                              offset: const Offset(0, 3),
                                             ),
                                           ],
                                         ),
-                                        constraints: const BoxConstraints(
-                                          maxHeight: 200,
-                                        ),
-                                        child:
-                                            _filteredStudents.isEmpty
-                                                ? Container(
-                                                  padding: const EdgeInsets.all(
-                                                    16,
-                                                  ),
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(
-                                                        Icons.search_off,
-                                                        color: Colors.grey[400],
+                                        child: TextField(
+                                          controller: _studentSearchController,
+                                          decoration: InputDecoration(
+                                            hintText:
+                                                'Search and select students...',
+                                            hintStyle: TextStyle(
+                                              fontSize: 16,
+                                              color: Colors.grey[500],
+                                            ),
+                                            prefixIcon: const Icon(
+                                              Icons.search,
+                                              color: Color(0xFF2ECC71),
+                                              size: 22,
+                                            ),
+                                            suffixIcon:
+                                                _studentSearchQuery.isNotEmpty
+                                                    ? IconButton(
+                                                      icon: const Icon(
+                                                        Icons.clear,
+                                                        color: Color(
+                                                          0xFF9E9E9E,
+                                                        ),
                                                         size: 20,
                                                       ),
-                                                      const SizedBox(width: 8),
-                                                      Text(
-                                                        'No students match your search',
-                                                        style: TextStyle(
-                                                          color:
-                                                              Colors.grey[600],
-                                                          fontSize: 13,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                )
-                                                : ListView.builder(
-                                                  shrinkWrap: true,
-                                                  itemCount:
-                                                      _filteredStudents.length,
-                                                  itemBuilder: (
-                                                    context,
-                                                    index,
-                                                  ) {
-                                                    final student =
-                                                        _filteredStudents[index];
-                                                    final isSelected =
-                                                        _selectedStudents.any(
-                                                          (selected) =>
-                                                              selected['student_id'] ==
-                                                              student['id'],
-                                                        );
-
-                                                    return Material(
-                                                      color: Colors.transparent,
-                                                      child: InkWell(
-                                                        onTap:
-                                                            isSelected
-                                                                ? null
-                                                                : () {
-                                                                  _addStudentToSelection(
-                                                                    student,
-                                                                  );
-                                                                  _studentSearchController
-                                                                      .clear();
-                                                                  _filterStudents(
-                                                                    '',
-                                                                  );
-                                                                },
-                                                        child: Container(
-                                                          padding:
-                                                              const EdgeInsets.symmetric(
-                                                                horizontal: 16,
-                                                                vertical: 12,
-                                                              ),
-                                                          decoration: BoxDecoration(
-                                                            color:
-                                                                isSelected
-                                                                    ? const Color(
-                                                                      0xFF2ECC71,
-                                                                    ).withOpacity(
-                                                                      0.1,
-                                                                    )
-                                                                    : Colors
-                                                                        .transparent,
-                                                          ),
-                                                          child: Row(
-                                                            children: [
-                                                              CircleAvatar(
-                                                                backgroundColor:
-                                                                    isSelected
-                                                                        ? const Color(
-                                                                          0xFF2ECC71,
-                                                                        )
-                                                                        : Colors
-                                                                            .grey[300],
-                                                                radius: 14,
-                                                                child: Text(
-                                                                  student['fname'][0]
-                                                                      .toUpperCase(),
-                                                                  style: TextStyle(
-                                                                    color:
-                                                                        isSelected
-                                                                            ? Colors.white
-                                                                            : Colors.grey[600],
-                                                                    fontSize:
-                                                                        11,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .bold,
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                              const SizedBox(
-                                                                width: 12,
-                                                              ),
-                                                              Expanded(
-                                                                child: Column(
-                                                                  crossAxisAlignment:
-                                                                      CrossAxisAlignment
-                                                                          .start,
-                                                                  children: [
-                                                                    Text(
-                                                                      "${student['fname']} ${student['lname']}",
-                                                                      style: TextStyle(
-                                                                        fontSize:
-                                                                            13,
-                                                                        fontWeight:
-                                                                            FontWeight.w500,
-                                                                        color:
-                                                                            isSelected
-                                                                                ? const Color(
-                                                                                  0xFF2ECC71,
-                                                                                )
-                                                                                : const Color(
-                                                                                  0xFF333333,
-                                                                                ),
-                                                                      ),
-                                                                    ),
-                                                                    Text(
-                                                                      "Grade ${student['grade_level']} - Section ${student['section_id']}",
-                                                                      style: TextStyle(
-                                                                        fontSize:
-                                                                            11,
-                                                                        color:
-                                                                            Colors.grey[600],
-                                                                      ),
-                                                                    ),
-                                                                  ],
-                                                                ),
-                                                              ),
-                                                              if (isSelected)
-                                                                const Icon(
-                                                                  Icons
-                                                                      .check_circle,
-                                                                  color: Color(
-                                                                    0xFF2ECC71,
-                                                                  ),
-                                                                  size: 18,
-                                                                )
-                                                              else
-                                                                Icon(
-                                                                  Icons
-                                                                      .add_circle_outline,
-                                                                  color:
-                                                                      Colors
-                                                                          .grey[400],
-                                                                  size: 18,
-                                                                ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    );
-                                                  },
+                                                      onPressed: () {
+                                                        _studentSearchController
+                                                            .clear();
+                                                        _filterStudents('');
+                                                      },
+                                                    )
+                                                    : null,
+                                            border: InputBorder.none,
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  vertical: 14,
+                                                  horizontal: 16,
                                                 ),
+                                          ),
+                                          onChanged: _filterStudents,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            color: Color(0xFF1A1A1A),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
                                       ),
 
-                                    // Loading indicator for search
-                                    if (_studentSearchQuery.isNotEmpty &&
-                                        _isLoadingStudents)
-                                      Container(
-                                        margin: const EdgeInsets.only(top: 4),
-                                        padding: const EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            8,
+                                      // Search results dropdown
+                                      if (_studentSearchQuery.isNotEmpty &&
+                                          !_isLoadingStudents)
+                                        Container(
+                                          margin: const EdgeInsets.only(top: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(0xFFE0E0E0),
+                                              width: 2,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(
+                                                  0.1,
+                                                ),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
                                           ),
-                                          border: Border.all(
-                                            color: const Color(0xFFE0E0E0),
+                                          constraints: const BoxConstraints(
+                                            maxHeight: 200,
+                                          ),
+                                          child:
+                                              _filteredStudents.isEmpty
+                                                  ? Container(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          16,
+                                                        ),
+                                                    child: Row(
+                                                      children: [
+                                                        Icon(
+                                                          Icons.search_off,
+                                                          color:
+                                                              Colors.grey[400],
+                                                          size: 20,
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 8,
+                                                        ),
+                                                        Text(
+                                                          'No students match your search',
+                                                          style: TextStyle(
+                                                            color:
+                                                                Colors
+                                                                    .grey[600],
+                                                            fontSize: 15,
+                                                            fontWeight:
+                                                                FontWeight.w500,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  )
+                                                  : ListView.builder(
+                                                    shrinkWrap: true,
+                                                    itemCount:
+                                                        _filteredStudents
+                                                            .length,
+                                                    itemBuilder: (
+                                                      context,
+                                                      index,
+                                                    ) {
+                                                      final student =
+                                                          _filteredStudents[index];
+                                                      final isSelected =
+                                                          _selectedStudents.any(
+                                                            (selected) =>
+                                                                selected['student_id'] ==
+                                                                student['id'],
+                                                          );
+
+                                                      return Material(
+                                                        color:
+                                                            Colors.transparent,
+                                                        child: InkWell(
+                                                          onTap:
+                                                              isSelected
+                                                                  ? null
+                                                                  : () {
+                                                                    _addStudentToSelection(
+                                                                      student,
+                                                                    );
+                                                                    _studentSearchController
+                                                                        .clear();
+                                                                    _filterStudents(
+                                                                      '',
+                                                                    );
+                                                                  },
+                                                          child: Container(
+                                                            padding:
+                                                                const EdgeInsets.symmetric(
+                                                                  horizontal:
+                                                                      16,
+                                                                  vertical: 12,
+                                                                ),
+                                                            decoration: BoxDecoration(
+                                                              color:
+                                                                  isSelected
+                                                                      ? const Color(
+                                                                        0xFF2ECC71,
+                                                                      ).withOpacity(
+                                                                        0.1,
+                                                                      )
+                                                                      : Colors
+                                                                          .transparent,
+                                                            ),
+                                                            child: Row(
+                                                              children: [
+                                                                CircleAvatar(
+                                                                  backgroundColor:
+                                                                      isSelected
+                                                                          ? const Color(
+                                                                            0xFF2ECC71,
+                                                                          )
+                                                                          : Colors
+                                                                              .grey[300],
+                                                                  radius: 16,
+                                                                  child: Text(
+                                                                    student['fname'][0]
+                                                                        .toUpperCase(),
+                                                                    style: TextStyle(
+                                                                      color:
+                                                                          isSelected
+                                                                              ? Colors.white
+                                                                              : Colors.grey[600],
+                                                                      fontSize:
+                                                                          13,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .bold,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                                const SizedBox(
+                                                                  width: 12,
+                                                                ),
+                                                                Expanded(
+                                                                  child: Column(
+                                                                    crossAxisAlignment:
+                                                                        CrossAxisAlignment
+                                                                            .start,
+                                                                    children: [
+                                                                      Text(
+                                                                        "${student['fname']} ${student['lname']}",
+                                                                        style: TextStyle(
+                                                                          fontSize:
+                                                                              15,
+                                                                          fontWeight:
+                                                                              FontWeight.w600,
+                                                                          color:
+                                                                              isSelected
+                                                                                  ? const Color(
+                                                                                    0xFF2ECC71,
+                                                                                  )
+                                                                                  : const Color(
+                                                                                    0xFF1A1A1A,
+                                                                                  ),
+                                                                        ),
+                                                                      ),
+                                                                      Text(
+                                                                        "Grade ${student['grade_level']} - Section ${student['section_id']}",
+                                                                        style: TextStyle(
+                                                                          fontSize:
+                                                                              13,
+                                                                          color:
+                                                                              Colors.grey[600],
+                                                                          fontWeight:
+                                                                              FontWeight.w500,
+                                                                        ),
+                                                                      ),
+                                                                    ],
+                                                                  ),
+                                                                ),
+                                                                if (isSelected)
+                                                                  const Icon(
+                                                                    Icons
+                                                                        .check_circle,
+                                                                    color: Color(
+                                                                      0xFF2ECC71,
+                                                                    ),
+                                                                    size: 20,
+                                                                  )
+                                                                else
+                                                                  Icon(
+                                                                    Icons
+                                                                        .add_circle_outline,
+                                                                    color:
+                                                                        Colors
+                                                                            .grey[400],
+                                                                    size: 20,
+                                                                  ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                        ),
+
+                                      // Loading indicator for search
+                                      if (_studentSearchQuery.isNotEmpty &&
+                                          _isLoadingStudents)
+                                        Container(
+                                          margin: const EdgeInsets.only(top: 4),
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(0xFFE0E0E0),
+                                              width: 2,
+                                            ),
+                                          ),
+                                          child: const Row(
+                                            children: [
+                                              SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      color: Color(0xFF2ECC71),
+                                                      strokeWidth: 2,
+                                                    ),
+                                              ),
+                                              SizedBox(width: 12),
+                                              Text(
+                                                'Searching students...',
+                                                style: TextStyle(
+                                                  color: Color(0xFF666666),
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                        child: const Row(
-                                          children: [
-                                            SizedBox(
-                                              width: 16,
-                                              height: 16,
-                                              child: CircularProgressIndicator(
-                                                color: Color(0xFF2ECC71),
-                                                strokeWidth: 2,
-                                              ),
-                                            ),
-                                            SizedBox(width: 12),
-                                            Text(
-                                              'Searching students...',
-                                              style: TextStyle(
-                                                color: Color(0xFF666666),
-                                                fontSize: 13,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ],
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
 
-                          const SizedBox(height: 16),
+                            const SizedBox(height: 16),
 
-                          // Selected students section - REDESIGNED FOR BETTER SPACE MANAGEMENT
-                          Expanded(
-                            child: Container(
+                            // Selected students section - REDESIGNED FOR BETTER SPACE MANAGEMENT
+                            Container(
+                              height: 300, // Fixed height to prevent overflow
                               padding: const EdgeInsets.all(20),
                               decoration: BoxDecoration(
                                 color: const Color(
                                   0xFF2ECC71,
                                 ).withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
                                   color: const Color(
                                     0xFF2ECC71,
                                   ).withOpacity(0.2),
+                                  width: 2,
                                 ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.06),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -730,15 +827,16 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                       Icon(
                                         Icons.assignment_ind,
                                         color: Color(0xFF2ECC71),
-                                        size: 20,
+                                        size: 22,
                                       ),
-                                      SizedBox(width: 8),
+                                      SizedBox(width: 10),
                                       Text(
                                         'Selected Students & Relationships',
                                         style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF333333),
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1A1A1A),
+                                          letterSpacing: 0.3,
                                         ),
                                       ),
                                     ],
@@ -764,7 +862,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                     'No students selected',
                                                     style: TextStyle(
                                                       color: Colors.grey[600],
-                                                      fontSize: 14,
+                                                      fontSize: 16,
                                                       fontWeight:
                                                           FontWeight.w500,
                                                     ),
@@ -774,7 +872,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                     'Search and select students above',
                                                     style: TextStyle(
                                                       color: Colors.grey[500],
-                                                      fontSize: 12,
+                                                      fontSize: 14,
                                                     ),
                                                   ),
                                                 ],
@@ -800,11 +898,23 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                     color: Colors.white,
                                                     borderRadius:
                                                         BorderRadius.circular(
-                                                          8,
+                                                          10,
                                                         ),
                                                     border: Border.all(
                                                       color: Colors.grey[300]!,
+                                                      width: 2,
                                                     ),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.black
+                                                            .withOpacity(0.06),
+                                                        blurRadius: 8,
+                                                        offset: const Offset(
+                                                          0,
+                                                          3,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                   child: Column(
                                                     crossAxisAlignment:
@@ -819,7 +929,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                                 const Color(
                                                                   0xFF2ECC71,
                                                                 ),
-                                                            radius: 16,
+                                                            radius: 18,
                                                             child: Text(
                                                               student['fname'][0]
                                                                   .toUpperCase(),
@@ -827,7 +937,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                                 color:
                                                                     Colors
                                                                         .white,
-                                                                fontSize: 12,
+                                                                fontSize: 14,
                                                                 fontWeight:
                                                                     FontWeight
                                                                         .bold,
@@ -847,23 +957,28 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                                   "${student['fname']} ${student['lname']}",
                                                                   style: const TextStyle(
                                                                     fontSize:
-                                                                        14,
+                                                                        16,
                                                                     fontWeight:
                                                                         FontWeight
                                                                             .w600,
                                                                     color: Color(
-                                                                      0xFF333333,
+                                                                      0xFF1A1A1A,
                                                                     ),
+                                                                    letterSpacing:
+                                                                        0.3,
                                                                   ),
                                                                 ),
                                                                 Text(
                                                                   "Grade ${student['grade_level']} - Section ${student['section_id']}",
                                                                   style: TextStyle(
                                                                     fontSize:
-                                                                        11,
+                                                                        13,
                                                                     color:
                                                                         Colors
                                                                             .grey[600],
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w500,
                                                                   ),
                                                                 ),
                                                               ],
@@ -879,8 +994,9 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                             icon: const Icon(
                                                               Icons.close,
                                                               color: Colors.red,
+                                                              size: 20,
                                                             ),
-                                                            iconSize: 18,
+                                                            iconSize: 20,
                                                             padding:
                                                                 EdgeInsets.zero,
                                                             constraints:
@@ -909,10 +1025,10 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                                   'Relationship',
                                                                   style: TextStyle(
                                                                     fontSize:
-                                                                        11,
+                                                                        13,
                                                                     fontWeight:
                                                                         FontWeight
-                                                                            .w500,
+                                                                            .w600,
                                                                     color:
                                                                         Colors
                                                                             .grey[700],
@@ -922,16 +1038,17 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                                   height: 4,
                                                                 ),
                                                                 Container(
-                                                                  height: 32,
+                                                                  height: 36,
                                                                   decoration: BoxDecoration(
                                                                     border: Border.all(
                                                                       color:
                                                                           Colors
                                                                               .grey[300]!,
+                                                                      width: 2,
                                                                     ),
                                                                     borderRadius:
                                                                         BorderRadius.circular(
-                                                                          6,
+                                                                          8,
                                                                         ),
                                                                   ),
                                                                   child: DropdownButtonFormField<
@@ -945,19 +1062,22 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                                               .none,
                                                                       contentPadding: EdgeInsets.symmetric(
                                                                         horizontal:
-                                                                            8,
+                                                                            10,
                                                                         vertical:
-                                                                            4,
+                                                                            6,
                                                                       ),
                                                                       isDense:
                                                                           true,
                                                                     ),
                                                                     style: const TextStyle(
                                                                       fontSize:
-                                                                          11,
+                                                                          13,
                                                                       color: Color(
-                                                                        0xFF333333,
+                                                                        0xFF1A1A1A,
                                                                       ),
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w500,
                                                                     ),
                                                                     items:
                                                                         [
@@ -974,6 +1094,12 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                                                 value,
                                                                             child: Text(
                                                                               value.toUpperCase(),
+                                                                              style: const TextStyle(
+                                                                                fontSize:
+                                                                                    13,
+                                                                                fontWeight:
+                                                                                    FontWeight.w500,
+                                                                              ),
                                                                             ),
                                                                           );
                                                                         }).toList(),
@@ -1009,11 +1135,11 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                 ],
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1028,18 +1154,24 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                   onPressed:
                       _isSubmitting ? null : () => Navigator.of(context).pop(),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFE0E0E0)),
+                    side: const BorderSide(color: Color(0xFFE0E0E0), width: 2),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 24,
                       vertical: 12,
                     ),
+                    elevation: 2,
+                    shadowColor: Colors.black.withOpacity(0.1),
                   ),
                   child: const Text(
                     'Cancel',
-                    style: TextStyle(color: Color(0xFF666666)),
+                    style: TextStyle(
+                      color: Color(0xFF666666),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -1049,12 +1181,14 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                     backgroundColor: const Color(0xFF2ECC71),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
+                      horizontal: 28,
+                      vertical: 14,
                     ),
+                    elevation: 4,
+                    shadowColor: Colors.black.withOpacity(0.2),
                   ),
                   child:
                       _isSubmitting
@@ -1066,7 +1200,13 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                               strokeWidth: 2,
                             ),
                           )
-                          : Text(isEditing ? 'Update Parent' : 'Add Parent'),
+                          : Text(
+                            isEditing ? 'Update Parent' : 'Add Parent',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                 ),
               ],
             ),
@@ -1088,37 +1228,65 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
         Text(
           label,
           style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF333333),
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF555555),
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           validator: validator,
           maxLines: maxLines,
           decoration: InputDecoration(
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE0E0E0), width: 2),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFE0E0E0), width: 2),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Color(0xFF2ECC71)),
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFF2ECC71), width: 2),
             ),
             contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 12,
+              horizontal: 14,
+              vertical: 14,
             ),
             filled: true,
             fillColor: Colors.white,
+            prefixIcon:
+                label.contains('Email')
+                    ? const Icon(
+                      Icons.email,
+                      color: Color(0xFF2ECC71),
+                      size: 20,
+                    )
+                    : label.contains('Phone')
+                    ? const Icon(
+                      Icons.phone,
+                      color: Color(0xFF2ECC71),
+                      size: 20,
+                    )
+                    : label.contains('Address')
+                    ? const Icon(
+                      Icons.location_on,
+                      color: Color(0xFF2ECC71),
+                      size: 20,
+                    )
+                    : const Icon(
+                      Icons.person,
+                      color: Color(0xFF2ECC71),
+                      size: 20,
+                    ),
           ),
-          style: const TextStyle(fontSize: 14),
+          style: const TextStyle(
+            fontSize: 16,
+            color: Color(0xFF1A1A1A),
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );

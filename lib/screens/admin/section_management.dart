@@ -56,7 +56,9 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
   ) async {
     final response = await supabase
         .from('section_teachers')
-        .select('id, subject, assigned_at, days, start_time, end_time, teacher_id, users(id, fname, lname)')
+        .select(
+          'id, subject, assigned_at, days, start_time, end_time, teacher_id, users(id, fname, lname)',
+        )
         .eq('section_id', sectionId)
         .order('subject', ascending: true);
     return List<Map<String, dynamic>>.from(response);
@@ -67,7 +69,9 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
   ) async {
     final response = await supabase
         .from('section_teachers')
-        .select('id, subject, days, start_time, end_time, sections(id, name, grade_level)')
+        .select(
+          'id, subject, days, start_time, end_time, sections(id, name, grade_level)',
+        )
         .eq('teacher_id', teacherId)
         .order('start_time', ascending: true);
     return List<Map<String, dynamic>>.from(response);
@@ -93,19 +97,27 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 20,
+              shadowColor: Colors.black.withOpacity(0.2),
               title: Row(
                 children: [
                   Icon(
                     section == null ? Icons.add : Icons.edit,
                     color: const Color(0xFF2ECC71),
+                    size: 24,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 12),
                   Text(
                     section == null ? 'Add New Section' : 'Edit Section',
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: 26,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF333333),
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ],
@@ -121,20 +133,28 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                         controller: nameController,
                         decoration: InputDecoration(
                           labelText: 'Section Name *',
-                          prefixIcon: const Icon(Icons.class_, size: 20),
+                          prefixIcon: const Icon(
+                            Icons.class_,
+                            size: 22,
+                            color: Color(0xFF2ECC71),
+                          ),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           filled: true,
                           fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                          ),
                           labelStyle: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
+                            color: Color(0xFF555555),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                         style: const TextStyle(
-                          fontSize: 15,
-                          color: Color(0xFF333333),
+                          fontSize: 16,
+                          color: Color(0xFF1A1A1A),
                         ),
                         validator:
                             (value) =>
@@ -146,15 +166,23 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                       DropdownButtonFormField<String>(
                         decoration: InputDecoration(
                           labelText: 'Grade Level *',
-                          prefixIcon: const Icon(Icons.school, size: 20),
+                          prefixIcon: const Icon(
+                            Icons.school,
+                            size: 22,
+                            color: Color(0xFF2ECC71),
+                          ),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           filled: true,
                           fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                          ),
                           labelStyle: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
+                            color: Color(0xFF555555),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                         value: selectedGradeLevel,
@@ -165,7 +193,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                     value: grade,
                                     child: Text(
                                       grade,
-                                      style: const TextStyle(fontSize: 15),
+                                      style: const TextStyle(fontSize: 16),
                                     ),
                                   ),
                                 )
@@ -184,13 +212,35 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
               ),
               actions: [
                 TextButton(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                  ),
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF666666),
+                    ),
+                  ),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2ECC71),
                     foregroundColor: Colors.white,
+                    elevation: 4,
+                    shadowColor: Colors.black.withOpacity(0.2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 28,
+                      vertical: 14,
+                    ),
                   ),
                   onPressed: () async {
                     if (formKey.currentState!.validate()) {
@@ -213,9 +263,15 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(section == null ? Icons.add : Icons.save, size: 16),
-                      const SizedBox(width: 8),
-                      Text(section == null ? 'Add Section' : 'Update Section'),
+                      Icon(section == null ? Icons.add : Icons.save, size: 18),
+                      const SizedBox(width: 10),
+                      Text(
+                        section == null ? 'Add Section' : 'Update Section',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -290,11 +346,25 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
           context: context,
           builder:
               (context) => AlertDialog(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 20,
+                shadowColor: Colors.black.withOpacity(0.2),
                 title: const Row(
                   children: [
-                    Icon(Icons.warning, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('Confirm Delete'),
+                    Icon(Icons.warning, color: Colors.red, size: 24),
+                    SizedBox(width: 12),
+                    Text(
+                      'Confirm Delete',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A1A1A),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                   ],
                 ),
                 content: Text(
@@ -432,21 +502,29 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
             }
 
             return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 20,
+              shadowColor: Colors.black.withOpacity(0.2),
               title: Row(
                 children: [
                   Icon(
                     assignment == null ? Icons.person_add : Icons.edit,
                     color: const Color(0xFF2ECC71),
+                    size: 24,
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 12),
                   Text(
                     assignment == null
                         ? 'Add Teacher Assignment'
                         : 'Edit Teacher Assignment',
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: 26,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF333333),
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ],
@@ -460,456 +538,607 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                      // Subject Field
-                      TextFormField(
-                        controller: subjectController,
-                        decoration: InputDecoration(
-                          labelText: 'Subject *',
-                          prefixIcon: const Icon(Icons.book, size: 20),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                        // Subject Field
+                        TextFormField(
+                          controller: subjectController,
+                          decoration: InputDecoration(
+                            labelText: 'Subject *',
+                            prefixIcon: const Icon(
+                              Icons.book,
+                              size: 22,
+                              color: Color(0xFF2ECC71),
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                            ),
+                            labelStyle: TextStyle(
+                              color: Color(0xFF555555),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          labelStyle: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: Color(0xFF1A1A1A),
                           ),
+                          validator:
+                              (value) =>
+                                  (value == null || value.trim().isEmpty)
+                                      ? 'Subject required'
+                                      : null,
+                          onChanged: (value) => selectedSubject = value,
                         ),
-                        style: const TextStyle(
-                          fontSize: 15,
-                          color: Color(0xFF333333),
-                        ),
-                        validator:
-                            (value) =>
-                                (value == null || value.trim().isEmpty)
-                                    ? 'Subject required'
-                                    : null,
-                        onChanged: (value) => selectedSubject = value,
-                      ),
-                      const SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
-                      // Teacher Dropdown
-                      DropdownButtonFormField<dynamic>(
-                        decoration: InputDecoration(
-                          labelText: 'Teacher *',
-                          prefixIcon: const Icon(Icons.person, size: 20),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                        // Teacher Dropdown
+                        DropdownButtonFormField<dynamic>(
+                          decoration: InputDecoration(
+                            labelText: 'Teacher *',
+                            prefixIcon: const Icon(
+                              Icons.person,
+                              size: 22,
+                              color: Color(0xFF2ECC71),
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                            ),
+                            labelStyle: TextStyle(
+                              color: Color(0xFF555555),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          labelStyle: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
-                          ),
-                        ),
-                        value: selectedTeacherId,
-                        items:
-                            teachers.map((teacher) {
-                              return DropdownMenuItem(
-                                value: teacher['id'],
-                                child: Text(
-                                  '${teacher['fname']} ${teacher['lname']}',
-                                  style: const TextStyle(fontSize: 15),
-                                ),
-                              );
-                            }).toList(),
-                        onChanged: (value) async {
-                          setDialogState(() {
-                            selectedTeacherId = value;
-                            isLoadingSchedule = true;
-                          });
-                          
-                          if (value != null) {
-                            try {
-                              final schedule = await _fetchTeacherAssignments(value);
-                              setDialogState(() {
-                                teacherSchedule = schedule;
-                                isLoadingSchedule = false;
-                              });
-                            } catch (e) {
-                              setDialogState(() {
-                                isLoadingSchedule = false;
-                              });
-                              print('Error fetching teacher schedule: $e');
-                            }
-                          } else {
+                          value: selectedTeacherId,
+                          items:
+                              teachers.map((teacher) {
+                                return DropdownMenuItem(
+                                  value: teacher['id'],
+                                  child: Text(
+                                    '${teacher['fname']} ${teacher['lname']}',
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                );
+                              }).toList(),
+                          onChanged: (value) async {
                             setDialogState(() {
-                              teacherSchedule = [];
-                              isLoadingSchedule = false;
+                              selectedTeacherId = value;
+                              isLoadingSchedule = true;
                             });
-                          }
-                        },
-                        validator:
-                            (value) => value == null ? 'Select teacher' : null,
-                      ),
-                      const SizedBox(height: 16),
 
-                      // Teacher Schedule Display
-                      if (selectedTeacherId != null) ...[
+                            if (value != null) {
+                              try {
+                                final schedule = await _fetchTeacherAssignments(
+                                  value,
+                                );
+                                setDialogState(() {
+                                  teacherSchedule = schedule;
+                                  isLoadingSchedule = false;
+                                });
+                              } catch (e) {
+                                setDialogState(() {
+                                  isLoadingSchedule = false;
+                                });
+                                print('Error fetching teacher schedule: $e');
+                              }
+                            } else {
+                              setDialogState(() {
+                                teacherSchedule = [];
+                                isLoadingSchedule = false;
+                              });
+                            }
+                          },
+                          validator:
+                              (value) =>
+                                  value == null ? 'Select teacher' : null,
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Teacher Schedule Display
+                        if (selectedTeacherId != null) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              border: Border.all(
+                                color: Colors.blue[200]!,
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.schedule,
+                                      size: 20,
+                                      color: Colors.blue[700],
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      'Current Teacher Schedule',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.blue[700],
+                                        fontSize: 18,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                if (isLoadingSchedule)
+                                  const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(8.0),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  )
+                                else if (teacherSchedule.isEmpty)
+                                  Text(
+                                    'No current assignments',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 13,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  )
+                                else
+                                  Column(
+                                    children:
+                                        teacherSchedule.map((schedule) {
+                                          final section = schedule['sections'];
+                                          final sectionName =
+                                              section != null
+                                                  ? section['name']
+                                                  : 'Unknown Section';
+                                          final gradeLevel =
+                                              section != null
+                                                  ? section['grade_level']
+                                                  : '';
+                                          final subject =
+                                              schedule['subject'] ?? '';
+                                          final days =
+                                              schedule['days'] is List
+                                                  ? (schedule['days'] as List)
+                                                      .join(', ')
+                                                  : schedule['days']
+                                                          ?.toString() ??
+                                                      '';
+                                          final startTimeStr =
+                                              schedule['start_time']
+                                                  ?.toString() ??
+                                              '';
+                                          final endTimeStr =
+                                              schedule['end_time']
+                                                  ?.toString() ??
+                                              '';
+
+                                          String timeRange = '';
+                                          if (startTimeStr.isNotEmpty &&
+                                              endTimeStr.isNotEmpty) {
+                                            try {
+                                              final startParts = startTimeStr
+                                                  .split(':');
+                                              final endParts = endTimeStr.split(
+                                                ':',
+                                              );
+                                              if (startParts.length >= 2 &&
+                                                  endParts.length >= 2) {
+                                                final startHour = int.parse(
+                                                  startParts[0],
+                                                );
+                                                final startMin = int.parse(
+                                                  startParts[1],
+                                                );
+                                                final endHour = int.parse(
+                                                  endParts[0],
+                                                );
+                                                final endMin = int.parse(
+                                                  endParts[1],
+                                                );
+
+                                                final startTime = TimeOfDay(
+                                                  hour: startHour,
+                                                  minute: startMin,
+                                                );
+                                                final endTime = TimeOfDay(
+                                                  hour: endHour,
+                                                  minute: endMin,
+                                                );
+
+                                                timeRange =
+                                                    '${startTime.format(context)} - ${endTime.format(context)}';
+                                              }
+                                            } catch (e) {
+                                              timeRange =
+                                                  '$startTimeStr - $endTimeStr';
+                                            }
+                                          }
+
+                                          return Container(
+                                            margin: const EdgeInsets.only(
+                                              bottom: 8,
+                                            ),
+                                            padding: const EdgeInsets.all(12),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              border: Border.all(
+                                                color: Colors.grey[300]!,
+                                                width: 1,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.04),
+                                                  blurRadius: 4,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        '$subject - $sectionName ($gradeLevel)',
+                                                        style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 15,
+                                                          color: Color(
+                                                            0xFF1A1A1A,
+                                                          ),
+                                                          letterSpacing: 0.3,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.access_time,
+                                                      size: 16,
+                                                      color: Color(0xFF2ECC71),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      timeRange,
+                                                      style: TextStyle(
+                                                        color: Color(
+                                                          0xFF555555,
+                                                        ),
+                                                        fontSize: 14,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 16),
+                                                    Icon(
+                                                      Icons.calendar_today,
+                                                      size: 16,
+                                                      color: Color(0xFF2ECC71),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    Expanded(
+                                                      child: Text(
+                                                        days,
+                                                        style: TextStyle(
+                                                          color: Color(
+                                                            0xFF555555,
+                                                          ),
+                                                          fontSize: 14,
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }).toList(),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+
+                        // Days Section
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Schedule Days *',
+                            style: TextStyle(
+                              color: Color(0xFF1A1A1A),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.blue[50],
-                            border: Border.all(color: Colors.blue[200]!),
-                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.grey[300]!,
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.grey[50],
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children:
+                                daysOfWeek.map((day) {
+                                  final isSelected = selectedDays.contains(day);
+                                  return InkWell(
+                                    onTap: () {
+                                      setDialogState(() {
+                                        if (isSelected) {
+                                          selectedDays.remove(day);
+                                        } else {
+                                          selectedDays.add(day);
+                                        }
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            isSelected
+                                                ? const Color(0xFF2ECC71)
+                                                : Colors.white,
+                                        border: Border.all(
+                                          color:
+                                              isSelected
+                                                  ? const Color(0xFF2ECC71)
+                                                  : Colors.grey[300]!,
+                                          width: 2,
+                                        ),
+                                        borderRadius: BorderRadius.circular(10),
+                                        boxShadow:
+                                            isSelected
+                                                ? [
+                                                  BoxShadow(
+                                                    color: const Color(
+                                                      0xFF2ECC71,
+                                                    ).withOpacity(0.3),
+                                                    blurRadius: 8,
+                                                    offset: const Offset(0, 2),
+                                                  ),
+                                                ]
+                                                : null,
+                                      ),
+                                      child: Text(
+                                        day,
+                                        style: TextStyle(
+                                          color:
+                                              isSelected
+                                                  ? Colors.white
+                                                  : Color(0xFF1A1A1A),
+                                          fontWeight:
+                                              isSelected
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w500,
+                                          fontSize: 15,
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Time Section
+                        Row(
+                          children: [
+                            // Start Time
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(Icons.schedule, size: 16, color: Colors.blue[700]),
-                                  const SizedBox(width: 8),
                                   Text(
-                                    'Current Teacher Schedule',
+                                    'Start Time *',
                                     style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.blue[700],
-                                      fontSize: 14,
+                                      color: Color(0xFF1A1A1A),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  InkWell(
+                                    onTap: () async {
+                                      final picked = await showTimePicker(
+                                        context: context,
+                                        initialTime:
+                                            startTime ??
+                                            const TimeOfDay(hour: 8, minute: 0),
+                                      );
+                                      if (picked != null) {
+                                        setDialogState(() {
+                                          startTime = picked;
+                                        });
+                                      }
+                                    },
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: Colors.grey[300]!,
+                                          width: 2,
+                                        ),
+                                        borderRadius: BorderRadius.circular(10),
+                                        color: Colors.grey[50],
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.access_time,
+                                            size: 22,
+                                            color: Color(0xFF2ECC71),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            startTime != null
+                                                ? formatTimeDisplay(startTime)
+                                                : 'Select start time',
+                                            style: TextStyle(
+                                              color:
+                                                  startTime != null
+                                                      ? const Color(0xFF1A1A1A)
+                                                      : Colors.grey[600],
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
-                              if (isLoadingSchedule)
-                                const Center(
-                                  child: Padding(
-                                    padding: EdgeInsets.all(8.0),
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            const SizedBox(width: 16),
+
+                            // End Time
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'End Time *',
+                                    style: TextStyle(
+                                      color: Color(0xFF1A1A1A),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                      letterSpacing: 0.3,
+                                    ),
                                   ),
-                                )
-                              else if (teacherSchedule.isEmpty)
-                                Text(
-                                  'No current assignments',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 13,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                )
-                              else
-                                Column(
-                                  children: teacherSchedule.map((schedule) {
-                                    final section = schedule['sections'];
-                                    final sectionName = section != null ? section['name'] : 'Unknown Section';
-                                    final gradeLevel = section != null ? section['grade_level'] : '';
-                                    final subject = schedule['subject'] ?? '';
-                                    final days = schedule['days'] is List 
-                                        ? (schedule['days'] as List).join(', ')
-                                        : schedule['days']?.toString() ?? '';
-                                    final startTimeStr = schedule['start_time']?.toString() ?? '';
-                                    final endTimeStr = schedule['end_time']?.toString() ?? '';
-                                    
-                                    String timeRange = '';
-                                    if (startTimeStr.isNotEmpty && endTimeStr.isNotEmpty) {
-                                      try {
-                                        final startParts = startTimeStr.split(':');
-                                        final endParts = endTimeStr.split(':');
-                                        if (startParts.length >= 2 && endParts.length >= 2) {
-                                          final startHour = int.parse(startParts[0]);
-                                          final startMin = int.parse(startParts[1]);
-                                          final endHour = int.parse(endParts[0]);
-                                          final endMin = int.parse(endParts[1]);
-                                          
-                                          final startTime = TimeOfDay(hour: startHour, minute: startMin);
-                                          final endTime = TimeOfDay(hour: endHour, minute: endMin);
-                                          
-                                          timeRange = '${startTime.format(context)} - ${endTime.format(context)}';
-                                        }
-                                      } catch (e) {
-                                        timeRange = '$startTimeStr - $endTimeStr';
+                                  const SizedBox(height: 8),
+                                  InkWell(
+                                    onTap: () async {
+                                      final picked = await showTimePicker(
+                                        context: context,
+                                        initialTime:
+                                            endTime ??
+                                            const TimeOfDay(hour: 9, minute: 0),
+                                      );
+                                      if (picked != null) {
+                                        setDialogState(() {
+                                          endTime = picked;
+                                        });
                                       }
-                                    }
-                                    
-                                    return Container(
-                                      margin: const EdgeInsets.only(bottom: 6),
-                                      padding: const EdgeInsets.all(8),
+                                    },
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(14),
                                       decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: Colors.grey[300]!),
+                                        border: Border.all(
+                                          color: Colors.grey[300]!,
+                                          width: 2,
+                                        ),
+                                        borderRadius: BorderRadius.circular(10),
+                                        color: Colors.grey[50],
                                       ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                      child: Row(
                                         children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  '$subject - $sectionName ($gradeLevel)',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w500,
-                                                    fontSize: 13,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
+                                          const Icon(
+                                            Icons.access_time,
+                                            size: 22,
+                                            color: Color(0xFF2ECC71),
                                           ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              Icon(Icons.access_time, size: 12, color: Colors.grey[600]),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                timeRange,
-                                                style: TextStyle(
-                                                  color: Colors.grey[600],
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Icon(Icons.calendar_today, size: 12, color: Colors.grey[600]),
-                                              const SizedBox(width: 4),
-                                              Expanded(
-                                                child: Text(
-                                                  days,
-                                                  style: TextStyle(
-                                                    color: Colors.grey[600],
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            endTime != null
+                                                ? formatTimeDisplay(endTime)
+                                                : 'Select end time',
+                                            style: TextStyle(
+                                              color:
+                                                  endTime != null
+                                                      ? const Color(0xFF1A1A1A)
+                                                      : Colors.grey[600],
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                           ),
                                         ],
                                       ),
-                                    );
-                                  }).toList(),
-                                ),
-                            ],
-                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 20),
                       ],
-
-                      // Days Section
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Schedule Days *',
-                          style: TextStyle(
-                            color: Colors.grey[700],
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey[300]!),
-                          borderRadius: BorderRadius.circular(8),
-                          color: Colors.grey[50],
-                        ),
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children:
-                              daysOfWeek.map((day) {
-                                final isSelected = selectedDays.contains(day);
-                                return InkWell(
-                                  onTap: () {
-                                    setDialogState(() {
-                                      if (isSelected) {
-                                        selectedDays.remove(day);
-                                      } else {
-                                        selectedDays.add(day);
-                                      }
-                                    });
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          isSelected
-                                              ? const Color(0xFF2ECC71)
-                                              : Colors.white,
-                                      border: Border.all(
-                                        color:
-                                            isSelected
-                                                ? const Color(0xFF2ECC71)
-                                                : Colors.grey[300]!,
-                                      ),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      day,
-                                      style: TextStyle(
-                                        color:
-                                            isSelected
-                                                ? Colors.white
-                                                : Colors.grey[700],
-                                        fontWeight:
-                                            isSelected
-                                                ? FontWeight.w600
-                                                : FontWeight.normal,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Time Section
-                      Row(
-                        children: [
-                          // Start Time
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Start Time *',
-                                  style: TextStyle(
-                                    color: Colors.grey[700],
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                InkWell(
-                                  onTap: () async {
-                                    final picked = await showTimePicker(
-                                      context: context,
-                                      initialTime:
-                                          startTime ??
-                                          const TimeOfDay(hour: 8, minute: 0),
-                                    );
-                                    if (picked != null) {
-                                      setDialogState(() {
-                                        startTime = picked;
-                                      });
-                                    }
-                                  },
-                                  child: Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: Colors.grey[300]!,
-                                      ),
-                                      borderRadius: BorderRadius.circular(8),
-                                      color: Colors.grey[50],
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(Icons.access_time, size: 20),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          startTime != null
-                                              ? formatTimeDisplay(startTime)
-                                              : 'Select start time',
-                                          style: TextStyle(
-                                            color:
-                                                startTime != null
-                                                    ? const Color(0xFF333333)
-                                                    : Colors.grey[600],
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-
-                          // End Time
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'End Time *',
-                                  style: TextStyle(
-                                    color: Colors.grey[700],
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                InkWell(
-                                  onTap: () async {
-                                    final picked = await showTimePicker(
-                                      context: context,
-                                      initialTime:
-                                          endTime ??
-                                          const TimeOfDay(hour: 9, minute: 0),
-                                    );
-                                    if (picked != null) {
-                                      setDialogState(() {
-                                        endTime = picked;
-                                      });
-                                    }
-                                  },
-                                  child: Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: Colors.grey[300]!,
-                                      ),
-                                      borderRadius: BorderRadius.circular(8),
-                                      color: Colors.grey[50],
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(Icons.access_time, size: 20),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          endTime != null
-                                              ? formatTimeDisplay(endTime)
-                                              : 'Select end time',
-                                          style: TextStyle(
-                                            color:
-                                                endTime != null
-                                                    ? const Color(0xFF333333)
-                                                    : Colors.grey[600],
-                                            fontSize: 15,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
                     ),
                   ),
                 ),
               ),
               actions: [
                 TextButton(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                  ),
                   onPressed: () => Navigator.pop(context),
-                  child: const Text(
+                  child: Text(
                     'Cancel',
-                    style: TextStyle(color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF666666),
+                    ),
                   ),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromARGB(10, 78, 241, 157),
+                    backgroundColor: const Color(0xFF2ECC71),
                     foregroundColor: Colors.white,
+                    elevation: 4,
+                    shadowColor: Colors.black.withOpacity(0.2),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
+                      horizontal: 28,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                   onPressed: () async {
@@ -1058,13 +1287,17 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                     children: [
                       Icon(
                         assignment == null ? Icons.add : Icons.save,
-                        size: 16,
+                        size: 18,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       Text(
                         assignment == null
                             ? 'Add Assignment'
                             : 'Update Assignment',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
@@ -1124,12 +1357,23 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
       builder: (context) {
         return Dialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Container(
             width: 600,
             height: 700,
             padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1156,16 +1400,18 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                           const Text(
                             "Teacher Management",
                             style: TextStyle(
-                              fontSize: 20,
+                              fontSize: 26,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF333333),
+                              color: Color(0xFF1A1A1A),
+                              letterSpacing: 0.5,
                             ),
                           ),
                           Text(
                             "Section: $sectionName",
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: 16,
                               color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
@@ -1280,29 +1526,36 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                 const Text(
                                   'Teacher Assignments',
                                   style: TextStyle(
-                                    fontSize: 16,
+                                    fontSize: 20,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF333333),
+                                    color: Color(0xFF1A1A1A),
+                                    letterSpacing: 0.3,
                                   ),
                                 ),
                                 const Spacer(),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
+                                    horizontal: 12,
+                                    vertical: 6,
                                   ),
                                   decoration: BoxDecoration(
                                     color: const Color(
                                       0xFF2ECC71,
                                     ).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: const Color(
+                                        0xFF2ECC71,
+                                      ).withOpacity(0.3),
+                                      width: 1,
+                                    ),
                                   ),
                                   child: Text(
                                     '${assignments.length} Assignment${assignments.length == 1 ? '' : 's'}',
                                     style: const TextStyle(
-                                      fontSize: 12,
+                                      fontSize: 15,
                                       color: Color(0xFF2ECC71),
-                                      fontWeight: FontWeight.w600,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ),
@@ -1316,7 +1569,8 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                             child: ListView.separated(
                               itemCount: assignments.length,
                               separatorBuilder:
-                                  (context, index) => const SizedBox(height: 12),
+                                  (context, index) =>
+                                      const SizedBox(height: 12),
                               itemBuilder: (context, index) {
                                 final assignment = assignments[index];
                                 final teacher = assignment['users'];
@@ -1342,18 +1596,19 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                 }
 
                                 return Container(
-                                  padding: const EdgeInsets.all(16),
+                                  padding: const EdgeInsets.all(20),
                                   decoration: BoxDecoration(
                                     color: Colors.white,
-                                    borderRadius: BorderRadius.circular(8),
+                                    borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
                                       color: Colors.grey[200]!,
+                                      width: 1,
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.04),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
+                                        color: Colors.black.withOpacity(0.06),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 3),
                                       ),
                                     ],
                                   ),
@@ -1361,21 +1616,30 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                     children: [
                                       // Teacher avatar
                                       Container(
-                                        width: 48,
-                                        height: 48,
+                                        width: 56,
+                                        height: 56,
                                         decoration: BoxDecoration(
                                           color: const Color(
                                             0xFF2ECC71,
                                           ).withOpacity(0.1),
                                           borderRadius: BorderRadius.circular(
-                                            24,
+                                            28,
                                           ),
                                           border: Border.all(
                                             color: const Color(
                                               0xFF2ECC71,
-                                            ).withOpacity(0.3),
-                                            width: 2,
+                                            ).withOpacity(0.4),
+                                            width: 3,
                                           ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(
+                                                0.1,
+                                              ),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
                                         ),
                                         child: Center(
                                           child: Text(
@@ -1383,7 +1647,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                                 ? teacherName[0].toUpperCase()
                                                 : 'T',
                                             style: const TextStyle(
-                                              fontSize: 18,
+                                              fontSize: 22,
                                               fontWeight: FontWeight.bold,
                                               color: Color(0xFF2ECC71),
                                             ),
@@ -1401,9 +1665,10 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                             Text(
                                               teacherName,
                                               style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                                color: Color(0xFF333333),
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF1A1A1A),
+                                                letterSpacing: 0.3,
                                               ),
                                             ),
                                             const SizedBox(height: 4),
@@ -1411,35 +1676,37 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                               children: [
                                                 Icon(
                                                   Icons.book,
-                                                  size: 14,
-                                                  color: Colors.grey[600],
+                                                  size: 18,
+                                                  color: Color(0xFF2ECC71),
                                                 ),
-                                                const SizedBox(width: 4),
+                                                const SizedBox(width: 6),
                                                 Text(
                                                   subject,
                                                   style: TextStyle(
-                                                    fontSize: 13,
-                                                    color: Colors.grey[600],
-                                                    fontWeight: FontWeight.w500,
+                                                    fontSize: 15,
+                                                    color: Color(0xFF555555),
+                                                    fontWeight: FontWeight.w600,
                                                   ),
                                                 ),
                                               ],
                                             ),
-                                            const SizedBox(height: 4),
+                                            const SizedBox(height: 6),
                                             Row(
                                               children: [
                                                 Icon(
                                                   Icons.schedule,
-                                                  size: 14,
-                                                  color: Colors.grey[600],
+                                                  size: 18,
+                                                  color: Color(0xFF2ECC71),
                                                 ),
-                                                const SizedBox(width: 4),
+                                                const SizedBox(width: 6),
                                                 Expanded(
                                                   child: Text(
                                                     scheduleText,
                                                     style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: Colors.grey[600],
+                                                      fontSize: 14,
+                                                      color: Color(0xFF555555),
+                                                      fontWeight:
+                                                          FontWeight.w500,
                                                     ),
                                                     overflow:
                                                         TextOverflow.ellipsis,
@@ -1456,7 +1723,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                         icon: Icon(
                                           Icons.more_vert,
                                           color: Colors.grey[600],
-                                          size: 20,
+                                          size: 22,
                                         ),
                                         onSelected: (value) async {
                                           if (value == 'edit') {
@@ -1495,11 +1762,18 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                                   children: [
                                                     Icon(
                                                       Icons.edit,
-                                                      size: 16,
+                                                      size: 18,
                                                       color: Color(0xFF2ECC71),
                                                     ),
-                                                    SizedBox(width: 8),
-                                                    Text('Edit Assignment'),
+                                                    SizedBox(width: 10),
+                                                    Text(
+                                                      'Edit Assignment',
+                                                      style: TextStyle(
+                                                        fontSize: 15,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
                                                   ],
                                                 ),
                                               ),
@@ -1509,14 +1783,17 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                                   children: [
                                                     Icon(
                                                       Icons.delete,
-                                                      size: 16,
+                                                      size: 18,
                                                       color: Colors.red,
                                                     ),
-                                                    SizedBox(width: 8),
+                                                    SizedBox(width: 10),
                                                     Text(
                                                       'Remove Assignment',
                                                       style: TextStyle(
                                                         color: Colors.red,
+                                                        fontSize: 15,
+                                                        fontWeight:
+                                                            FontWeight.w500,
                                                       ),
                                                     ),
                                                   ],
@@ -1548,22 +1825,23 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        icon: const Icon(Icons.person_add, size: 18),
+                        icon: const Icon(Icons.person_add, size: 20),
                         label: const Text(
                           'Add Teacher Assignment',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF2ECC71),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          elevation: 0,
+                          elevation: 4,
+                          shadowColor: Colors.black.withOpacity(0.2),
                         ),
                         onPressed: () async {
                           if (teachers.isEmpty) {
@@ -1595,11 +1873,25 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
           context: context,
           builder:
               (context) => AlertDialog(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 20,
+                shadowColor: Colors.black.withOpacity(0.2),
                 title: const Row(
                   children: [
-                    Icon(Icons.warning, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('Remove Teacher Assignment'),
+                    Icon(Icons.warning, color: Colors.red, size: 24),
+                    SizedBox(width: 12),
+                    Text(
+                      'Remove Teacher Assignment',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A1A1A),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                   ],
                 ),
                 content: Text(
@@ -1628,28 +1920,48 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
   Widget build(BuildContext context) {
     // Prepare sections for display: apply grade filter, search then sorting
     final query = _searchQuery.trim().toLowerCase();
-    List<Map<String, dynamic>> displaySections = sections.where((s) {
-      final matchesGrade = _gradeFilter == 'All Grades' ||
-          (s['grade_level']?.toString() ?? '') == _gradeFilter;
-      if (!matchesGrade) return false;
+    List<Map<String, dynamic>> displaySections =
+        sections.where((s) {
+          final matchesGrade =
+              _gradeFilter == 'All Grades' ||
+              (s['grade_level']?.toString() ?? '') == _gradeFilter;
+          if (!matchesGrade) return false;
 
-      if (query.isEmpty) return true;
-      final name = (s['name'] ?? '').toString().toLowerCase();
-      final id = s['id']?.toString() ?? '';
-      return name.contains(query) || id.contains(query);
-    }).toList();
+          if (query.isEmpty) return true;
+          final name = (s['name'] ?? '').toString().toLowerCase();
+          final id = s['id']?.toString() ?? '';
+          return name.contains(query) || id.contains(query);
+        }).toList();
 
     // Sorting
     if (_sortOption == 'Name (A-Z)') {
-      displaySections.sort((a, b) => (a['name'] ?? '').toString().compareTo((b['name'] ?? '').toString()));
+      displaySections.sort(
+        (a, b) => (a['name'] ?? '').toString().compareTo(
+          (b['name'] ?? '').toString(),
+        ),
+      );
     } else if (_sortOption == 'Name (Z-A)') {
-      displaySections.sort((a, b) => (b['name'] ?? '').toString().compareTo((a['name'] ?? '').toString()));
+      displaySections.sort(
+        (a, b) => (b['name'] ?? '').toString().compareTo(
+          (a['name'] ?? '').toString(),
+        ),
+      );
     } else if (_sortOption == 'Grade Level') {
-      displaySections.sort((a, b) => (a['grade_level'] ?? '').toString().compareTo((b['grade_level'] ?? '').toString()));
+      displaySections.sort(
+        (a, b) => (a['grade_level'] ?? '').toString().compareTo(
+          (b['grade_level'] ?? '').toString(),
+        ),
+      );
     } else if (_sortOption == 'Date Created') {
       displaySections.sort((a, b) {
-        final da = a['created_at'] != null ? DateTime.tryParse(a['created_at'].toString()) : null;
-        final db = b['created_at'] != null ? DateTime.tryParse(b['created_at'].toString()) : null;
+        final da =
+            a['created_at'] != null
+                ? DateTime.tryParse(a['created_at'].toString())
+                : null;
+        final db =
+            b['created_at'] != null
+                ? DateTime.tryParse(b['created_at'].toString())
+                : null;
         if (da == null && db == null) return 0;
         if (da == null) return 1;
         if (db == null) return -1;
@@ -1670,51 +1982,76 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                 const Text(
                   "Section Management",
                   style: TextStyle(
-                    fontSize: 24,
+                    fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
+                    color: Color(0xFF1A1A1A),
+                    letterSpacing: 0.5,
                   ),
                 ),
                 const Spacer(),
                 // Search bar
                 Container(
-                  width: 240,
-                  height: 40,
+                  width: 280,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     border: Border.all(color: const Color(0xFFE0E0E0)),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: TextField(
                     decoration: const InputDecoration(
                       hintText: 'Search sections...',
-                      prefixIcon: Icon(Icons.search, color: Color(0xFF9E9E9E)),
+                      hintStyle: TextStyle(fontSize: 16),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: Color(0xFF2ECC71),
+                        size: 22,
+                      ),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 10.0),
+                      contentPadding: EdgeInsets.symmetric(
+                        vertical: 14.0,
+                        horizontal: 16.0,
+                      ),
                     ),
-                    onChanged: (val) => setState(() {
-                      _searchQuery = val;
-                    }),
+                    onChanged:
+                        (val) => setState(() {
+                          _searchQuery = val;
+                        }),
                   ),
                 ),
                 const SizedBox(width: 16),
                 // Add New Section button
                 SizedBox(
-                  height: 40,
+                  height: 48,
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add, color: Colors.white),
+                    icon: const Icon(Icons.add, color: Colors.white, size: 22),
                     label: const Text(
                       "Add New Section",
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2ECC71),
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      elevation: 4,
+                      shadowColor: Colors.black.withOpacity(0.2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                     ),
                     onPressed: () => _addOrEditSection(),
                   ),
@@ -1722,22 +2059,32 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                 const SizedBox(width: 16),
                 // Export button
                 SizedBox(
-                  height: 40,
+                  height: 48,
                   child: OutlinedButton.icon(
                     icon: const Icon(
                       Icons.file_download_outlined,
-                      color: Color(0xFF333333),
+                      color: Color(0xFF2ECC71),
+                      size: 22,
                     ),
                     label: const Text(
                       "Export",
-                      style: TextStyle(color: Color(0xFF333333)),
+                      style: TextStyle(
+                        color: Color(0xFF2ECC71),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     style: OutlinedButton.styleFrom(
                       backgroundColor: Colors.white,
-                      side: const BorderSide(color: Color(0xFFE0E0E0)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
+                      side: const BorderSide(
+                        color: Color(0xFF2ECC71),
+                        width: 2,
                       ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                      shadowColor: Colors.black.withOpacity(0.1),
                     ),
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -1754,10 +2101,14 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
 
             // Breadcrumb / subtitle
             const Padding(
-              padding: EdgeInsets.only(top: 4.0, bottom: 20.0),
+              padding: EdgeInsets.only(top: 8.0, bottom: 24.0),
               child: Text(
                 "Home / Section Management",
-                style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Color(0xFF666666),
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
 
@@ -1771,12 +2122,19 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                 children: [
                   // Grade filter dropdown
                   Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
@@ -1811,28 +2169,36 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                   const SizedBox(width: 16),
                   // Sort by dropdown
                   Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         value: _sortOption,
                         icon: const Icon(Icons.keyboard_arrow_down),
-                        items: <String>[
-                          'Name (A-Z)',
-                          'Name (Z-A)',
-                          'Grade Level',
-                          'Date Created',
-                        ].map<DropdownMenuItem<String>>((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text('Sort by: $value'),
-                          );
-                        }).toList(),
+                        items:
+                            <String>[
+                              'Name (A-Z)',
+                              'Name (Z-A)',
+                              'Grade Level',
+                              'Date Created',
+                            ].map<DropdownMenuItem<String>>((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text('Sort by: $value'),
+                              );
+                            }).toList(),
                         onChanged: (String? newValue) {
                           if (newValue == null) return;
                           setState(() {
@@ -1855,12 +2221,19 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
               )
             else
               Container(
-                padding: const EdgeInsets.all(16),
-                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(20),
+                margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFE0E0E0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Row(
                   children: [
@@ -1869,34 +2242,35 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                       child: Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: const Color(0xFF2ECC71).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(
                               Icons.class_,
                               color: Color(0xFF2ECC71),
-                              size: 24,
+                              size: 28,
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 16),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'Total Sections',
                                 style: TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 16,
                                   color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                               Text(
                                 '${sections.length}',
                                 style: const TextStyle(
-                                  fontSize: 24,
+                                  fontSize: 28,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF333333),
+                                  color: Color(0xFF1A1A1A),
                                 ),
                               ),
                             ],
@@ -1909,34 +2283,35 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                       child: Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: Colors.blue.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(
                               Icons.school,
                               color: Colors.blue,
-                              size: 24,
+                              size: 28,
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 16),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'Grade Levels',
                                 style: TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 16,
                                   color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                               Text(
                                 '${sections.map((s) => s['grade_level']).toSet().length}',
                                 style: const TextStyle(
-                                  fontSize: 24,
+                                  fontSize: 28,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF333333),
+                                  color: Color(0xFF1A1A1A),
                                 ),
                               ),
                             ],
@@ -1947,12 +2322,12 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                     // Active sections indicator
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                        horizontal: 16,
+                        vertical: 10,
                       ),
                       decoration: BoxDecoration(
                         color: Colors.green[50],
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: Colors.green[200]!),
                       ),
                       child: Row(
@@ -1960,16 +2335,16 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                         children: [
                           Icon(
                             Icons.check_circle,
-                            size: 16,
+                            size: 18,
                             color: Colors.green[600],
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 8),
                           Text(
                             'All Active',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 14,
                               color: Colors.green[600],
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -1980,80 +2355,79 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
               ),
 
             // Enhanced Table with better styling
-              Expanded(
-               child:
-                   isLoading
-                       ? const Center(
-                         child: CircularProgressIndicator(
-                           color: Color(0xFF2ECC71),
-                         ),
-                       )
-                       : displaySections.isEmpty
-                          // show friendly "no results" when search/filter yields nothing
-                          ? Center(
-                              child: Container(
-                                padding: const EdgeInsets.all(32),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[50],
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Colors.grey[200]!),
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.class_outlined,
-                                      size: 64,
-                                      color: Colors.grey[400],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      _searchQuery.trim().isEmpty
-                                          ? "No sections found"
-                                          : "No sections match \"${_searchQuery.trim()}\"",
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      "Try a different search term or clear filters.",
-                                      style: TextStyle(
-                                        color: Colors.grey[500],
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    ElevatedButton.icon(
-                                      onPressed: () {
-                                        // clear search and reset grade filter to show all
-                                        setState(() {
-                                          _searchQuery = '';
-                                          _gradeFilter = 'All Grades';
-                                        });
-                                      },
-                                      icon: const Icon(Icons.search),
-                                      label: const Text('Clear Search / Filters'),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            const Color(0xFF2ECC71),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 24,
-                                          vertical: 12,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+            Expanded(
+              child:
+                  isLoading
+                      ? const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF2ECC71),
+                        ),
+                      )
+                      : displaySections.isEmpty
+                      // show friendly "no results" when search/filter yields nothing
+                      ? Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(32),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey[200]!),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.class_outlined,
+                                size: 64,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _searchQuery.trim().isEmpty
+                                    ? "No sections found"
+                                    : "No sections match \"${_searchQuery.trim()}\"",
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
-                            )
-                       : Container(
+                              const SizedBox(height: 12),
+                              Text(
+                                "Try a different search term or clear filters.",
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  // clear search and reset grade filter to show all
+                                  setState(() {
+                                    _searchQuery = '';
+                                    _gradeFilter = 'All Grades';
+                                  });
+                                },
+                                icon: const Icon(Icons.search),
+                                label: const Text('Clear Search / Filters'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2ECC71),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      : Container(
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: const Color(0xFFE0E0E0)),
                           boxShadow: [
                             BoxShadow(
@@ -2067,15 +2441,18 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                           children: [
                             // Enhanced table header
                             Container(
-                              padding: const EdgeInsets.all(16),
+                              padding: const EdgeInsets.all(20),
                               decoration: BoxDecoration(
                                 color: Colors.grey[50],
                                 borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(8),
-                                  topRight: Radius.circular(8),
+                                  topLeft: Radius.circular(12),
+                                  topRight: Radius.circular(12),
                                 ),
                                 border: Border(
-                                  bottom: BorderSide(color: Colors.grey[200]!),
+                                  bottom: BorderSide(
+                                    color: Colors.grey[200]!,
+                                    width: 2,
+                                  ),
                                 ),
                               ),
                               child: Row(
@@ -2083,23 +2460,25 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                   const Icon(
                                     Icons.class_,
                                     color: Color(0xFF2ECC71),
-                                    size: 20,
+                                    size: 24,
                                   ),
-                                  const SizedBox(width: 8),
+                                  const SizedBox(width: 12),
                                   const Text(
                                     'Sections Overview',
                                     style: TextStyle(
-                                      fontSize: 16,
+                                      fontSize: 20,
                                       fontWeight: FontWeight.bold,
-                                      color: Color(0xFF333333),
+                                      color: Color(0xFF1A1A1A),
+                                      letterSpacing: 0.3,
                                     ),
                                   ),
                                   const Spacer(),
                                   Text(
                                     '${sections.length} section${sections.length == 1 ? '' : 's'}',
                                     style: TextStyle(
-                                      fontSize: 13,
+                                      fontSize: 16,
                                       color: Colors.grey[600],
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ],
@@ -2128,7 +2507,13 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                     // Table header row
                                     TableRow(
                                       decoration: BoxDecoration(
-                                        color: Colors.grey[50],
+                                        color: Color(0xFFF8F9FA),
+                                        border: Border(
+                                          bottom: BorderSide(
+                                            color: Colors.grey[200]!,
+                                            width: 2,
+                                          ),
+                                        ),
                                       ),
                                       children: const [
                                         TableHeaderCell(text: 'Section ID'),
@@ -2181,11 +2566,11 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                                       'SEC${section['id'].toString().padLeft(3, '0')}',
                                                       style: const TextStyle(
                                                         fontWeight:
-                                                            FontWeight.w600,
+                                                            FontWeight.w700,
                                                         color: Color(
                                                           0xFF2ECC71,
                                                         ),
-                                                        fontSize: 12,
+                                                        fontSize: 14,
                                                       ),
                                                     ),
                                                   ),
@@ -2223,11 +2608,12 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                                       section['name'] ?? '',
                                                       style: const TextStyle(
                                                         fontWeight:
-                                                            FontWeight.w600,
+                                                            FontWeight.bold,
                                                         color: Color(
-                                                          0xFF333333,
+                                                          0xFF1A1A1A,
                                                         ),
-                                                        fontSize: 14,
+                                                        fontSize: 18,
+                                                        letterSpacing: 0.3,
                                                       ),
                                                     ),
                                                   ),
@@ -2267,9 +2653,9 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                                         section['grade_level'] ??
                                                             'N/A',
                                                         style: TextStyle(
-                                                          fontSize: 11,
+                                                          fontSize: 13,
                                                           fontWeight:
-                                                              FontWeight.w600,
+                                                              FontWeight.w700,
                                                           color: _getGradeColor(
                                                             section['grade_level'],
                                                           ),
@@ -2301,8 +2687,10 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                                   Text(
                                                     createdStr,
                                                     style: const TextStyle(
-                                                      fontSize: 13,
-                                                      color: Color(0xFF666666),
+                                                      fontSize: 15,
+                                                      color: Color(0xFF555555),
+                                                      fontWeight:
+                                                          FontWeight.w500,
                                                     ),
                                                   ),
                                                 ],
@@ -2321,12 +2709,14 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                                     child: ElevatedButton.icon(
                                                       icon: const Icon(
                                                         Icons.group,
-                                                        size: 14,
+                                                        size: 18,
                                                       ),
                                                       label: const Text(
                                                         "Teachers",
                                                         style: TextStyle(
-                                                          fontSize: 12,
+                                                          fontSize: 14,
+                                                          fontWeight:
+                                                              FontWeight.w600,
                                                         ),
                                                       ),
                                                       style: ElevatedButton.styleFrom(
@@ -2336,16 +2726,19 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                                             ),
                                                         foregroundColor:
                                                             Colors.white,
-                                                        elevation: 0,
+                                                        elevation: 2,
+                                                        shadowColor: Colors
+                                                            .black
+                                                            .withOpacity(0.1),
                                                         padding:
                                                             const EdgeInsets.symmetric(
-                                                              horizontal: 8,
-                                                              vertical: 6,
+                                                              horizontal: 12,
+                                                              vertical: 8,
                                                             ),
                                                         shape: RoundedRectangleBorder(
                                                           borderRadius:
                                                               BorderRadius.circular(
-                                                                6,
+                                                                8,
                                                               ),
                                                         ),
                                                       ),
@@ -2363,7 +2756,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                                     icon: Icon(
                                                       Icons.more_vert,
                                                       color: Colors.grey[600],
-                                                      size: 18,
+                                                      size: 20,
                                                     ),
                                                     tooltip: 'More options',
                                                     onSelected: (value) async {
@@ -2392,16 +2785,23 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                                               children: [
                                                                 Icon(
                                                                   Icons.edit,
-                                                                  size: 16,
+                                                                  size: 18,
                                                                   color: Color(
                                                                     0xFF2ECC71,
                                                                   ),
                                                                 ),
                                                                 SizedBox(
-                                                                  width: 8,
+                                                                  width: 10,
                                                                 ),
                                                                 Text(
                                                                   'Edit Section',
+                                                                  style: TextStyle(
+                                                                    fontSize:
+                                                                        15,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w500,
+                                                                  ),
                                                                 ),
                                                               ],
                                                             ),
@@ -2412,13 +2812,13 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                                               children: [
                                                                 Icon(
                                                                   Icons.delete,
-                                                                  size: 16,
+                                                                  size: 18,
                                                                   color:
                                                                       Colors
                                                                           .red,
                                                                 ),
                                                                 SizedBox(
-                                                                  width: 8,
+                                                                  width: 10,
                                                                 ),
                                                                 Text(
                                                                   'Delete Section',
@@ -2426,6 +2826,11 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                                                                     color:
                                                                         Colors
                                                                             .red,
+                                                                    fontSize:
+                                                                        15,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w500,
                                                                   ),
                                                                 ),
                                                               ],
@@ -2447,7 +2852,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                           ],
                         ),
                       ),
-             ),
+            ),
           ],
         ),
       ),
@@ -2462,14 +2867,15 @@ class TableHeaderCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
       alignment: Alignment.centerLeft,
       child: Text(
         text,
         style: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 13,
-          color: Color(0xFF666666),
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
+          color: Color(0xFF1A1A1A),
+          letterSpacing: 0.3,
         ),
       ),
     );
