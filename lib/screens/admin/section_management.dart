@@ -14,6 +14,8 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
   List<Map<String, dynamic>> sections = [];
   List<Map<String, dynamic>> teachers = [];
   bool isLoading = false;
+  // Search query for sections
+  String _searchQuery = '';
   // Filtering / sorting state
   String _gradeFilter = 'All Grades';
   String _sortOption = 'Name (A-Z)';
@@ -1624,10 +1626,17 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Prepare sections for display: apply grade filter then sorting
+    // Prepare sections for display: apply grade filter, search then sorting
+    final query = _searchQuery.trim().toLowerCase();
     List<Map<String, dynamic>> displaySections = sections.where((s) {
-      return _gradeFilter == 'All Grades' ||
+      final matchesGrade = _gradeFilter == 'All Grades' ||
           (s['grade_level']?.toString() ?? '') == _gradeFilter;
+      if (!matchesGrade) return false;
+
+      if (query.isEmpty) return true;
+      final name = (s['name'] ?? '').toString().toLowerCase();
+      final id = s['id']?.toString() ?? '';
+      return name.contains(query) || id.contains(query);
     }).toList();
 
     // Sorting
@@ -1683,10 +1692,9 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(vertical: 10.0),
                     ),
-                    onChanged:
-                        (val) => setState(() {
-                          // Add search functionality here if needed
-                        }),
+                    onChanged: (val) => setState(() {
+                      _searchQuery = val;
+                    }),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -1972,7 +1980,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
               ),
 
             // Enhanced Table with better styling
-             Expanded(
+              Expanded(
                child:
                    isLoading
                        ? const Center(
@@ -1980,50 +1988,68 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                            color: Color(0xFF2ECC71),
                          ),
                        )
-                       : sections.isEmpty
-                       ? Center(
-                         child: Container(
-                           padding: const EdgeInsets.all(32),
-                           decoration: BoxDecoration(
-                             color: Colors.grey[50],
-                             borderRadius: BorderRadius.circular(16),
-                             border: Border.all(color: Colors.grey[200]!),
-                           ),
-                           child: Column(
-                             mainAxisSize: MainAxisSize.min,
-                             children: [
-                               Icon(
-                                 Icons.class_outlined,
-                                 size: 64,
-                                 color: Colors.grey[400],
-                               ),
-                               const SizedBox(height: 16),
-                               Text(
-                                 "No sections found",
-                                 style: TextStyle(
-                                   color: Colors.grey[600],
-                                   fontSize: 16,
-                                   fontWeight: FontWeight.w500,
-                                 ),
-                               ),
-                               const SizedBox(height: 16),
-                               ElevatedButton.icon(
-                                 onPressed: () => _addOrEditSection(),
-                                 icon: const Icon(Icons.add),
-                                 label: const Text('Add First Section'),
-                                 style: ElevatedButton.styleFrom(
-                                   backgroundColor: const Color(0xFF2ECC71),
-                                   foregroundColor: Colors.white,
-                                   padding: const EdgeInsets.symmetric(
-                                     horizontal: 24,
-                                     vertical: 12,
-                                   ),
-                                 ),
-                               ),
-                             ],
-                           ),
-                         ),
-                       )
+                       : displaySections.isEmpty
+                          // show friendly "no results" when search/filter yields nothing
+                          ? Center(
+                              child: Container(
+                                padding: const EdgeInsets.all(32),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[50],
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: Colors.grey[200]!),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.class_outlined,
+                                      size: 64,
+                                      color: Colors.grey[400],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      _searchQuery.trim().isEmpty
+                                          ? "No sections found"
+                                          : "No sections match \"${_searchQuery.trim()}\"",
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      "Try a different search term or clear filters.",
+                                      style: TextStyle(
+                                        color: Colors.grey[500],
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    ElevatedButton.icon(
+                                      onPressed: () {
+                                        // clear search and reset grade filter to show all
+                                        setState(() {
+                                          _searchQuery = '';
+                                          _gradeFilter = 'All Grades';
+                                        });
+                                      },
+                                      icon: const Icon(Icons.search),
+                                      label: const Text('Clear Search / Filters'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            const Color(0xFF2ECC71),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 24,
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
                        : Container(
                         decoration: BoxDecoration(
                           color: Colors.white,
