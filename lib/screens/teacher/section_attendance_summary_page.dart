@@ -60,7 +60,7 @@ class _TeacherSectionAttendanceSummaryPageState
     try {
       final studentRows = await supabase
           .from('students')
-          .select('id, fname, lname')
+          .select('id, fname, lname, profile_image_url')
           .eq('section_id', widget.sectionId)
           .order('lname', ascending: true);
 
@@ -393,39 +393,112 @@ class _TeacherSectionAttendanceSummaryPageState
                                       total > 0
                                           ? ((present / total) * 100).round()
                                           : 0;
-                                  return InkWell(
-                                    onTap:
-                                        () => _showStudentAttendanceCalendar(
-                                          s['id'] as int,
-                                          "${s['fname']} ${s['lname']}",
-                                        ),
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          bottom: BorderSide(
-                                            color: const Color(0xFFF0F1F5),
-                                            width: 1,
-                                          ),
-                                        ),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                        horizontal: 24,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          _td(
+                                  return Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap:
+                                          () => _showStudentAttendanceCalendar(
+                                            s['id'] as int,
                                             "${s['fname']} ${s['lname']}",
-                                            flex: 3,
-                                            link: true,
                                           ),
-                                          _td("${stat['present'] ?? 0}"),
-                                          _td("${stat['late'] ?? 0}"),
-                                          _td("${stat['absent'] ?? 0}"),
-                                          _td("${stat['excused'] ?? 0}"),
-                                          _td("$pct%"),
-                                        ],
+                                      borderRadius: BorderRadius.circular(8),
+                                      hoverColor: const Color(0xFFF8FAFF),
+                                      splashColor: const Color(0xFFE3F2FD).withOpacity(0.3),
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            bottom: BorderSide(
+                                              color: const Color(0xFFF0F1F5),
+                                              width: 1,
+                                            ),
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 16,
+                                          horizontal: 24,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              flex: 3,
+                                              child: Row(
+                                                children: [
+                                                  Container(
+                                                    width: 32,
+                                                    height: 32,
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFFE8F4FD),
+                                                      borderRadius: BorderRadius.circular(16),
+                                                      image: s['profile_image_url'] != null && s['profile_image_url'].toString().isNotEmpty
+                                                          ? DecorationImage(
+                                                              image: NetworkImage(s['profile_image_url']),
+                                                              fit: BoxFit.cover,
+                                                              onError: (exception, stackTrace) {
+                                                                // Handle image loading error silently
+                                                                print('Error loading profile image: $exception');
+                                                              },
+                                                            )
+                                                          : null,
+                                                    ),
+                                                    child: s['profile_image_url'] == null || s['profile_image_url'].toString().isEmpty
+                                                        ? Center(
+                                                            child: Text(
+                                                              "${s['fname']?[0] ?? ''}${s['lname']?[0] ?? ''}".toUpperCase(),
+                                                              style: const TextStyle(
+                                                                color: Color(0xFF2563EB),
+                                                                fontWeight: FontWeight.bold,
+                                                                fontSize: 12,
+                                                              ),
+                                                            ),
+                                                          )
+                                                        : null,
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          "${s['fname']} ${s['lname']}",
+                                                          overflow: TextOverflow.ellipsis,
+                                                          style: const TextStyle(
+                                                            color: Color(0xFF222B45),
+                                                            fontWeight: FontWeight.w600,
+                                                            fontSize: 14,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(height: 2),
+                                                        Row(
+                                                          children: [
+                                                            Icon(
+                                                              Icons.calendar_today,
+                                                              size: 12,
+                                                              color: const Color(0xFF8F9BB3),
+                                                            ),
+                                                            const SizedBox(width: 4),
+                                                            Text(
+                                                              "View calendar",
+                                                              style: const TextStyle(
+                                                                color: Color(0xFF8F9BB3),
+                                                                fontSize: 11,
+                                                                fontWeight: FontWeight.w500,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            _td("${stat['present'] ?? 0}"),
+                                            _td("${stat['late'] ?? 0}"),
+                                            _td("${stat['absent'] ?? 0}"),
+                                            _td("${stat['excused'] ?? 0}"),
+                                            _td("$pct%"),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   );
@@ -464,17 +537,16 @@ class _TeacherSectionAttendanceSummaryPageState
     ),
   );
 
-  Widget _td(String label, {int flex = 1, bool link = false}) => Expanded(
+  Widget _td(String label, {int flex = 1}) => Expanded(
     flex: flex,
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2.0),
       child: Text(
         label,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: link ? const Color(0xFF2563EB) : const Color(0xFF222B45),
-          fontWeight: link ? FontWeight.w600 : FontWeight.w500,
-          decoration: link ? TextDecoration.underline : TextDecoration.none,
+        style: const TextStyle(
+          color: Color(0xFF222B45),
+          fontWeight: FontWeight.w500,
           fontSize: 14,
         ),
       ),
