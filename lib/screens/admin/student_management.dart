@@ -2954,63 +2954,76 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                           TableCellVerticalAlignment.middle,
                                       child: Padding(
                                         padding: const EdgeInsets.all(16),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color:
-                                                status == 'Active'
-                                                    ? const Color(0xFFE8F5E9)
-                                                    : const Color(0xFFFFEBEE),
-                                            borderRadius: BorderRadius.circular(
-                                              16,
+                                        child: Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 6,
                                             ),
-                                            border: Border.all(
+                                            decoration: BoxDecoration(
                                               color:
                                                   status == 'Active'
-                                                      ? const Color(0xFF4CAF50)
-                                                      : const Color(0xFFE57373),
-                                              width: 1,
+                                                      ? const Color(0xFFE8F5E9)
+                                                      : const Color(0xFFFFEBEE),
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              border: Border.all(
+                                                color:
+                                                    status == 'Active'
+                                                        ? const Color(
+                                                          0xFF4CAF50,
+                                                        )
+                                                        : const Color(
+                                                          0xFFE57373,
+                                                        ),
+                                                width: 1,
+                                              ),
                                             ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Container(
-                                                width: 6,
-                                                height: 6,
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      status == 'Active'
-                                                          ? const Color(
-                                                            0xFF4CAF50,
-                                                          )
-                                                          : const Color(
-                                                            0xFFE57373,
-                                                          ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(3),
+                                            // Center the contents of the pill
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.center,
+                                              children: [
+                                                Container(
+                                                  width: 8,
+                                                  height: 8,
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        status == 'Active'
+                                                            ? const Color(
+                                                              0xFF4CAF50,
+                                                            )
+                                                            : const Color(
+                                                              0xFFE57373,
+                                                            ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          4,
+                                                        ),
+                                                  ),
                                                 ),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                status,
-                                                style: TextStyle(
-                                                  color:
-                                                      status == 'Active'
-                                                          ? const Color(
-                                                            0xFF2E7D32,
-                                                          )
-                                                          : const Color(
-                                                            0xFFC62828,
-                                                          ),
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 12,
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  status,
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    color:
+                                                        status == 'Active'
+                                                            ? const Color(
+                                                              0xFF2E7D32,
+                                                            )
+                                                            : const Color(
+                                                              0xFFC62828,
+                                                            ),
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 12,
+                                                  ),
                                                 ),
-                                              ),
-                                            ],
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
