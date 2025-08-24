@@ -32,16 +32,66 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
 
   // Utility to format schedule
   String formatSchedule(Map<String, dynamic> assignment) {
-    final days =
-        assignment['days'] is List
-            ? (assignment['days'] as List).join(', ')
-            : (assignment['days']?.toString() ?? '');
+    final daysList = assignment['days'] is List
+        ? (assignment['days'] as List).cast<String>()
+        : (assignment['days']?.toString() ?? '')
+            .split(',')
+            .map((e) => e.trim())
+            .toList();
     final startTime = assignment['start_time'] ?? '';
     final endTime = assignment['end_time'] ?? '';
-    if (days.isEmpty || startTime.isEmpty || endTime.isEmpty) {
+    
+    if (daysList.isEmpty || startTime.isEmpty || endTime.isEmpty) {
       return "--";
     }
-    return "$days | $startTime - $endTime";
+    
+    final formattedDays = _formatDaysRange(daysList);
+    return "$formattedDays | $startTime - $endTime";
+  }
+
+  // Helper method to format days in a compact range format
+  String _formatDaysRange(List<String> days) {
+    if (days.isEmpty) return '';
+    
+    final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final dayIndices = days
+        .map((day) => weekDays.indexOf(day))
+        .where((index) => index != -1)
+        .toList()
+      ..sort();
+    
+    if (dayIndices.isEmpty) return days.join(', ');
+    
+    List<String> ranges = [];
+    int start = dayIndices[0];
+    int end = start;
+    
+    for (int i = 1; i < dayIndices.length; i++) {
+      if (dayIndices[i] == end + 1) {
+        end = dayIndices[i];
+      } else {
+        if (start == end) {
+          ranges.add(weekDays[start]);
+        } else if (end == start + 1) {
+          ranges.add('${weekDays[start]}, ${weekDays[end]}');
+        } else {
+          ranges.add('${weekDays[start]}-${weekDays[end]}');
+        }
+        start = dayIndices[i];
+        end = start;
+      }
+    }
+    
+    // Add the last range
+    if (start == end) {
+      ranges.add(weekDays[start]);
+    } else if (end == start + 1) {
+      ranges.add('${weekDays[start]}, ${weekDays[end]}');
+    } else {
+      ranges.add('${weekDays[start]}-${weekDays[end]}');
+    }
+    
+    return ranges.join(', ');
   }
 
   // Compute status string: Upcoming, Ongoing, Completed
@@ -56,17 +106,18 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
     final startTimeStr = assignment['start_time'] ?? '';
     final endTimeStr = assignment['end_time'] ?? '';
     if (days.isEmpty || startTimeStr.isEmpty || endTimeStr.isEmpty)
-      return "Upcoming";
+      return "No Schedule";
 
     final now = DateTime.now();
     final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final todayAbbrev = weekDays[now.weekday - 1];
 
-    if (!days.contains(todayAbbrev)) return "Upcoming";
+    // If today is not a class day, return "No Class Today" instead of "Upcoming"
+    if (!days.contains(todayAbbrev)) return "No Class Today";
 
     final startTimeParts = startTimeStr.split(':');
     final endTimeParts = endTimeStr.split(':');
-    if (startTimeParts.length < 2 || endTimeParts.length < 2) return "Upcoming";
+    if (startTimeParts.length < 2 || endTimeParts.length < 2) return "No Schedule";
 
     final start = DateTime(
       now.year,
@@ -266,6 +317,10 @@ class _SectionListCard extends StatelessWidget {
         return const Color(0xFF2563EB); // blue
       case "upcoming":
         return const Color(0xFF8F9BB3); // gray
+      case "no class today":
+        return const Color(0xFFFF8C00); // orange
+      case "no schedule":
+        return const Color(0xFFDC2626); // red
       default:
         return const Color(0xFF2563EB);
     }
@@ -279,6 +334,10 @@ class _SectionListCard extends StatelessWidget {
         return const Color(0xFFE8F1FF); // light blue
       case "upcoming":
         return const Color(0xFFF2F3F5); // light gray
+      case "no class today":
+        return const Color(0xFFFFF3E0); // light orange
+      case "no schedule":
+        return const Color(0xFFFFEBEE); // light red
       default:
         return const Color(0xFFE8F1FF);
     }
@@ -335,7 +394,7 @@ class _SectionListCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Text(
-                            "Grade $gradeLevel",
+                            gradeLevel,
                             style: const TextStyle(
                               fontSize: 12,
                               color: Color(0xFF2563EB),
