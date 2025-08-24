@@ -143,6 +143,13 @@ class _TeacherSectionAttendanceSummaryPageState
     _loadData();
   }
 
+  Future<void> _exportAttendance() async {
+    // Placeholder: replace with real export logic (CSV generation / file save / share)
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Export attendance not implemented yet')),
+    );
+  }
+  
   Widget _buildSummaryStats() {
     return Card(
       color: Colors.white,
@@ -305,6 +312,29 @@ class _TeacherSectionAttendanceSummaryPageState
                         onPressed: _nextMonth,
                       ),
                     ],
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+                // Spacer to push export button to the right edge
+                const Spacer(),
+                // Export button (consistent system design)
+                ElevatedButton.icon(
+                  onPressed: _exportAttendance,
+                  icon: const Icon(
+                    Icons.download_rounded,
+                    size: 18,
+                  ),
+                  label: const Text(
+                    'Export',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    elevation: 0,
                   ),
                 ),
               ],

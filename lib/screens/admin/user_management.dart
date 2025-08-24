@@ -35,7 +35,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   // For pagination
   int _currentPage = 1;
-  int _itemsPerPage = 8;
+  int _itemsPerPage = 5;
   int _totalPages = 1;
 
   // For image uploads
@@ -230,7 +230,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.error, color: Colors.red, size: 16),
+                                const Icon(
+                                  Icons.error,
+                                  color: Colors.red,
+                                  size: 16,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -261,7 +265,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 ),
                                 validator: (value) {
                                   // server-provided field error takes precedence
-                                  if (fieldErrors['fname'] != null) return fieldErrors['fname'];
+                                  if (fieldErrors['fname'] != null)
+                                    return fieldErrors['fname'];
                                   if (value?.trim().isEmpty ?? true) {
                                     return 'First name is required';
                                   }
@@ -292,7 +297,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   isRequired: true,
                                 ),
                                 validator: (value) {
-                                  if (fieldErrors['lname'] != null) return fieldErrors['lname'];
+                                  if (fieldErrors['lname'] != null)
+                                    return fieldErrors['lname'];
                                   if (value?.trim().isEmpty ?? true) {
                                     return 'Last name is required';
                                   }
@@ -314,7 +320,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             isRequired: true,
                           ),
                           validator: (value) {
-                            if (fieldErrors['email'] != null) return fieldErrors['email'];
+                            if (fieldErrors['email'] != null)
+                              return fieldErrors['email'];
                             if (value?.trim().isEmpty ?? true) {
                               return 'Email is required';
                             }
@@ -345,7 +352,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   LengthLimitingTextInputFormatter(11),
                                 ],
                                 validator: (value) {
-                                  if (fieldErrors['contact_number'] != null) return fieldErrors['contact_number'];
+                                  if (fieldErrors['contact_number'] != null)
+                                    return fieldErrors['contact_number'];
                                   if (value == null || value.trim().isEmpty) {
                                     return null; // optional
                                   }
@@ -367,7 +375,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 ),
                                 textCapitalization: TextCapitalization.words,
                                 validator: (value) {
-                                  if (fieldErrors['position'] != null) return fieldErrors['position'];
+                                  if (fieldErrors['position'] != null)
+                                    return fieldErrors['position'];
                                   return null;
                                 },
                               ),
@@ -782,28 +791,45 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         }
 
                         // Handle image upload + create/update flows
-                        if (_selectedImagePath != null && _selectedImageBytes != null) {
+                        if (_selectedImagePath != null &&
+                            _selectedImageBytes != null) {
                           if (user == null) {
                             // Create user first (no image)
                             final createRes = await createUserViaEdgeFunction(
                               email: emailController.text.trim(),
                               role: selectedRole!,
                               fname: fnameController.text.trim(),
-                              mname: mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                              mname:
+                                  mnameController.text.trim().isEmpty
+                                      ? null
+                                      : mnameController.text.trim(),
                               lname: lnameController.text.trim(),
-                              contactNumber: contactController.text.trim().isEmpty ? null : contactController.text.trim(),
-                              position: positionController.text.trim().isEmpty ? null : positionController.text.trim(),
+                              contactNumber:
+                                  contactController.text.trim().isEmpty
+                                      ? null
+                                      : contactController.text.trim(),
+                              position:
+                                  positionController.text.trim().isEmpty
+                                      ? null
+                                      : positionController.text.trim(),
                               profileImageUrl: null,
                             );
 
                             if (createRes['status'] != 200) {
-                              final errs = _extractFieldErrors(createRes['data']);
+                              final errs = _extractFieldErrors(
+                                createRes['data'],
+                              );
                               _setFieldErrors(errs);
                               return; // keep dialog open for correction
                             }
 
                             // fetch created user id
-                            final createdUser = await supabase.from('users').select('id').eq('email', emailController.text.trim()).single();
+                            final createdUser =
+                                await supabase
+                                    .from('users')
+                                    .select('id')
+                                    .eq('email', emailController.text.trim())
+                                    .single();
                             final XFile imageFile = XFile.fromData(
                               _selectedImageBytes!,
                               name: _selectedImagePath!,
@@ -814,7 +840,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             );
 
                             if (uploadedUrl != null) {
-                              await supabase.from('users').update({'profile_image_url': uploadedUrl}).eq('id', createdUser['id']);
+                              await supabase
+                                  .from('users')
+                                  .update({'profile_image_url': uploadedUrl})
+                                  .eq('id', createdUser['id']);
                               await supabase.auth.admin.updateUserById(
                                 createdUser['id'],
                                 attributes: AdminUserAttributes(
@@ -837,8 +866,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
                             if (uploadedUrl != null) {
                               imageUrl = uploadedUrl;
-                              if (user['profile_image_url'] != null && user['profile_image_url'].toString().isNotEmpty) {
-                                await _deleteImageFromSupabase(user['profile_image_url']);
+                              if (user['profile_image_url'] != null &&
+                                  user['profile_image_url']
+                                      .toString()
+                                      .isNotEmpty) {
+                                await _deleteImageFromSupabase(
+                                  user['profile_image_url'],
+                                );
                               }
                             }
 
@@ -847,10 +881,19 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               email: emailController.text.trim(),
                               role: selectedRole!,
                               fname: fnameController.text.trim(),
-                              mname: mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                              mname:
+                                  mnameController.text.trim().isEmpty
+                                      ? null
+                                      : mnameController.text.trim(),
                               lname: lnameController.text.trim(),
-                              contactNumber: contactController.text.trim().isEmpty ? null : contactController.text.trim(),
-                              position: positionController.text.trim().isEmpty ? null : positionController.text.trim(),
+                              contactNumber:
+                                  contactController.text.trim().isEmpty
+                                      ? null
+                                      : contactController.text.trim(),
+                              position:
+                                  positionController.text.trim().isEmpty
+                                      ? null
+                                      : positionController.text.trim(),
                               profileImageUrl: imageUrl,
                             );
 
@@ -867,15 +910,26 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               email: emailController.text.trim(),
                               role: selectedRole!,
                               fname: fnameController.text.trim(),
-                              mname: mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                              mname:
+                                  mnameController.text.trim().isEmpty
+                                      ? null
+                                      : mnameController.text.trim(),
                               lname: lnameController.text.trim(),
-                              contactNumber: contactController.text.trim().isEmpty ? null : contactController.text.trim(),
-                              position: positionController.text.trim().isEmpty ? null : positionController.text.trim(),
+                              contactNumber:
+                                  contactController.text.trim().isEmpty
+                                      ? null
+                                      : contactController.text.trim(),
+                              position:
+                                  positionController.text.trim().isEmpty
+                                      ? null
+                                      : positionController.text.trim(),
                               profileImageUrl: imageUrl,
                             );
 
                             if (createRes['status'] != 200) {
-                              final errs = _extractFieldErrors(createRes['data']);
+                              final errs = _extractFieldErrors(
+                                createRes['data'],
+                              );
                               _setFieldErrors(errs);
                               return;
                             }
@@ -885,10 +939,19 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               email: emailController.text.trim(),
                               role: selectedRole!,
                               fname: fnameController.text.trim(),
-                              mname: mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                              mname:
+                                  mnameController.text.trim().isEmpty
+                                      ? null
+                                      : mnameController.text.trim(),
                               lname: lnameController.text.trim(),
-                              contactNumber: contactController.text.trim().isEmpty ? null : contactController.text.trim(),
-                              position: positionController.text.trim().isEmpty ? null : positionController.text.trim(),
+                              contactNumber:
+                                  contactController.text.trim().isEmpty
+                                      ? null
+                                      : contactController.text.trim(),
+                              position:
+                                  positionController.text.trim().isEmpty
+                                      ? null
+                                      : positionController.text.trim(),
                               profileImageUrl: imageUrl,
                             );
 
@@ -937,7 +1000,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       } catch (e) {
                         // Unexpected error: show inline general error in dialog
                         setDialogState(() {
-                          fieldErrors = {'_general': 'Unexpected error: ${e.toString()}'};
+                          fieldErrors = {
+                            '_general': 'Unexpected error: ${e.toString()}',
+                          };
                         });
                         formKey.currentState!.validate();
                       }
@@ -2249,98 +2314,306 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       ),
                     ),
 
-                    // Pagination
+                    // Pagination info and controls
                     Padding(
                       padding: const EdgeInsets.only(top: 16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // "Showing x to y of z entries"
-                          Text(
-                            'Showing ${currentPageItems.isEmpty ? 0 : startIndex + 1} to ${endIndex} of ${filteredUsers.length} entries',
-                            style: const TextStyle(
-                              color: Color(0xFF666666),
-                              fontSize: 12,
-                            ),
-                          ),
-
-                          // Pagination controls
-                          Row(
-                            children: [
-                              // Previous button
-                              IconButton(
-                                icon: const Icon(Icons.chevron_left),
-                                onPressed:
-                                    _currentPage > 1
-                                        ? () => setState(() => _currentPage--)
-                                        : null,
-                                color:
-                                    _currentPage > 1
-                                        ? const Color(0xFF666666)
-                                        : const Color(0xFFCCCCCC),
-                              ),
-
-                              // Page numbers
-                              for (int i = 1; i <= _totalPages; i++)
-                                if (i == _currentPage ||
-                                    i == 1 ||
-                                    i == _totalPages ||
-                                    (i >= _currentPage - 1 &&
-                                        i <= _currentPage + 1))
-                                  Container(
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 4,
-                                    ),
-                                    width: 32,
-                                    height: 32,
-                                    decoration: BoxDecoration(
-                                      color:
-                                          i == _currentPage
-                                              ? const Color(0xFF2ECC71)
-                                              : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: TextButton(
-                                      onPressed:
-                                          () =>
-                                              setState(() => _currentPage = i),
-                                      style: TextButton.styleFrom(
-                                        padding: EdgeInsets.zero,
-                                        foregroundColor:
-                                            i == _currentPage
-                                                ? Colors.white
-                                                : const Color(0xFF666666),
-                                      ),
-                                      child: Text(
-                                        i.toString(),
-                                        style: const TextStyle(fontSize: 14),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey[200]!),
+                        ),
+                        child: Column(
+                          children: [
+                            // Items per page selector and info
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // Items per page selector
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'Show:',
+                                      style: TextStyle(
+                                        color: Color(0xFF666666),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                  )
-                                else if (i == _currentPage - 2 ||
-                                    i == _currentPage + 2)
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 4,
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: Colors.grey[300]!,
+                                        ),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: DropdownButtonHideUnderline(
+                                        child: DropdownButton<int>(
+                                          value: _itemsPerPage,
+                                          items:
+                                              [5, 10, 25, 50, 100].map((
+                                                int value,
+                                              ) {
+                                                return DropdownMenuItem<int>(
+                                                  value: value,
+                                                  child: Text('$value entries'),
+                                                );
+                                              }).toList(),
+                                          onChanged: (int? newValue) {
+                                            setState(() {
+                                              _itemsPerPage = newValue!;
+                                              _currentPage =
+                                                  1; // Reset to first page
+                                            });
+                                          },
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF666666),
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                    child: Text('...'),
+                                  ],
+                                ),
+
+                                // Total entries info
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
                                   ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(
+                                      0xFF2ECC71,
+                                    ).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: const Color(
+                                        0xFF2ECC71,
+                                      ).withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.people,
+                                        size: 16,
+                                        color: const Color(0xFF2ECC71),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Total: ${filteredUsers.length} users',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF2ECC71),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
 
-                              // Next button
-                              IconButton(
-                                icon: const Icon(Icons.chevron_right),
-                                onPressed:
-                                    _currentPage < _totalPages
-                                        ? () => setState(() => _currentPage++)
-                                        : null,
-                                color:
-                                    _currentPage < _totalPages
-                                        ? const Color(0xFF666666)
-                                        : const Color(0xFFCCCCCC),
+                            // Pagination info and controls
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // "Showing x to y of z entries"
+                                Text(
+                                  'Showing ${currentPageItems.isEmpty ? 0 : startIndex + 1} to $endIndex of ${filteredUsers.length} entries',
+                                  style: const TextStyle(
+                                    color: Color(0xFF666666),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+
+                                // Enhanced pagination controls
+                                Row(
+                                  children: [
+                                    // First page button
+                                    IconButton(
+                                      icon: const Icon(Icons.first_page),
+                                      onPressed:
+                                          _currentPage > 1
+                                              ? () => setState(
+                                                () => _currentPage = 1,
+                                              )
+                                              : null,
+                                      color:
+                                          _currentPage > 1
+                                              ? const Color(0xFF666666)
+                                              : const Color(0xFFCCCCCC),
+                                      tooltip: 'First page',
+                                    ),
+
+                                    // Previous button
+                                    IconButton(
+                                      icon: const Icon(Icons.chevron_left),
+                                      onPressed:
+                                          _currentPage > 1
+                                              ? () =>
+                                                  setState(() => _currentPage--)
+                                              : null,
+                                      color:
+                                          _currentPage > 1
+                                              ? const Color(0xFF666666)
+                                              : const Color(0xFFCCCCCC),
+                                      tooltip: 'Previous page',
+                                    ),
+
+                                    // Page input field for quick navigation
+                                    Container(
+                                      width: 80,
+                                      height: 32,
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                      ),
+                                      child: TextFormField(
+                                        initialValue: _currentPage.toString(),
+                                        textAlign: TextAlign.center,
+                                        keyboardType: TextInputType.number,
+                                        style: const TextStyle(fontSize: 14),
+                                        decoration: InputDecoration(
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                vertical: 8,
+                                              ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            borderSide: BorderSide(
+                                              color: Colors.grey[300]!,
+                                            ),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            borderSide: const BorderSide(
+                                              color: Color(0xFF2ECC71),
+                                            ),
+                                          ),
+                                        ),
+                                        onFieldSubmitted: (value) {
+                                          final page = int.tryParse(value);
+                                          if (page != null &&
+                                              page >= 1 &&
+                                              page <= _totalPages) {
+                                            setState(() => _currentPage = page);
+                                          }
+                                        },
+                                      ),
+                                    ),
+
+                                    Text(
+                                      'of $_totalPages',
+                                      style: const TextStyle(
+                                        color: Color(0xFF666666),
+                                        fontSize: 13,
+                                      ),
+                                    ),
+
+                                    // Next button
+                                    IconButton(
+                                      icon: const Icon(Icons.chevron_right),
+                                      onPressed:
+                                          _currentPage < _totalPages
+                                              ? () =>
+                                                  setState(() => _currentPage++)
+                                              : null,
+                                      color:
+                                          _currentPage < _totalPages
+                                              ? const Color(0xFF666666)
+                                              : const Color(0xFFCCCCCC),
+                                      tooltip: 'Next page',
+                                    ),
+
+                                    // Last page button
+                                    IconButton(
+                                      icon: const Icon(Icons.last_page),
+                                      onPressed:
+                                          _currentPage < _totalPages
+                                              ? () => setState(
+                                                () =>
+                                                    _currentPage = _totalPages,
+                                              )
+                                              : null,
+                                      color:
+                                          _currentPage < _totalPages
+                                              ? const Color(0xFF666666)
+                                              : const Color(0xFFCCCCCC),
+                                      tooltip: 'Last page',
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+
+                            // Quick page jumper (for large datasets)
+                            if (_totalPages > 10) ...[
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Text(
+                                    'Quick jump: ',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF666666),
+                                    ),
+                                  ),
+                                  ...List.generate(
+                                    (_totalPages / 10).ceil().clamp(1, 5),
+                                    (index) {
+                                      final pageGroup = (index + 1) * 10;
+                                      final actualPage =
+                                          pageGroup > _totalPages
+                                              ? _totalPages
+                                              : pageGroup;
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 2,
+                                        ),
+                                        child: TextButton(
+                                          onPressed:
+                                              () => setState(
+                                                () => _currentPage = actualPage,
+                                              ),
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            minimumSize: Size.zero,
+                                            foregroundColor: const Color(
+                                              0xFF2ECC71,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '$actualPage',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
                               ),
                             ],
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ],
