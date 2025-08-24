@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/parent_models.dart';
 import '../../services/notification_service.dart';
@@ -31,8 +32,8 @@ class Student {
     required this.middleName,
     required this.lastName,
     required this.gradeLevel,
-  required this.section,
-  this.profileImageUrl,
+    required this.section,
+    this.profileImageUrl,
   });
 
   String get fullName {
@@ -55,13 +56,14 @@ class Student {
       middleName: json['students']?['mname'] ?? json['mname'] ?? '',
       lastName: json['students']?['lname'] ?? json['lname'] ?? '',
       gradeLevel: json['students']?['grade_level'] ?? json['grade_level'] ?? '',
-    // Prefer the joined section name if available, otherwise fall back to id
-    section:
-      json['students']?['sections']?['name'] ??
-      json['students']?['section_id']?.toString() ??
-      json['section_id']?.toString() ??
-      '',
-  profileImageUrl: json['students']?['profile_image_url'] ?? json['profile_image_url'],
+      // Prefer the joined section name if available, otherwise fall back to id
+      section:
+          json['students']?['sections']?['name'] ??
+          json['students']?['section_id']?.toString() ??
+          json['section_id']?.toString() ??
+          '',
+      profileImageUrl:
+          json['students']?['profile_image_url'] ?? json['profile_image_url'],
     );
   }
 }
@@ -260,11 +262,12 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
       final user = supabase.auth.currentUser;
       if (user == null) return;
 
-      final parentResponse = await supabase
-          .from('parents')
-          .select('id')
-          .eq('user_id', user.id)
-          .maybeSingle();
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('id')
+              .eq('user_id', user.id)
+              .maybeSingle();
 
       if (parentResponse != null) {
         final parentId = parentResponse['id'];
@@ -272,7 +275,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
           parentId,
           studentId: selectedStudent!.id,
         );
-        
+
         setState(() {
           unreadNotificationCount = count;
         });
@@ -415,9 +418,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
       barrierDismissible: true,
       barrierColor: Colors.black.withOpacity(0.5),
       builder: (BuildContext context) {
-        return ParentNotificationsModal(
-          selectedStudent: selectedStudent!,
-        );
+        return ParentNotificationsModal(selectedStudent: selectedStudent!);
       },
     );
 
@@ -453,87 +454,354 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     });
   }
 
-  // Add method to show student selector
+  // Add method to show student selector with beautiful dropdown animation
   void _showStudentSelector() {
     if (parentStudents.length <= 1) return; // Don't show if only one student
 
-    showModalBottomSheet(
+    showGeneralDialog(
       context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder:
-          (context) => Container(
-            padding: EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Select Student',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF000000),
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.black54,
+      transitionDuration: Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Container();
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: Offset(0, -1),
+            end: Offset(0, 0),
+          ).animate(
+            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+          ),
+          child: FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: Curves.easeIn),
+            child: _buildStudentDropdown(),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStudentDropdown() {
+    return Material(
+      color: Colors.transparent,
+      child: SafeArea(
+        child: Container(
+          margin: EdgeInsets.symmetric(horizontal: 20, vertical: 60),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 20,
+                offset: Offset(0, 10),
+                spreadRadius: 0,
+              ),
+              BoxShadow(
+                color: widget.primaryColor.withOpacity(0.1),
+                blurRadius: 30,
+                offset: Offset(0, 5),
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header with gradient background
+              Container(
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      widget.primaryColor.withOpacity(0.1),
+                      widget.primaryColor.withOpacity(0.05),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
                   ),
                 ),
-                SizedBox(height: 16),
-                ...parentStudents.map(
-                  (student) => ListTile(
-                    leading: Container(
-                      width: 40,
-                      height: 40,
-                      child: (student.profileImageUrl != null && student.profileImageUrl!.isNotEmpty)
-                          ? ClipOval(
-                              child: Image.network(
-                                student.profileImageUrl!,
-                                width: 40,
-                                height: 40,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => Container(
-                                  color: Color.fromRGBO(25, 174, 97, 0.1),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    student.initials,
-                                    style: TextStyle(
-                                      color: widget.primaryColor,
-                                      fontWeight: FontWeight.bold,
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: widget.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.school_outlined,
+                        color: widget.primaryColor,
+                        size: 24,
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Select Student',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF000000),
+                            ),
+                          ),
+                          Text(
+                            'Choose which student to view',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF000000).withOpacity(0.6),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.close,
+                          color: Color(0xFF000000).withOpacity(0.6),
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Student list with staggered animation
+              Container(
+                constraints: BoxConstraints(maxHeight: 400),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    children:
+                        parentStudents.asMap().entries.map((entry) {
+                          int index = entry.key;
+                          Student student = entry.value;
+
+                          return TweenAnimationBuilder<double>(
+                            duration: Duration(
+                              milliseconds: 400 + (index * 100),
+                            ),
+                            tween: Tween(begin: 0.0, end: 1.0),
+                            curve: Curves.easeOutBack,
+                            builder: (context, value, child) {
+                              return Transform.translate(
+                                offset: Offset(30 * (1 - value), 0),
+                                child: Opacity(opacity: value, child: child),
+                              );
+                            },
+                            child: Container(
+                              margin: EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    selectedStudent?.id == student.id
+                                        ? widget.primaryColor.withOpacity(0.08)
+                                        : Colors.transparent,
+                                borderRadius: BorderRadius.circular(16),
+                                border:
+                                    selectedStudent?.id == student.id
+                                        ? Border.all(
+                                          color: widget.primaryColor
+                                              .withOpacity(0.3),
+                                          width: 1,
+                                        )
+                                        : null,
+                              ),
+                              child: ListTile(
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                leading: Hero(
+                                  tag: 'student_avatar_${student.id}',
+                                  child: Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(24),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: widget.primaryColor
+                                              .withOpacity(0.2),
+                                          blurRadius: 8,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
                                     ),
+                                    child:
+                                        (student.profileImageUrl != null &&
+                                                student
+                                                    .profileImageUrl!
+                                                    .isNotEmpty)
+                                            ? ClipOval(
+                                              child: Image.network(
+                                                student.profileImageUrl!,
+                                                width: 48,
+                                                height: 48,
+                                                fit: BoxFit.cover,
+                                                errorBuilder:
+                                                    (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) => Container(
+                                                      decoration: BoxDecoration(
+                                                        color: widget
+                                                            .primaryColor
+                                                            .withOpacity(0.1),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              24,
+                                                            ),
+                                                      ),
+                                                      alignment:
+                                                          Alignment.center,
+                                                      child: Text(
+                                                        student.initials,
+                                                        style: TextStyle(
+                                                          color:
+                                                              widget
+                                                                  .primaryColor,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 16,
+                                                        ),
+                                                      ),
+                                                    ),
+                                              ),
+                                            )
+                                            : Container(
+                                              decoration: BoxDecoration(
+                                                color: widget.primaryColor
+                                                    .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(24),
+                                              ),
+                                              alignment: Alignment.center,
+                                              child: Text(
+                                                student.initials,
+                                                style: TextStyle(
+                                                  color: widget.primaryColor,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                            ),
                                   ),
                                 ),
-                              ),
-                            )
-                          : CircleAvatar(
-                              backgroundColor: Color.fromRGBO(25, 174, 97, 0.1),
-                              child: Text(
-                                student.initials,
-                                style: TextStyle(
-                                  color: widget.primaryColor,
-                                  fontWeight: FontWeight.bold,
+                                title: Text(
+                                  student.fullName,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    color: Color(0xFF000000),
+                                  ),
                                 ),
+                                subtitle: Container(
+                                  padding: EdgeInsets.only(top: 4),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: widget.primaryColor
+                                              .withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          student.gradeLevel,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                            color: widget.primaryColor,
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        student.section,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Color(
+                                            0xFF000000,
+                                          ).withOpacity(0.6),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                trailing:
+                                    selectedStudent?.id == student.id
+                                        ? Container(
+                                          padding: EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: widget.primaryColor,
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            Icons.check,
+                                            color: Colors.white,
+                                            size: 16,
+                                          ),
+                                        )
+                                        : Container(
+                                          padding: EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            Icons.arrow_forward_ios,
+                                            color: Colors.grey,
+                                            size: 12,
+                                          ),
+                                        ),
+                                onTap: () {
+                                  // Add haptic feedback
+                                  HapticFeedback.lightImpact();
+                                  Navigator.pop(context);
+                                  _switchToStudent(student);
+                                },
                               ),
                             ),
-                    ),
-                    title: Text(student.fullName),
-                    subtitle: Text(
-                      '${student.gradeLevel} - ${student.section}',
-                    ),
-                    trailing:
-                        selectedStudent?.id == student.id
-                            ? Icon(
-                              Icons.check_circle,
-                              color: widget.primaryColor,
-                            )
-                            : null,
-                    onTap: () {
-                      _switchToStudent(student);
-                      Navigator.pop(context);
-                    },
+                          );
+                        }).toList(),
                   ),
                 ),
-              ],
-            ),
+              ),
+              SizedBox(height: 12),
+            ],
           ),
+        ),
+      ),
     );
   }
 
@@ -541,17 +809,20 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
   Widget _buildStudentSelector(bool isMobile) {
     if (isLoadingStudents) {
       return Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        width: 32,
+        height: 32,
         decoration: BoxDecoration(
           color: widget.primaryColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
         ),
-        child: SizedBox(
-          width: 16,
-          height: 16,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: widget.primaryColor,
+        child: Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: widget.primaryColor,
+            ),
           ),
         ),
       );
@@ -561,118 +832,131 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
       return SizedBox.shrink(); // Hide if no students
     }
 
-    // Don't show selector if only one student
+    // Show single student icon if only one student
     if (parentStudents.length == 1) {
       return Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        width: 32,
+        height: 32,
         decoration: BoxDecoration(
           color: widget.primaryColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: widget.primaryColor.withOpacity(0.3)),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              child: (selectedStudent!.profileImageUrl != null && selectedStudent!.profileImageUrl!.isNotEmpty)
-                  ? ClipOval(
-                      child: Image.network(
-                        selectedStudent!.profileImageUrl!,
-                        width: 24,
-                        height: 24,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => CircleAvatar(
-                          radius: 12,
-                          backgroundColor: widget.primaryColor.withOpacity(0.2),
-                          child: Text(
-                            selectedStudent!.initials,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: widget.primaryColor,
-                            ),
-                          ),
-                        ),
+        child: Center(
+          child: CircleAvatar(
+            radius: 12,
+            backgroundColor: widget.primaryColor.withOpacity(0.2),
+            backgroundImage:
+                (selectedStudent!.profileImageUrl != null &&
+                        selectedStudent!.profileImageUrl!.isNotEmpty)
+                    ? NetworkImage(selectedStudent!.profileImageUrl!)
+                    : null,
+            child:
+                (selectedStudent!.profileImageUrl == null ||
+                        selectedStudent!.profileImageUrl!.isEmpty)
+                    ? Text(
+                      selectedStudent!.initials,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: widget.primaryColor,
                       ),
                     )
-                  : CircleAvatar(
-                      radius: 12,
-                      backgroundColor: widget.primaryColor.withOpacity(0.2),
-                      child: Text(
-                        selectedStudent!.initials,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: widget.primaryColor,
-                        ),
-                      ),
-                    ),
-            ),
-            SizedBox(width: 8),
-            Text(
-              isMobile ? selectedStudent!.firstName : selectedStudent!.fullName,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: isMobile ? 14 : 16,
-                color: Color(0xFF000000),
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+                    : null,
+          ),
         ),
       );
     }
 
-    // Show clickable selector for multiple students
+    // Show clickable dropdown selector for multiple students
     return GestureDetector(
-      onTap: _showStudentSelector,
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: widget.primaryColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: widget.primaryColor.withOpacity(0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircleAvatar(
-              radius: 12,
-              backgroundColor: widget.primaryColor.withOpacity(0.2),
-              child: Text(
-                selectedStudent!.initials,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: widget.primaryColor,
-                ),
+      onTap: () {
+        HapticFeedback.lightImpact();
+        _showStudentSelector();
+      },
+      child: TweenAnimationBuilder<double>(
+        duration: Duration(milliseconds: 200),
+        tween: Tween(begin: 1.0, end: 1.0),
+        builder: (context, scale, child) {
+          return Transform.scale(
+            scale: scale,
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: widget.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: widget.primaryColor.withOpacity(0.3)),
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.primaryColor.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  Center(
+                    child: Hero(
+                      tag: 'selected_student_avatar_${selectedStudent!.id}',
+                      child: CircleAvatar(
+                        radius: 10,
+                        backgroundColor: widget.primaryColor.withOpacity(0.2),
+                        backgroundImage:
+                            (selectedStudent!.profileImageUrl != null &&
+                                    selectedStudent!
+                                        .profileImageUrl!
+                                        .isNotEmpty)
+                                ? NetworkImage(
+                                  selectedStudent!.profileImageUrl!,
+                                )
+                                : null,
+                        child:
+                            (selectedStudent!.profileImageUrl == null ||
+                                    selectedStudent!.profileImageUrl!.isEmpty)
+                                ? Text(
+                                  selectedStudent!.initials,
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold,
+                                    color: widget.primaryColor,
+                                  ),
+                                )
+                                : null,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: widget.primaryColor,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.white, width: 1),
+                        boxShadow: [
+                          BoxShadow(
+                            color: widget.primaryColor.withOpacity(0.3),
+                            blurRadius: 2,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 8,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            SizedBox(width: 8),
-            ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: isMobile ? 100 : 150),
-              child: Text(
-                isMobile
-                    ? selectedStudent!.firstName
-                    : selectedStudent!.fullName,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: isMobile ? 14 : 16,
-                  color: Color(0xFF000000),
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            SizedBox(width: 4),
-            Icon(
-              Icons.keyboard_arrow_down,
-              size: 16,
-              color: widget.primaryColor,
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -884,8 +1168,8 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                         child: Stack(
                           children: [
                             Icon(
-                              unreadNotificationCount > 0 
-                                  ? Icons.notifications 
+                              unreadNotificationCount > 0
+                                  ? Icons.notifications
                                   : Icons.notifications_none,
                               color: const Color(0xFF000000),
                               size: 28,
@@ -906,8 +1190,8 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
-                                    unreadNotificationCount > 99 
-                                        ? '99+' 
+                                    unreadNotificationCount > 99
+                                        ? '99+'
                                         : unreadNotificationCount.toString(),
                                     style: TextStyle(
                                       color: Colors.white,
