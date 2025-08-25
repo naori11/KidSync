@@ -622,29 +622,43 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
   @override
   Widget build(BuildContext context) {
-
     // Filter parents by search query and status, then apply sorting
-    List<Map<String, dynamic>> filteredParents = parents.where((parent) {
-      final fullName = "${parent['first_name']} ${parent['last_name']}".toLowerCase();
-      final matchesName = fullName.contains(_searchQuery.toLowerCase());
-      final status = (parent['status']?.toString() ?? '').toLowerCase();
-      final matchesStatus = _statusFilter == 'All Status' || status == _statusFilter.toLowerCase();
-      return matchesName && matchesStatus;
-    }).toList();
+    List<Map<String, dynamic>> filteredParents =
+        parents.where((parent) {
+          final fullName =
+              "${parent['first_name']} ${parent['last_name']}".toLowerCase();
+          final matchesName = fullName.contains(_searchQuery.toLowerCase());
+          final status = (parent['status']?.toString() ?? '').toLowerCase();
+          final matchesStatus =
+              _statusFilter == 'All Status' ||
+              status == _statusFilter.toLowerCase();
+          return matchesName && matchesStatus;
+        }).toList();
 
     // Sorting
     if (_sortOption == 'Name (A-Z)') {
-      filteredParents.sort((a, b) => ("${a['first_name']} ${a['last_name']}")
-          .toLowerCase()
-          .compareTo(("${b['first_name']} ${b['last_name']}").toLowerCase()));
+      filteredParents.sort(
+        (a, b) => ("${a['first_name']} ${a['last_name']}")
+            .toLowerCase()
+            .compareTo(("${b['first_name']} ${b['last_name']}").toLowerCase()),
+      );
     } else if (_sortOption == 'Name (Z-A)') {
-      filteredParents.sort((a, b) => ("${b['first_name']} ${b['last_name']}")
-          .toLowerCase()
-          .compareTo(("${a['first_name']} ${a['last_name']}").toLowerCase()));
+      filteredParents.sort(
+        (a, b) => ("${b['first_name']} ${b['last_name']}")
+            .toLowerCase()
+            .compareTo(("${a['first_name']} ${a['last_name']}").toLowerCase()),
+      );
     } else if (_sortOption == 'Status') {
-      filteredParents.sort((a, b) => (a['status'] ?? '').toString().compareTo((b['status'] ?? '').toString()));
+      filteredParents.sort(
+        (a, b) => (a['status'] ?? '').toString().compareTo(
+          (b['status'] ?? '').toString(),
+        ),
+      );
     } else if (_sortOption == 'Students Count') {
-      filteredParents.sort((a, b) => (b['student_count'] ?? 0).compareTo((a['student_count'] ?? 0)));
+      filteredParents.sort(
+        (a, b) =>
+            (b['student_count'] ?? 0).compareTo((a['student_count'] ?? 0)),
+      );
     }
 
     return Scaffold(
@@ -1215,16 +1229,23 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
             // Header with avatar and status
             Row(
               children: [
-                // Avatar with profile image or initial
+                // Avatar with profile image or initial - Enhanced size
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 64,
+                  height: 64,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(32),
                     border: Border.all(
-                      color: const Color(0xFF2ECC71).withOpacity(0.3),
-                      width: 2,
+                      color: const Color(0xFF2ECC71).withOpacity(0.4),
+                      width: 3,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF2ECC71).withOpacity(0.15),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: ClipOval(
                     child:
@@ -1232,8 +1253,8 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                 profileImageUrl.toString().isNotEmpty
                             ? Image.network(
                               profileImageUrl,
-                              width: 48,
-                              height: 48,
+                              width: 64,
+                              height: 64,
                               fit: BoxFit.cover,
                               loadingBuilder: (
                                 context,
@@ -1242,13 +1263,13 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                               ) {
                                 if (loadingProgress == null) return child;
                                 return Container(
-                                  width: 48,
-                                  height: 48,
+                                  width: 64,
+                                  height: 64,
                                   color: Colors.grey[200],
                                   child: const Center(
                                     child: SizedBox(
-                                      width: 16,
-                                      height: 16,
+                                      width: 20,
+                                      height: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
                                         color: Color(0xFF2ECC71),
@@ -1259,31 +1280,55 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                               },
                               errorBuilder: (context, error, stackTrace) {
                                 return Container(
-                                  width: 48,
-                                  height: 48,
-                                  color: Colors.grey[200],
-                                  child: Text(
-                                    initial,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black87,
+                                  width: 64,
+                                  height: 64,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        const Color(
+                                          0xFF2ECC71,
+                                        ).withOpacity(0.1),
+                                        const Color(
+                                          0xFF2ECC71,
+                                        ).withOpacity(0.05),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      initial,
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF2ECC71),
+                                      ),
                                     ),
                                   ),
                                 );
                               },
                             )
                             : Container(
-                              width: 48,
-                              height: 48,
-                              color: Colors.grey[200],
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    const Color(0xFF2ECC71).withOpacity(0.1),
+                                    const Color(0xFF2ECC71).withOpacity(0.05),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
                               child: Center(
                                 child: Text(
                                   initial,
                                   style: const TextStyle(
-                                    fontSize: 18,
+                                    fontSize: 24,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
+                                    color: Color(0xFF2ECC71),
                                   ),
                                 ),
                               ),
@@ -1361,52 +1406,79 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
-            // Name
+            // Name - Enhanced visibility
             Text(
               fullName,
               style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF333333),
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1A1A1A),
+                letterSpacing: 0.3,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
 
-            // Contact info
-            Row(
-              children: [
-                Icon(Icons.phone, size: 14, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    parent['phone'] ?? 'No phone',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+            // Contact info - Enhanced visibility
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.phone,
+                        size: 18,
+                        color: const Color(0xFF2ECC71),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          parent['phone'] ?? 'No phone',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF333333),
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 2),
-
-            // Email
-            Row(
-              children: [
-                Icon(Icons.email, size: 14, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    parent['email'] ?? 'No email',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.email,
+                        size: 18,
+                        color: const Color(0xFF2ECC71),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          parent['email'] ?? 'No email',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF333333),
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 8),
 
@@ -1420,12 +1492,12 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.people, size: 12, color: Color(0xFF2ECC71)),
+                  const Icon(Icons.people, size: 16, color: Color(0xFF2ECC71)),
                   const SizedBox(width: 4),
                   Text(
                     "${parent['student_count']} Student${parent['student_count'] == 1 ? '' : 's'}",
                     style: const TextStyle(
-                      fontSize: 11,
+                      fontSize: 14,
                       color: Color(0xFF2ECC71),
                       fontWeight: FontWeight.w600,
                     ),
@@ -1552,13 +1624,19 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
       child: Center(
         child: Card(
           margin: const EdgeInsets.all(32),
+          color: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
-          elevation: 16,
+          elevation: 20,
+          shadowColor: Colors.black.withOpacity(0.2),
           child: Container(
             width: 700,
             height: 600,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
             padding: const EdgeInsets.all(32),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1573,16 +1651,25 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Avatar - LARGER SIZE
+                          // Avatar - Enhanced Size and Styling
                           Container(
-                            width: 80,
-                            height: 80,
+                            width: 90,
+                            height: 90,
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(40),
+                              borderRadius: BorderRadius.circular(45),
                               border: Border.all(
-                                color: const Color(0xFF2ECC71).withOpacity(0.3),
-                                width: 3,
+                                color: const Color(0xFF2ECC71).withOpacity(0.4),
+                                width: 4,
                               ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xFF2ECC71,
+                                  ).withOpacity(0.2),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
                             ),
                             child: ClipOval(
                               child:
@@ -1590,8 +1677,8 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                           profileImageUrl.toString().isNotEmpty
                                       ? Image.network(
                                         profileImageUrl,
-                                        width: 80,
-                                        height: 80,
+                                        width: 90,
+                                        height: 90,
                                         fit: BoxFit.cover,
                                         loadingBuilder: (
                                           context,
@@ -1601,12 +1688,31 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                           if (loadingProgress == null)
                                             return child;
                                           return Container(
-                                            width: 80,
-                                            height: 80,
-                                            color: Colors.grey[200],
+                                            width: 90,
+                                            height: 90,
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                colors: [
+                                                  const Color(
+                                                    0xFF2ECC71,
+                                                  ).withOpacity(0.1),
+                                                  const Color(
+                                                    0xFF2ECC71,
+                                                  ).withOpacity(0.05),
+                                                ],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              ),
+                                            ),
                                             child: const Center(
-                                              child: CircularProgressIndicator(
-                                                color: Color(0xFF2ECC71),
+                                              child: SizedBox(
+                                                width: 24,
+                                                height: 24,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      color: Color(0xFF2ECC71),
+                                                      strokeWidth: 3,
+                                                    ),
                                               ),
                                             ),
                                           );
@@ -1617,16 +1723,29 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                           stackTrace,
                                         ) {
                                           return Container(
-                                            width: 80,
-                                            height: 80,
-                                            color: Colors.grey[200],
+                                            width: 90,
+                                            height: 90,
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                colors: [
+                                                  const Color(
+                                                    0xFF2ECC71,
+                                                  ).withOpacity(0.15),
+                                                  const Color(
+                                                    0xFF2ECC71,
+                                                  ).withOpacity(0.08),
+                                                ],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              ),
+                                            ),
                                             child: Center(
                                               child: Text(
                                                 initial,
                                                 style: const TextStyle(
-                                                  fontSize: 32,
+                                                  fontSize: 36,
                                                   fontWeight: FontWeight.bold,
-                                                  color: Colors.black87,
+                                                  color: Color(0xFF2ECC71),
                                                 ),
                                               ),
                                             ),
@@ -1634,16 +1753,29 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                         },
                                       )
                                       : Container(
-                                        width: 80,
-                                        height: 80,
-                                        color: Colors.grey[200],
+                                        width: 90,
+                                        height: 90,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              const Color(
+                                                0xFF2ECC71,
+                                              ).withOpacity(0.15),
+                                              const Color(
+                                                0xFF2ECC71,
+                                              ).withOpacity(0.08),
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                        ),
                                         child: Center(
                                           child: Text(
                                             initial,
                                             style: const TextStyle(
-                                              fontSize: 32,
+                                              fontSize: 36,
                                               fontWeight: FontWeight.bold,
-                                              color: Colors.black87,
+                                              color: Color(0xFF2ECC71),
                                             ),
                                           ),
                                         ),
@@ -1664,9 +1796,10 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                       child: Text(
                                         fullName,
                                         style: const TextStyle(
-                                          fontSize: 24,
+                                          fontSize: 28,
                                           fontWeight: FontWeight.bold,
-                                          color: Color(0xFF333333),
+                                          color: Color(0xFF1A1A1A),
+                                          letterSpacing: 0.5,
                                         ),
                                       ),
                                     ),
@@ -1710,31 +1843,37 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                 ),
                                 const SizedBox(height: 8),
 
-                                // Role badge
+                                // Role badge - Enhanced
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
+                                    horizontal: 16,
+                                    vertical: 8,
                                   ),
                                   decoration: BoxDecoration(
                                     color: const Color(
                                       0xFF2ECC71,
-                                    ).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(16),
+                                    ).withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: const Color(
+                                        0xFF2ECC71,
+                                      ).withOpacity(0.3),
+                                      width: 1,
+                                    ),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       const Icon(
                                         Icons.family_restroom,
-                                        size: 16,
+                                        size: 20,
                                         color: Color(0xFF2ECC71),
                                       ),
-                                      const SizedBox(width: 6),
+                                      const SizedBox(width: 8),
                                       const Text(
                                         'Parent/Guardian',
                                         style: TextStyle(
-                                          fontSize: 13,
+                                          fontSize: 15,
                                           color: Color(0xFF2ECC71),
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -1744,19 +1883,19 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                 ),
                                 const SizedBox(height: 16),
 
-                                // Contact information
+                                // Contact information - Enhanced spacing
                                 _buildContactInfo(
                                   Icons.email,
                                   'Email',
                                   parent['email'] ?? 'No email',
                                 ),
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 12),
                                 _buildContactInfo(
                                   Icons.phone,
                                   'Phone',
                                   parent['phone'] ?? 'No phone',
                                 ),
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 12),
                                 _buildContactInfo(
                                   Icons.home,
                                   'Address',
@@ -1801,9 +1940,10 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                     const Text(
                       'Associated Students',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF333333),
+                        color: Color(0xFF1A1A1A),
+                        letterSpacing: 0.3,
                       ),
                     ),
                     const Spacer(),
@@ -1819,9 +1959,9 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                       child: Text(
                         '${students.length} Student${students.length == 1 ? '' : 's'}',
                         style: const TextStyle(
-                          fontSize: 13,
+                          fontSize: 15,
                           color: Color(0xFF2ECC71),
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -1885,25 +2025,45 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                 margin: const EdgeInsets.only(bottom: 8),
                                 child: Row(
                                   children: [
-                                    // Student avatar
+                                    // Student avatar - Enhanced
                                     Container(
-                                      width: 48,
-                                      height: 48,
+                                      width: 56,
+                                      height: 56,
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFE8F5E9),
-                                        borderRadius: BorderRadius.circular(24),
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            const Color(
+                                              0xFF2ECC71,
+                                            ).withOpacity(0.15),
+                                            const Color(
+                                              0xFF2ECC71,
+                                            ).withOpacity(0.08),
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(28),
                                         border: Border.all(
                                           color: const Color(
                                             0xFF2ECC71,
-                                          ).withOpacity(0.3),
-                                          width: 2,
+                                          ).withOpacity(0.4),
+                                          width: 3,
                                         ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(
+                                              0xFF2ECC71,
+                                            ).withOpacity(0.15),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
                                       ),
                                       child: Center(
                                         child: Text(
                                           studentInitial,
                                           style: const TextStyle(
-                                            fontSize: 18,
+                                            fontSize: 22,
                                             fontWeight: FontWeight.bold,
                                             color: Color(0xFF2ECC71),
                                           ),
@@ -1921,9 +2081,10 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                           Text(
                                             studentName,
                                             style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF333333),
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF1A1A1A),
+                                              letterSpacing: 0.3,
                                             ),
                                           ),
                                           const SizedBox(height: 4),
@@ -1931,15 +2092,16 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                             children: [
                                               Icon(
                                                 Icons.school,
-                                                size: 14,
-                                                color: Colors.grey[600],
+                                                size: 18,
+                                                color: const Color(0xFF2ECC71),
                                               ),
-                                              const SizedBox(width: 4),
+                                              const SizedBox(width: 6),
                                               Text(
                                                 '$grade - Section $section',
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  color: Colors.grey[600],
+                                                style: const TextStyle(
+                                                  fontSize: 15,
+                                                  color: Color(0xFF555555),
+                                                  fontWeight: FontWeight.w500,
                                                 ),
                                               ),
                                             ],
@@ -1969,9 +2131,9 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                       ),
                                       child: Text(
                                         student['relationship_type'] ??
-                                            'Parent',
+                                            'guardian',
                                         style: TextStyle(
-                                          fontSize: 11,
+                                          fontSize: 13,
                                           color:
                                               student['is_primary'] == true
                                                   ? Colors.blue[700]
@@ -1994,27 +2156,39 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     );
   }
 
-  // Helper method for contact information display
+  // Helper method for contact information display - Enhanced
   Widget _buildContactInfo(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: Colors.grey[600]),
-        const SizedBox(width: 8),
-        Text(
-          '$label: ',
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: const Color(0xFF2ECC71)),
+          const SizedBox(width: 12),
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              fontSize: 15,
+              color: Color(0xFF666666),
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(fontSize: 13, color: Color(0xFF333333)),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 15,
+                color: Color(0xFF1A1A1A),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

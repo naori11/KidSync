@@ -500,14 +500,29 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 20,
+              shadowColor: Colors.black.withOpacity(0.2),
               title: Row(
                 children: [
                   Icon(
                     student == null ? Icons.person_add : Icons.edit,
                     color: const Color(0xFF2ECC71),
+                    size: 24,
                   ),
-                  const SizedBox(width: 8),
-                  Text(student == null ? 'Add New Student' : 'Edit Student'),
+                  const SizedBox(width: 12),
+                  Text(
+                    student == null ? 'Add New Student' : 'Edit Student',
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
                 ],
               ),
               content: Container(
@@ -1255,15 +1270,33 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF666666),
+                    ),
+                  ),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2ECC71),
                     foregroundColor: Colors.white,
+                    elevation: 4,
+                    shadowColor: const Color(0xFF2ECC71).withOpacity(0.3),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
+                      horizontal: 28,
+                      vertical: 14,
                     ),
                   ),
                   onPressed: () async {
@@ -1520,9 +1553,15 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(student == null ? Icons.add : Icons.save, size: 16),
-                      const SizedBox(width: 8),
-                      Text(student == null ? 'Add Student' : 'Update Student'),
+                      Icon(student == null ? Icons.add : Icons.save, size: 18),
+                      const SizedBox(width: 10),
+                      Text(
+                        student == null ? 'Add Student' : 'Update Student',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1825,26 +1864,38 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
   // Helper method to build section headers
   Widget _buildSectionHeader(String title) {
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 20,
-          decoration: BoxDecoration(
-            color: const Color(0xFF2ECC71),
-            borderRadius: BorderRadius.circular(2),
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2ECC71).withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: const Color(0xFF2ECC71).withOpacity(0.2),
+          width: 1,
         ),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF333333),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 24,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2ECC71),
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: 12),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A1A),
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1856,27 +1907,31 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   }) {
     return InputDecoration(
       labelText: isRequired ? '$label *' : label,
-      prefixIcon: Icon(icon, size: 20),
+      prefixIcon: Icon(icon, size: 22, color: const Color(0xFF2ECC71)),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide(color: Colors.grey[300]!),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Color(0xFF2ECC71), width: 2),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Colors.red, width: 1),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.red, width: 2),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Color(0xFF2ECC71), width: 2),
       ),
       filled: true,
       fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      labelStyle: const TextStyle(
+        color: Color(0xFF555555),
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+      ),
     );
   }
 
@@ -2196,27 +2251,46 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                 const Text(
                   "Student Management",
                   style: TextStyle(
-                    fontSize: 24,
+                    fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
+                    color: Color(0xFF1A1A1A),
+                    letterSpacing: 0.5,
                   ),
                 ),
                 const Spacer(),
                 // Search bar
                 Container(
-                  width: 240,
-                  height: 40,
+                  width: 280,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     border: Border.all(color: const Color(0xFFE0E0E0)),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: TextField(
                     decoration: const InputDecoration(
                       hintText: 'Search students...',
-                      prefixIcon: Icon(Icons.search, color: Color(0xFF9E9E9E)),
+                      hintStyle: TextStyle(
+                        color: Color(0xFF9E9E9E),
+                        fontSize: 16,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: Color(0xFF2ECC71),
+                        size: 22,
+                      ),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 10.0),
+                      contentPadding: EdgeInsets.symmetric(
+                        vertical: 14.0,
+                        horizontal: 16.0,
+                      ),
                     ),
                     onChanged:
                         (val) => setState(() {
@@ -2228,21 +2302,29 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                 const SizedBox(width: 16),
                 // Add New Student button
                 SizedBox(
-                  height: 40,
+                  height: 48,
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add, color: Colors.white),
+                    icon: const Icon(Icons.add, color: Colors.white, size: 22),
                     label: const Text(
                       "Add New Student",
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2ECC71),
                       foregroundColor: Colors.white,
+                      elevation: 4,
+                      shadowColor: const Color(0xFF2ECC71).withOpacity(0.3),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                     ),
                     onPressed: isAdmin ? () => _addOrEditStudent() : null,
                   ),
@@ -2250,22 +2332,32 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                 const SizedBox(width: 16),
                 // Export button
                 SizedBox(
-                  height: 40,
+                  height: 48,
                   child: OutlinedButton.icon(
                     icon: const Icon(
                       Icons.file_download_outlined,
-                      color: Color(0xFF333333),
+                      color: Color(0xFF2ECC71),
+                      size: 22,
                     ),
                     label: const Text(
                       "Export",
-                      style: TextStyle(color: Color(0xFF333333)),
+                      style: TextStyle(
+                        color: Color(0xFF2ECC71),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     style: OutlinedButton.styleFrom(
                       backgroundColor: Colors.white,
-                      side: const BorderSide(color: Color(0xFFE0E0E0)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
+                      side: const BorderSide(
+                        color: Color(0xFF2ECC71),
+                        width: 2,
                       ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                      shadowColor: Colors.black.withOpacity(0.1),
                     ),
                     onPressed: _exportData,
                   ),
@@ -2275,10 +2367,14 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
             // Breadcrumb / subtitle
             const Padding(
-              padding: EdgeInsets.only(top: 4.0, bottom: 20.0),
+              padding: EdgeInsets.only(top: 8.0, bottom: 24.0),
               child: Text(
                 "Home / Student Management",
-                style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Color(0xFF666666),
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
 
@@ -2292,12 +2388,19 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                 children: [
                   // Class filter dropdown
                   Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
@@ -2322,12 +2425,19 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   const SizedBox(width: 16),
                   // Status filter dropdown
                   Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
@@ -2356,12 +2466,19 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   const SizedBox(width: 16),
                   // Sort by dropdown
                   Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
@@ -2487,8 +2604,16 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                         child: Container(
                           width: double.infinity,
                           decoration: BoxDecoration(
+                            color: Colors.white,
                             border: Border.all(color: const Color(0xFFEEEEEE)),
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                           child:
                           // Replace your entire Table widget (around line 2080) with this corrected version:
@@ -2517,7 +2642,13 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                               // Table header row
                               TableRow(
                                 decoration: BoxDecoration(
-                                  color: Colors.grey[50],
+                                  color: const Color(0xFFF8F9FA),
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: const Color(0xFFE0E0E0),
+                                      width: 2,
+                                    ),
+                                  ),
                                 ),
                                 children: [
                                   // Select all checkbox
@@ -2631,17 +2762,26 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                           children: [
                                             // Profile Image
                                             Container(
-                                              width: 40,
-                                              height: 40,
+                                              width: 56,
+                                              height: 56,
                                               decoration: BoxDecoration(
                                                 borderRadius:
-                                                    BorderRadius.circular(20),
+                                                    BorderRadius.circular(28),
                                                 border: Border.all(
                                                   color: const Color(
                                                     0xFF2ECC71,
-                                                  ).withOpacity(0.3),
-                                                  width: 2,
+                                                  ).withOpacity(0.4),
+                                                  width: 3,
                                                 ),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: const Color(
+                                                      0xFF2ECC71,
+                                                    ).withOpacity(0.15),
+                                                    blurRadius: 8,
+                                                    offset: const Offset(0, 2),
+                                                  ),
+                                                ],
                                               ),
                                               child: ClipOval(
                                                 child:
@@ -2717,9 +2857,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                                     fullName,
                                                     style: const TextStyle(
                                                       fontWeight:
-                                                          FontWeight.w600,
-                                                      color: Color(0xFF333333),
-                                                      fontSize: 14,
+                                                          FontWeight.bold,
+                                                      color: Color(0xFF1A1A1A),
+                                                      fontSize: 18,
+                                                      letterSpacing: 0.3,
                                                     ),
                                                   ),
                                                   if (student['rfid_uid'] !=
@@ -2742,12 +2883,12 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                                         Text(
                                                           'RFID: ${student['rfid_uid'].toString().substring(0, 8)}...',
                                                           style: TextStyle(
-                                                            fontSize: 11,
-                                                            color:
-                                                                Colors
-                                                                    .green[600],
+                                                            fontSize: 13,
+                                                            color: const Color(
+                                                              0xFF2ECC71,
+                                                            ),
                                                             fontWeight:
-                                                                FontWeight.w500,
+                                                                FontWeight.w600,
                                                           ),
                                                         ),
                                                       ],
@@ -3545,14 +3686,15 @@ class TableHeaderCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
       alignment: Alignment.centerLeft,
       child: Text(
         text,
         style: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 13,
-          color: Color(0xFF666666),
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
+          color: Color(0xFF1A1A1A),
+          letterSpacing: 0.3,
         ),
       ),
     );

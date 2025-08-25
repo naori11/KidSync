@@ -478,26 +478,39 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                       const Text(
                         "Driver Assignment Management",
                         style: TextStyle(
-                          fontSize: 28,
+                          fontSize: 32,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF333333),
+                          color: Color(0xFF1A1A1A),
+                          letterSpacing: 0.5,
                         ),
                       ),
                       const Spacer(),
                       // Search bar
                       Container(
                         width: 300,
-                        height: 40,
+                        height: 48,
                         decoration: BoxDecoration(
                           border: Border.all(color: const Color(0xFFE0E0E0)),
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: TextField(
                           decoration: const InputDecoration(
                             hintText: "Search students, drivers...",
-                            prefixIcon: Icon(Icons.search),
+                            hintStyle: TextStyle(fontSize: 16),
+                            prefixIcon: Icon(
+                              Icons.search,
+                              color: Color(0xFF2ECC71),
+                              size: 22,
+                            ),
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(vertical: 12),
+                            contentPadding: EdgeInsets.symmetric(vertical: 14),
                           ),
                           onChanged: (value) {
                             setState(() => _searchQuery = value);
@@ -508,20 +521,32 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                       const SizedBox(width: 16),
                       // Action buttons
                       SizedBox(
-                        height: 40,
+                        height: 48,
                         child: ElevatedButton.icon(
-                          icon: const Icon(Icons.add, color: Colors.white),
+                          icon: const Icon(
+                            Icons.add,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                           label: const Text(
                             "Add Assignment",
-                            style: TextStyle(color: Colors.white),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF2ECC71),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            elevation: 4,
+                            shadowColor: Colors.black.withOpacity(0.2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
                           ),
                           onPressed:
                               isAdmin ? () => _showAssignmentDialog() : null,
@@ -529,21 +554,31 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                       ),
                       const SizedBox(width: 12),
                       SizedBox(
-                        height: 40,
+                        height: 48,
                         child: OutlinedButton.icon(
                           icon: const Icon(
                             Icons.group_add,
-                            color: Color(0xFF333333),
+                            color: Color(0xFF2ECC71),
+                            size: 22,
                           ),
                           label: const Text(
                             "Bulk Assign",
-                            style: TextStyle(color: Color(0xFF333333)),
+                            style: TextStyle(
+                              color: Color(0xFF2ECC71),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFFE0E0E0)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(4),
+                            side: const BorderSide(
+                              color: Color(0xFF2ECC71),
+                              width: 2,
                             ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 2,
+                            shadowColor: Colors.black.withOpacity(0.1),
                           ),
                           onPressed:
                               isAdmin ? () => _showBulkAssignDialog() : null,
@@ -558,8 +593,8 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                     child: Text(
                       "Home / Driver Assignment Management",
                       style: TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF9E9E9E),
+                        fontSize: 16,
+                        color: Color(0xFF666666),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -605,16 +640,16 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
 
             // View Tabs and Filters
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.grey[200]!),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
@@ -638,9 +673,9 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   const Divider(height: 1),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
 
                   // Filter row
                   _buildFilterRow(),
@@ -675,37 +710,48 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
   ) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Icon(icon, color: color, size: 28),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   value,
                   style: TextStyle(
-                    fontSize: 24,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: color,
                   ),
                 ),
                 Text(
                   title,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
@@ -720,29 +766,40 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
     return GestureDetector(
       onTap: () => setState(() => _selectedView = value),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF2ECC71) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? const Color(0xFF2ECC71) : Colors.grey[300]!,
+            width: 2,
           ),
+          boxShadow:
+              isSelected
+                  ? [
+                    BoxShadow(
+                      color: const Color(0xFF2ECC71).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                  : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              size: 18,
+              size: 20,
               color: isSelected ? Colors.white : Colors.grey[600],
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Text(
               label,
               style: TextStyle(
                 color: isSelected ? Colors.white : Colors.grey[600],
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                fontSize: 14,
+                fontSize: 16,
               ),
             ),
           ],
@@ -807,11 +864,19 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
     ValueChanged<String?> onChanged,
   ) {
     return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
       decoration: BoxDecoration(
+        color: Colors.white,
         border: Border.all(color: const Color(0xFFE0E0E0)),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -871,21 +936,30 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: [
           // Table Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
               color: Colors.grey[50],
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
               ),
-              border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+              border: Border(
+                bottom: BorderSide(color: Colors.grey[200]!, width: 2),
+              ),
             ),
             child: const Row(
               children: [
@@ -912,7 +986,11 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                           SizedBox(height: 16),
                           Text(
                             'No assignments found',
-                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ],
                       ),
@@ -927,8 +1005,8 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
 
                         return Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
+                            horizontal: 20,
+                            vertical: 16,
                           ),
                           decoration: BoxDecoration(
                             border: Border(
@@ -946,7 +1024,10 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                     Text(
                                       '${student['fname']} ${student['lname']}',
                                       style: const TextStyle(
-                                        fontWeight: FontWeight.w500,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: Color(0xFF1A1A1A),
+                                        letterSpacing: 0.3,
                                       ),
                                     ),
                                     Text(
@@ -954,8 +1035,9 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                           ? section['name']
                                           : 'No Section',
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 14,
                                         color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ],
@@ -965,7 +1047,14 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                               // Grade
                               Expanded(
                                 flex: 1,
-                                child: Text(student['grade_level'] ?? '-'),
+                                child: Text(
+                                  student['grade_level'] ?? '-',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF1A1A1A),
+                                  ),
+                                ),
                               ),
 
                               // Driver
@@ -977,14 +1066,18 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                     Text(
                                       '${driver['fname']} ${driver['lname']}',
                                       style: const TextStyle(
-                                        fontWeight: FontWeight.w500,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: Color(0xFF1A1A1A),
+                                        letterSpacing: 0.3,
                                       ),
                                     ),
                                     Text(
                                       driver['contact_number'] ?? 'No contact',
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 14,
                                         color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ],
@@ -996,6 +1089,11 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                 flex: 1,
                                 child: Text(
                                   _displayTime(assignment['pickup_time']),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF1A1A1A),
+                                  ),
                                 ),
                               ),
 
@@ -1004,6 +1102,11 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                 flex: 1,
                                 child: Text(
                                   _displayTime(assignment['dropoff_time']),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF1A1A1A),
+                                  ),
                                 ),
                               ),
 
@@ -1020,7 +1123,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
-                                      icon: const Icon(Icons.edit, size: 18),
+                                      icon: const Icon(Icons.edit, size: 20),
                                       onPressed:
                                           () => _editAssignment(assignment),
                                       tooltip: 'Edit',
@@ -1028,7 +1131,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                     IconButton(
                                       icon: const Icon(
                                         Icons.delete,
-                                        size: 18,
+                                        size: 20,
                                         color: Colors.red,
                                       ),
                                       onPressed:
@@ -1048,7 +1151,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
           // Pagination
           if (filteredAssignments.length > _itemsPerPage)
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: Colors.grey[200]!)),
               ),
@@ -1066,21 +1169,30 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: [
           // Table Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
               color: Colors.grey[50],
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
               ),
-              border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+              border: Border(
+                bottom: BorderSide(color: Colors.grey[200]!, width: 2),
+              ),
             ),
             child: const Row(
               children: [
@@ -1108,7 +1220,11 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                           SizedBox(height: 16),
                           Text(
                             'No students found',
-                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ],
                       ),
@@ -1130,8 +1246,8 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
 
                         return Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
+                            horizontal: 20,
+                            vertical: 16,
                           ),
                           decoration: BoxDecoration(
                             border: Border(
@@ -1149,7 +1265,10 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                     Text(
                                       '${student['fname']} ${student['lname']}',
                                       style: const TextStyle(
-                                        fontWeight: FontWeight.w500,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: Color(0xFF1A1A1A),
+                                        letterSpacing: 0.3,
                                       ),
                                     ),
                                     Text(
@@ -1157,8 +1276,9 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                           ? section['name']
                                           : 'No Section',
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 14,
                                         color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ],
@@ -1168,7 +1288,14 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                               // Grade
                               Expanded(
                                 flex: 1,
-                                child: Text(student['grade_level'] ?? '-'),
+                                child: Text(
+                                  student['grade_level'] ?? '-',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF1A1A1A),
+                                  ),
+                                ),
                               ),
 
                               // Address
@@ -1176,7 +1303,11 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                 flex: 2,
                                 child: Text(
                                   student['address'] ?? 'No address',
-                                  style: const TextStyle(fontSize: 14),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: Color(0xFF1A1A1A),
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -1192,13 +1323,15 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                             const Icon(
                                               Icons.check_circle,
                                               color: Colors.green,
-                                              size: 16,
+                                              size: 20,
                                             ),
                                             const SizedBox(width: 8),
                                             const Text(
                                               'Assigned',
                                               style: TextStyle(
                                                 color: Colors.green,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
                                               ),
                                             ),
                                           ],
@@ -1208,13 +1341,15 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                             const Icon(
                                               Icons.warning,
                                               color: Colors.orange,
-                                              size: 16,
+                                              size: 20,
                                             ),
                                             const SizedBox(width: 8),
                                             const Text(
                                               'Unassigned',
                                               style: TextStyle(
                                                 color: Colors.orange,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
                                               ),
                                             ),
                                           ],
@@ -1237,7 +1372,10 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                               ),
                                           child: const Text(
                                             'Edit',
-                                            style: TextStyle(fontSize: 12),
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
                                         )
                                         : ElevatedButton(
@@ -1249,13 +1387,20 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                             ),
                                             foregroundColor: Colors.white,
                                             padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 4,
+                                              horizontal: 16,
+                                              vertical: 8,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                             ),
                                           ),
                                           child: const Text(
                                             'Assign',
-                                            style: TextStyle(fontSize: 12),
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
                                         ),
                               ),
@@ -1269,7 +1414,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
           // Pagination
           if (filteredStudents.length > _itemsPerPage)
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: Colors.grey[200]!)),
               ),
@@ -1287,21 +1432,30 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: [
           // Table Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
               color: Colors.grey[50],
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
               ),
-              border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+              border: Border(
+                bottom: BorderSide(color: Colors.grey[200]!, width: 2),
+              ),
             ),
             child: const Row(
               children: [
@@ -1333,7 +1487,11 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                           SizedBox(height: 16),
                           Text(
                             'No drivers found',
-                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ],
                       ),
@@ -1349,8 +1507,8 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
 
                         return Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
+                            horizontal: 20,
+                            vertical: 16,
                           ),
                           decoration: BoxDecoration(
                             border: Border(
@@ -1368,14 +1526,18 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                     Text(
                                       '${driver['fname']} ${driver['lname']}',
                                       style: const TextStyle(
-                                        fontWeight: FontWeight.w500,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: Color(0xFF1A1A1A),
+                                        letterSpacing: 0.3,
                                       ),
                                     ),
                                     Text(
                                       'Driver',
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 14,
                                         color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ],
@@ -1390,12 +1552,18 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                   children: [
                                     Text(
                                       driver['contact_number'] ?? 'No contact',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF1A1A1A),
+                                      ),
                                     ),
                                     Text(
                                       driver['email'] ?? 'No email',
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 14,
                                         color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ],
@@ -1407,15 +1575,22 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                 flex: 1,
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
+                                    horizontal: 12,
+                                    vertical: 8,
                                   ),
                                   decoration: BoxDecoration(
                                     color:
                                         driverAssignments.isNotEmpty
                                             ? Colors.green.withOpacity(0.1)
                                             : Colors.grey.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color:
+                                          driverAssignments.isNotEmpty
+                                              ? Colors.green.withOpacity(0.3)
+                                              : Colors.grey.withOpacity(0.3),
+                                      width: 2,
+                                    ),
                                   ),
                                   child: Text(
                                     '${driverAssignments.length} students',
@@ -1424,8 +1599,8 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                           driverAssignments.isNotEmpty
                                               ? Colors.green
                                               : Colors.grey,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                     textAlign: TextAlign.center,
                                   ),
@@ -1449,7 +1624,10 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                                   return Text(
                                                     '${student['fname']} ${student['lname']}',
                                                     style: const TextStyle(
-                                                      fontSize: 12,
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                      color: Color(0xFF1A1A1A),
                                                     ),
                                                   );
                                                 }).toList()
@@ -1459,10 +1637,12 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                                         Text(
                                                           '+ ${driverAssignments.length - 3} more',
                                                           style: TextStyle(
-                                                            fontSize: 12,
+                                                            fontSize: 14,
                                                             color:
                                                                 Colors
                                                                     .grey[600],
+                                                            fontWeight:
+                                                                FontWeight.w500,
                                                           ),
                                                         ),
                                                       ]
@@ -1471,7 +1651,11 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                         )
                                         : const Text(
                                           'No assignments',
-                                          style: TextStyle(color: Colors.grey),
+                                          style: TextStyle(
+                                            color: Colors.grey,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
                               ),
 
@@ -1482,7 +1666,10 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                   onPressed: () => _viewDriverDetails(driver),
                                   child: const Text(
                                     'View Details',
-                                    style: TextStyle(fontSize: 12),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1496,7 +1683,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
           // Pagination
           if (filteredDrivers.length > _itemsPerPage)
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: Colors.grey[200]!)),
               ),
@@ -1530,18 +1717,25 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Text(
         text,
         style: TextStyle(
           color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
         ),
         textAlign: TextAlign.center,
       ),
@@ -1556,7 +1750,11 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
       children: [
         Text(
           'Showing ${(_currentPage - 1) * _itemsPerPage + 1}-${(_currentPage * _itemsPerPage).clamp(1, totalItems)} of $totalItems',
-          style: TextStyle(color: Colors.grey[600]),
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
         ),
         Row(
           children: [
@@ -1565,7 +1763,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                   _currentPage > 1
                       ? () => setState(() => _currentPage--)
                       : null,
-              icon: const Icon(Icons.chevron_left),
+              icon: const Icon(Icons.chevron_left, size: 24),
             ),
             ...List.generate(_totalPages.clamp(1, 5), (index) {
               final pageNum = index + 1;
@@ -1576,8 +1774,18 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                       _currentPage == pageNum ? const Color(0xFF2ECC71) : null,
                   foregroundColor:
                       _currentPage == pageNum ? Colors.white : null,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
-                child: Text('$pageNum'),
+                child: Text(
+                  '$pageNum',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
               );
             }),
             IconButton(
@@ -1585,7 +1793,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                   _currentPage < _totalPages
                       ? () => setState(() => _currentPage++)
                       : null,
-              icon: const Icon(Icons.chevron_right),
+              icon: const Icon(Icons.chevron_right, size: 24),
             ),
           ],
         ),
@@ -2026,9 +2234,10 @@ class TableHeaderCell extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(
-        fontWeight: FontWeight.w600,
-        fontSize: 14,
-        color: Color(0xFF666666),
+        fontWeight: FontWeight.bold,
+        fontSize: 16,
+        color: Color(0xFF1A1A1A),
+        letterSpacing: 0.3,
       ),
     );
   }
@@ -2209,19 +2418,25 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
   Widget build(BuildContext context) {
     // Adopt section_management style for the modal header
     return AlertDialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 20,
+      shadowColor: Colors.black.withOpacity(0.2),
       title: Row(
         children: [
           Icon(
             widget.isEdit ? Icons.edit : Icons.add,
             color: const Color(0xFF2ECC71),
+            size: 24,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           Text(
             widget.isEdit ? 'Edit Assignment' : 'Create Assignment',
             style: const TextStyle(
-              fontSize: 18,
+              fontSize: 26,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF333333),
+              color: Color(0xFF1A1A1A),
+              letterSpacing: 0.5,
             ),
           ),
         ],
@@ -2240,15 +2455,21 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                   value: selectedStudentId,
                   decoration: InputDecoration(
                     labelText: 'Student *',
-                    prefixIcon: const Icon(Icons.person, size: 20),
+                    prefixIcon: const Icon(
+                      Icons.person,
+                      size: 22,
+                      color: Color(0xFF2ECC71),
+                    ),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     filled: true,
                     fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
                     labelStyle: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
+                      color: Color(0xFF555555),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   items:
@@ -2257,7 +2478,7 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                           value: student['id'].toString(),
                           child: Text(
                             '${student['fname']} ${student['lname']} - ${student['grade_level'] ?? ''}',
-                            style: const TextStyle(fontSize: 15),
+                            style: const TextStyle(fontSize: 16),
                           ),
                         );
                       }).toList(),
@@ -2276,15 +2497,21 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                   value: selectedDriverId,
                   decoration: InputDecoration(
                     labelText: 'Driver *',
-                    prefixIcon: const Icon(Icons.drive_eta, size: 20),
+                    prefixIcon: const Icon(
+                      Icons.drive_eta,
+                      size: 22,
+                      color: Color(0xFF2ECC71),
+                    ),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     filled: true,
                     fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
                     labelStyle: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
+                      color: Color(0xFF555555),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   items:
@@ -2293,7 +2520,7 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                           value: driver['id'].toString(),
                           child: Text(
                             '${driver['fname']} ${driver['lname']}',
-                            style: const TextStyle(fontSize: 15),
+                            style: const TextStyle(fontSize: 16),
                           ),
                         );
                       }).toList(),
@@ -2311,8 +2538,8 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue[200]!),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue[200]!, width: 2),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2330,7 +2557,8 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color: Colors.blue,
-                                fontSize: 16,
+                                fontSize: 18,
+                                letterSpacing: 0.3,
                               ),
                             ),
                           ],
@@ -2362,23 +2590,43 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                                     child: Text(
                                       subject['subject'] ?? 'No subject',
                                       style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: Color(0xFF1A1A1A),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Text(
+                                      teacherName,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: Color(0xFF555555),
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ),
-                                  Expanded(flex: 2, child: Text(teacherName)),
                                   Expanded(
                                     flex: 1,
                                     child: Text(
                                       '${subject['start_time'] ?? ''} - ${subject['end_time'] ?? ''}',
-                                      style: const TextStyle(fontSize: 12),
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF555555),
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                     ),
                                   ),
                                   Expanded(
                                     flex: 2,
                                     child: Text(
                                       _formatDays(subject['days']),
-                                      style: const TextStyle(fontSize: 12),
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF555555),
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -2389,15 +2637,20 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                           Text(
                             'Earliest class: ${_getEarliestTime()} | Latest class: ${_getLatestTime()}',
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: 14,
                               fontStyle: FontStyle.italic,
                               color: Colors.grey,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ] else
                           const Text(
                             'No academic schedule found for this student',
-                            style: TextStyle(color: Colors.grey),
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                       ],
                     ),
@@ -2416,9 +2669,10 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                           Text(
                             'Pickup Time *',
                             style: TextStyle(
-                              color: Colors.grey[700],
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                              color: Color(0xFF1A1A1A),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              letterSpacing: 0.3,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -2436,16 +2690,23 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                             },
                             child: Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey[300]!),
-                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.grey[300]!,
+                                  width: 2,
+                                ),
+                                borderRadius: BorderRadius.circular(10),
                                 color: Colors.grey[50],
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.access_time, size: 20),
-                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.access_time,
+                                    size: 22,
+                                    color: Color(0xFF2ECC71),
+                                  ),
+                                  const SizedBox(width: 10),
                                   Text(
                                     pickupTimeOfDay != null
                                         ? _formatTimeDisplay(pickupTimeOfDay)
@@ -2453,9 +2714,10 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                                     style: TextStyle(
                                       color:
                                           pickupTimeOfDay != null
-                                              ? const Color(0xFF333333)
+                                              ? const Color(0xFF1A1A1A)
                                               : Colors.grey[600],
-                                      fontSize: 15,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ],
@@ -2474,9 +2736,10 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                           Text(
                             'Dropoff Time *',
                             style: TextStyle(
-                              color: Colors.grey[700],
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                              color: Color(0xFF1A1A1A),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              letterSpacing: 0.3,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -2494,16 +2757,23 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                             },
                             child: Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.all(12),
+                              padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey[300]!),
-                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.grey[300]!,
+                                  width: 2,
+                                ),
+                                borderRadius: BorderRadius.circular(10),
                                 color: Colors.grey[50],
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.access_time, size: 20),
-                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.access_time,
+                                    size: 22,
+                                    color: Color(0xFF2ECC71),
+                                  ),
+                                  const SizedBox(width: 10),
                                   Text(
                                     dropoffTimeOfDay != null
                                         ? _formatTimeDisplay(dropoffTimeOfDay)
@@ -2511,9 +2781,10 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                                     style: TextStyle(
                                       color:
                                           dropoffTimeOfDay != null
-                                              ? const Color(0xFF333333)
+                                              ? const Color(0xFF1A1A1A)
                                               : Colors.grey[600],
-                                      fontSize: 15,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ],
@@ -2533,19 +2804,20 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                   child: Text(
                     'Schedule Days *',
                     style: TextStyle(
-                      color: Colors.grey[700],
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
+                      color: Color(0xFF1A1A1A),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      letterSpacing: 0.3,
                     ),
                   ),
                 ),
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!, width: 2),
+                    borderRadius: BorderRadius.circular(12),
                     color: Colors.grey[50],
                   ),
                   child: LayoutBuilder(
@@ -2598,26 +2870,35 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                                             ? Colors.white
                                             : Colors.black87,
                                     padding: const EdgeInsets.symmetric(
-                                      vertical: 10,
+                                      vertical: 12,
                                     ),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.circular(10),
                                       side: BorderSide(
                                         color:
                                             selected
                                                 ? const Color(0xFF2ECC71)
                                                 : Colors.grey[300]!,
+                                        width: 2,
                                       ),
                                     ),
-                                    elevation: 0,
+                                    elevation: selected ? 4 : 0,
+                                    shadowColor:
+                                        selected
+                                            ? const Color(
+                                              0xFF2ECC71,
+                                            ).withOpacity(0.3)
+                                            : null,
                                   ),
                                   child: Text(
                                     day,
                                     style: TextStyle(
                                       fontWeight:
                                           selected
-                                              ? FontWeight.w600
-                                              : FontWeight.normal,
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                      fontSize: 15,
+                                      letterSpacing: 0.3,
                                     ),
                                   ),
                                 ),
@@ -2632,7 +2913,11 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                     padding: EdgeInsets.only(top: 4.0),
                     child: Text(
                       'Please select at least one day',
-                      style: TextStyle(color: Colors.red, fontSize: 12),
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 const SizedBox(height: 16),
@@ -2642,20 +2927,27 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                   initialValue: pickupAddress,
                   decoration: InputDecoration(
                     labelText: 'Pickup Address',
-                    prefixIcon: const Icon(Icons.location_on, size: 20),
+                    prefixIcon: const Icon(
+                      Icons.location_on,
+                      size: 22,
+                      color: Color(0xFF2ECC71),
+                    ),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     filled: true,
                     fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
                     labelStyle: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
+                      color: Color(0xFF555555),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   style: const TextStyle(
-                    fontSize: 15,
-                    color: Color(0xFF333333),
+                    fontSize: 16,
+                    color: Color(0xFF1A1A1A),
+                    fontWeight: FontWeight.w500,
                   ),
                   onChanged: (value) => pickupAddress = value,
                   maxLines: 2,
@@ -2667,29 +2959,53 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                   value: status,
                   decoration: InputDecoration(
                     labelText: 'Status',
-                    prefixIcon: const Icon(Icons.info, size: 20),
+                    prefixIcon: const Icon(
+                      Icons.info,
+                      size: 22,
+                      color: Color(0xFF2ECC71),
+                    ),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     filled: true,
                     fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
                     labelStyle: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
+                      color: Color(0xFF555555),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   items: const [
                     DropdownMenuItem(
                       value: 'active',
-                      child: Text('Active', style: TextStyle(fontSize: 15)),
+                      child: Text(
+                        'Active',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                     DropdownMenuItem(
                       value: 'pending',
-                      child: Text('Pending', style: TextStyle(fontSize: 15)),
+                      child: Text(
+                        'Pending',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                     DropdownMenuItem(
                       value: 'inactive',
-                      child: Text('Inactive', style: TextStyle(fontSize: 15)),
+                      child: Text(
+                        'Inactive',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                   ],
                   onChanged: (value) => setState(() => status = value!),
@@ -2701,20 +3017,27 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                   initialValue: notes,
                   decoration: InputDecoration(
                     labelText: 'Notes',
-                    prefixIcon: const Icon(Icons.note, size: 20),
+                    prefixIcon: const Icon(
+                      Icons.note,
+                      size: 22,
+                      color: Color(0xFF2ECC71),
+                    ),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     filled: true,
                     fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
                     labelStyle: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
+                      color: Color(0xFF555555),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   style: const TextStyle(
-                    fontSize: 15,
-                    color: Color(0xFF333333),
+                    fontSize: 16,
+                    color: Color(0xFF1A1A1A),
+                    fontWeight: FontWeight.w500,
                   ),
                   onChanged: (value) => notes = value,
                   maxLines: 3,
@@ -2726,14 +3049,29 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
       ),
       actions: [
         TextButton(
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          ),
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          child: Text(
+            'Cancel',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF666666),
+            ),
+          ),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF2ECC71),
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            elevation: 4,
+            shadowColor: Colors.black.withOpacity(0.2),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
           onPressed: () {
             // Validate form and ensure days & times selected
@@ -2772,9 +3110,12 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(widget.isEdit ? Icons.save : Icons.add, size: 16),
-              const SizedBox(width: 8),
-              Text(widget.isEdit ? 'Update Assignment' : 'Create Assignment'),
+              Icon(widget.isEdit ? Icons.save : Icons.add, size: 18),
+              const SizedBox(width: 10),
+              Text(
+                widget.isEdit ? 'Update Assignment' : 'Create Assignment',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
             ],
           ),
         ),
@@ -2882,7 +3223,25 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Bulk Assignment'),
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 20,
+      shadowColor: Colors.black.withOpacity(0.2),
+      title: Row(
+        children: [
+          const Icon(Icons.group_add, color: Color(0xFF2ECC71), size: 24),
+          const SizedBox(width: 12),
+          const Text(
+            'Bulk Assignment',
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A1A),
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
       content: SizedBox(
         width: 600,
         height: 700,
@@ -2894,15 +3253,36 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
               // Driver Selection
               DropdownButtonFormField<String>(
                 value: selectedDriverId,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Select Driver *',
-                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(
+                    Icons.drive_eta,
+                    size: 22,
+                    color: Color(0xFF2ECC71),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  labelStyle: TextStyle(
+                    color: Color(0xFF555555),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 items:
                     widget.drivers.map((driver) {
                       return DropdownMenuItem<String>(
                         value: driver['id'].toString(),
-                        child: Text('${driver['fname']} ${driver['lname']}'),
+                        child: Text(
+                          '${driver['fname']} ${driver['lname']}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       );
                     }).toList(),
                 onChanged: (value) => setState(() => selectedDriverId = value),
@@ -2917,10 +3297,32 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
                   Expanded(
                     child: TextFormField(
                       initialValue: pickupTime,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Pickup Time *',
                         hintText: 'e.g., 07:00',
-                        border: OutlineInputBorder(),
+                        prefixIcon: const Icon(
+                          Icons.access_time,
+                          size: 22,
+                          color: Color(0xFF2ECC71),
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                        ),
+                        labelStyle: TextStyle(
+                          color: Color(0xFF555555),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF1A1A1A),
+                        fontWeight: FontWeight.w500,
                       ),
                       onChanged: (value) => pickupTime = value,
                       validator: (value) {
@@ -2938,10 +3340,32 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
                   Expanded(
                     child: TextFormField(
                       initialValue: dropoffTime,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Dropoff Time *',
                         hintText: 'e.g., 15:30',
-                        border: OutlineInputBorder(),
+                        prefixIcon: const Icon(
+                          Icons.access_time,
+                          size: 22,
+                          color: Color(0xFF2ECC71),
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                        ),
+                        labelStyle: TextStyle(
+                          color: Color(0xFF555555),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF1A1A1A),
+                        fontWeight: FontWeight.w500,
                       ),
                       onChanged: (value) => dropoffTime = value,
                       validator: (value) {
@@ -2960,10 +3384,16 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
               const SizedBox(height: 16),
 
               // Schedule Days
-              const Text(
+              Text(
                 'Schedule Days *',
-                style: TextStyle(fontWeight: FontWeight.w500),
+                style: TextStyle(
+                  color: Color(0xFF1A1A1A),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  letterSpacing: 0.3,
+                ),
               ),
+              const SizedBox(height: 8),
               LayoutBuilder(
                 builder: (context, constraints) {
                   final days = [
@@ -3007,20 +3437,37 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
                                 foregroundColor:
                                     selected ? Colors.white : Colors.black87,
                                 padding: const EdgeInsets.symmetric(
-                                  vertical: 10,
+                                  vertical: 12,
                                 ),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(10),
                                   side: BorderSide(
                                     color:
                                         selected
                                             ? const Color(0xFF2ECC71)
                                             : Colors.grey[300]!,
+                                    width: 2,
                                   ),
                                 ),
-                                elevation: 0,
+                                elevation: selected ? 4 : 0,
+                                shadowColor:
+                                    selected
+                                        ? const Color(
+                                          0xFF2ECC71,
+                                        ).withOpacity(0.3)
+                                        : null,
                               ),
-                              child: Text(day),
+                              child: Text(
+                                day,
+                                style: TextStyle(
+                                  fontWeight:
+                                      selected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                  fontSize: 15,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
                             ),
                           );
                         }).toList(),
@@ -3030,16 +3477,22 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
               const SizedBox(height: 16),
 
               // Student Selection
-              const Text(
+              Text(
                 'Select Students:',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Color(0xFF1A1A1A),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  letterSpacing: 0.3,
+                ),
               ),
               const SizedBox(height: 8),
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!, width: 2),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.grey[50],
                   ),
                   child: ListView.builder(
                     itemCount: widget.students.length,
@@ -3057,8 +3510,23 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
                             }
                           });
                         },
-                        title: Text('${student['fname']} ${student['lname']}'),
-                        subtitle: Text('Grade ${student['grade_level'] ?? ''}'),
+                        title: Text(
+                          '${student['fname']} ${student['lname']}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1A1A1A),
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Grade ${student['grade_level'] ?? ''}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        activeColor: const Color(0xFF2ECC71),
                       );
                     },
                   ),
@@ -3068,9 +3536,27 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
               if (selectedStudentIds.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8.0),
-                  child: Text(
-                    '${selectedStudentIds.length} students selected',
-                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2ECC71).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFF2ECC71).withOpacity(0.3),
+                        width: 2,
+                      ),
+                    ),
+                    child: Text(
+                      '${selectedStudentIds.length} students selected',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        color: Color(0xFF2ECC71),
+                      ),
+                    ),
                   ),
                 ),
             ],
@@ -3079,10 +3565,30 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
       ),
       actions: [
         TextButton(
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          ),
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(
+            'Cancel',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF666666),
+            ),
+          ),
         ),
         ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF2ECC71),
+            foregroundColor: Colors.white,
+            elevation: 4,
+            shadowColor: Colors.black.withOpacity(0.2),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
           onPressed:
               selectedDriverId != null &&
                       selectedStudentIds.isNotEmpty &&
@@ -3099,7 +3605,10 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
                     }
                   }
                   : null,
-          child: const Text('Assign All'),
+          child: Text(
+            'Assign All',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
         ),
       ],
     );
@@ -3119,19 +3628,64 @@ class _DeleteAssignmentDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Delete Assignment'),
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 20,
+      shadowColor: Colors.black.withOpacity(0.2),
+      title: Row(
+        children: [
+          const Icon(Icons.warning, color: Colors.red, size: 24),
+          const SizedBox(width: 12),
+          const Text(
+            'Delete Assignment',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A1A),
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
       content: Text(
         'Are you sure you want to delete the assignment for $studentName with driver $driverName?',
+        style: const TextStyle(
+          fontSize: 16,
+          color: Color(0xFF555555),
+          fontWeight: FontWeight.w500,
+        ),
       ),
       actions: [
         TextButton(
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          ),
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: Text(
+            'Cancel',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF666666),
+            ),
+          ),
         ),
         ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            elevation: 4,
+            shadowColor: Colors.black.withOpacity(0.2),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
           onPressed: () => Navigator.of(context).pop(true),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-          child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          child: Text(
+            'Delete',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
         ),
       ],
     );

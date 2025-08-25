@@ -198,14 +198,29 @@ class _UserManagementPageState extends State<UserManagementPage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 20,
+              shadowColor: Colors.black.withOpacity(0.2),
               title: Row(
                 children: [
                   Icon(
                     user == null ? Icons.person_add : Icons.edit,
                     color: const Color(0xFF2ECC71),
+                    size: 24,
                   ),
-                  const SizedBox(width: 8),
-                  Text(user == null ? 'Add New User' : 'Edit User'),
+                  const SizedBox(width: 12),
+                  Text(
+                    user == null ? 'Add New User' : 'Edit User',
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
                 ],
               ),
               content: Container(
@@ -710,14 +725,27 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                       }
                                     }
                                   },
-                                  icon: const Icon(Icons.upload),
-                                  label: const Text('Upload Photo'),
+                                  icon: const Icon(Icons.upload, size: 20),
+                                  label: const Text(
+                                    'Upload Photo',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF2ECC71),
                                     foregroundColor: Colors.white,
+                                    elevation: 4,
+                                    shadowColor: const Color(
+                                      0xFF2ECC71,
+                                    ).withOpacity(0.3),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 12,
+                                      horizontal: 20,
+                                      vertical: 14,
                                     ),
                                   ),
                                 ),
@@ -764,15 +792,33 @@ class _UserManagementPageState extends State<UserManagementPage> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF666666),
+                    ),
+                  ),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromARGB(10, 78, 241, 157),
+                    backgroundColor: const Color(0xFF2ECC71),
                     foregroundColor: Colors.white,
+                    elevation: 4,
+                    shadowColor: const Color(0xFF2ECC71).withOpacity(0.3),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
+                      horizontal: 28,
+                      vertical: 14,
                     ),
                   ),
                   onPressed: () async {
@@ -1011,9 +1057,15 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(user == null ? Icons.add : Icons.save, size: 16),
-                      const SizedBox(width: 8),
-                      Text(user == null ? 'Create User' : 'Update User'),
+                      Icon(user == null ? Icons.add : Icons.save, size: 18),
+                      const SizedBox(width: 10),
+                      Text(
+                        user == null ? 'Create User' : 'Update User',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1035,26 +1087,38 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   // Helper method to build section headers
   Widget _buildSectionHeader(String title) {
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 20,
-          decoration: BoxDecoration(
-            color: const Color(0xFF2ECC71),
-            borderRadius: BorderRadius.circular(2),
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2ECC71).withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: const Color(0xFF2ECC71).withOpacity(0.2),
+          width: 1,
         ),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF333333),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 24,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2ECC71),
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: 12),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A1A),
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1066,27 +1130,31 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }) {
     return InputDecoration(
       labelText: isRequired ? '$label *' : label,
-      prefixIcon: Icon(icon, size: 20),
+      prefixIcon: Icon(icon, size: 22, color: const Color(0xFF2ECC71)),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide(color: Colors.grey[300]!),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Color(0xFF2ECC71), width: 2),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Colors.red, width: 1),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Colors.red, width: 2),
       ),
       filled: true,
       fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      labelStyle: const TextStyle(
+        color: Color(0xFF555555),
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+      ),
     );
   }
 
@@ -1099,14 +1167,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
     return InputDecoration(
       labelText: isRequired ? '$label *' : label,
       // use a smaller icon to preserve space, and set isDense to true
-      prefixIcon: Icon(icon, size: 18),
+      prefixIcon: Icon(icon, size: 20, color: const Color(0xFF2ECC71)),
       isDense: true,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide(color: Colors.grey[300]!),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Color(0xFF2ECC71), width: 2),
       ),
       errorBorder: OutlineInputBorder(
@@ -1120,8 +1188,12 @@ class _UserManagementPageState extends State<UserManagementPage> {
       filled: true,
       fillColor: Colors.white,
       // slightly smaller vertical padding to fit small widths better
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      labelStyle: TextStyle(color: Colors.grey[600], fontSize: 13),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      labelStyle: const TextStyle(
+        color: Color(0xFF555555),
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+      ),
     );
   }
 
