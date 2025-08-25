@@ -1551,64 +1551,109 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     }
   }
 
-  // Updated before scan widget to show AUTO MODE
+  // Updated before scan widget with enhanced accessibility for guards
   Widget _buildBeforeScanWidget() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Left side - RFID scan prompt
+        // Left side - RFID scan prompt (Enhanced for better visibility)
         Expanded(
           flex: 1,
           child: Container(
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey[200]!, width: 1),
-              borderRadius: BorderRadius.circular(12),
-              color: Colors.grey[50],
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.blue[50]!,
+                  Colors.indigo[50]!,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.blue[200]!, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 20,
+                  offset: Offset(0, 8),
+                ),
+              ],
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // RFID Icon (Significantly Enlarged)
                 Container(
-                  padding: EdgeInsets.all(24),
+                  padding: EdgeInsets.all(32),
                   decoration: BoxDecoration(
-                    color: Colors.blue[50],
+                    color: Colors.blue,
                     shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
                   ),
-                  child: Icon(Icons.contact_page, size: 48, color: Colors.blue),
+                  child: Icon(
+                    Icons.contact_page, 
+                    size: 80, 
+                    color: Colors.white,
+                  ),
                 ),
-                SizedBox(height: 24),
+                SizedBox(height: 40),
+                
+                // Main instruction text (Enlarged)
                 Text(
-                  'Tap RFID Card',
+                  'TAP RFID CARD',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                    letterSpacing: 2.0,
+                  ),
+                ),
+                SizedBox(height: 16),
+                
+                // Subtitle (Enlarged)
+                Text(
+                  'System will automatically detect\nentry or exit',
                   style: TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                    color: Colors.grey[700],
+                    height: 1.4,
                   ),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'System will automatically detect entry or exit',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   textAlign: TextAlign.center,
                 ),
-                SizedBox(height: 24),
+                SizedBox(height: 32),
+                
+                // Auto mode badge (Enlarged)
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: EdgeInsets.symmetric(horizontal: 28, vertical: 12),
                   decoration: BoxDecoration(
-                    color: Colors.blue[100],
-                    borderRadius: BorderRadius.circular(16),
+                    color: Colors.blue,
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.auto_mode, size: 16, color: Colors.blue[700]),
-                      SizedBox(width: 8),
+                      Icon(Icons.auto_mode, size: 24, color: Colors.white),
+                      SizedBox(width: 12),
                       Text(
                         'AUTO MODE',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.blue[700],
+                          color: Colors.white,
+                          letterSpacing: 1.2,
                         ),
                       ),
                     ],
@@ -1619,53 +1664,67 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           ),
         ),
 
-        SizedBox(width: 24),
+        SizedBox(width: 32),
 
-        // Right side - Information panel
+        // Right side - Information panel (Enhanced readability)
         Expanded(
           flex: 1,
           child: Container(
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey[200]!, width: 1),
-              borderRadius: BorderRadius.circular(12),
               color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.grey[200]!, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 20,
+                  offset: Offset(0, 8),
+                ),
+              ],
             ),
             child: Padding(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.all(32.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Header (Enlarged)
                   Text(
-                    'Exit Schedule Rules',
+                    'EXIT SCHEDULE RULES',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 26,
                       fontWeight: FontWeight.bold,
                       color: Colors.black87,
+                      letterSpacing: 1.1,
                     ),
                   ),
-                  SizedBox(height: 16),
-                  _buildInfoItem(
+                  SizedBox(height: 24),
+                  
+                  // Info items (All enlarged for better readability)
+                  _buildEnhancedInfoItem(
                     Icons.login,
                     'Entry - Always Allowed',
                     'Students can enter at any time during school hours',
                     Colors.green,
                   ),
-                  SizedBox(height: 16),
-                  _buildInfoItem(
+                  SizedBox(height: 20),
+                  
+                  _buildEnhancedInfoItem(
                     Icons.warning,
                     'Very Early Exit (2+ hrs)',
                     'Requires override with reason selection',
                     Colors.red,
                   ),
-                  SizedBox(height: 16),
-                  _buildInfoItem(
+                  SizedBox(height: 20),
+                  
+                  _buildEnhancedInfoItem(
                     Icons.schedule,
                     'Early Exit (30+ min)',
                     'Requires guard override confirmation',
                     Colors.orange,
                   ),
-                  SizedBox(height: 16),
-                  _buildInfoItem(
+                  SizedBox(height: 20),
+                  
+                  _buildEnhancedInfoItem(
                     Icons.check_circle,
                     'Near End/Regular',
                     'Allowed without restrictions',
@@ -1680,7 +1739,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     );
   }
 
-  Widget _buildInfoItem(
+  // Enhanced info item with larger text and icons for better visibility
+  Widget _buildEnhancedInfoItem(
     IconData icon,
     String title,
     String description,
@@ -1690,14 +1750,15 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: EdgeInsets.all(8),
+          padding: EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
+            color: color.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withOpacity(0.3)),
           ),
-          child: Icon(icon, size: 20, color: color),
+          child: Icon(icon, size: 28, color: color),
         ),
-        SizedBox(width: 12),
+        SizedBox(width: 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1705,15 +1766,19 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                   color: Colors.black87,
                 ),
               ),
-              SizedBox(height: 2),
+              SizedBox(height: 4),
               Text(
                 description,
-                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                  height: 1.3,
+                ),
               ),
             ],
           ),
@@ -2027,19 +2092,22 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     );
   }
 
-  // Entry mode layout - full page with complete student information
+  // Entry mode layout - refactored for better space utilization and accessibility
   Widget _buildEntryModeLayout() {
     if (isLoadingStudent) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: Colors.blue),
-            SizedBox(height: 24),
+            CircularProgressIndicator(
+              color: Colors.blue,
+              strokeWidth: 6,
+            ),
+            SizedBox(height: 32),
             Text(
               'Loading Student Data...',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 24,
                 fontWeight: FontWeight.w500,
                 color: Colors.blue[700],
               ),
@@ -2053,350 +2121,406 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       return _buildBeforeScanWidget();
     }
 
-    // Full page entry mode layout
-    return Center(
-      child: Container(
-        constraints: BoxConstraints(maxWidth: 800),
-        child: Column(
-          children: [
-            // Header
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.blue[200]!),
+    // Single column layout for better space utilization
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Main Student Information Card - Top Section
+        Expanded(
+          flex: 7,
+          child: Container(
+            padding: EdgeInsets.all(40),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.green[50]!,
+                  Colors.blue[50]!,
+                ],
               ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.check_circle,
-                      size: 32,
-                      color: Colors.white,
-                    ),
-                  ),
-                  SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Student Successfully Checked In',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue[800],
-                          ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.green[200]!, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 20,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Left Side - Student Photo (Significantly Enlarged)
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Success Status Badge
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
                         ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Entry recorded automatically at ${_formatCurrentTime()}',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.blue[700],
-                          ),
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          borderRadius: BorderRadius.circular(30),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.green.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              size: 28,
+                              color: Colors.white,
+                            ),
+                            SizedBox(width: 12),
+                            Text(
+                              'CHECK-IN SUCCESSFUL',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      SizedBox(height: 32),
+
+                      // Enlarged Student Photo
+                      Container(
+                        width: 300,
+                        height: 300,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white, width: 6),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 20,
+                              offset: Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: _buildImageContent(scannedStudent!.imageUrl),
+                        ),
+                      ),
+
+                      SizedBox(height: 24),
+
+                      // Verification Badge
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          borderRadius: BorderRadius.circular(25),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.blue.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.verified_user,
+                              size: 24,
+                              color: Colors.white,
+                            ),
+                            SizedBox(width: 10),
+                            Text(
+                              'VERIFIED STUDENT',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: 16),
+
+                      // Check-in Time
+                      Text(
+                        'Entry Time: ${_formatCurrentTime()}',
+                        style: TextStyle(
+                          fontSize: 20,
+                          color: Colors.green[700],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                SizedBox(width: 48),
+
+                // Right Side - Student Information (Significantly Enlarged)
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    padding: EdgeInsets.all(36),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey[200]!, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 15,
+                          offset: Offset(0, 5),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 24),
-
-            // Main Student Information Card
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey[200]!),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 8,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Student Photo Section - UPDATED
-                    Column(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildStudentImage(
-                          imageUrl: scannedStudent!.imageUrl,
-                          width: 200,
-                          height: 200,
-                          borderRadius: 16,
-                        ),
-                        SizedBox(height: 16),
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
+                        // Student Name (Massively Enlarged)
+                        Text(
+                          scannedStudent!.fullName,
+                          style: TextStyle(
+                            fontSize: 42,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                            height: 1.2,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        
+                        SizedBox(height: 16),
+
+                        // Class Section (Enlarged)
+                        Text(
+                          scannedStudent!.classSection,
+                          style: TextStyle(
+                            fontSize: 28,
+                            color: Colors.blue[600],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+
+                        SizedBox(height: 32),
+
+                        // Student ID Section
+                        Container(
+                          padding: EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             color: Colors.blue[50],
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(15),
                             border: Border.all(color: Colors.blue[200]!),
                           ),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                Icons.verified,
-                                size: 18,
-                                color: Colors.blue,
+                              Container(
+                                padding: EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  Icons.badge,
+                                  size: 28,
+                                  color: Colors.white,
+                                ),
                               ),
-                              SizedBox(width: 8),
-                              Text(
-                                'VERIFIED STUDENT',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.blue[700],
-                                  fontWeight: FontWeight.bold,
+                              SizedBox(width: 16),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Student ID',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: Colors.blue[700],
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    scannedStudent!.studentId,
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      color: Colors.black87,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        SizedBox(height: 24),
+
+                        // Address Information (Enlarged)
+                        Container(
+                          padding: EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(color: Colors.grey[200]!),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  Icons.home,
+                                  size: 28,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Home Address',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        color: Colors.orange[700],
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    SizedBox(height: 6),
+                                    Text(
+                                      scannedStudent!.address,
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        color: Colors.black87,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      ],
-                    ),
 
-                    SizedBox(width: 40),
+                        SizedBox(height: 24),
 
-                    // Student Information Section
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Student Name
-                          Text(
-                            'Student Information',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          SizedBox(height: 16),
-
-                          Text(
-                            scannedStudent!.fullName,
-                            style: TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-
-                          Text(
-                            scannedStudent!.classSection,
-                            style: TextStyle(
-                              fontSize: 20,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 32),
-
-                          // Information Grid
-                          Row(
-                            children: [
+                        // Additional Info Row
+                        Row(
+                          children: [
+                            // Gender
+                            if (scannedStudent!.gender != null) 
                               Expanded(
-                                child: _buildInfoCard(
-                                  'Student ID',
-                                  scannedStudent!.studentId,
-                                  Icons.badge,
-                                  Colors.blue,
-                                ),
-                              ),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: _buildInfoCard(
-                                  'Check-in Time',
-                                  _formatCurrentTime(),
-                                  Icons.access_time,
-                                  Colors.green,
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 16),
-
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildInfoCard(
-                                  'RFID Status',
-                                  'Active',
-                                  Icons.nfc,
-                                  Colors.orange,
-                                ),
-                              ),
-                              SizedBox(width: 16),
-                              Expanded(
-                                child: _buildInfoCard(
-                                  'Attendance Status',
-                                  'Present',
-                                  Icons.how_to_reg,
-                                  Colors.purple,
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 32),
-
-                          // Additional Student Information
-                          Container(
-                            width: double.infinity,
-                            padding: EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[50],
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey[200]!),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Additional Information',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
+                                child: Container(
+                                  padding: EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.purple[50],
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.purple[200]!),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Gender',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.purple[700],
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        scannedStudent!.gender ?? 'Not specified',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          color: Colors.black87,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                SizedBox(height: 16),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Address',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.grey[600],
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          SizedBox(height: 4),
-                                          Text(
-                                            scannedStudent!.address,
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              color: Colors.black87,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    SizedBox(width: 24),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Gender',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.grey[600],
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                          SizedBox(height: 4),
-                                          Text(
-                                            scannedStudent!.gender ??
-                                                'Not specified',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              color: Colors.black87,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                if (scannedStudent!.birthday != null) ...[
-                                  SizedBox(height: 16),
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                              ),
+
+                            if (scannedStudent!.gender != null && scannedStudent!.birthday != null) 
+                              SizedBox(width: 16),
+
+                            // Birthday
+                            if (scannedStudent!.birthday != null)
+                              Expanded(
+                                child: Container(
+                                  padding: EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.pink[50],
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.pink[200]!),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Date of Birth',
                                         style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey[600],
-                                          fontWeight: FontWeight.w500,
+                                          fontSize: 16,
+                                          color: Colors.pink[700],
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                       SizedBox(height: 4),
                                       Text(
                                         scannedStudent!.birthday!,
                                         style: TextStyle(
-                                          fontSize: 16,
+                                          fontSize: 18,
                                           color: Colors.black87,
+                                          fontWeight: FontWeight.w500,
                                         ),
                                       ),
                                     ],
                                   ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            ),
-
-            SizedBox(height: 24),
-
-            // Action Button
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton.icon(
-                onPressed: clearScan,
-                icon: Icon(Icons.refresh, size: 24),
-                label: Text(
-                  'Scan Another Student',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
                   ),
-                  elevation: 4,
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
+
+        SizedBox(height: 24),
+      ],
     );
   }
 
@@ -2454,19 +2578,22 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     return "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
   }
 
-  // Exit mode layout - responsive design based on screenshot
+  // Exit mode layout - enhanced for better accessibility and space utilization
   Widget _buildExitModeLayout() {
     if (isLoadingStudent) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: Colors.green),
-            SizedBox(height: 24),
+            CircularProgressIndicator(
+              color: Colors.green,
+              strokeWidth: 6,
+            ),
+            SizedBox(height: 32),
             Text(
               'Loading Student Data...',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 24,
                 fontWeight: FontWeight.w500,
                 color: Colors.green[700],
               ),
@@ -2480,214 +2607,235 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       return _buildBeforeScanWidget();
     }
 
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Left Column - Student Information (matching entry mode design)
+        // Top Section - Student Information (Enlarged for better visibility)
         Expanded(
-          flex: 3,
-          child: Column(
+          flex: 6,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Header matching entry mode
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.green[50],
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.green[200]!),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.exit_to_app,
-                        size: 32,
-                        color: Colors.white,
-                      ),
-                    ),
-                    SizedBox(width: 20),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Student Exit Verification',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green[800],
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Verify authorized fetcher for student pickup',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.green[700],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              SizedBox(height: 24),
-
-              // Main Student Information Card (matching entry mode)
+              // Left - Student Information Panel (Significantly Enlarged)
               Expanded(
+                flex: 3,
                 child: Container(
-                  width: double.infinity,
                   padding: EdgeInsets.all(32),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey[200]!),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.orange[50]!,
+                        Colors.red[50]!,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.orange[200]!, width: 2),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 8,
-                        offset: Offset(0, 4),
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 20,
+                        offset: Offset(0, 8),
                       ),
                     ],
                   ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Student Photo and Basic Info Section
+                      // Header Section
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Student Photo Section
-                          Column(
-                            children: [
-                              _buildStudentImage(
-                                imageUrl: scannedStudent!.imageUrl,
-                                width: 180,
-                                height: 180,
-                                borderRadius: 16,
-                              ),
-                              SizedBox(height: 16),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
+                          Container(
+                            padding: EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.orange.withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 4),
                                 ),
-                                decoration: BoxDecoration(
-                                  color: Colors.green[50],
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: Colors.green[200]!),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.verified,
-                                      size: 18,
-                                      color: Colors.green,
-                                    ),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      'VERIFIED STUDENT',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.green[700],
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.exit_to_app,
+                              size: 36,
+                              color: Colors.white,
+                            ),
                           ),
-
-                          SizedBox(width: 32),
-
-                          // Student Information Section
+                          SizedBox(width: 20),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Student Information',
+                                  'EXIT VERIFICATION',
                                   style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey[600],
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.orange[800],
+                                    letterSpacing: 1.2,
                                   ),
                                 ),
-                                SizedBox(height: 16),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Verify authorized pickup',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.orange[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
 
+                      SizedBox(height: 32),
+
+                      // Student Information Row
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Student Photo (Enlarged)
+                          Container(
+                            width: 220,
+                            height: 220,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.white, width: 4),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  blurRadius: 15,
+                                  offset: Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: _buildImageContent(scannedStudent!.imageUrl),
+                            ),
+                          ),
+
+                          SizedBox(width: 32),
+
+                          // Student Details (Enlarged Text)
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Student Name (Massively Enlarged)
                                 Text(
                                   scannedStudent!.fullName,
                                   style: TextStyle(
-                                    fontSize: 28,
+                                    fontSize: 36,
                                     fontWeight: FontWeight.bold,
                                     color: Colors.black87,
+                                    height: 1.2,
                                   ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                SizedBox(height: 8),
+                                
+                                SizedBox(height: 12),
 
+                                // Class Section (Enlarged)
                                 Text(
                                   scannedStudent!.classSection,
                                   style: TextStyle(
-                                    fontSize: 18,
-                                    color: Colors.grey[600],
-                                    fontWeight: FontWeight.w500,
+                                    fontSize: 24,
+                                    color: Colors.blue[600],
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
+
                                 SizedBox(height: 24),
 
-                                // Information Grid (2x2)
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildInfoCard(
-                                        'Student ID',
-                                        scannedStudent!.studentId,
+                                // Student ID
+                                Container(
+                                  padding: EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue[50],
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.blue[200]!),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
                                         Icons.badge,
-                                        Colors.blue,
+                                        size: 24,
+                                        color: Colors.blue,
                                       ),
-                                    ),
-                                    SizedBox(width: 12),
-                                    Expanded(
-                                      child: _buildInfoCard(
-                                        'Exit Time',
-                                        _formatCurrentTime(),
-                                        Icons.access_time,
-                                        Colors.orange,
+                                      SizedBox(width: 12),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Student ID',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              color: Colors.blue[700],
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          Text(
+                                            scannedStudent!.studentId,
+                                            style: TextStyle(
+                                              fontSize: 20,
+                                              color: Colors.black87,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                                SizedBox(height: 12),
 
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildInfoCard(
-                                        'RFID Status',
-                                        'Active',
-                                        Icons.nfc,
-                                        Colors.purple,
+                                SizedBox(height: 16),
+
+                                // Exit Time
+                                Container(
+                                  padding: EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange[50],
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.orange[200]!),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.access_time,
+                                        size: 24,
+                                        color: Colors.orange,
                                       ),
-                                    ),
-                                    SizedBox(width: 12),
-                                    Expanded(
-                                      child: _buildInfoCard(
-                                        'Emergency Contact',
-                                        _getEmergencyContact(),
-                                        Icons.phone,
-                                        Colors.green,
+                                      SizedBox(width: 12),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Exit Time',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              color: Colors.orange[700],
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          Text(
+                                            _formatCurrentTime(),
+                                            style: TextStyle(
+                                              fontSize: 20,
+                                              color: Colors.black87,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
@@ -2697,106 +2845,133 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
                       SizedBox(height: 24),
 
-                      // Additional Student Information (matching entry mode)
+                      // Verification Badge
+                      Center(
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(25),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.green.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.verified_user,
+                                size: 24,
+                                color: Colors.white,
+                              ),
+                              SizedBox(width: 12),
+                              Text(
+                                'VERIFIED STUDENT',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.1,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              SizedBox(width: 24),
+
+              // Right - Authorized Fetchers Panel (Enhanced for better readability)
+              Expanded(
+                flex: 2,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey[200]!, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 20,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      // Header
                       Container(
                         width: double.infinity,
-                        padding: EdgeInsets.all(20),
+                        padding: EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey[200]!),
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(18),
+                            topRight: Radius.circular(18),
+                          ),
+                          border: Border(
+                            bottom: BorderSide(color: Colors.blue[200]!),
+                          ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
                           children: [
-                            Text(
-                              'Additional Information',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.blue,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.people,
+                                size: 24,
+                                color: Colors.white,
                               ),
                             ),
-                            SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Address',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey[600],
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        scannedStudent!.address,
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                SizedBox(width: 24),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Gender',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey[600],
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        scannedStudent!.gender ??
-                                            'Not specified',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (scannedStudent!.birthday != null) ...[
-                              SizedBox(height: 16),
-                              Column(
+                            SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Date of Birth',
+                                    'AUTHORIZED FETCHERS',
                                     style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey[600],
-                                      fontWeight: FontWeight.w500,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue[800],
+                                      letterSpacing: 1.1,
                                     ),
                                   ),
                                   SizedBox(height: 4),
                                   Text(
-                                    scannedStudent!.birthday!,
+                                    'Select pickup person',
                                     style: TextStyle(
                                       fontSize: 16,
-                                      color: Colors.black87,
+                                      color: Colors.blue[700],
                                     ),
                                   ),
                                 ],
                               ),
-                            ],
+                            ),
                           ],
+                        ),
+                      ),
+
+                      // Fetchers List
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: _buildEnhancedFetchersList(),
                         ),
                       ),
                     ],
@@ -2807,113 +2982,93 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           ),
         ),
 
-        SizedBox(width: 32),
+        SizedBox(height: 24),
 
-        // Right Column - Authorized Fetchers and Actions
-        Expanded(
-          flex: 2,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        // Bottom - Action Buttons (Enlarged)
+        Container(
+          height: 80,
+          child: Row(
             children: [
-              // Fetchers Header
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.orange[50],
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.orange[200]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.orange,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.people,
-                            size: 24,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Authorized Fetchers',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.orange[800],
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                'Select authorized person for pickup',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.orange[700],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              SizedBox(height: 20),
-
-              // Fetchers List
+              // Approve Button
               Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey[200]!),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 8,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
+                child: ElevatedButton.icon(
+                  onPressed:
+                      (fetchers != null && fetchers!.isNotEmpty)
+                          ? () => handleApproval(true)
+                          : null,
+                  icon: Icon(Icons.check_circle, size: 32),
+                  label: Text(
+                    'APPROVE PICKUP',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.1,
+                    ),
                   ),
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: _buildFetchersList(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    elevation: 8,
+                    shadowColor: Colors.green.withOpacity(0.3),
                   ),
                 ),
               ),
+              
+              SizedBox(width: 16),
 
-              SizedBox(height: 20),
-
-              // Action Buttons
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey[200]!),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 8,
-                      offset: Offset(0, 4),
+              // PIN Verification Button
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _showTemporaryFetcherDialog(),
+                  icon: Icon(Icons.pin, size: 32),
+                  label: Text(
+                    'VERIFY PIN',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.1,
                     ),
-                  ],
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    elevation: 8,
+                    shadowColor: Colors.blue.withOpacity(0.3),
+                  ),
                 ),
-                child: _buildActionButtons(),
+              ),
+              
+              SizedBox(width: 16),
+
+              // Deny Button
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _showDenyReasonDialog(),
+                  icon: Icon(Icons.cancel, size: 32),
+                  label: Text(
+                    'DENY PICKUP',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    elevation: 8,
+                    shadowColor: Colors.red.withOpacity(0.3),
+                  ),
+                ),
               ),
             ],
           ),
@@ -3109,14 +3264,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
                                 Row(
                                   children: [
-                                    Expanded(
-                                      child: _buildInfoCard(
-                                        'RFID Status',
-                                        'Active',
-                                        Icons.nfc,
-                                        Colors.purple,
-                                      ),
-                                    ),
                                     SizedBox(width: 12),
                                     Expanded(
                                       child: _buildInfoCard(
@@ -3692,31 +3839,26 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     });
   }
 
-  String _getEmergencyContact() {
-    if (fetchers != null && fetchers!.isNotEmpty) {
-      final primaryParent = fetchers!.firstWhere(
-        (f) => f.isPrimary,
-        orElse: () => fetchers!.first,
-      );
-      // Return just the phone number for the info card
-      return primaryParent.contact.replaceAll(RegExp(r'[^\d]'), '').length >= 10
-          ? primaryParent.contact
-          : 'No contact available';
-    }
-    return 'No contact available';
-  }
 
-  Widget _buildFetchersList() {
+
+  // Enhanced fetchers list with better accessibility
+  Widget _buildEnhancedFetchersList() {
     if (isLoadingFetchers) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: Colors.orange),
-            SizedBox(height: 16),
+            CircularProgressIndicator(
+              color: Colors.blue,
+              strokeWidth: 4,
+            ),
+            SizedBox(height: 20),
             Text(
               'Loading authorized fetchers...',
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
             ),
           ],
         ),
@@ -3730,23 +3872,27 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           children: [
             Icon(
               Icons.warning_amber_rounded,
-              size: 48,
+              size: 64,
               color: Colors.orange[400],
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 20),
             Text(
-              'No Authorized Fetchers',
+              'NO AUTHORIZED FETCHERS',
               style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
                 color: Colors.orange[600],
+                letterSpacing: 1.1,
               ),
             ),
             SizedBox(height: 8),
             Text(
               'This student has no registered\nparents or guardians.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
             ),
           ],
         ),
@@ -3758,131 +3904,212 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       separatorBuilder: (context, index) => SizedBox(height: 16),
       itemBuilder: (context, index) {
         final fetcher = fetchers![index];
-        return _buildFetcherCard(fetcher);
+        return _buildEnhancedFetcherCard(fetcher);
       },
     );
   }
 
-  Widget _buildFetcherCard(Fetcher fetcher) {
+  // Enhanced fetcher card with larger text and better visibility
+  Widget _buildEnhancedFetcherCard(Fetcher fetcher) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[300]!, width: 2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: Offset(0, 2),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 10,
+            offset: Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Fetcher Photo - Updated to use the same image building pattern as student images
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey[300]!, width: 1),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(7),
-              child: _buildFetcherImageContent(fetcher.imageUrl),
-            ),
-          ),
-          SizedBox(width: 16),
+          // Fetcher Photo and Name Row
+          Row(
+            children: [
+              // Fetcher Photo (Enlarged)
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[300]!, width: 2),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: _buildFetcherImageContent(fetcher.imageUrl),
+                ),
+              ),
+              SizedBox(width: 20),
 
-          // Fetcher Information
-          Expanded(
+              // Fetcher Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Name (Significantly Enlarged)
+                    Text(
+                      fetcher.name,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: 8),
+
+                    // Badges Row
+                    Row(
+                      children: [
+                        if (fetcher.isPrimary) ...[
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue[200]!),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.star, size: 16, color: Colors.blue),
+                                SizedBox(width: 6),
+                                Text(
+                                  'PRIMARY',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.blue[700],
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                        ],
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.green[200]!),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                size: 16,
+                                color: Colors.green,
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'AUTHORIZED',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.green[700],
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          SizedBox(height: 16),
+
+          // Details Section (Enlarged Text)
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Name
-                Text(
-                  fetcher.name,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                SizedBox(height: 4),
-
                 // Relationship
-                Text(
-                  'Relationship: ${fetcher.relationship}',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                ),
-                SizedBox(height: 2),
-
-                // Contact
-                Text(
-                  'Contact: ${fetcher.contact}',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                ),
-                SizedBox(height: 8),
-
-                // Primary/Authorized Badge
                 Row(
                   children: [
-                    if (fetcher.isPrimary) ...[
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue[50],
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.blue[200]!),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.star, size: 12, color: Colors.blue),
-                            SizedBox(width: 4),
-                            Text(
-                              'PRIMARY',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.blue[700],
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                    ],
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.green[50],
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.green[200]!),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            size: 12,
-                            color: Colors.green,
+                    Icon(
+                      Icons.family_restroom,
+                      size: 20,
+                      color: Colors.purple[600],
+                    ),
+                    SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Relationship',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
                           ),
-                          SizedBox(width: 4),
-                          Text(
-                            'AUTHORIZED',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.green[700],
-                              fontWeight: FontWeight.bold,
-                            ),
+                        ),
+                        Text(
+                          fetcher.relationship,
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w600,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+
+                // Contact
+                Row(
+                  children: [
+                    Icon(
+                      Icons.phone,
+                      size: 20,
+                      color: Colors.green[600],
+                    ),
+                    SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Contact Number',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          fetcher.contact,
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -3893,6 +4120,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       ),
     );
   }
+
+
 
   // method for fetcher image handling
   Widget _buildFetcherImageContent(String? imageUrl) {
@@ -3938,63 +4167,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     );
   }
 
-  Widget _buildActionButtons() {
-    return Column(
-      children: [
-        // Existing approve button
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton.icon(
-            onPressed:
-                (fetchers != null && fetchers!.isNotEmpty)
-                    ? () => handleApproval(true)
-                    : null,
-            icon: Icon(Icons.check_circle, size: 20),
-            label: Text('Approve Pickup'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ),
 
-        SizedBox(height: 12),
-
-        // Add temporary fetcher PIN verification button
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: OutlinedButton.icon(
-            onPressed: () => _showTemporaryFetcherDialog(),
-            icon: Icon(Icons.pin, size: 20),
-            label: Text('Verify Temporary Fetcher PIN'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.blue,
-              side: BorderSide(color: Colors.blue),
-            ),
-          ),
-        ),
-
-        SizedBox(height: 12),
-
-        // Existing deny button
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: OutlinedButton.icon(
-            onPressed: () => _showDenyReasonDialog(),
-            icon: Icon(Icons.cancel, size: 20),
-            label: Text('Deny Pickup'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.red,
-              side: BorderSide(color: Colors.red),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   // Add this method to show temporary fetcher PIN dialog
   void _showTemporaryFetcherDialog() {
