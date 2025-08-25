@@ -1720,7 +1720,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                           style: const TextStyle(
                                             fontWeight: FontWeight.w500,
                                             color: Color(0xFF555555),
-                                            fontSize: 13,
+                                            fontSize: 16,
                                           ),
                                         ),
                                       ),
@@ -1825,7 +1825,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                       fontWeight:
                                                           FontWeight.w600,
                                                       color: Color(0xFF333333),
-                                                      fontSize: 14,
+                                                      fontSize: 16,
                                                     ),
                                                   ),
                                                   if (u['position'] != null &&
@@ -1836,7 +1836,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                     Text(
                                                       u['position'].toString(),
                                                       style: TextStyle(
-                                                        fontSize: 11,
+                                                        fontSize: 13,
                                                         color: Colors.grey[600],
                                                         fontStyle:
                                                             FontStyle.italic,
@@ -1885,7 +1885,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                 style: TextStyle(
                                                   color: _getRoleColor(role),
                                                   fontWeight: FontWeight.w500,
-                                                  fontSize: 12,
+                                                  fontSize: 14,
                                                 ),
                                               ),
                                             ],
@@ -1913,7 +1913,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                               child: Text(
                                                 u['email'] ?? 'N/A',
                                                 style: const TextStyle(
-                                                  fontSize: 13,
+                                                  fontSize: 15,
                                                 ),
                                                 overflow: TextOverflow.ellipsis,
                                               ),
@@ -1946,7 +1946,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                     Text(
                                                       u['contact_number'],
                                                       style: const TextStyle(
-                                                        fontSize: 13,
+                                                        fontSize: 15,
                                                       ),
                                                     ),
                                                   ],
@@ -1954,7 +1954,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                 : Text(
                                                   'N/A',
                                                   style: TextStyle(
-                                                    fontSize: 13,
+                                                    fontSize: 15,
                                                     color: Colors.grey[500],
                                                     fontStyle: FontStyle.italic,
                                                   ),
@@ -2021,7 +2021,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                             0xFFC62828,
                                                           ),
                                                   fontWeight: FontWeight.w600,
-                                                  fontSize: 12,
+                                                  fontSize: 14,
                                                 ),
                                               ),
                                             ],
@@ -2749,7 +2749,7 @@ class TableHeaderCell extends StatelessWidget {
         text,
         style: const TextStyle(
           fontWeight: FontWeight.w600,
-          fontSize: 13,
+          fontSize: 16,
           color: Color(0xFF666666),
         ),
       ),
