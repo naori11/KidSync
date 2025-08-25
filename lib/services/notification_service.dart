@@ -185,6 +185,102 @@ class NotificationService {
     }
   }
 
+  /// Get all recent notifications for a parent (including pickup denials) - not limited to today
+  Future<List<Map<String, dynamic>>> getParentAllNotifications(
+    int parentId, {
+    int? studentId,
+    int limit = 10,
+  }) async {
+    try {
+      // Resolve parent -> user id (notifications.recipient_id references users.id)
+      final parent =
+          await supabase
+              .from('parents')
+              .select('user_id')
+              .eq('id', parentId)
+              .maybeSingle();
+
+      if (parent == null || parent['user_id'] == null) {
+        return [];
+      }
+
+      final String userId = parent['user_id'];
+
+      // Build query - include all notification types
+      var query = supabase
+          .from('notifications')
+          .select('*')
+          .eq('recipient_id', userId);
+
+      // Filter by student if provided
+      if (studentId != null) {
+        query = query.eq('student_id', studentId);
+      }
+
+      // Get recent notifications, prioritizing unread ones
+      final notifications = await query
+          .order('is_read', ascending: false) // Unread first
+          .order('created_at', ascending: false) // Then by creation time
+          .limit(limit);
+
+      return List<Map<String, dynamic>>.from(notifications);
+    } catch (e) {
+      print('Error getting parent all notifications: $e');
+      return [];
+    }
+  }
+
+  /// Get notifications by type for a parent
+  Future<List<Map<String, dynamic>>> getParentNotificationsByType(
+    int parentId, {
+    int? studentId,
+    String? notificationType,
+    int limit = 20,
+  }) async {
+    try {
+      // Resolve parent -> user id (notifications.recipient_id references users.id)
+      final parent =
+          await supabase
+              .from('parents')
+              .select('user_id')
+              .eq('id', parentId)
+              .maybeSingle();
+
+      if (parent == null || parent['user_id'] == null) {
+        return [];
+      }
+
+      final String userId = parent['user_id'];
+
+      // Build query
+      var query = supabase
+          .from('notifications')
+          .select('*')
+          .eq('recipient_id', userId);
+
+      // Filter by student if provided
+      if (studentId != null) {
+        query = query.eq('student_id', studentId);
+      }
+
+      // Filter by type if provided
+      if (notificationType != null) {
+        query = query.eq('type', notificationType);
+      }
+
+      // Get notifications, prioritizing unread ones
+      final notifications = await query
+          .order('is_read', ascending: false) // Unread first
+          .order('created_at', ascending: false) // Then by creation time
+          .limit(limit);
+
+      return List<Map<String, dynamic>>.from(notifications);
+    } catch (e) {
+      print('Error getting parent notifications by type: $e');
+      return [];
+    }
+  }
+
   /// Get unread notification count for a parent
   Future<int> getUnreadNotificationCount(int parentId, {int? studentId}) async {
     try {
@@ -394,7 +490,238 @@ class NotificationService {
     String? guardName,
   }) async {
     try {
-      // Get all parents for this student
+      // Try using the RPC function first (better for RLS and performance)
+      final result = await supabase.rpc('create_rfid_notification', params: {
+        'p_student_id': studentId,
+        'p_action': action,
+        'p_student_name': studentName,
+        'p_guard_name': guardName,
+      });
+      
+      if (result == true) {
+        print('DEBUG: RFID notification sent successfully via RPC for student $studentId, action: $action');
+        return true;
+      } else {
+        print('DEBUG: RPC function returned false for RFID notification');
+        return false;
+      }
+    } catch (rpcError) {
+      print('Error calling create_rfid_notification RPC: $rpcError');
+      
+      // Fallback to direct insert if RPC fails
+      try {
+        // Get all parents for this student
+        final parentStudentResponse = await supabase
+            .from('parent_student')
+            .select('''
+              parent_id,
+              parents!inner(
+                user_id,
+                fname,
+                lname
+              )
+            ''')
+            .eq('student_id', studentId);
+
+        if (parentStudentResponse.isEmpty) {
+          print('DEBUG: No parents found for student $studentId');
+          return false;
+        }
+
+        // Prepare notification data
+        String title;
+        String message;
+        String notificationType;
+
+        if (action == 'entry') {
+          title = 'Student Arrival';
+          message = '$studentName has arrived at school and tapped in.';
+          notificationType = 'rfid_entry';
+        } else if (action == 'exit') {
+          title = 'Student Departure';
+          message = '$studentName has left school and tapped out.';
+          notificationType = 'rfid_exit';
+        } else {
+          print('DEBUG: Invalid action type: $action');
+          return false;
+        }
+
+        // Add guard info if available
+        if (guardName != null && guardName.isNotEmpty) {
+          message += ' Verified by: $guardName';
+        }
+
+        // Send notification to each parent
+        final List<Map<String, dynamic>> notifications = [];
+        for (final parentData in parentStudentResponse) {
+          final userId = parentData['parents']['user_id'];
+          if (userId != null) {
+            notifications.add({
+              'recipient_id': userId,
+              'title': title,
+              'message': message,
+              'type': notificationType,
+              'student_id': studentId,
+              'is_read': false,
+              'created_at': DateTime.now().toIso8601String(),
+            });
+          }
+        }
+
+        if (notifications.isNotEmpty) {
+          try {
+            await supabase.from('notifications').insert(notifications);
+            print('DEBUG: RFID notification sent successfully via direct insert for student $studentId, action: $action');
+            return true;
+          } catch (insertError) {
+            print('Error inserting RFID notifications: $insertError');
+            return false;
+          }
+        }
+
+        return false;
+      } catch (fallbackError) {
+        print('Error in fallback RFID notification method: $fallbackError');
+        return false;
+      }
+    }
+  }
+
+  /// Send pickup denial notification to all parents of a student
+  Future<bool> sendPickupDenialNotification({
+    required int studentId,
+    required String studentName,
+    required String denyReason,
+    String? guardName,
+    String? fetcherName,
+    String? fetcherType, // 'authorized' or 'temporary'
+  }) async {
+    try {
+      print('DEBUG: Attempting to send pickup denial notification for student $studentId');
+      
+      // Try using the RPC function first (better for RLS)
+      try {
+        final result = await supabase.rpc('create_pickup_denial_notification', params: {
+          'p_student_id': studentId,
+          'p_student_name': studentName,
+          'p_deny_reason': denyReason,
+          'p_guard_name': guardName,
+          'p_fetcher_name': fetcherName,
+          'p_fetcher_type': fetcherType,
+        });
+        
+        if (result == true) {
+          print('DEBUG: Pickup denial notification sent successfully via RPC for student $studentId');
+          return true;
+        } else {
+          print('DEBUG: RPC function returned false for pickup denial notification');
+        }
+      } catch (rpcError) {
+        print('DEBUG: RPC function call failed: $rpcError');
+      }
+      
+      // Fallback to direct insert if RPC fails or returns false
+      print('DEBUG: Falling back to direct insert for pickup denial notification');
+      
+      try {
+        // Get all parents for this student
+        final parentStudentResponse = await supabase
+            .from('parent_student')
+            .select('''
+              parent_id,
+              parents!inner(
+                user_id,
+                fname,
+                lname
+              )
+            ''')
+            .eq('student_id', studentId);
+
+        if (parentStudentResponse.isEmpty) {
+          print('DEBUG: No parents found for student $studentId');
+          return false;
+        }
+
+        print('DEBUG: Found ${parentStudentResponse.length} parents for student $studentId');
+
+        // Prepare notification data
+        String title = 'Pickup Request Denied';
+        String message = 'Your pickup request for $studentName has been denied.';
+        
+        // Add fetcher information if available
+        if (fetcherName != null && fetcherName.isNotEmpty) {
+          if (fetcherType == 'temporary') {
+            message += ' Temporary fetcher: $fetcherName';
+          } else {
+            message += ' Fetcher: $fetcherName';
+          }
+        }
+        
+        // Add denial reason
+        message += ' Reason: $denyReason';
+        
+        // Add guard info if available
+        if (guardName != null && guardName.isNotEmpty) {
+          message += ' Denied by: $guardName';
+        }
+
+        print('DEBUG: Prepared pickup denial message: $message');
+
+        // Send notification to each parent
+        final List<Map<String, dynamic>> notifications = [];
+        for (final parentData in parentStudentResponse) {
+          final userId = parentData['parents']['user_id'];
+          if (userId != null) {
+            notifications.add({
+              'recipient_id': userId,
+              'title': title,
+              'message': message,
+              'type': 'pickup_denied',
+              'student_id': studentId,
+              'is_read': false,
+              'created_at': DateTime.now().toIso8601String(),
+            });
+            print('DEBUG: Added notification for parent user $userId');
+          } else {
+            print('DEBUG: Parent ${parentData['parent_id']} has no user_id');
+          }
+        }
+
+        if (notifications.isNotEmpty) {
+          try {
+            // Insert notifications directly as fallback
+            final insertResult = await supabase.from('notifications').insert(notifications);
+            print('DEBUG: Pickup denial notification sent successfully via direct insert for student $studentId');
+            print('DEBUG: Insert result: $insertResult');
+            return true;
+          } catch (insertError) {
+            print('Error inserting pickup denial notifications: $insertError');
+            return false;
+          }
+        } else {
+          print('DEBUG: No valid notifications to insert');
+          return false;
+        }
+
+      } catch (fallbackError) {
+        print('Error in fallback pickup denial notification method: $fallbackError');
+        return false;
+      }
+    } catch (e) {
+      print('Unexpected error in sendPickupDenialNotification: $e');
+      return false;
+    }
+  }
+
+  /// Test method to manually test notification creation
+  Future<bool> testNotificationSystem({
+    required int studentId,
+    required String studentName,
+  }) async {
+    try {
+      print('DEBUG: Testing notification system for student $studentId');
+      
+      // Test direct database access first
       final parentStudentResponse = await supabase
           .from('parent_student')
           .select('''
@@ -402,83 +729,50 @@ class NotificationService {
             parents!inner(
               user_id,
               fname,
-              lname
+              lname,
+              status
             )
           ''')
           .eq('student_id', studentId);
 
+      print('DEBUG: Parent-student relationship query result: $parentStudentResponse');
+
       if (parentStudentResponse.isEmpty) {
+        print('DEBUG: No parent-student relationships found for student $studentId');
         return false;
       }
 
-      // Prepare notification data
-      String title;
-      String message;
-      String notificationType;
-
-      if (action == 'entry') {
-        title = 'Student Arrival';
-        message = '$studentName has arrived at school and tapped in.';
-        notificationType = 'rfid_entry';
-      } else if (action == 'exit') {
-        title = 'Student Departure';
-        message = '$studentName has left school and tapped out.';
-        notificationType = 'rfid_exit';
-      } else {
+      // Test RPC function
+      try {
+        final rpcResult = await supabase.rpc('create_pickup_denial_notification', params: {
+          'p_student_id': studentId,
+          'p_student_name': studentName,
+          'p_deny_reason': 'Test notification from Flutter app',
+          'p_guard_name': 'Test Guard',
+          'p_fetcher_name': 'Test Fetcher',
+          'p_fetcher_type': 'authorized',
+        });
+        
+        print('DEBUG: RPC function test result: $rpcResult');
+        
+        // Check if notifications were created
+        final notifications = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('student_id', studentId)
+            .eq('type', 'pickup_denied')
+            .order('created_at', ascending: false)
+            .limit(5);
+            
+        print('DEBUG: Found ${notifications.length} pickup denial notifications for student $studentId');
+        
+        return rpcResult == true;
+      } catch (rpcError) {
+        print('DEBUG: RPC function test failed: $rpcError');
         return false;
       }
-
-      // Add guard info if available
-      if (guardName != null && guardName.isNotEmpty) {
-        message += ' Verified by: $guardName';
-      }
-
-      // Send notification to each parent
-      final List<Map<String, dynamic>> notifications = [];
-      for (final parentData in parentStudentResponse) {
-        final userId = parentData['parents']['user_id'];
-        if (userId != null) {
-          notifications.add({
-            'recipient_id': userId,
-            'title': title,
-            'message': message,
-            'type': notificationType,
-            'student_id': studentId,
-            'is_read': false,
-            'created_at': DateTime.now().toIso8601String(),
-          });
-        }
-      }
-
-      if (notifications.isNotEmpty) {
-        try {
-          // Try using the RPC function first (better for RLS)
-          final result = await supabase.rpc('create_rfid_notification', params: {
-            'p_student_id': studentId,
-            'p_action': action,
-            'p_student_name': studentName,
-            'p_guard_name': guardName,
-          });
-          
-          if (result == true) {
-            return true;
-          } else {
-            return false;
-          }
-        } catch (rpcError) {
-          // Fallback to direct insert
-          try {
-            await supabase.from('notifications').insert(notifications);
-            return true;
-          } catch (insertError) {
-            return false;
-          }
-        }
-      }
-
-      return false;
     } catch (e) {
-      print('Error sending RFID tap notification: $e');
+      print('DEBUG: Test notification system error: $e');
       return false;
     }
   }

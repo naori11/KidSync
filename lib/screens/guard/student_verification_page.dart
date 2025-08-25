@@ -685,6 +685,36 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               'Temporary fetcher pickup denied: ${denyReason ?? 'No reason provided'}',
         });
 
+        // Send pickup denial notification to parents
+        print('DEBUG: About to send temporary fetcher pickup denial notification for student ${scannedStudent!.id}');
+        
+        // Get guard name for the notification
+        String? guardName;
+        if (user?.id != null) {
+          try {
+            final guardResponse = await supabase
+                .from('users')
+                .select('fname, lname')
+                .eq('id', user!.id)
+                .maybeSingle();
+            if (guardResponse != null) {
+              guardName = '${guardResponse['fname'] ?? ''} ${guardResponse['lname'] ?? ''}'.trim();
+            }
+          } catch (e) {
+            print('Error getting guard name: $e');
+          }
+        }
+        
+        final notificationSent = await _notificationService.sendPickupDenialNotification(
+          studentId: scannedStudent!.id,
+          studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
+          denyReason: denyReason ?? 'No reason provided',
+          guardName: guardName,
+          fetcherName: verifiedTempFetcher!['fetcher_name'],
+          fetcherType: 'temporary',
+        );
+        print('DEBUG: Temporary fetcher pickup denial notification sent: $notificationSent');
+
         _showErrorNotification(
           'Pickup denied: ${denyReason ?? 'Access denied'}',
         );
@@ -1183,6 +1213,44 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
         );
         print('DEBUG: RFID exit notification sent (regular pickup): $notificationSent');
+      } else {
+        // Send pickup denial notification to parents
+        print('DEBUG: About to send pickup denial notification for student ${scannedStudent!.id}');
+        
+        // Get guard name for the notification
+        String? guardName;
+        if (user?.id != null) {
+          try {
+            final guardResponse = await supabase
+                .from('users')
+                .select('fname, lname')
+                .eq('id', user!.id)
+                .maybeSingle();
+            if (guardResponse != null) {
+              guardName = '${guardResponse['fname'] ?? ''} ${guardResponse['lname'] ?? ''}'.trim();
+            }
+          } catch (e) {
+            print('Error getting guard name: $e');
+          }
+        }
+        
+        // Get fetcher information if available
+        String? fetcherName;
+        String? fetcherType;
+        if (fetchers != null && fetchers!.isNotEmpty) {
+          fetcherName = fetchers!.first.name;
+          fetcherType = 'authorized';
+        }
+        
+        final notificationSent = await _notificationService.sendPickupDenialNotification(
+          studentId: scannedStudent!.id,
+          studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
+          denyReason: denyReason ?? 'No reason provided',
+          guardName: guardName,
+          fetcherName: fetcherName,
+          fetcherType: fetcherType,
+        );
+        print('DEBUG: Pickup denial notification sent: $notificationSent');
       }
     } catch (e) {
       print('Error saving pickup record: $e');

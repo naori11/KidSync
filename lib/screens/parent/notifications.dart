@@ -88,11 +88,10 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
           limit: 50,
         );
         
-        // Load earlier notifications (not today)
-        final allNotifs = await _notificationService.getParentNotifications(
+        // Load all recent notifications (including pickup denials) for earlier section
+        final allNotifs = await _notificationService.getParentAllNotifications(
           parentId,
           studentId: widget.selectedStudent.id,
-          todayOnly: false,
           limit: 200,
         );
         
@@ -494,27 +493,38 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
     
     IconData icon;
     Color iconColor;
+    Color backgroundColor;
     
     switch (type) {
       case 'pickup':
         icon = Icons.school;
         iconColor = Colors.blue;
+        backgroundColor = Colors.blue.withOpacity(0.1);
         break;
       case 'dropoff':
         icon = Icons.home;
         iconColor = Colors.green;
+        backgroundColor = Colors.green.withOpacity(0.1);
         break;
       case 'rfid_entry':
         icon = Icons.login;
         iconColor = Colors.green;
+        backgroundColor = Colors.green.withOpacity(0.1);
         break;
       case 'rfid_exit':
         icon = Icons.logout;
         iconColor = Colors.orange;
+        backgroundColor = Colors.orange.withOpacity(0.1);
+        break;
+      case 'pickup_denied':
+        icon = Icons.cancel;
+        iconColor = Colors.red;
+        backgroundColor = Colors.red.withOpacity(0.1);
         break;
       default:
         icon = Icons.info;
         iconColor = primaryGreen;
+        backgroundColor = primaryGreen.withOpacity(0.1);
     }
 
     String timeText = 'Recently';
@@ -531,12 +541,12 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
       margin: EdgeInsets.only(bottom: 12),
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isRead ? Colors.white : backgroundColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isRead
               ? Colors.grey.withOpacity(0.2)
-              : primaryGreen.withOpacity(0.3),
+              : iconColor.withOpacity(0.3),
           width: 1,
         ),
         boxShadow: [
@@ -598,7 +608,7 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
               width: 8,
               height: 8,
               decoration: BoxDecoration(
-                color: primaryGreen,
+                color: iconColor, // Use icon color for unread indicator
                 shape: BoxShape.circle,
               ),
             ),
@@ -639,6 +649,10 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
       case 'rfid_exit':
         icon = Icons.logout;
         iconColor = Colors.orange;
+        break;
+      case 'pickup_denied':
+        icon = Icons.cancel;
+        iconColor = Colors.red;
         break;
       default:
         icon = Icons.info;

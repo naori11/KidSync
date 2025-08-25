@@ -423,7 +423,12 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     );
 
     // Always refresh notification count when modal is closed
-    _loadNotificationCount();
+    // Add a small delay to ensure any new notifications are processed
+    Future.delayed(Duration(milliseconds: 500), () {
+      if (mounted) {
+        _loadNotificationCount();
+      }
+    });
   }
 
   void _toggleNotifications() {

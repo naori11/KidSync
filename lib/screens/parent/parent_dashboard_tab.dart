@@ -40,11 +40,17 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
   Map<String, dynamic> todaySchedule = {};
   bool hasClassesToday = false;
   Timer? _refreshTimer;
+  
+  // Common colors
+  static const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
+  static const Color white = Color(0xFFFFFFFF);
+  static const Color black = Color(0xFF000000);
 
   @override
   void initState() {
     super.initState();
     _initializeData();
+    _setupNotificationSubscription();
   }
 
   @override
@@ -54,13 +60,54 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     if (widget.selectedStudentId != oldWidget.selectedStudentId) {
       _refreshTimer?.cancel();
       _initializeData();
+      _setupNotificationSubscription();
     }
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _notificationChannel?.unsubscribe();
     super.dispose();
+  }
+
+  RealtimeChannel? _notificationChannel;
+
+  /// Set up real-time subscription to notifications
+  void _setupNotificationSubscription() {
+    if (widget.selectedStudentId == null) return;
+
+    try {
+      // Unsubscribe from previous channel
+      _notificationChannel?.unsubscribe();
+
+      // Subscribe to notifications for the current student
+      _notificationChannel = supabase
+          .channel('parent_notifications_${widget.selectedStudentId}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'notifications',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'student_id',
+              value: widget.selectedStudentId,
+            ),
+            callback: (payload) {
+              print('DEBUG: New notification received: ${payload.newRecord}');
+              // Refresh notifications when new ones arrive
+              if (mounted) {
+                _loadRecentNotifications();
+                _refreshNotificationCount();
+              }
+            },
+          )
+          .subscribe();
+
+      print('DEBUG: Set up notification subscription for student ${widget.selectedStudentId}');
+    } catch (e) {
+      print('Error setting up notification subscription: $e');
+    }
   }
 
   Future<void> _initializeData() async {
@@ -124,12 +171,11 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
 
       if (parentResponse != null) {
         final parentId = parentResponse['id'];
-        // Get notifications for the selected student, today only
-        final notifications = await _notificationService.getParentNotifications(
+        // Get all recent notifications for the selected student (including pickup denials)
+        final notifications = await _notificationService.getParentAllNotifications(
           parentId, 
           studentId: widget.selectedStudentId!,
-          todayOnly: true,
-          limit: 5,
+          limit: 8, // Increased limit to show more notifications
         );
         setState(() {
           recentNotifications = notifications;
@@ -137,6 +183,69 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       }
     } catch (e) {
       print('Error loading recent notifications: $e');
+    }
+  }
+
+  /// Load pickup denial notifications specifically
+  Future<List<Map<String, dynamic>>> _loadPickupDenialNotifications() async {
+    if (widget.selectedStudentId == null) return [];
+
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return [];
+
+      final parentResponse = await supabase
+          .from('parents')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (parentResponse != null) {
+        final parentId = parentResponse['id'];
+        // Get pickup denial notifications specifically
+        final denialNotifications = await _notificationService.getParentNotificationsByType(
+          parentId,
+          studentId: widget.selectedStudentId!,
+          notificationType: 'pickup_denied',
+          limit: 5,
+        );
+        
+        // Mark these notifications as read since they're being displayed
+        if (denialNotifications.isNotEmpty) {
+          await _markNotificationsAsRead(denialNotifications);
+        }
+        
+        return denialNotifications;
+      }
+    } catch (e) {
+      print('Error loading pickup denial notifications: $e');
+    }
+    return [];
+  }
+
+  /// Mark specific notifications as read
+  Future<void> _markNotificationsAsRead(List<Map<String, dynamic>> notifications) async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      final parentResponse = await supabase
+          .from('parents')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (parentResponse != null) {
+        final parentId = parentResponse['id'];
+        
+        // Mark notifications as read
+        await _notificationService.markNotificationsAsRead(
+          parentId,
+          studentId: widget.selectedStudentId,
+        );
+      }
+    } catch (e) {
+      print('Error marking notifications as read: $e');
     }
   }
 
@@ -196,8 +305,21 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       if (widget.selectedStudentId != null) {
         _refreshData();
+        _loadRecentNotifications(); // Also refresh notifications specifically
       }
     });
+  }
+
+  /// Manual refresh of notifications
+  Future<void> _refreshNotifications() async {
+    if (widget.selectedStudentId == null) return;
+    
+    try {
+      await _loadRecentNotifications();
+      await _refreshNotificationCount();
+    } catch (e) {
+      print('Error manually refreshing notifications: $e');
+    }
   }
 
   Future<void> _refreshData() async {
@@ -213,6 +335,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       final newHasClassesToday = await _checkClassScheduleToday(studentId);
       await _loadRecentNotifications();
       await _loadPendingVerifications();
+      await _refreshNotificationCount(); // Also refresh notification count
       
       setState(() {
         todayStatus = newTodayStatus;
@@ -222,6 +345,34 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       });
     } catch (e) {
       print('Error refreshing data: $e');
+    }
+  }
+
+  /// Refresh notification count for the current user
+  Future<void> _refreshNotificationCount() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      final parentResponse = await supabase
+          .from('parents')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (parentResponse != null) {
+        final parentId = parentResponse['id'];
+        final count = await _notificationService.getUnreadNotificationCount(
+          parentId,
+          studentId: widget.selectedStudentId,
+        );
+        
+        // Update the parent home screen notification count if possible
+        // This will be handled by the parent home screen's own refresh mechanism
+        print('DEBUG: Current unread notification count: $count');
+      }
+    } catch (e) {
+      print('Error refreshing notification count: $e');
     }
   }
 
@@ -371,8 +522,6 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     bool isMobile = false,
     String? profileImageUrl, // Add this parameter
   ]) {
-    const Color black = Color(0xFF000000);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -395,7 +544,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
             spreadRadius: 1,
           ),
           BoxShadow(
-            color: const Color(0xFF000000).withOpacity(0.03),
+            color: black.withOpacity(0.03),
             blurRadius: 2,
             offset: const Offset(0, 1),
           ),
@@ -453,9 +602,6 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
   }
 
   Widget _buildDriverInfoCard(Color primaryColor, bool isMobile) {
-    const Color white = Color(0xFFFFFFFF);
-    const Color black = Color(0xFF000000);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
     
     // Use real driver data or show loading/no driver state
     if (driverInfo == null) {
@@ -618,9 +764,6 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
   }
 
   Widget _buildPickupSummaryCard(Color primaryColor, bool isMobile) {
-    const Color white = Color(0xFFFFFFFF);
-    const Color black = Color(0xFF000000);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -710,10 +853,156 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     );
   }
 
+  Widget _buildPickupDenialCard(Color primaryColor, bool isMobile, List<Map<String, dynamic>> pickupDenials) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 6,
+        shadowColor: primaryColor.withOpacity(0.2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(isMobile ? 12 : 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: greenWithOpacity,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.cancel,
+                        color: primaryColor,
+                        size: isMobile ? 16 : 18,
+                      ),
+                    ),
+                    SizedBox(width: isMobile ? 8 : 12),
+                    Text(
+                      'Pickup Denial Notifications',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: isMobile ? 15 : 16,
+                        color: black,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: isMobile ? 12 : 16),
+                if (pickupDenials.isEmpty)
+                  Container(
+                    padding: EdgeInsets.all(isMobile ? 12 : 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.grey[600],
+                          size: isMobile ? 16 : 18,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'No pickup denial notifications. Your child\'s pickup was approved.',
+                            style: TextStyle(
+                              fontSize: isMobile ? 13 : 15,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  ...pickupDenials.map((denial) {
+                    final type = denial['type'] ?? '';
+                    final title = denial['title'] ?? 'Notification';
+                    final message = denial['message'] ?? '';
+                    
+                    IconData icon;
+                    Color iconColor;
+                    Color backgroundColor;
+                    
+                    switch (type) {
+                      case 'pickup_denied':
+                        icon = Icons.cancel;
+                        iconColor = Colors.red;
+                        backgroundColor = Colors.red.withOpacity(0.05);
+                        break;
+                      default:
+                        icon = Icons.info;
+                        iconColor = primaryColor;
+                        backgroundColor = primaryColor.withOpacity(0.05);
+                    }
+
+                    return Container(
+                      margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
+                      padding: EdgeInsets.all(isMobile ? 10 : 12),
+                      decoration: BoxDecoration(
+                        color: backgroundColor,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: iconColor.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(icon, color: iconColor, size: isMobile ? 16 : 18),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: isMobile ? 14 : 16,
+                                    color: black,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  message,
+                                  style: TextStyle(
+                                    fontSize: isMobile ? 12 : 14,
+                                    color: black.withOpacity(0.7),
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildNoDriverCard(Color primaryColor, bool isMobile) {
-    const Color white = Color(0xFFFFFFFF);
-    const Color black = Color(0xFF000000);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -1141,7 +1430,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
           size: 18,
           color: completed 
               ? widget.primaryColor 
-              : const Color(0xFF000000).withOpacity(0.6),
+              : black.withOpacity(0.6),
         ),
         const SizedBox(width: 8),
         Text(
@@ -1149,14 +1438,14 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
           style: TextStyle(
             fontWeight: FontWeight.w500,
             fontSize: widget.isMobile ? 13 : 15,
-            color: const Color(0xFF000000),
+            color: black,
           ),
         ),
         const SizedBox(width: 8),
         Text(
           event,
           style: TextStyle(
-            color: const Color(0xFF000000).withOpacity(0.6),
+            color: black.withOpacity(0.6),
             fontSize: widget.isMobile ? 12 : 14,
           ),
         ),
@@ -1172,7 +1461,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
         Text(
           completed ? 'Completed' : person,
           style: TextStyle(
-            color: completed ? widget.primaryColor : const Color(0xFF000000).withOpacity(0.8),
+            color: completed ? widget.primaryColor : black.withOpacity(0.8),
             fontWeight: FontWeight.w600,
             fontSize: widget.isMobile ? 13 : 15,
           ),
@@ -1199,9 +1488,6 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
   }
 
   Widget _buildNotificationsCard(Color primaryColor, bool isMobile) {
-    const Color white = Color(0xFFFFFFFF);
-    const Color black = Color(0xFF000000);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -1288,26 +1574,45 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                     
                     IconData icon;
                     Color iconColor;
+                    Color backgroundColor;
                     
                     switch (type) {
                       case 'pickup':
                         icon = Icons.school;
                         iconColor = Colors.blue;
+                        backgroundColor = Colors.blue.withOpacity(0.05);
                         break;
                       case 'dropoff':
                         icon = Icons.home;
                         iconColor = Colors.green;
+                        backgroundColor = Colors.green.withOpacity(0.05);
+                        break;
+                      case 'rfid_entry':
+                        icon = Icons.login;
+                        iconColor = Colors.green;
+                        backgroundColor = Colors.green.withOpacity(0.05);
+                        break;
+                      case 'rfid_exit':
+                        icon = Icons.logout;
+                        iconColor = Colors.orange;
+                        backgroundColor = Colors.orange.withOpacity(0.05);
+                        break;
+                      case 'pickup_denied':
+                        icon = Icons.cancel;
+                        iconColor = Colors.red;
+                        backgroundColor = Colors.red.withOpacity(0.05);
                         break;
                       default:
                         icon = Icons.info;
                         iconColor = primaryColor;
+                        backgroundColor = primaryColor.withOpacity(0.05);
                     }
 
                     return Container(
                       margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
                       padding: EdgeInsets.all(isMobile ? 10 : 12),
                       decoration: BoxDecoration(
-                        color: iconColor.withOpacity(0.05),
+                        color: backgroundColor,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: iconColor.withOpacity(0.2)),
                       ),
@@ -1362,7 +1667,6 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
     Color black,
     bool isMobile,
   ) {
-    const Color white = Color(0xFFFFFFFF);
 
     return Container(
       padding: EdgeInsets.all(isMobile ? 10 : 12),
@@ -1425,8 +1729,6 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
 
   @override
   Widget build(BuildContext context) {
-    const Color white = Color(0xFFFFFFFF);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
 
     // Show message if no student selected
     if (widget.selectedStudentId == null) {
@@ -1444,7 +1746,7 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
               'Please select a student',
               style: TextStyle(
                 fontSize: 18,
-                color: Color(0xFF000000).withOpacity(0.6),
+                color: black.withOpacity(0.6),
               ),
             ),
           ],
@@ -1452,189 +1754,213 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // 1. Today's Schedule Card - TOP PRIORITY (moved to top)
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          child: Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 6,
-            shadowColor: widget.primaryColor.withOpacity(0.2),
-            child: Container(
-              decoration: BoxDecoration(
-                color: white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.primaryColor.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                    spreadRadius: 1,
+    return RefreshIndicator(
+      onRefresh: _refreshNotifications,
+      color: widget.primaryColor,
+      child: SingleChildScrollView(
+        physics: AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1. Today's Schedule Card - TOP PRIORITY (moved to top)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              child: Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 6,
+                shadowColor: widget.primaryColor.withOpacity(0.2),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: widget.primaryColor.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
+                        spreadRadius: 1,
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(widget.isMobile ? 12 : 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                  child: Padding(
+                    padding: EdgeInsets.all(widget.isMobile ? 12 : 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: greenWithOpacity,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Icon(
-                            Icons.calendar_today,
-                            color: widget.primaryColor,
-                            size: widget.isMobile ? 16 : 18,
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: greenWithOpacity,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Icon(
+                                Icons.calendar_today,
+                                color: widget.primaryColor,
+                                size: widget.isMobile ? 16 : 18,
+                              ),
+                            ),
+                            SizedBox(width: widget.isMobile ? 8 : 12),
+                            Text(
+                              "Today's Schedule",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: widget.isMobile ? 15 : 16,
+                                color: black,
+                              ),
+                            ),
+                          ],
                         ),
-                        SizedBox(width: widget.isMobile ? 8 : 12),
-                        Text(
-                          "Today's Schedule",
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: widget.isMobile ? 15 : 16,
-                            color: const Color(0xFF000000),
-                          ),
-                        ),
+                        SizedBox(height: widget.isMobile ? 8 : 12),
+                        ..._buildTodayScheduleItems(),
                       ],
                     ),
-                    SizedBox(height: widget.isMobile ? 8 : 12),
-                    ..._buildTodayScheduleItems(),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
-        SizedBox(height: widget.isMobile ? 10 : 14),
-        
-        // 2. Verification Status Card - CRITICAL ACTIONS (when pending)
-        if (pendingVerifications.isNotEmpty)
-          Padding(
-            padding: EdgeInsets.only(bottom: widget.isMobile ? 10 : 14),
-            child: VerificationStatusCard(
-              pendingVerifications: pendingVerifications,
-              onTap: _showVerificationModal,
-              primaryColor: widget.primaryColor,
-              isMobile: widget.isMobile,
-            ),
-          ),
-        
-        // 3. Pickup Summary Card - REAL-TIME STATUS
-        _buildPickupSummaryCard(widget.primaryColor, widget.isMobile),
-        SizedBox(height: widget.isMobile ? 10 : 14),
-        
-        // 4. Recent Notifications Card - COMMUNICATION
-        _buildNotificationsCard(widget.primaryColor, widget.isMobile),
-        SizedBox(height: widget.isMobile ? 10 : 14),
-        
-        // 5. Driver Information Card - SUPPORT & CONTACT
-        _buildDriverInfoCard(widget.primaryColor, widget.isMobile),
-        SizedBox(height: widget.isMobile ? 10 : 14),
-        
-        // 6. Authorized Fetchers Card - REFERENCE INFORMATION
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          child: Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 6,
-            shadowColor: widget.primaryColor.withOpacity(0.2),
-            child: Container(
-              decoration: BoxDecoration(
-                color: white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.primaryColor.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                    spreadRadius: 1,
-                  ),
-                ],
+            SizedBox(height: widget.isMobile ? 10 : 14),
+            
+            // 2. Verification Status Card - CRITICAL ACTIONS (when pending)
+            if (pendingVerifications.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.only(bottom: widget.isMobile ? 10 : 14),
+                child: VerificationStatusCard(
+                  pendingVerifications: pendingVerifications,
+                  onTap: _showVerificationModal,
+                  primaryColor: widget.primaryColor,
+                  isMobile: widget.isMobile,
+                ),
               ),
-              child: Padding(
-                padding: EdgeInsets.all(widget.isMobile ? 12 : 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+            
+            // 3. Pickup Summary Card - REAL-TIME STATUS
+            _buildPickupSummaryCard(widget.primaryColor, widget.isMobile),
+            SizedBox(height: widget.isMobile ? 10 : 14),
+            
+            // 3.5. Pickup Denial Notifications Card - CRITICAL ALERTS (if any)
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: _loadPickupDenialNotifications(),
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                  return Padding(
+                    padding: EdgeInsets.only(bottom: widget.isMobile ? 10 : 14),
+                    child: _buildPickupDenialCard(widget.primaryColor, widget.isMobile, snapshot.data!),
+                  );
+                }
+                return SizedBox.shrink();
+              },
+            ),
+            
+            // 4. Recent Notifications Card - COMMUNICATION
+            _buildNotificationsCard(widget.primaryColor, widget.isMobile),
+            SizedBox(height: widget.isMobile ? 10 : 14),
+            
+            // 5. Driver Information Card - SUPPORT & CONTACT
+            _buildDriverInfoCard(widget.primaryColor, widget.isMobile),
+            SizedBox(height: widget.isMobile ? 10 : 14),
+            
+            // 6. Authorized Fetchers Card - REFERENCE INFORMATION
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              child: Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 6,
+                shadowColor: widget.primaryColor.withOpacity(0.2),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: widget.primaryColor.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(widget.isMobile ? 12 : 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: greenWithOpacity,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Icon(
-                            Icons.verified_user,
-                            color: widget.primaryColor,
-                            size: widget.isMobile ? 16 : 18,
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: greenWithOpacity,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Icon(
+                                Icons.verified_user,
+                                color: widget.primaryColor,
+                                size: widget.isMobile ? 16 : 18,
+                              ),
+                            ),
+                            SizedBox(width: widget.isMobile ? 8 : 12),
+                            Text(
+                              'Authorized Fetchers',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: widget.isMobile ? 15 : 16,
+                                color: black,
+                              ),
+                            ),
+                          ],
                         ),
-                        SizedBox(width: widget.isMobile ? 8 : 12),
-                        Text(
-                          'Authorized Fetchers',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: widget.isMobile ? 15 : 16,
-                            color: const Color(0xFF000000),
-                          ),
-                        ),
+                        SizedBox(height: widget.isMobile ? 6 : 10),
+                        isDashboardLoading
+                            ? Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 10),
+                                child: CircularProgressIndicator(
+                                  color: widget.primaryColor,
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                            : dashboardFetchers.isEmpty
+                            ? Padding(
+                              padding: EdgeInsets.symmetric(vertical: 10),
+                              child: Text(
+                                'No authorized fetchers found',
+                                style: TextStyle(
+                                  color: black.withOpacity(0.6),
+                                  fontSize: widget.isMobile ? 12 : 14,
+                                ),
+                              ),
+                            )
+                            : Column(
+                              children:
+                                  dashboardFetchers.map((fetcher) {
+                                    return _fetcherRow(
+                                      fetcher.name,
+                                      fetcher.relationship,
+                                      fetcher.isActive,
+                                      widget.primaryColor,
+                                      widget.isMobile,
+                                      fetcher.profileImageUrl,
+                                    );
+                                  }).toList(),
+                            ),
                       ],
                     ),
-                    SizedBox(height: widget.isMobile ? 6 : 10),
-                    isDashboardLoading
-                        ? Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 10),
-                            child: CircularProgressIndicator(
-                              color: widget.primaryColor,
-                              strokeWidth: 2,
-                            ),
-                          ),
-                        )
-                        : dashboardFetchers.isEmpty
-                        ? Padding(
-                          padding: EdgeInsets.symmetric(vertical: 10),
-                          child: Text(
-                            'No authorized fetchers found',
-                            style: TextStyle(
-                              color: const Color(0xFF000000).withOpacity(0.6),
-                              fontSize: widget.isMobile ? 12 : 14,
-                            ),
-                          ),
-                        )
-                        : Column(
-                          children:
-                              dashboardFetchers.map((fetcher) {
-                                return _fetcherRow(
-                                  fetcher.name,
-                                  fetcher.relationship,
-                                  fetcher.isActive,
-                                  widget.primaryColor,
-                                  widget.isMobile,
-                                  fetcher.profileImageUrl,
-                                );
-                              }).toList(),
-                        ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
+            
+            // Add some bottom padding for pull-to-refresh
+            SizedBox(height: 20),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
