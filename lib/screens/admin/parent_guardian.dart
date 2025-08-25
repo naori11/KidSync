@@ -1176,18 +1176,39 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                               ],
                             ),
                           )
-                          : GridView.builder(
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 4, // Increased from 3 to 4
+                          : LayoutBuilder(
+                            builder: (context, constraints) {
+                              // Calculate responsive grid parameters
+                              int crossAxisCount;
+                              double childAspectRatio;
+                              
+                              if (constraints.maxWidth > 1400) {
+                                crossAxisCount = 4;
+                                childAspectRatio = 1.1;
+                              } else if (constraints.maxWidth > 1000) {
+                                crossAxisCount = 3;
+                                childAspectRatio = 1.15;
+                              } else if (constraints.maxWidth > 600) {
+                                crossAxisCount = 2;
+                                childAspectRatio = 1.25;
+                              } else {
+                                crossAxisCount = 1;
+                                childAspectRatio = 1.4;
+                              }
+                              
+                              return GridView.builder(
+                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: crossAxisCount,
                                   crossAxisSpacing: 16.0,
                                   mainAxisSpacing: 16.0,
-                                  childAspectRatio: 1.2, // Adjusted ratio
+                                  childAspectRatio: childAspectRatio,
                                 ),
-                            itemCount: filteredParents.length,
-                            itemBuilder: (context, index) {
-                              final parent = filteredParents[index];
-                              return _buildParentCard(parent);
+                                itemCount: filteredParents.length,
+                                itemBuilder: (context, index) {
+                                  final parent = filteredParents[index];
+                                  return _buildParentCard(parent);
+                                },
+                              );
                             },
                           ),
                 ),
@@ -1210,341 +1231,465 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE0E0E0), width: 1),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            Colors.grey[50]!,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF2ECC71).withOpacity(0.15),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
+            color: const Color(0xFF2ECC71).withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
             offset: const Offset(0, 2),
+            spreadRadius: 0,
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
           children: [
-            // Header with avatar and status
-            Row(
-              children: [
-                // Avatar with profile image or initial - Enhanced size
+            // Background pattern
+            Positioned(
+              top: -20,
+              right: -20,
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF2ECC71).withOpacity(0.03),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                // Header with avatar and status
+                Row(
+                  children: [
+                    // Avatar with enhanced design
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(28),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            const Color(0xFF2ECC71).withOpacity(0.1),
+                            const Color(0xFF27AE60).withOpacity(0.05),
+                          ],
+                        ),
+                        border: Border.all(
+                          color: const Color(0xFF2ECC71).withOpacity(0.3),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF2ECC71).withOpacity(0.2),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child:
+                            profileImageUrl != null &&
+                                    profileImageUrl.toString().isNotEmpty
+                                ? Image.network(
+                                  profileImageUrl,
+                                  width: 56,
+                                  height: 56,
+                                  fit: BoxFit.cover,
+                                loadingBuilder: (
+                                  context,
+                                  child,
+                                  loadingProgress,
+                                ) {
+                                  if (loadingProgress == null) return child;
+                                  return Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          const Color(0xFF2ECC71).withOpacity(0.1),
+                                          const Color(0xFF27AE60).withOpacity(0.05),
+                                        ],
+                                      ),
+                                    ),
+                                    child: const Center(
+                                      child: SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Color(0xFF2ECC71),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    width: 56,
+                                    height: 56,
+                                    child: Center(
+                                      child: Text(
+                                        initial,
+                                        style: const TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF2ECC71),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              )
+                              : Container(
+                                width: 56,
+                                height: 56,
+                                child: Center(
+                                  child: Text(
+                                    initial,
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF2ECC71),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ),
+                    const Spacer(),
+                    // Enhanced status indicators
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                const Color(0xFF2ECC71).withOpacity(0.15),
+                                const Color(0xFF27AE60).withOpacity(0.1),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: const Color(0xFF2ECC71).withOpacity(0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF2ECC71),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Text(
+                                'Active',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF1E8449),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (parent['user_id'] != null) ...[
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.blue[100]!,
+                                  Colors.blue[50]!,
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue[300]!),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.sync, size: 8, color: Colors.blue[700]),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'Synced',
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    color: Colors.blue[700],
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+
+                // Name - Enhanced visibility
+                Text(
+                  fullName,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A1A1A),
+                    letterSpacing: 0.2,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+
+                // Contact info - Enhanced design
                 Container(
-                  width: 64,
-                  height: 64,
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(32),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.grey[50]!,
+                        Colors.white,
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: const Color(0xFF2ECC71).withOpacity(0.4),
-                      width: 3,
+                      color: const Color(0xFF2ECC71).withOpacity(0.1),
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF2ECC71).withOpacity(0.15),
-                        blurRadius: 8,
+                        color: Colors.black.withOpacity(0.02),
+                        blurRadius: 4,
                         offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-                  child: ClipOval(
-                    child:
-                        profileImageUrl != null &&
-                                profileImageUrl.toString().isNotEmpty
-                            ? Image.network(
-                              profileImageUrl,
-                              width: 64,
-                              height: 64,
-                              fit: BoxFit.cover,
-                              loadingBuilder: (
-                                context,
-                                child,
-                                loadingProgress,
-                              ) {
-                                if (loadingProgress == null) return child;
-                                return Container(
-                                  width: 64,
-                                  height: 64,
-                                  color: Colors.grey[200],
-                                  child: const Center(
-                                    child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Color(0xFF2ECC71),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  width: 64,
-                                  height: 64,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        const Color(
-                                          0xFF2ECC71,
-                                        ).withOpacity(0.1),
-                                        const Color(
-                                          0xFF2ECC71,
-                                        ).withOpacity(0.05),
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      initial,
-                                      style: const TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF2ECC71),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            )
-                            : Container(
-                              width: 64,
-                              height: 64,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    const Color(0xFF2ECC71).withOpacity(0.1),
-                                    const Color(0xFF2ECC71).withOpacity(0.05),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  initial,
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2ECC71),
-                                  ),
-                                ),
-                              ),
-                            ),
-                  ),
-                ),
-                const Spacer(),
-                // Status and sync indicator
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8F5E9),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF4CAF50)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
                         children: [
                           Container(
-                            width: 6,
-                            height: 6,
+                            padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF4CAF50),
-                              borderRadius: BorderRadius.circular(3),
+                              color: const Color(0xFF2ECC71).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(
+                              Icons.phone_rounded,
+                              size: 14,
+                              color: Color(0xFF2ECC71),
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          const Text(
-                            'Active',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF2E7D32),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              parent['phone'] ?? 'No phone',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF2C3E50),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    if (parent['user_id'] != null) ...[
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue[50],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.blue[200]!),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.sync, size: 8, color: Colors.blue[600]),
-                            const SizedBox(width: 2),
-                            Text(
-                              'Synced',
-                              style: TextStyle(
-                                fontSize: 8,
-                                color: Colors.blue[600],
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2ECC71).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(
+                              Icons.email_rounded,
+                              size: 14,
+                              color: Color(0xFF2ECC71),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              parent['email'] ?? 'No email',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF2C3E50),
                                 fontWeight: FontWeight.w500,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                // Student count
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF2ECC71).withOpacity(0.15),
+                        const Color(0xFF27AE60).withOpacity(0.1),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: const Color(0xFF2ECC71).withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2ECC71).withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.people_rounded,
+                          size: 12,
+                          color: Color(0xFF1E8449),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        "${parent['student_count']} Student${parent['student_count'] == 1 ? '' : 's'}",
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF1E8449),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Action buttons row - Enhanced design
+                Row(
+                  children: [
+                    // View Details button - Enhanced styling
+                    Expanded(
+                      flex: 3,
+                      child: Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              Color(0xFF2ECC71),
+                              Color(0xFF27AE60),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF2ECC71).withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Name - Enhanced visibility
-            Text(
-              fullName,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1A1A1A),
-                letterSpacing: 0.3,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 8),
-
-            // Contact info - Enhanced visibility
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey[200]!),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.phone,
-                        size: 18,
-                        color: const Color(0xFF2ECC71),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          parent['phone'] ?? 'No phone',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF333333),
-                            fontWeight: FontWeight.w500,
+                        child: ElevatedButton(
+                          onPressed: () => _showParentDetails(parent),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 8,
+                            ),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          child: const Text(
+                            'View Details',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.email,
-                        size: 18,
-                        color: const Color(0xFF2ECC71),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          parent['email'] ?? 'No email',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF333333),
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(width: 8),
+                    // More actions menu - Enhanced styling
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.grey[300]!,
                         ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            // Student count
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2ECC71).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.people, size: 16, color: Color(0xFF2ECC71)),
-                  const SizedBox(width: 4),
-                  Text(
-                    "${parent['student_count']} Student${parent['student_count'] == 1 ? '' : 's'}",
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF2ECC71),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Spacer(),
-
-            // Action buttons row
-            Row(
-              children: [
-                // View Details button
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _showParentDetails(parent),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFF2ECC71)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 8,
-                      ),
-                    ),
-                    child: const Text(
-                      'View',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF2ECC71),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // More actions menu
-                PopupMenuButton<String>(
-                  icon: Icon(
-                    Icons.more_vert,
-                    color: Colors.grey[600],
-                    size: 18,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onSelected: (value) async {
+                      child: PopupMenuButton<String>(
+                        icon: Icon(
+                          Icons.more_vert_rounded,
+                          color: Colors.grey[600],
+                          size: 18,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 40,
+                          minHeight: 40,
+                        ),
+                    onSelected: (value) async {
                     if (value == 'edit') {
                       final result = await showDialog<Map<String, dynamic>>(
                         context: context,
@@ -1572,39 +1717,55 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                     } else if (value == 'delete') {
                       await _deleteParent(parent);
                     }
-                  },
-                  itemBuilder:
-                      (context) => [
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.edit,
-                                size: 16,
-                                color: Color(0xFF2ECC71),
-                              ),
-                              SizedBox(width: 8),
-                              Text('Edit'),
-                            ],
+                    },
+                    itemBuilder:
+                        (context) => [
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.edit,
+                                  size: 14,
+                                  color: Color(0xFF2ECC71),
+                                ),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Edit',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              Icon(Icons.delete, size: 16, color: Colors.red),
-                              SizedBox(width: 8),
-                              Text(
-                                'Delete',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ],
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.delete,
+                                  size: 14,
+                                  color: Colors.red,
+                                ),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Delete',
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+                ],
+              ),
             ),
           ],
         ),

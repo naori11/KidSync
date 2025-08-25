@@ -193,7 +193,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
       elevation: 20,
       shadowColor: Colors.black.withOpacity(0.2),
       child: Container(
-        width: 900,
+        width: 1300,
         height: 700,
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
@@ -318,7 +318,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Expanded(
-                                        flex: 2,
+                                        flex: 3,
                                         child: _buildTextField(
                                           controller: _fnameController,
                                           label: 'First Name *',
@@ -331,8 +331,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
-                                        flex:
-                                            2, // Changed from flex: 1 to flex: 2
+                                        flex: 2,
                                         child: _buildTextField(
                                           controller: _mnameController,
                                           label: 'Middle Name',
@@ -340,7 +339,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
-                                        flex: 2,
+                                        flex: 3,
                                         child: _buildTextField(
                                           controller: _lnameController,
                                           label: 'Last Name *',
