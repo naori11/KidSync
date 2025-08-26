@@ -119,7 +119,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
     try {
       final response = await supabase
           .from('students')
-          .select('id, fname, mname, lname, grade_level, section_id, status')
+          .select('id, fname, mname, lname, grade_level, section_id, sections(name), status')
           .eq('status', 'Active')
           .order('fname');
 
@@ -798,7 +798,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                                         ),
                                                                       ),
                                                                       Text(
-                                                                        "Grade ${student['grade_level']} - Section ${student['section_id']}",
+                                                                        "${student['grade_level']} - Section ${student['section']?['name'] ?? student['section_id']}",
                                                                         style: TextStyle(
                                                                           fontSize:
                                                                               13,
@@ -1058,7 +1058,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                                   ),
                                                                 ),
                                                                 Text(
-                                                                  "Grade ${student['grade_level']} - Section ${student['section_id']}",
+                                                                  "${student['grade_level']} - Section ${student['section']?['name'] ?? student['section_id']}",
                                                                   style: TextStyle(
                                                                     fontSize:
                                                                         13,
