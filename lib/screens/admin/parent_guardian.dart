@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kidsync/widgets/add_edit_parent_modal.dart';
@@ -52,7 +53,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
           ''')
           .eq('status', 'active');
 
-
       if (parentsResponse.isEmpty) {
         setState(() {
           parents = [];
@@ -65,7 +65,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
       final List<Map<String, dynamic>> transformedParents = [];
 
       for (final parentData in parentsResponse) {
-
         // Get students for this parent
         final studentsResponse = await supabase
             .from('parent_student')
@@ -146,7 +145,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
         transformedParents.add(transformedParent);
       }
 
-
       setState(() {
         parents = transformedParents;
         isLoading = false;
@@ -169,6 +167,158 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
       _showDetailModal = false;
       _selectedParent = null;
     });
+  }
+
+  // Normalize exceptions coming from Supabase Edge Functions / HTTP responses
+  Map<String, dynamic> _normalizeFunctionException(dynamic e) {
+    int status = 500;
+    dynamic data = {'error': e.toString()};
+
+    try {
+      final dyn = e as dynamic;
+
+      if (dyn.status != null) status = dyn.status as int;
+
+      if (dyn.details != null) {
+        data = dyn.details;
+      } else if (dyn.response != null) {
+        data = dyn.response;
+      } else if (dyn.message != null) {
+        data = {'error': dyn.message.toString()};
+      }
+
+      if (data is String) {
+        try {
+          data = jsonDecode(data);
+        } catch (_) {
+          data = {'error': data};
+        }
+      }
+
+      if (data is! Map) {
+        data = {'error': data.toString()};
+      }
+    } catch (_) {
+      data = {'error': e.toString()};
+    }
+
+    return {'status': status, 'data': data};
+  }
+
+  Map<String, String?> _extractFieldErrors(dynamic data) {
+    final Map<String, String?> errors = {};
+    if (data == null) return errors;
+
+    if (data is String) {
+      try {
+        final parsed = jsonDecode(data);
+        return _extractFieldErrors(parsed);
+      } catch (_) {
+        errors['_general'] = data;
+        return errors;
+      }
+    }
+
+    if (data is Map) {
+      if (data['errors'] is Map) {
+        (data['errors'] as Map).forEach((k, v) {
+          errors[k.toString()] = v?.toString();
+        });
+        return errors;
+      }
+      if (data['field_errors'] is Map) {
+        (data['field_errors'] as Map).forEach((k, v) {
+          errors[k.toString()] = v?.toString();
+        });
+        return errors;
+      }
+      if (data['error'] != null) {
+        errors['_general'] = data['error'].toString();
+        return errors;
+      }
+      bool looksLikeFields = data.keys.every(
+        (k) => k is String && (data[k] is String || data[k] == null),
+      );
+      if (looksLikeFields) {
+        data.forEach((k, v) {
+          errors[k.toString()] = v?.toString();
+        });
+        return errors;
+      }
+      errors['_general'] = data.toString();
+      return errors;
+    }
+
+    errors['_general'] = data.toString();
+    return errors;
+  }
+
+  Future<void> _openAddEditParentModal({Map<String, dynamic>? parent}) async {
+    Map<String, String?>? serverErrors;
+    Map<String, dynamic>? initialFormData;
+
+    while (true) {
+      final result = await showDialog<Map<String, dynamic>>(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) => AddEditParentModal(
+              parent: parent,
+              serverErrors: serverErrors,
+              initialFormData: initialFormData,
+            ),
+      );
+
+      // User cancelled
+      if (result == null) break;
+
+      try {
+        if (parent == null) {
+          // Create new parent
+          await _addParent(
+            fname: result['fname'],
+            mname: result['mname'],
+            lname: result['lname'],
+            email: result['email'],
+            phone: result['phone'],
+            address: result['address'],
+            studentsToLink: result['studentsToLink'] ?? [],
+          );
+        } else {
+          // Edit existing parent
+          await _editParent(
+            userId: parent['user_id']?.toString() ?? '',
+            parentId: parent['id'] as int,
+            fname: result['fname'],
+            mname: result['mname'],
+            lname: result['lname'],
+            email: result['email'],
+            phone: result['phone'],
+            address: result['address'],
+            studentsToLink: result['studentsToLink'] ?? [],
+          );
+        }
+        // Success: exit loop
+        break;
+      } catch (e) {
+        // Normalize and extract field-level errors (uses your existing helper functions)
+        final normalized = _normalizeFunctionException(e);
+        final errs = _extractFieldErrors(normalized['data']);
+
+        // Heuristic: if general message mentions email already exists, map it to 'email'
+        if ((errs['email'] == null || errs['email']!.isEmpty) &&
+            errs['_general'] != null &&
+            errs['_general']!.toLowerCase().contains('email') &&
+            errs['_general']!.toLowerCase().contains('already')) {
+          errs['email'] = errs['_general'];
+          errs['_general'] = null;
+        }
+
+        serverErrors = errs;
+        initialFormData = result;
+        // loop continues and re-opens modal with serverErrors displayed inline
+      }
+    }
   }
 
   // Updated: Create parent account via Edge Function, then insert to parents table and parent_student
@@ -219,7 +369,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
               .maybeSingle();
 
       if (existingUser != null) {
-        throw Exception('Email "$email" is already registered by another user');
+        throw Exception('Email is already used by another user');
       }
 
       // 1.5 Check if email already exists in parents table
@@ -390,47 +540,14 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
         _showSuccessSnackBar('Parent added successfully');
         _fetchParents();
-      } catch (parentError) {
-        // Rollback: remove any parent_student rows created and delete parent record
-        if (parentId != null) {
-          try {
-            await supabase
-                .from('parent_student')
-                .delete()
-                .eq('parent_id', parentId);
-          } catch (e) {
-            print(
-              'DEBUG: Failed to delete parent_student entries during rollback: $e',
-            );
-          }
-
-          try {
-            await supabase.from('parents').delete().eq('id', parentId);
-          } catch (e) {
-            print('DEBUG: Failed to delete parent record during rollback: $e');
-          }
-        }
-
-        // If parent creation fails, clean up the created user account
-        try {
-          final cleanupRes = await supabase.functions.invoke(
-            'delete_user',
-            body: {'id': userId},
-          );
-          print(
-            'DEBUG: delete_user cleanup response: status=${cleanupRes.status}, data=${cleanupRes.data}',
-          );
-          print('User account cleaned up successfully');
-        } catch (cleanupError) {
-          print('Failed to cleanup user account: $cleanupError');
-        }
-
-        // Re-throw the original parent creation error with context
-        throw Exception('Failed to create parent record: $parentError');
+      } catch (error) {
+        print('Error during parent creation: $error');
+        // RETHROW instead of showing SnackBar here so caller (caller loop) can show inline errors
+        rethrow;
       }
     } catch (error) {
       print('Error during parent creation: $error');
-      _showErrorSnackBar('Error adding parent: $error');
+      rethrow;
     }
   }
 
@@ -501,7 +618,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
       _fetchParents();
     } catch (error) {
       print('Error during parent edit: $error');
-      _showErrorSnackBar('Error updating parent: $error');
+      rethrow;
     }
   }
 
@@ -722,33 +839,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                 ),
                               ),
                               onPressed: () async {
-                                final result =
-                                    await showDialog<Map<String, dynamic>>(
-                                      context: context,
-                                      barrierDismissible: false,
-                                      builder:
-                                          (context) =>
-                                              AddEditParentModal(parent: null),
-                                    );
-                                // DEBUG: log dialog payload returned from modal
-                                print('DEBUG: Add dialog result: $result');
-
-                                if (result != null &&
-                                    result['fname'] != null &&
-                                    result['lname'] != null &&
-                                    result['email'] != null &&
-                                    result['phone'] != null) {
-                                  await _addParent(
-                                    fname: result['fname'],
-                                    mname: result['mname'],
-                                    lname: result['lname'],
-                                    email: result['email'],
-                                    phone: result['phone'],
-                                    address: result['address'],
-                                    studentsToLink:
-                                        result['studentsToLink'] ?? [],
-                                  );
-                                }
+                                await _openAddEditParentModal();
                               },
                             ),
                           ),
@@ -1654,35 +1745,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                           ),
                           onSelected: (value) async {
                             if (value == 'edit') {
-                              final result =
-                                  await showDialog<Map<String, dynamic>>(
-                                    context: context,
-                                    barrierDismissible: false,
-                                    builder:
-                                        (context) =>
-                                            AddEditParentModal(parent: parent),
-                                  );
-                              // DEBUG: log edit dialog payload
-                              print('DEBUG: Edit dialog result: $result');
-
-                              if (result != null &&
-                                  result['fname'] != null &&
-                                  result['lname'] != null &&
-                                  result['email'] != null &&
-                                  result['phone'] != null) {
-                                await _editParent(
-                                  userId: parent['user_id'],
-                                  parentId: parent['id'],
-                                  fname: result['fname'],
-                                  mname: result['mname'],
-                                  lname: result['lname'],
-                                  email: result['email'],
-                                  phone: result['phone'],
-                                  address: result['address'],
-                                  studentsToLink:
-                                      result['studentsToLink'] ?? [],
-                                );
-                              }
+                              await _openAddEditParentModal(parent: parent);
                             } else if (value == 'delete') {
                               await _deleteParent(parent);
                             }

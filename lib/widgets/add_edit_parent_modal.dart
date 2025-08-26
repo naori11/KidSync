@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/services.dart';
 
 class AddEditParentModal extends StatefulWidget {
   final Map<String, dynamic>? parent;
+  final Map<String, String?>? serverErrors; // NEW: server-side field errors
+  final Map<String, dynamic>?
+  initialFormData; // NEW: prefill after server error
 
-  const AddEditParentModal({super.key, this.parent});
+  const AddEditParentModal({
+    super.key,
+    this.parent,
+    this.serverErrors,
+    this.initialFormData,
+  });
 
   @override
   State<AddEditParentModal> createState() => _AddEditParentModalState();
@@ -31,14 +40,24 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
   String _studentSearchQuery = '';
   bool _isSubmitting = false;
 
+  // Server-provided errors shown in modal
+  Map<String, String?> _serverErrors = {};
+  String? _serverGeneral;
+
   @override
   void initState() {
     super.initState();
+    // Load server errors into local state so they are reactive in the dialog
+    if (widget.serverErrors != null) {
+      _serverErrors = Map<String, String?>.from(widget.serverErrors!);
+      _serverGeneral = widget.serverErrors!['_general'];
+    }
     _loadStudents();
     _initializeForm();
   }
 
   void _initializeForm() {
+    // If parent provided (editing) use that
     if (widget.parent != null) {
       _fnameController.text = widget.parent!['first_name'] ?? '';
       _mnameController.text = widget.parent!['middle_name'] ?? '';
@@ -47,7 +66,6 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
       _phoneController.text = widget.parent!['phone'] ?? '';
       _addressController.text = widget.parent!['address'] ?? '';
 
-      // Initialize selected students
       final students = widget.parent!['students'] as List? ?? [];
       _selectedStudents =
           students
@@ -63,12 +81,36 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                     'lname': student['last_name'],
                     'grade_level': student['grade'],
                     'section_id': student['section'],
-                    'status':
-                        'Active', // Assume active since it's from the parent's students
+                    'status': 'Active',
                   },
                 },
               )
               .toList();
+      return;
+    }
+
+    // If initialFormData provided (re-open after server error), prefill fields
+    if (widget.initialFormData != null) {
+      final data = widget.initialFormData!;
+      _fnameController.text = data['fname']?.toString() ?? '';
+      _mnameController.text = data['mname']?.toString() ?? '';
+      _lnameController.text = data['lname']?.toString() ?? '';
+      _emailController.text = data['email']?.toString() ?? '';
+      _phoneController.text = data['phone']?.toString() ?? '';
+      _addressController.text = data['address']?.toString() ?? '';
+
+      // studentsToLink expected to be list of maps similar to selection format
+      final studentsList = data['studentsToLink'] as List? ?? [];
+      _selectedStudents =
+          studentsList.map((s) {
+            // keep student_data if provided, otherwise minimal
+            return {
+              'student_id': s['student_id'],
+              'relationship_type': s['relationship_type'] ?? 'parent',
+              'is_primary': s['is_primary'] ?? false,
+              'student_data': s['student_data'] ?? {'id': s['student_id']},
+            };
+          }).toList();
     }
   }
 
@@ -257,6 +299,32 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
             ),
             const SizedBox(height: 24),
 
+            // If server general error exists show it here
+            if (_serverGeneral != null && _serverGeneral!.isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  border: Border.all(color: Colors.red[100]!),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error, color: Colors.red, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _serverGeneral!,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             // Form content
             Expanded(
               child: SingleChildScrollView(
@@ -322,10 +390,11 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                         child: _buildTextField(
                                           controller: _fnameController,
                                           label: 'First Name *',
+                                          fieldKey: 'fname', // NEW
                                           validator:
                                               (val) =>
                                                   val?.trim().isEmpty == true
-                                                      ? 'Required'
+                                                      ? 'First name is required'
                                                       : null,
                                         ),
                                       ),
@@ -335,6 +404,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                         child: _buildTextField(
                                           controller: _mnameController,
                                           label: 'Middle Name',
+                                          fieldKey: 'mname', // NEW
                                         ),
                                       ),
                                       const SizedBox(width: 12),
@@ -343,10 +413,11 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                         child: _buildTextField(
                                           controller: _lnameController,
                                           label: 'Last Name *',
+                                          fieldKey: 'lname', // NEW
                                           validator:
                                               (val) =>
                                                   val?.trim().isEmpty == true
-                                                      ? 'Required'
+                                                      ? 'Last name is required'
                                                       : null,
                                         ),
                                       ),
@@ -358,6 +429,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                   _buildTextField(
                                     controller: _emailController,
                                     label: 'Email Address *',
+                                    fieldKey: 'email', // NEW
                                     validator: (val) {
                                       if (val?.trim().isEmpty == true)
                                         return 'Required';
@@ -374,17 +446,35 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                   _buildTextField(
                                     controller: _phoneController,
                                     label: 'Phone Number *',
-                                    validator:
-                                        (val) =>
-                                            val?.trim().isEmpty == true
-                                                ? 'Required'
-                                                : null,
+                                    fieldKey: 'phone', // NEW: server error key
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                    ],
+                                    maxLength: 11,
+                                    validator: (val) {
+                                      if (val == null || val.trim().isEmpty) {
+                                        return 'Required';
+                                      }
+                                      final digits = val.trim();
+                                      if (!RegExp(r'^\d+$').hasMatch(digits)) {
+                                        return 'Only numbers allowed';
+                                      }
+                                      if (digits.length != 11) {
+                                        return 'Phone number must be 11 digits';
+                                      }
+                                      if (!digits.startsWith('09')) {
+                                        return 'Phone number must start with 09';
+                                      }
+                                      return null;
+                                    },
                                   ),
                                   const SizedBox(height: 16),
 
                                   _buildTextField(
                                     controller: _addressController,
                                     label: 'Address',
+                                    fieldKey: 'address', // NEW
                                     maxLines: 2,
                                   ),
                                 ],
@@ -1220,7 +1310,13 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
     required String label,
     String? Function(String?)? validator,
     int maxLines = 1,
+    String? fieldKey, // NEW: name used to show server-side field error
+    TextInputType keyboardType = TextInputType.text, // NEW
+    List<TextInputFormatter>? inputFormatters, // NEW
+    int? maxLength, // NEW
   }) {
+    final errorText = fieldKey != null ? _serverErrors[fieldKey] : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1237,7 +1333,21 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
           controller: controller,
           validator: validator,
           maxLines: maxLines,
+          keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
+          maxLength: maxLength,
+          onChanged: (val) {
+            // Clear server-side error for this field as user edits it
+            if (fieldKey != null && _serverErrors[fieldKey] != null) {
+              setState(() {
+                _serverErrors[fieldKey] = null;
+                // also clear general server error when editing fields
+                _serverGeneral = null;
+              });
+            }
+          },
           decoration: InputDecoration(
+            counterText: '', // hide built-in counter if using maxLength
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: Color(0xFFE0E0E0), width: 2),
@@ -1280,6 +1390,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                       color: Color(0xFF2ECC71),
                       size: 20,
                     ),
+            errorText: errorText, // show server-side field error inline
           ),
           style: const TextStyle(
             fontSize: 16,
