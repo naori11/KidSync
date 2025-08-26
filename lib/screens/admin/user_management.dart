@@ -1575,33 +1575,49 @@ class _UserManagementPageState extends State<UserManagementPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header row with title and search/add user buttons
+            // Standardized Header
             Row(
               children: [
                 const Text(
                   "User Management",
                   style: TextStyle(
-                    fontSize: 24,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
+                    color: Color(0xFF1A1A1A),
+                    letterSpacing: 0.5,
                   ),
                 ),
                 const Spacer(),
-                // Search bar
+                // Standardized Search bar
                 Container(
-                  width: 240,
-                  height: 40,
+                  width: 260,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     border: Border.all(color: const Color(0xFFE0E0E0)),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: TextField(
                     decoration: const InputDecoration(
                       hintText: 'Search users...',
-                      prefixIcon: Icon(Icons.search, color: Color(0xFF9E9E9E)),
+                      hintStyle: TextStyle(fontSize: 14, color: Color(0xFF9E9E9E)),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: Color(0xFF2ECC71),
+                        size: 20,
+                      ),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 10.0),
+                      contentPadding: EdgeInsets.symmetric(
+                        vertical: 12.0,
+                        horizontal: 16.0,
+                      ),
                     ),
                     onChanged:
                         (val) => setState(() {
@@ -1610,34 +1626,85 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         }),
                   ),
                 ),
-                const SizedBox(width: 16),
-                // Add New User button
+                const SizedBox(width: 12),
+                // Standardized Add New button
                 SizedBox(
-                  height: 40,
+                  height: 44,
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add, color: Colors.white),
+                    icon: const Icon(Icons.add, color: Colors.white, size: 18),
                     label: const Text(
                       "Add New User",
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2ECC71),
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      elevation: 2,
+                      shadowColor: Colors.black.withOpacity(0.1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
                     ),
                     onPressed: isAdmin ? () => _addOrEditUser() : null,
                   ),
                 ),
+                const SizedBox(width: 12),
+                // Standardized Export button
+                SizedBox(
+                  height: 44,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(
+                      Icons.file_download_outlined,
+                      color: Color(0xFF2ECC71),
+                      size: 18,
+                    ),
+                    label: const Text(
+                      "Export",
+                      style: TextStyle(
+                        color: Color(0xFF2ECC71),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      side: const BorderSide(
+                        color: Color(0xFF2ECC71),
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 1,
+                      shadowColor: Colors.black.withOpacity(0.05),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                    ),
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Export functionality coming soon...'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ],
             ),
-
-            // Breadcrumb / subtitle
+            // Standardized Breadcrumb
             const Padding(
-              padding: EdgeInsets.only(top: 4.0, bottom: 20.0),
+              padding: EdgeInsets.only(top: 8.0, bottom: 24.0),
               child: Text(
                 "Home / User Management",
                 style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),

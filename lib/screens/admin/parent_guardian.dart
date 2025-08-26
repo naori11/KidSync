@@ -769,7 +769,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header row with title and search/add buttons
+                      // Standardized Header
                       Row(
                         children: [
                           const Text(
@@ -777,52 +777,57 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF333333),
+                              color: Color(0xFF1A1A1A),
+                              letterSpacing: 0.5,
                             ),
                           ),
                           const Spacer(),
-                          // Enhanced Search bar
+                          // Standardized Search bar
                           Container(
-                            width: 280,
-                            height: 45,
+                            width: 260,
+                            height: 44,
                             decoration: BoxDecoration(
-                              color: Colors.grey[50],
-                              border: Border.all(
-                                color: const Color(0xFFE0E0E0),
-                              ),
+                              color: Colors.white,
+                              border: Border.all(color: const Color(0xFFE0E0E0)),
                               borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
                             child: TextField(
                               decoration: const InputDecoration(
                                 hintText: 'Search parents...',
+                                hintStyle: TextStyle(fontSize: 14, color: Color(0xFF9E9E9E)),
                                 prefixIcon: Icon(
                                   Icons.search,
-                                  color: Color(0xFF9E9E9E),
+                                  color: Color(0xFF2ECC71),
+                                  size: 20,
                                 ),
                                 border: InputBorder.none,
                                 contentPadding: EdgeInsets.symmetric(
                                   vertical: 12.0,
+                                  horizontal: 16.0,
                                 ),
                               ),
                               onChanged:
                                   (val) => setState(() => _searchQuery = val),
                             ),
                           ),
-                          const SizedBox(width: 16),
-                          // Enhanced Add New Parent button
+                          const SizedBox(width: 12),
+                          // Standardized Add New button
                           SizedBox(
-                            height: 45,
+                            height: 44,
                             child: ElevatedButton.icon(
-                              icon: const Icon(
-                                Icons.add,
-                                color: Colors.white,
-                                size: 20,
-                              ),
+                              icon: const Icon(Icons.add, color: Colors.white, size: 18),
                               label: const Text(
                                 "Add New Parent",
                                 style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 16,
+                                  fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -833,9 +838,10 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 elevation: 2,
+                                shadowColor: Colors.black.withOpacity(0.1),
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 12,
+                                  horizontal: 16,
+                                  vertical: 10,
                                 ),
                               ),
                               onPressed: () async {
@@ -843,34 +849,38 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                               },
                             ),
                           ),
-                          const SizedBox(width: 16),
-                          // Enhanced Export button
+                          const SizedBox(width: 12),
+                          // Standardized Export button
                           SizedBox(
-                            height: 45,
+                            height: 44,
                             child: OutlinedButton.icon(
                               icon: const Icon(
                                 Icons.file_download_outlined,
-                                color: Color(0xFF333333),
-                                size: 20,
+                                color: Color(0xFF2ECC71),
+                                size: 18,
                               ),
                               label: const Text(
                                 "Export",
                                 style: TextStyle(
-                                  color: Color(0xFF333333),
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF2ECC71),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                               style: OutlinedButton.styleFrom(
+                                backgroundColor: Colors.white,
                                 side: const BorderSide(
-                                  color: Color(0xFFE0E0E0),
+                                  color: Color(0xFF2ECC71),
+                                  width: 1.5,
                                 ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
+                                elevation: 1,
+                                shadowColor: Colors.black.withOpacity(0.05),
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 12,
+                                  horizontal: 16,
+                                  vertical: 10,
                                 ),
                               ),
                               onPressed: () {

@@ -126,94 +126,109 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   }
 
   Widget _buildHeader() {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Search box
-        Expanded(
-          child: Container(
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _onSearchChanged,
-              decoration: InputDecoration(
-                hintText: 'Search logs...',
-                prefixIcon: Icon(Icons.search, color: Colors.grey.shade600),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        // Standardized Header
+        Row(
+          children: [
+            const Text(
+              "Audit Logs",
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1A1A1A),
+                letterSpacing: 0.5,
               ),
             ),
-          ),
+            const Spacer(),
+            // Standardized Search bar
+            Container(
+              width: 260,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: const Color(0xFFE0E0E0)),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                decoration: const InputDecoration(
+                  hintText: 'Search logs...',
+                  hintStyle: TextStyle(fontSize: 14, color: Color(0xFF9E9E9E)),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: Color(0xFF2ECC71),
+                    size: 20,
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(
+                    vertical: 12.0,
+                    horizontal: 16.0,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Standardized Export button
+            SizedBox(
+              height: 44,
+              child: OutlinedButton.icon(
+                icon: const Icon(
+                  Icons.file_download_outlined,
+                  color: Color(0xFF2ECC71),
+                  size: 18,
+                ),
+                label: const Text(
+                  "Export",
+                  style: TextStyle(
+                    color: Color(0xFF2ECC71),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  side: const BorderSide(
+                    color: Color(0xFF2ECC71),
+                    width: 1.5,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 1,
+                  shadowColor: Colors.black.withOpacity(0.05),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                ),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Export functionality coming soon...'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
-
-        const SizedBox(width: 16),
-
-        // Date Range filter
-        Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.calendar_today, size: 16),
-              const SizedBox(width: 8),
-              const Text('Date Range'),
-              const SizedBox(width: 8),
-              Icon(Icons.arrow_drop_down, color: Colors.grey.shade700),
-            ],
-          ),
-        ),
-
-        const SizedBox(width: 16),
-
-        // Filters button
-        Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.filter_list, size: 16),
-              const SizedBox(width: 8),
-              const Text('Filters'),
-              const SizedBox(width: 8),
-              Icon(Icons.arrow_drop_down, color: Colors.grey.shade700),
-            ],
-          ),
-        ),
-
-        const SizedBox(width: 16),
-
-        // Export button
-        Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.download, size: 16),
-              const SizedBox(width: 8),
-              const Text('Export'),
-            ],
+        // Standardized Breadcrumb
+        const Padding(
+          padding: EdgeInsets.only(top: 8.0, bottom: 16.0),
+          child: Text(
+            "Home / Audit Logs",
+            style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
           ),
         ),
       ],

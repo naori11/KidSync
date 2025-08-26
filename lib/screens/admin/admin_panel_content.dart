@@ -106,224 +106,343 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
   }
 
   Widget _buildDashboardHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: Colors.blue[100],
-            radius: 23,
-            backgroundImage:
-                profileImageUrl != null && profileImageUrl!.isNotEmpty
-                    ? NetworkImage(profileImageUrl!)
-                    : null,
-            child:
-                profileImageUrl == null || profileImageUrl!.isEmpty
-                    ? Text(
-                      (adminName != null && adminName!.isNotEmpty)
-                          ? adminName![0].toUpperCase()
-                          : 'A',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24,
-                        color: Color(0xFF2563EB),
-                      ),
-                    )
-                    : null,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 768;
+        final isTablet = constraints.maxWidth >= 768 && constraints.maxWidth < 1200;
+        
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.fromLTRB(
+            isMobile ? 16 : (isTablet ? 20 : 24), 
+            isMobile ? 12 : 16, 
+            isMobile ? 16 : (isTablet ? 20 : 24), 
+            isMobile ? 12 : 16
           ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Good day, ${adminName ?? 'Admin'}!",
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF222B45),
-                  ),
-                ),
-                Row(
+          margin: const EdgeInsets.all(0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: Colors.blue[100],
+                radius: isMobile ? 18 : 22,
+                backgroundImage:
+                    profileImageUrl != null && profileImageUrl!.isNotEmpty
+                        ? NetworkImage(profileImageUrl!)
+                        : null,
+                child:
+                    profileImageUrl == null || profileImageUrl!.isEmpty
+                        ? Text(
+                          (adminName != null && adminName!.isNotEmpty)
+                              ? adminName![0].toUpperCase()
+                              : 'A',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: isMobile ? 16 : 20,
+                            color: const Color(0xFF2563EB),
+                          ),
+                        )
+                        : null,
+              ),
+              SizedBox(width: isMobile ? 8 : 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.calendar_today,
-                      size: 16,
-                      color: Color(0xFF8F9BB3),
-                    ),
-                    const SizedBox(width: 5),
                     Text(
-                      getTodayLabel(),
-                      style: const TextStyle(
-                        color: Color(0xFF8F9BB3),
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
+                      "Good day, ${adminName ?? 'Admin'}!",
+                      style: TextStyle(
+                        fontSize: isMobile ? 16 : 18,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF222B45),
                       ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: isMobile ? 12 : 14,
+                          color: const Color(0xFF8F9BB3),
+                        ),
+                        SizedBox(width: isMobile ? 3 : 4),
+                        Text(
+                          getTodayLabel(),
+                          style: TextStyle(
+                            color: const Color(0xFF8F9BB3),
+                            fontWeight: FontWeight.w400,
+                            fontSize: isMobile ? 11 : 13,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDashboard() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Add the header here
-          _buildDashboardHeader(),
-          const SizedBox(height: 24),
-
-          // Quick Stats Row
-          Row(
-            children: [
-              Expanded(
-                child: _buildQuickStatCard(
-                  "Total Students",
-                  "243",
-                  Icons.people,
-                  Colors.blue,
-                  "+12 this month",
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildQuickStatCard(
-                  "Total Users",
-                  "156",
-                  Icons.person,
-                  Colors.green,
-                  "+8 this month",
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildQuickStatCard(
-                  "Active Sections",
-                  "18",
-                  Icons.class_,
-                  Colors.orange,
-                  "2 new sections",
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildQuickStatCard(
-                  "Today's Attendance",
-                  "92.6%",
-                  Icons.check_circle,
-                  Colors.purple,
-                  "+0.2% from yesterday",
                 ),
               ),
             ],
           ),
+        );
+      },
+    );
+  }
 
-          const SizedBox(height: 24),
-
-          // Main Content - Centered Summary Panels
-          Expanded(
-            child: Column(
-              // Changed from Row to Column as only one column remains
-              children: [
-                // System Overview
-                Container(
-                  padding: const EdgeInsets.all(24), // Increased padding
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16), // Increased radius
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "System Overview",
-                        style: TextStyle(
-                          fontSize: 20, // Increased font size
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 20), // Increased spacing
-                      _overviewItem("Active Students", 96, Colors.blue),
-                      const SizedBox(height: 16), // Increased spacing
-                      _overviewItem("Present Today", 86, Colors.green),
-                      const SizedBox(height: 16), // Increased spacing
-                      _overviewItem("Absent Today", 14, Colors.orange),
-                      const SizedBox(height: 16), // Increased spacing
-                      _overviewItem("Late Students", 24, Colors.red),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24), // Increased spacing between panels
-                // Recent Activity
-                Container(
-                  padding: const EdgeInsets.all(24), // Increased padding
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16), // Increased radius
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Recent Activity",
-                        style: TextStyle(
-                          fontSize: 20, // Increased font size
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 20), // Increased spacing
-                      _buildActivityItem(
-                        "New student enrolled",
-                        "2 minutes ago",
-                        Icons.person_add,
-                        Colors.green,
-                      ),
-                      const SizedBox(height: 12), // Increased spacing
-                      _buildActivityItem(
-                        "Attendance marked",
-                        "15 minutes ago",
-                        Icons.check_circle,
-                        Colors.blue,
-                      ),
-                      const SizedBox(height: 12), // Increased spacing
-                      _buildActivityItem(
-                        "Section updated",
-                        "1 hour ago",
-                        Icons.edit,
-                        Colors.orange,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+  Widget _buildDashboard() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 768;
+        final isTablet = constraints.maxWidth >= 768 && constraints.maxWidth < 1200;
+        final isDesktop = constraints.maxWidth >= 1200;
+        
+        return Column(
+          children: [
+            // Profile greeting with top spacing
+            Container(
+              margin: EdgeInsets.fromLTRB(
+                isMobile ? 8 : (isTablet ? 12 : 16), // Left margin from sidebar
+                isMobile ? 8 : 12, // Top margin
+                isMobile ? 8 : (isTablet ? 12 : 16), // Right margin
+                0, // No bottom margin
+              ),
+              child: _buildDashboardHeader(),
             ),
+            
+            // Scrollable content below
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(isMobile ? 8 : (isTablet ? 12 : 16)),
+                child: Column(
+                  children: [
+                    // Quick Stats Row - Responsive
+                    _buildResponsiveStatsGrid(isMobile, isTablet),
+
+                    SizedBox(height: isMobile ? 16 : 24),
+
+                    // Main Content - Responsive Layout
+                    _buildResponsiveMainContent(isMobile, isTablet, isDesktop),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  Widget _buildResponsiveStatsGrid(bool isMobile, bool isTablet) {
+    final stats = [
+      {"title": "Total Students", "value": "243", "icon": Icons.people, "color": Colors.blue, "subtitle": "+12 this month"},
+      {"title": "Total Users", "value": "156", "icon": Icons.person, "color": Colors.green, "subtitle": "+8 this month"},
+      {"title": "Active Sections", "value": "18", "icon": Icons.class_, "color": Colors.orange, "subtitle": "2 new sections"},
+      {"title": "Today's Attendance", "value": "92.6%", "icon": Icons.check_circle, "color": Colors.purple, "subtitle": "+0.2% from yesterday"},
+    ];
+    
+    if (isMobile) {
+      // Stack cards vertically on mobile
+      return Column(
+        children: stats.map((stat) => 
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildQuickStatCard(
+              stat["title"] as String,
+              stat["value"] as String,
+              stat["icon"] as IconData,
+              stat["color"] as Color,
+              stat["subtitle"] as String,
+            ),
+          ),
+        ).toList(),
+      );
+    } else if (isTablet) {
+      // 2x2 grid on tablet
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildQuickStatCard(
+                  stats[0]["title"] as String,
+                  stats[0]["value"] as String,
+                  stats[0]["icon"] as IconData,
+                  stats[0]["color"] as Color,
+                  stats[0]["subtitle"] as String,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildQuickStatCard(
+                  stats[1]["title"] as String,
+                  stats[1]["value"] as String,
+                  stats[1]["icon"] as IconData,
+                  stats[1]["color"] as Color,
+                  stats[1]["subtitle"] as String,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildQuickStatCard(
+                  stats[2]["title"] as String,
+                  stats[2]["value"] as String,
+                  stats[2]["icon"] as IconData,
+                  stats[2]["color"] as Color,
+                  stats[2]["subtitle"] as String,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildQuickStatCard(
+                  stats[3]["title"] as String,
+                  stats[3]["value"] as String,
+                  stats[3]["icon"] as IconData,
+                  stats[3]["color"] as Color,
+                  stats[3]["subtitle"] as String,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    } else {
+      // Single row on desktop
+      return Row(
+        children: stats.map((stat) => 
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: _buildQuickStatCard(
+                stat["title"] as String,
+                stat["value"] as String,
+                stat["icon"] as IconData,
+                stat["color"] as Color,
+                stat["subtitle"] as String,
+              ),
+            ),
+          ),
+        ).toList(),
+      );
+    }
+  }
+  
+  Widget _buildResponsiveMainContent(bool isMobile, bool isTablet, bool isDesktop) {
+    final systemOverview = Container(
+      padding: EdgeInsets.all(isMobile ? 16 : (isTablet ? 20 : 24)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(isMobile ? 12 : 16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "System Overview",
+            style: TextStyle(
+              fontSize: isMobile ? 16 : (isTablet ? 18 : 20),
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          SizedBox(height: isMobile ? 12 : (isTablet ? 16 : 20)),
+          _overviewItem("Active Students", 96, Colors.blue),
+          SizedBox(height: isMobile ? 8 : (isTablet ? 12 : 16)),
+          _overviewItem("Present Today", 86, Colors.green),
+          SizedBox(height: isMobile ? 8 : (isTablet ? 12 : 16)),
+          _overviewItem("Absent Today", 14, Colors.orange),
+          SizedBox(height: isMobile ? 8 : (isTablet ? 12 : 16)),
+          _overviewItem("Late Students", 24, Colors.red),
+        ],
+      ),
+    );
+    
+    final recentActivity = Container(
+      padding: EdgeInsets.all(isMobile ? 16 : (isTablet ? 20 : 24)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(isMobile ? 12 : 16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Recent Activity",
+            style: TextStyle(
+              fontSize: isMobile ? 16 : (isTablet ? 18 : 20),
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          SizedBox(height: isMobile ? 12 : (isTablet ? 16 : 20)),
+          _buildActivityItem(
+            "New student enrolled",
+            "2 minutes ago",
+            Icons.person_add,
+            Colors.green,
+          ),
+          SizedBox(height: isMobile ? 8 : 12),
+          _buildActivityItem(
+            "Attendance marked",
+            "15 minutes ago",
+            Icons.check_circle,
+            Colors.blue,
+          ),
+          SizedBox(height: isMobile ? 8 : 12),
+          _buildActivityItem(
+            "Section updated",
+            "1 hour ago",
+            Icons.edit,
+            Colors.orange,
           ),
         ],
       ),
     );
+    
+    if (isMobile || isTablet) {
+      // Stack vertically on mobile and tablet
+      return Column(
+        children: [
+          systemOverview,
+          SizedBox(height: isMobile ? 16 : 24),
+          recentActivity,
+        ],
+      );
+    } else {
+      // Side by side on desktop
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: systemOverview),
+          const SizedBox(width: 24),
+          Expanded(child: recentActivity),
+        ],
+      );
+    }
   }
 
   // Helper widget for overview items with progress bar
@@ -584,16 +703,29 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: LayoutBuilder(
         builder: (context, constraints) {
+          final isTablet = constraints.maxWidth >= 768;
+          final isMobile = constraints.maxWidth < 768;
+          final isLargeScreen = constraints.maxWidth >= 1200;
+          
           return Row(
             children: [
               // Sidebar Navigation
               LayoutBuilder(
-                builder: (context, constraints) {
+                builder: (context, sidebarConstraints) {
+                  double sidebarWidth;
+                  if (isMobile) {
+                    sidebarWidth = constraints.maxWidth * 0.25; // 25% on mobile
+                    sidebarWidth = sidebarWidth.clamp(60.0, 120.0);
+                  } else if (isTablet) {
+                    sidebarWidth = constraints.maxWidth * 0.2; // 20% on tablet
+                    sidebarWidth = sidebarWidth.clamp(150.0, 200.0);
+                  } else {
+                    sidebarWidth = constraints.maxWidth * 0.15; // 15% on desktop
+                    sidebarWidth = sidebarWidth.clamp(180.0, 250.0);
+                  }
+                  
                   return Container(
-                    width:
-                        constraints.maxWidth < 400
-                            ? 80
-                            : 180, // Responsive width
+                    width: sidebarWidth,
                     color: const Color.fromARGB(255, 255, 255, 255),
                     child: SafeArea(
                       child: Column(
@@ -601,11 +733,16 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                         children: [
                           // App title
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+                            padding: EdgeInsets.fromLTRB(
+                              isMobile ? 8 : 16,
+                              isMobile ? 16 : 24,
+                              isMobile ? 8 : 16,
+                              isMobile ? 20 : 32,
+                            ),
                             child: Text(
-                              "KidSync",
+                              isMobile ? "KS" : "KidSync",
                               style: TextStyle(
-                                fontSize: 20,
+                                fontSize: isMobile ? 16 : (isTablet ? 18 : 20),
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                               ),
@@ -623,21 +760,22 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                                 if (item.label == "Logout" && index > 0) {
                                   return Column(
                                     children: [
-                                      SizedBox(height: 16),
-                                      _buildNavItem(item, index),
+                                      SizedBox(height: isMobile ? 8 : 16),
+                                      _buildNavItem(item, index, isMobile),
                                     ],
                                   );
                                 }
-                                return _buildNavItem(item, index);
+                                return _buildNavItem(item, index, isMobile);
                               },
                             ),
                           ),
                           // Logout button at the bottom
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 24.0),
+                            padding: EdgeInsets.only(bottom: isMobile ? 12.0 : 24.0),
                             child: _buildNavItem(
                               _NavItem("Logout", Icons.logout, null),
                               navItems.length,
+                              isMobile,
                             ),
                           ),
                         ],
@@ -661,7 +799,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     );
   }
 
-  Widget _buildNavItem(_NavItem item, int index) {
+  Widget _buildNavItem(_NavItem item, int index, bool isMobile) {
     final bool isSelected = selectedIndex == index;
 
     return InkWell(
@@ -717,30 +855,44 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           color: isSelected ? const Color(0xFF2ECC71) : Colors.transparent,
           borderRadius: BorderRadius.circular(4),
         ),
-        margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              item.icon,
-              color: isSelected ? Colors.white : Colors.grey[600],
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                item.label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isSelected ? Colors.white : Colors.grey[800],
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                ),
-              ),
-            ),
-          ],
+        margin: EdgeInsets.fromLTRB(
+          isMobile ? 4 : 8,
+          isMobile ? 2 : 4,
+          isMobile ? 4 : 8,
+          isMobile ? 2 : 4,
         ),
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 8 : 16,
+          vertical: isMobile ? 8 : 12,
+        ),
+        child: isMobile
+            ? Icon(
+                item.icon,
+                color: isSelected ? Colors.white : Colors.grey[600],
+                size: 18,
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    item.icon,
+                    color: isSelected ? Colors.white : Colors.grey[600],
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      item.label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isSelected ? Colors.white : Colors.grey[800],
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }
