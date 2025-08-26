@@ -33,8 +33,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     setState(() => isLoading = true);
 
     try {
-      print('Fetching parents from database...');
-
       // Fetch all active parents with user data
       final parentsResponse = await supabase
           .from('parents')
@@ -54,10 +52,8 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
           ''')
           .eq('status', 'active');
 
-      print('Parents response: $parentsResponse');
 
       if (parentsResponse.isEmpty) {
-        print('No parents found in database');
         setState(() {
           parents = [];
           isLoading = false;
@@ -69,9 +65,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
       final List<Map<String, dynamic>> transformedParents = [];
 
       for (final parentData in parentsResponse) {
-        print(
-          'Processing parent: ${parentData['fname']} ${parentData['lname']}',
-        );
 
         // Get students for this parent
         final studentsResponse = await supabase
@@ -93,8 +86,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
               )
             ''')
             .eq('parent_id', parentData['id']);
-
-        print('Students for parent ${parentData['id']}: $studentsResponse');
 
         List<Map<String, dynamic>> studentsList = [];
 
@@ -155,14 +146,12 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
         transformedParents.add(transformedParent);
       }
 
-      print('Transformed parents: ${transformedParents.length}');
 
       setState(() {
         parents = transformedParents;
         isLoading = false;
       });
     } catch (error) {
-      print('Error fetching parents: $error');
       setState(() => isLoading = false);
       _showErrorSnackBar('Error fetching parents: $error');
     }
@@ -182,27 +171,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     });
   }
 
-  void _showAddParentModal() {
-    setState(() {
-      _editingParent = null;
-      _showAddEditModal = true;
-    });
-  }
-
-  void _showEditParentModal(Map<String, dynamic> parent) {
-    setState(() {
-      _editingParent = parent;
-      _showAddEditModal = true;
-    });
-  }
-
-  void _closeAddEditModal() {
-    setState(() {
-      _showAddEditModal = false;
-      _editingParent = null;
-    });
-  }
-
   // Updated: Create parent account via Edge Function, then insert to parents table and parent_student
   Future<void> _addParent({
     required String fname,
@@ -214,8 +182,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     required List<Map<String, dynamic>> studentsToLink,
   }) async {
     try {
-      print('Starting parent creation with validation...');
-
       // STEP 1: VALIDATE ALL DATA BEFORE CREATING USER ACCOUNT
 
       // 1.1 Basic validation
@@ -244,8 +210,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
         throw Exception('Please enter a valid phone number');
       }
 
-      print('Basic validation passed');
-
       // 1.4 Check if email already exists in users table
       final existingUser =
           await supabase
@@ -258,22 +222,27 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
         throw Exception('Email "$email" is already registered by another user');
       }
 
-      print('Email availability check passed');
-
       // 1.5 Check if email already exists in parents table
-      final existingParent =
-          await supabase
-              .from('parents')
-              .select('id, email, status')
-              .eq('email', email.trim())
-              .eq('status', 'active')
-              .maybeSingle();
+      final existingParentsList = await supabase
+          .from('parents')
+          .select('id, email, status, user_id')
+          .eq('email', email.trim())
+          .limit(2); // fetch up to 2 rows so we can detect duplicates
 
-      if (existingParent != null) {
-        throw Exception('Email "$email" is already used by another parent');
+      if (existingParentsList.isNotEmpty) {
+        if (existingParentsList.length > 1) {
+          // Duplicate data found in DB — surface a clear error and stop
+          throw Exception(
+            'Multiple parent records found with email "$email". Please resolve duplicate parent rows in the database before adding a new parent.',
+          );
+        } else {
+          // Exactly one existing parent found -> treat as conflict
+          final existingParentRow = existingParentsList.first;
+          throw Exception(
+            'Email "$email" is already registered to a parent (status: ${existingParentRow['status']}).',
+          );
+        }
       }
-
-      print('Parent email check passed');
 
       // 1.6 Check if phone number already exists in users table
       final existingUserPhone =
@@ -288,8 +257,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
           'Phone number "$phone" is already registered by another user',
         );
       }
-
-      print('User phone check passed');
 
       // 1.7 Check if phone number already exists in parents table
       final existingParentPhone =
@@ -306,19 +273,16 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
         );
       }
 
-      print('Parent phone check passed');
-
       // 1.8 Validate student links if any
       for (int i = 0; i < studentsToLink.length; i++) {
         final studentLink = studentsToLink[i];
         final studentId = studentLink['student_id'];
-
         if (studentId == null) {
           throw Exception('Invalid student selection at position ${i + 1}');
         }
 
-        // Check if student exists and is active
-        final studentExists =
+        // First attempt: check if student exists AND status = 'active' (current behaviour)
+        final studentExistsActive =
             await supabase
                 .from('students')
                 .select('id, fname, lname, status')
@@ -326,17 +290,39 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                 .eq('status', 'active')
                 .maybeSingle();
 
-        if (studentExists == null) {
+        if (studentExistsActive != null) {
+          // Found an active student -> OK
+          continue;
+        }
+
+        // If not found as 'active', query WITHOUT status filter to inspect actual row / status
+        final studentRow =
+            await supabase
+                .from('students')
+                .select('id, fname, lname, status')
+                .eq('id', studentId)
+                .maybeSingle();
+
+        if (studentRow == null) {
+          // Could be: non-existent id, RLS/permission blocking, wrong schema, or type mismatch
           throw Exception(
-            'Selected student at position ${i + 1} is not available',
+            'Selected student at position ${i + 1} is not available (studentId: $studentId). Row not found or permission denied.',
+          );
+        }
+
+        // Inspect the status value (log exact string so we can see case / whitespace)
+        final statusRaw = studentRow['status'];
+        final statusStr = statusRaw == null ? '<NULL>' : statusRaw.toString();
+
+        // Accept case-insensitive 'active'
+        if (statusRaw == null || statusStr.toLowerCase() != 'active') {
+          throw Exception(
+            'Selected student at position ${i + 1} is not available (studentId: $studentId, status: $statusStr).',
           );
         }
       }
 
-      print('Student validation passed');
-
       // STEP 2: ALL VALIDATIONS PASSED - NOW CREATE USER ACCOUNT
-      print('All validations passed, creating user account...');
 
       final res = await supabase.functions.invoke(
         'create_user',
@@ -367,11 +353,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
         throw Exception('No user ID returned from user creation');
       }
 
-      print('User created successfully with ID: $userId');
-
-      // STEP 3: INSERT TO PARENTS TABLE
-      print('Creating parent record...');
-
+      int? parentId;
       try {
         final parentInsert =
             await supabase
@@ -389,34 +371,61 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                 .select()
                 .single();
 
-        final parentId = parentInsert['id'];
-        print('Parent created successfully with ID: $parentId');
+        parentId = parentInsert['id'];
 
         // STEP 4: LINK STUDENTS
-        print('Linking ${studentsToLink.length} students...');
         for (final studentLink in studentsToLink) {
-          await supabase.from('parent_student').insert({
+          final payload = {
             'parent_id': parentId,
             'student_id': studentLink['student_id'],
             'relationship_type': studentLink['relationship_type'] ?? 'parent',
             'is_primary': studentLink['is_primary'] ?? false,
-          });
+          };
+          final insertRes = await supabase
+              .from('parent_student')
+              .insert(payload);
+          // DEBUG: log insert result
+          print('DEBUG: parent_student insert result: $insertRes');
         }
 
-        print('Parent creation process completed successfully');
         _showSuccessSnackBar('Parent added successfully');
         _fetchParents();
       } catch (parentError) {
+        // Rollback: remove any parent_student rows created and delete parent record
+        if (parentId != null) {
+          try {
+            await supabase
+                .from('parent_student')
+                .delete()
+                .eq('parent_id', parentId);
+          } catch (e) {
+            print(
+              'DEBUG: Failed to delete parent_student entries during rollback: $e',
+            );
+          }
+
+          try {
+            await supabase.from('parents').delete().eq('id', parentId);
+          } catch (e) {
+            print('DEBUG: Failed to delete parent record during rollback: $e');
+          }
+        }
+
         // If parent creation fails, clean up the created user account
-        print('Parent creation failed, cleaning up user account...');
         try {
-          await supabase.functions.invoke('delete_user', body: {'id': userId});
+          final cleanupRes = await supabase.functions.invoke(
+            'delete_user',
+            body: {'id': userId},
+          );
+          print(
+            'DEBUG: delete_user cleanup response: status=${cleanupRes.status}, data=${cleanupRes.data}',
+          );
           print('User account cleaned up successfully');
         } catch (cleanupError) {
           print('Failed to cleanup user account: $cleanupError');
         }
 
-        // Re-throw the original parent creation error
+        // Re-throw the original parent creation error with context
         throw Exception('Failed to create parent record: $parentError');
       }
     } catch (error) {
@@ -439,8 +448,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     required List<Map<String, dynamic>> studentsToLink,
   }) async {
     try {
-      print('Starting parent edit synchronization...');
-
       // 1. Update Auth user and users table via Edge Function
       // The database trigger will automatically sync to parents table
       final res = await supabase.functions.invoke(
@@ -494,51 +501,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
       _fetchParents();
     } catch (error) {
       print('Error during parent edit: $error');
-      _showErrorSnackBar('Error updating parent: $error');
-    }
-  }
-
-  // New: Direct parent-only edit function (for cases where you only want to update parent table)
-  Future<void> _editParentOnly({
-    required int parentId,
-    required String fname,
-    String? mname,
-    required String lname,
-    required String email,
-    required String phone,
-    String? address,
-    required List<Map<String, dynamic>> studentsToLink,
-  }) async {
-    try {
-      print('Updating parent table only...');
-
-      // Update only the parents table
-      await supabase
-          .from('parents')
-          .update({
-            'fname': fname,
-            'mname': mname,
-            'lname': lname,
-            'phone': phone,
-            'email': email,
-            'address': address,
-          })
-          .eq('id', parentId);
-
-      // Update student relationships
-      await supabase.from('parent_student').delete().eq('parent_id', parentId);
-      for (final studentLink in studentsToLink) {
-        await supabase.from('parent_student').insert({
-          'parent_id': parentId,
-          'student_id': studentLink['student_id'],
-          'relationship_type': studentLink['relationship_type'] ?? 'parent',
-          'is_primary': studentLink['is_primary'] ?? false,
-        });
-      }
-
-      _showSuccessSnackBar('Parent updated successfully (parent data only)');
-      _fetchParents();
-    } catch (error) {
       _showErrorSnackBar('Error updating parent: $error');
     }
   }
@@ -768,6 +730,9 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                           (context) =>
                                               AddEditParentModal(parent: null),
                                     );
+                                // DEBUG: log dialog payload returned from modal
+                                print('DEBUG: Add dialog result: $result');
+
                                 if (result != null &&
                                     result['fname'] != null &&
                                     result['lname'] != null &&
@@ -1181,7 +1146,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                               // Calculate responsive grid parameters
                               int crossAxisCount;
                               double childAspectRatio;
-                              
+
                               if (constraints.maxWidth > 1400) {
                                 crossAxisCount = 4;
                                 childAspectRatio = 1.1;
@@ -1195,14 +1160,15 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                 crossAxisCount = 1;
                                 childAspectRatio = 1.4;
                               }
-                              
+
                               return GridView.builder(
-                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: crossAxisCount,
-                                  crossAxisSpacing: 16.0,
-                                  mainAxisSpacing: 16.0,
-                                  childAspectRatio: childAspectRatio,
-                                ),
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: crossAxisCount,
+                                      crossAxisSpacing: 16.0,
+                                      mainAxisSpacing: 16.0,
+                                      childAspectRatio: childAspectRatio,
+                                    ),
                                 itemCount: filteredParents.length,
                                 itemBuilder: (context, index) {
                                   final parent = filteredParents[index];
@@ -1234,10 +1200,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Colors.white,
-            Colors.grey[50]!,
-          ],
+          colors: [Colors.white, Colors.grey[50]!],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
@@ -1282,75 +1245,95 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                // Header with avatar and status
-                Row(
-                  children: [
-                    // Avatar with enhanced design
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(28),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            const Color(0xFF2ECC71).withOpacity(0.1),
-                            const Color(0xFF27AE60).withOpacity(0.05),
+                  // Header with avatar and status
+                  Row(
+                    children: [
+                      // Avatar with enhanced design
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(28),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              const Color(0xFF2ECC71).withOpacity(0.1),
+                              const Color(0xFF27AE60).withOpacity(0.05),
+                            ],
+                          ),
+                          border: Border.all(
+                            color: const Color(0xFF2ECC71).withOpacity(0.3),
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF2ECC71).withOpacity(0.2),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
                           ],
                         ),
-                        border: Border.all(
-                          color: const Color(0xFF2ECC71).withOpacity(0.3),
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF2ECC71).withOpacity(0.2),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: ClipOval(
-                        child:
-                            profileImageUrl != null &&
-                                    profileImageUrl.toString().isNotEmpty
-                                ? Image.network(
-                                  profileImageUrl,
-                                  width: 56,
-                                  height: 56,
-                                  fit: BoxFit.cover,
-                                loadingBuilder: (
-                                  context,
-                                  child,
-                                  loadingProgress,
-                                ) {
-                                  if (loadingProgress == null) return child;
-                                  return Container(
+                        child: ClipOval(
+                          child:
+                              profileImageUrl != null &&
+                                      profileImageUrl.toString().isNotEmpty
+                                  ? Image.network(
+                                    profileImageUrl,
                                     width: 56,
                                     height: 56,
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          const Color(0xFF2ECC71).withOpacity(0.1),
-                                          const Color(0xFF27AE60).withOpacity(0.05),
-                                        ],
-                                      ),
-                                    ),
-                                    child: const Center(
-                                      child: SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Color(0xFF2ECC71),
+                                    fit: BoxFit.cover,
+                                    loadingBuilder: (
+                                      context,
+                                      child,
+                                      loadingProgress,
+                                    ) {
+                                      if (loadingProgress == null) return child;
+                                      return Container(
+                                        width: 56,
+                                        height: 56,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              const Color(
+                                                0xFF2ECC71,
+                                              ).withOpacity(0.1),
+                                              const Color(
+                                                0xFF27AE60,
+                                              ).withOpacity(0.05),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
+                                        child: const Center(
+                                          child: SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Color(0xFF2ECC71),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        width: 56,
+                                        height: 56,
+                                        child: Center(
+                                          child: Text(
+                                            initial,
+                                            style: const TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF2ECC71),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  )
+                                  : Container(
                                     width: 56,
                                     height: 56,
                                     child: Center(
@@ -1363,407 +1346,393 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                         ),
                                       ),
                                     ),
-                                  );
-                                },
-                              )
-                              : Container(
-                                width: 56,
-                                height: 56,
-                                child: Center(
-                                  child: Text(
-                                    initial,
-                                    style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF2ECC71),
-                                    ),
                                   ),
-                                ),
-                              ),
-                      ),
-                    ),
-                    const Spacer(),
-                    // Enhanced status indicators
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                const Color(0xFF2ECC71).withOpacity(0.15),
-                                const Color(0xFF27AE60).withOpacity(0.1),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFF2ECC71).withOpacity(0.3),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF2ECC71),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Text(
-                                'Active',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF1E8449),
-                                ),
-                              ),
-                            ],
-                          ),
                         ),
-                        if (parent['user_id'] != null) ...[
-                          const SizedBox(height: 4),
+                      ),
+                      const Spacer(),
+                      // Enhanced status indicators
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 3,
+                              horizontal: 8,
+                              vertical: 4,
                             ),
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  Colors.blue[100]!,
-                                  Colors.blue[50]!,
+                                  const Color(0xFF2ECC71).withOpacity(0.15),
+                                  const Color(0xFF27AE60).withOpacity(0.1),
                                 ],
                               ),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.blue[300]!),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFF2ECC71).withOpacity(0.3),
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.sync, size: 8, color: Colors.blue[700]),
-                                const SizedBox(width: 3),
-                                Text(
-                                  'Synced',
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF2ECC71),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Text(
+                                  'Active',
                                   style: TextStyle(
-                                    fontSize: 8,
-                                    color: Colors.blue[700],
+                                    fontSize: 10,
                                     fontWeight: FontWeight.w600,
+                                    color: Color(0xFF1E8449),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-
-                // Name - Enhanced visibility
-                Text(
-                  fullName,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A1A1A),
-                    letterSpacing: 0.2,
-                    height: 1.2,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-
-                // Contact info - Enhanced design
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Colors.grey[50]!,
-                        Colors.white,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xFF2ECC71).withOpacity(0.1),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.02),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2ECC71).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Icon(
-                              Icons.phone_rounded,
-                              size: 14,
-                              color: Color(0xFF2ECC71),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              parent['phone'] ?? 'No phone',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF2C3E50),
-                                fontWeight: FontWeight.w500,
+                          if (parent['user_id'] != null) ...[
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 3,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2ECC71).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Icon(
-                              Icons.email_rounded,
-                              size: 14,
-                              color: Color(0xFF2ECC71),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              parent['email'] ?? 'No email',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF2C3E50),
-                                fontWeight: FontWeight.w500,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [Colors.blue[100]!, Colors.blue[50]!],
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.blue[300]!),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.sync,
+                                    size: 8,
+                                    color: Colors.blue[700],
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    'Synced',
+                                    style: TextStyle(
+                                      fontSize: 8,
+                                      color: Colors.blue[700],
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 6),
+                  const SizedBox(height: 6),
 
-                // Student count
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFF2ECC71).withOpacity(0.15),
-                        const Color(0xFF27AE60).withOpacity(0.1),
+                  // Name - Enhanced visibility
+                  Text(
+                    fullName,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.2,
+                      height: 1.2,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Contact info - Enhanced design
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Colors.grey[50]!, Colors.white],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF2ECC71).withOpacity(0.1),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.02),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: const Color(0xFF2ECC71).withOpacity(0.3),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2ECC71).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Icon(
-                          Icons.people_rounded,
-                          size: 12,
-                          color: Color(0xFF1E8449),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        "${parent['student_count']} Student${parent['student_count'] == 1 ? '' : 's'}",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF1E8449),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Action buttons row - Enhanced design
-                Row(
-                  children: [
-                    // View Details button - Enhanced styling
-                    Expanded(
-                      flex: 3,
-                      child: Container(
-                        height: 40,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFF2ECC71),
-                              Color(0xFF27AE60),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF2ECC71).withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2ECC71).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Icon(
+                                Icons.phone_rounded,
+                                size: 14,
+                                color: Color(0xFF2ECC71),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                parent['phone'] ?? 'No phone',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF2C3E50),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ],
                         ),
-                        child: ElevatedButton(
-                          onPressed: () => _showParentDetails(parent),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2ECC71).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Icon(
+                                Icons.email_rounded,
+                                size: 14,
+                                color: Color(0xFF2ECC71),
+                              ),
                             ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 8,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                parent['email'] ?? 'No email',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF2C3E50),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                          child: const Text(
-                            'View Details',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                          ],
                         ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Student count
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF2ECC71).withOpacity(0.15),
+                          const Color(0xFF27AE60).withOpacity(0.1),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFF2ECC71).withOpacity(0.3),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    // More actions menu - Enhanced styling
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.grey[300]!,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2ECC71).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Icon(
+                            Icons.people_rounded,
+                            size: 12,
+                            color: Color(0xFF1E8449),
+                          ),
                         ),
-                      ),
-                      child: PopupMenuButton<String>(
-                        icon: Icon(
-                          Icons.more_vert_rounded,
-                          color: Colors.grey[600],
-                          size: 18,
+                        const SizedBox(width: 6),
+                        Text(
+                          "${parent['student_count']} Student${parent['student_count'] == 1 ? '' : 's'}",
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF1E8449),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 40,
-                          minHeight: 40,
-                        ),
-                    onSelected: (value) async {
-                    if (value == 'edit') {
-                      final result = await showDialog<Map<String, dynamic>>(
-                        context: context,
-                        barrierDismissible: false,
-                        builder:
-                            (context) => AddEditParentModal(parent: parent),
-                      );
-                      if (result != null &&
-                          result['fname'] != null &&
-                          result['lname'] != null &&
-                          result['email'] != null &&
-                          result['phone'] != null) {
-                        await _editParent(
-                          userId: parent['user_id'],
-                          parentId: parent['id'],
-                          fname: result['fname'],
-                          mname: result['mname'],
-                          lname: result['lname'],
-                          email: result['email'],
-                          phone: result['phone'],
-                          address: result['address'],
-                          studentsToLink: result['studentsToLink'] ?? [],
-                        );
-                      }
-                    } else if (value == 'delete') {
-                      await _deleteParent(parent);
-                    }
-                    },
-                    itemBuilder:
-                        (context) => [
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.edit,
-                                  size: 14,
-                                  color: Color(0xFF2ECC71),
-                                ),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Edit',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                              ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Action buttons row - Enhanced design
+                  Row(
+                    children: [
+                      // View Details button - Enhanced styling
+                      Expanded(
+                        flex: 3,
+                        child: Container(
+                          height: 40,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF2ECC71), Color(0xFF27AE60)],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF2ECC71).withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ElevatedButton(
+                            onPressed: () => _showParentDetails(parent),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 8,
+                              ),
+                            ),
+                            child: const Text(
+                              'View Details',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.delete,
-                                  size: 14,
-                                  color: Colors.red,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // More actions menu - Enhanced styling
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey[300]!),
+                        ),
+                        child: PopupMenuButton<String>(
+                          icon: Icon(
+                            Icons.more_vert_rounded,
+                            color: Colors.grey[600],
+                            size: 18,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 40,
+                            minHeight: 40,
+                          ),
+                          onSelected: (value) async {
+                            if (value == 'edit') {
+                              final result =
+                                  await showDialog<Map<String, dynamic>>(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder:
+                                        (context) =>
+                                            AddEditParentModal(parent: parent),
+                                  );
+                              // DEBUG: log edit dialog payload
+                              print('DEBUG: Edit dialog result: $result');
+
+                              if (result != null &&
+                                  result['fname'] != null &&
+                                  result['lname'] != null &&
+                                  result['email'] != null &&
+                                  result['phone'] != null) {
+                                await _editParent(
+                                  userId: parent['user_id'],
+                                  parentId: parent['id'],
+                                  fname: result['fname'],
+                                  mname: result['mname'],
+                                  lname: result['lname'],
+                                  email: result['email'],
+                                  phone: result['phone'],
+                                  address: result['address'],
+                                  studentsToLink:
+                                      result['studentsToLink'] ?? [],
+                                );
+                              }
+                            } else if (value == 'delete') {
+                              await _deleteParent(parent);
+                            }
+                          },
+                          itemBuilder:
+                              (context) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.edit,
+                                        size: 14,
+                                        color: Color(0xFF2ECC71),
+                                      ),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Edit',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Delete',
-                                  style: TextStyle(
-                                    color: Colors.red,
-                                    fontSize: 12,
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.delete,
+                                        size: 14,
+                                        color: Colors.red,
+                                      ),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Delete',
+                                        style: TextStyle(
+                                          color: Colors.red,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
                 ],
               ),
             ),
