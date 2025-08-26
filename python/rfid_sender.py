@@ -4,8 +4,8 @@ import websocket
 import json
 
 # --- Configuration ---
-SERIAL_PORT = 'COM5'         # Update this to your actual COM port (e.g. COM4, /dev/ttyUSB0)
-BAUD_RATE = 115200             # Must match the Arduino Serial baud
+SERIAL_PORT = 'COM6'         # Update this to your actual COM port
+BAUD_RATE = 115200           # Must match the Arduino Serial baud
 WS_URL = "wss://rfid-websocket-server.onrender.com"  # Replace with your actual WebSocket URL
 
 # --- Setup WebSocket ---
@@ -41,22 +41,42 @@ def main():
     try:
         while True:
             if ser.in_waiting:
-                uid = ser.readline().decode('utf-8').strip()
-                if uid and len(uid) >= 8 and all(c in "0123456789abcdef" for c in uid.lower()):
-                    print(f"📨 UID read: {uid}")
-                    try:
-                        # Create JSON message
-                        message = {
-                            "type": "rfid_scan",
-                            "uid": uid,
-                            "timestamp": time.time()
-                        }
-                        json_message = json.dumps(message)
-                        ws.send(json_message)
-                        print(f"✅ Sent JSON to WebSocket: {json_message}")
-                    except Exception as send_error:
-                        print("❌ Send failed. Reconnecting WebSocket...")
-                        ws = connect_websocket()
+                data = ser.readline().strip()
+                if not data:
+                    continue
+
+                print(f"🔎 Raw data: {data}")
+
+                try:
+                    # Try to decode as ASCII text
+                    text = data.decode("utf-8", errors="ignore").strip()
+
+                    # If it's all hex characters and length looks like UID
+                    if text and all(c in "0123456789abcdefABCDEF" for c in text) and len(text) in (8, 10, 14):
+                        uid = text.lower()
+                        print(f"📨 UID read (ASCII): {uid}")
+                    else:
+                        # Otherwise, fallback to binary-to-hex
+                        uid = data.hex()
+                        if len(uid) not in (8, 10, 14):
+                            print(f"⚠️ Ignored noise: {uid}")
+                            continue
+                        print(f"📨 UID read (binary): {uid}")
+
+                    # Send JSON message
+                    message = {
+                        "type": "rfid_scan",
+                        "uid": uid,
+                        "timestamp": time.time()
+                    }
+                    json_message = json.dumps(message)
+                    ws.send(json_message)
+                    print(f"✅ Sent JSON to WebSocket: {json_message}")
+
+                except Exception:
+                    print("❌ Send failed. Reconnecting WebSocket...")
+                    ws = connect_websocket()
+
             time.sleep(0.1)
 
     except KeyboardInterrupt:
