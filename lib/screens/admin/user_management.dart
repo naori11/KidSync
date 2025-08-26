@@ -1720,7 +1720,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                           style: const TextStyle(
                                             fontWeight: FontWeight.w500,
                                             color: Color(0xFF555555),
-                                            fontSize: 16,
+                                            fontSize: 13,
                                           ),
                                         ),
                                       ),
@@ -1823,9 +1823,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                     fullName,
                                                     style: const TextStyle(
                                                       fontWeight:
-                                                          FontWeight.w600,
-                                                      color: Color(0xFF333333),
-                                                      fontSize: 16,
+                                                          FontWeight.bold,
+                                                      color: Color(0xFF1A1A1A),
+                                                      fontSize: 18,
+                                                      letterSpacing: 0.3,
                                                     ),
                                                   ),
                                                   if (u['position'] != null &&
@@ -1885,7 +1886,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                 style: TextStyle(
                                                   color: _getRoleColor(role),
                                                   fontWeight: FontWeight.w500,
-                                                  fontSize: 14,
+                                                  fontSize: 12,
                                                 ),
                                               ),
                                             ],
@@ -1913,7 +1914,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                               child: Text(
                                                 u['email'] ?? 'N/A',
                                                 style: const TextStyle(
-                                                  fontSize: 15,
+                                                  fontSize: 13,
                                                 ),
                                                 overflow: TextOverflow.ellipsis,
                                               ),
@@ -1946,7 +1947,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                     Text(
                                                       u['contact_number'],
                                                       style: const TextStyle(
-                                                        fontSize: 15,
+                                                        fontSize: 13,
                                                       ),
                                                     ),
                                                   ],
@@ -1954,7 +1955,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                 : Text(
                                                   'N/A',
                                                   style: TextStyle(
-                                                    fontSize: 15,
+                                                    fontSize: 13,
                                                     color: Colors.grey[500],
                                                     fontStyle: FontStyle.italic,
                                                   ),
@@ -2021,7 +2022,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                             0xFFC62828,
                                                           ),
                                                   fontWeight: FontWeight.w600,
-                                                  fontSize: 14,
+                                                  fontSize: 12,
                                                 ),
                                               ),
                                             ],
@@ -2748,9 +2749,10 @@ class TableHeaderCell extends StatelessWidget {
       child: Text(
         text,
         style: const TextStyle(
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.bold,
           fontSize: 16,
-          color: Color(0xFF666666),
+          color: Color(0xFF1A1A1A),
+          letterSpacing: 0.3,
         ),
       ),
     );
