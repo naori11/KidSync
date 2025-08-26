@@ -29,6 +29,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   Map<String, dynamic>? verifiedTempFetcher;
   bool isShowingTempFetcher = false;
 
+  // Token to make auto-clear timers specific to a scan
+  String? activeScanToken;
+
   // Remove isEntryMode and isAwaitingDecision - replaced with auto detection
   String? currentAction; // 'entry' or 'exit'
   bool isScheduleValidationEnabled = true;
@@ -308,6 +311,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           scannedStudent = student;
           currentAction = action;
           isLoadingStudent = false;
+
+          activeScanToken =
+              '${student.id}_${DateTime.now().microsecondsSinceEpoch}';
         });
 
         if (action == 'entry') {
@@ -376,19 +382,26 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       });
 
       // Send RFID entry notification to parents
-      print('DEBUG: About to send RFID entry notification for student ${student.id}');
-      final notificationSent = await _notificationService.sendRfidTapNotification(
-        studentId: student.id,
-        action: 'entry',
-        studentName: '${student.fname} ${student.lname}',
+      print(
+        'DEBUG: About to send RFID entry notification for student ${student.id}',
       );
+      final notificationSent = await _notificationService
+          .sendRfidTapNotification(
+            studentId: student.id,
+            action: 'entry',
+            studentName: '${student.fname} ${student.lname}',
+          );
       print('DEBUG: RFID entry notification sent: $notificationSent');
 
       _showSuccessNotification('Student checked in successfully');
 
-      // Auto-hide after 3 seconds
-      Future.delayed(Duration(seconds: 3), () {
+      // Entry mode timer: hide after 8 seconds
+      Future.delayed(Duration(seconds: 8), () {
         if (mounted) clearScan();
+        // Only clear if the active token hasn't changed (i.e. no newer scan)
+        if (activeScanToken != null && activeScanToken == activeScanToken) {
+          clearScan();
+        }
       });
     } catch (e) {
       _showErrorNotification('Error recording entry: ${e.toString()}');
@@ -660,12 +673,15 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         });
 
         // Send RFID exit notification to parents
-        print('DEBUG: About to send RFID exit notification for student ${scannedStudent!.id}');
-        final notificationSent = await _notificationService.sendRfidTapNotification(
-          studentId: scannedStudent!.id,
-          action: 'exit',
-          studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
+        print(
+          'DEBUG: About to send RFID exit notification for student ${scannedStudent!.id}',
         );
+        final notificationSent = await _notificationService
+            .sendRfidTapNotification(
+              studentId: scannedStudent!.id,
+              action: 'exit',
+              studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
+            );
         print('DEBUG: RFID exit notification sent: $notificationSent');
 
         _showSuccessNotification(
@@ -686,34 +702,42 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         });
 
         // Send pickup denial notification to parents
-        print('DEBUG: About to send temporary fetcher pickup denial notification for student ${scannedStudent!.id}');
-        
+        print(
+          'DEBUG: About to send temporary fetcher pickup denial notification for student ${scannedStudent!.id}',
+        );
+
         // Get guard name for the notification
         String? guardName;
         if (user?.id != null) {
           try {
-            final guardResponse = await supabase
-                .from('users')
-                .select('fname, lname')
-                .eq('id', user!.id)
-                .maybeSingle();
+            final guardResponse =
+                await supabase
+                    .from('users')
+                    .select('fname, lname')
+                    .eq('id', user!.id)
+                    .maybeSingle();
             if (guardResponse != null) {
-              guardName = '${guardResponse['fname'] ?? ''} ${guardResponse['lname'] ?? ''}'.trim();
+              guardName =
+                  '${guardResponse['fname'] ?? ''} ${guardResponse['lname'] ?? ''}'
+                      .trim();
             }
           } catch (e) {
             print('Error getting guard name: $e');
           }
         }
-        
-        final notificationSent = await _notificationService.sendPickupDenialNotification(
-          studentId: scannedStudent!.id,
-          studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
-          denyReason: denyReason ?? 'No reason provided',
-          guardName: guardName,
-          fetcherName: verifiedTempFetcher!['fetcher_name'],
-          fetcherType: 'temporary',
+
+        final notificationSent = await _notificationService
+            .sendPickupDenialNotification(
+              studentId: scannedStudent!.id,
+              studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
+              denyReason: denyReason ?? 'No reason provided',
+              guardName: guardName,
+              fetcherName: verifiedTempFetcher!['fetcher_name'],
+              fetcherType: 'temporary',
+            );
+        print(
+          'DEBUG: Temporary fetcher pickup denial notification sent: $notificationSent',
         );
-        print('DEBUG: Temporary fetcher pickup denial notification sent: $notificationSent');
 
         _showErrorNotification(
           'Pickup denied: ${denyReason ?? 'Access denied'}',
@@ -1206,34 +1230,44 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
       // Send RFID exit notification to parents only if approved
       if (approved) {
-        print('DEBUG: About to send RFID exit notification for student ${scannedStudent!.id} (regular pickup)');
-        final notificationSent = await _notificationService.sendRfidTapNotification(
-          studentId: scannedStudent!.id,
-          action: 'exit',
-          studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
+        print(
+          'DEBUG: About to send RFID exit notification for student ${scannedStudent!.id} (regular pickup)',
         );
-        print('DEBUG: RFID exit notification sent (regular pickup): $notificationSent');
+        final notificationSent = await _notificationService
+            .sendRfidTapNotification(
+              studentId: scannedStudent!.id,
+              action: 'exit',
+              studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
+            );
+        print(
+          'DEBUG: RFID exit notification sent (regular pickup): $notificationSent',
+        );
       } else {
         // Send pickup denial notification to parents
-        print('DEBUG: About to send pickup denial notification for student ${scannedStudent!.id}');
-        
+        print(
+          'DEBUG: About to send pickup denial notification for student ${scannedStudent!.id}',
+        );
+
         // Get guard name for the notification
         String? guardName;
         if (user?.id != null) {
           try {
-            final guardResponse = await supabase
-                .from('users')
-                .select('fname, lname')
-                .eq('id', user!.id)
-                .maybeSingle();
+            final guardResponse =
+                await supabase
+                    .from('users')
+                    .select('fname, lname')
+                    .eq('id', user!.id)
+                    .maybeSingle();
             if (guardResponse != null) {
-              guardName = '${guardResponse['fname'] ?? ''} ${guardResponse['lname'] ?? ''}'.trim();
+              guardName =
+                  '${guardResponse['fname'] ?? ''} ${guardResponse['lname'] ?? ''}'
+                      .trim();
             }
           } catch (e) {
             print('Error getting guard name: $e');
           }
         }
-        
+
         // Get fetcher information if available
         String? fetcherName;
         String? fetcherType;
@@ -1241,15 +1275,16 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           fetcherName = fetchers!.first.name;
           fetcherType = 'authorized';
         }
-        
-        final notificationSent = await _notificationService.sendPickupDenialNotification(
-          studentId: scannedStudent!.id,
-          studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
-          denyReason: denyReason ?? 'No reason provided',
-          guardName: guardName,
-          fetcherName: fetcherName,
-          fetcherType: fetcherType,
-        );
+
+        final notificationSent = await _notificationService
+            .sendPickupDenialNotification(
+              studentId: scannedStudent!.id,
+              studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
+              denyReason: denyReason ?? 'No reason provided',
+              guardName: guardName,
+              fetcherName: fetcherName,
+              fetcherType: fetcherType,
+            );
         print('DEBUG: Pickup denial notification sent: $notificationSent');
       }
     } catch (e) {
@@ -1319,6 +1354,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       lastClassEndTime = null;
       verifiedTempFetcher = null;
       isShowingTempFetcher = false;
+      activeScanToken = null;
     });
   }
 
@@ -1632,10 +1668,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Colors.blue[50]!,
-                  Colors.indigo[50]!,
-                ],
+                colors: [Colors.blue[50]!, Colors.indigo[50]!],
               ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.blue[200]!, width: 2),
@@ -1665,13 +1698,13 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                     ],
                   ),
                   child: Icon(
-                    Icons.contact_page, 
-                    size: 80, 
+                    Icons.contact_page,
+                    size: 80,
                     color: Colors.white,
                   ),
                 ),
                 SizedBox(height: 40),
-                
+
                 // Main instruction text (Enlarged)
                 Text(
                   'TAP RFID CARD',
@@ -1683,7 +1716,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                   ),
                 ),
                 SizedBox(height: 16),
-                
+
                 // Subtitle (Enlarged)
                 Text(
                   'System will automatically detect\nentry or exit',
@@ -1695,7 +1728,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                   textAlign: TextAlign.center,
                 ),
                 SizedBox(height: 32),
-                
+
                 // Auto mode badge (Enlarged)
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 28, vertical: 12),
@@ -1766,7 +1799,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                     ),
                   ),
                   SizedBox(height: 24),
-                  
+
                   // Info items (All enlarged for better readability)
                   _buildEnhancedInfoItem(
                     Icons.login,
@@ -1775,7 +1808,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                     Colors.green,
                   ),
                   SizedBox(height: 20),
-                  
+
                   _buildEnhancedInfoItem(
                     Icons.warning,
                     'Very Early Exit (2+ hrs)',
@@ -1783,7 +1816,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                     Colors.red,
                   ),
                   SizedBox(height: 20),
-                  
+
                   _buildEnhancedInfoItem(
                     Icons.schedule,
                     'Early Exit (30+ min)',
@@ -1791,7 +1824,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                     Colors.orange,
                   ),
                   SizedBox(height: 20),
-                  
+
                   _buildEnhancedInfoItem(
                     Icons.check_circle,
                     'Near End/Regular',
@@ -2167,10 +2200,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(
-              color: Colors.blue,
-              strokeWidth: 6,
-            ),
+            CircularProgressIndicator(color: Colors.blue, strokeWidth: 6),
             SizedBox(height: 32),
             Text(
               'Loading Student Data...',
@@ -2202,10 +2232,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Colors.green[50]!,
-                  Colors.blue[50]!,
-                ],
+                colors: [Colors.green[50]!, Colors.blue[50]!],
               ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.green[200]!, width: 2),
@@ -2264,7 +2291,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                           ],
                         ),
                       ),
-                      
+
                       SizedBox(height: 32),
 
                       // Enlarged Student Photo
@@ -2379,7 +2406,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        
+
                         SizedBox(height: 16),
 
                         // Class Section (Enlarged)
@@ -2505,17 +2532,20 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                         Row(
                           children: [
                             // Gender
-                            if (scannedStudent!.gender != null) 
+                            if (scannedStudent!.gender != null)
                               Expanded(
                                 child: Container(
                                   padding: EdgeInsets.all(16),
                                   decoration: BoxDecoration(
                                     color: Colors.purple[50],
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.purple[200]!),
+                                    border: Border.all(
+                                      color: Colors.purple[200]!,
+                                    ),
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Gender',
@@ -2527,7 +2557,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                       ),
                                       SizedBox(height: 4),
                                       Text(
-                                        scannedStudent!.gender ?? 'Not specified',
+                                        scannedStudent!.gender ??
+                                            'Not specified',
                                         style: TextStyle(
                                           fontSize: 18,
                                           color: Colors.black87,
@@ -2539,7 +2570,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                 ),
                               ),
 
-                            if (scannedStudent!.gender != null && scannedStudent!.birthday != null) 
+                            if (scannedStudent!.gender != null &&
+                                scannedStudent!.birthday != null)
                               SizedBox(width: 16),
 
                             // Birthday
@@ -2550,10 +2582,13 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                   decoration: BoxDecoration(
                                     color: Colors.pink[50],
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.pink[200]!),
+                                    border: Border.all(
+                                      color: Colors.pink[200]!,
+                                    ),
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Date of Birth',
@@ -2653,10 +2688,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(
-              color: Colors.green,
-              strokeWidth: 6,
-            ),
+            CircularProgressIndicator(color: Colors.green, strokeWidth: 6),
             SizedBox(height: 32),
             Text(
               'Loading Student Data...',
@@ -2693,10 +2725,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        Colors.orange[50]!,
-                        Colors.red[50]!,
-                      ],
+                      colors: [Colors.orange[50]!, Colors.red[50]!],
                     ),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: Colors.orange[200]!, width: 2),
@@ -2784,7 +2813,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: _buildImageContent(scannedStudent!.imageUrl),
+                              child: _buildImageContent(
+                                scannedStudent!.imageUrl,
+                              ),
                             ),
                           ),
 
@@ -2807,7 +2838,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                
+
                                 SizedBox(height: 12),
 
                                 // Class Section (Enlarged)
@@ -2828,7 +2859,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                   decoration: BoxDecoration(
                                     color: Colors.blue[50],
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.blue[200]!),
+                                    border: Border.all(
+                                      color: Colors.blue[200]!,
+                                    ),
                                   ),
                                   child: Row(
                                     children: [
@@ -2839,7 +2872,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                       ),
                                       SizedBox(width: 12),
                                       Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             'Student ID',
@@ -2871,7 +2905,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                   decoration: BoxDecoration(
                                     color: Colors.orange[50],
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.orange[200]!),
+                                    border: Border.all(
+                                      color: Colors.orange[200]!,
+                                    ),
                                   ),
                                   child: Row(
                                     children: [
@@ -2882,7 +2918,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                       ),
                                       SizedBox(width: 12),
                                       Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             'Exit Time',
@@ -3084,7 +3121,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                   ),
                 ),
               ),
-              
+
               SizedBox(width: 16),
 
               // PIN Verification Button
@@ -3111,7 +3148,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                   ),
                 ),
               ),
-              
+
               SizedBox(width: 16),
 
               // Deny Button
@@ -3907,8 +3944,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     });
   }
 
-
-
   // Enhanced fetchers list with better accessibility
   Widget _buildEnhancedFetchersList() {
     if (isLoadingFetchers) {
@@ -3916,17 +3951,11 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(
-              color: Colors.blue,
-              strokeWidth: 4,
-            ),
+            CircularProgressIndicator(color: Colors.blue, strokeWidth: 4),
             SizedBox(height: 20),
             Text(
               'Loading authorized fetchers...',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
           ],
         ),
@@ -3957,10 +3986,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             Text(
               'This student has no registered\nparents or guardians.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
           ],
         ),
@@ -4152,11 +4178,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                 // Contact
                 Row(
                   children: [
-                    Icon(
-                      Icons.phone,
-                      size: 20,
-                      color: Colors.green[600],
-                    ),
+                    Icon(Icons.phone, size: 20, color: Colors.green[600]),
                     SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -4188,8 +4210,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       ),
     );
   }
-
-
 
   // method for fetcher image handling
   Widget _buildFetcherImageContent(String? imageUrl) {
@@ -4234,8 +4254,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       ),
     );
   }
-
-
 
   // Add this method to show temporary fetcher PIN dialog
   void _showTemporaryFetcherDialog() {
