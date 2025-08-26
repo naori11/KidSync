@@ -68,7 +68,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
     });
   }
 
-  // ...existing code...
   Future<Map<String, dynamic>> createUserViaEdgeFunction({
     required String email,
     required String role,
@@ -79,21 +78,35 @@ class _UserManagementPageState extends State<UserManagementPage> {
     String? position,
     String? profileImageUrl,
   }) async {
-    final res = await Supabase.instance.client.functions.invoke(
-      'create_user',
-      body: {
-        'email': email,
-        'role': role,
-        'fname': fname,
-        'mname': mname,
-        'lname': lname,
-        'contact_number': contactNumber,
-        'position': position,
-        'profile_image_url': profileImageUrl,
-      },
-    );
-    // return status + data for caller to inspect and show field-level errors
-    return {'status': res.status, 'data': res.data};
+    try {
+      final res = await Supabase.instance.client.functions.invoke(
+        'create_user',
+        body: {
+          'email': email,
+          'role': role,
+          'fname': fname,
+          'mname': mname,
+          'lname': lname,
+          'contact_number': contactNumber,
+          'position': position,
+          'profile_image_url': profileImageUrl,
+        },
+      );
+
+      final int status =
+          (res is dynamic && res.status != null) ? (res.status as int) : 200;
+      dynamic data = (res is dynamic && res.data != null) ? res.data : res;
+
+      if (data is String) {
+        try {
+          data = jsonDecode(data);
+        } catch (_) {}
+      }
+
+      return {'status': status, 'data': data};
+    } catch (e) {
+      return _normalizeFunctionException(e);
+    }
   }
 
   Future<Map<String, dynamic>> editUserViaEdgeFunction({
@@ -107,35 +120,103 @@ class _UserManagementPageState extends State<UserManagementPage> {
     String? position,
     String? profileImageUrl,
   }) async {
-    final res = await Supabase.instance.client.functions.invoke(
-      'edit_user',
-      body: {
-        'id': id,
-        'email': email,
-        'role': role,
-        'fname': fname,
-        'mname': mname,
-        'lname': lname,
-        'contact_number': contactNumber,
-        'position': position,
-        'profile_image_url': profileImageUrl,
-      },
-    );
-    return {'status': res.status, 'data': res.data};
+    try {
+      final res = await Supabase.instance.client.functions.invoke(
+        'edit_user',
+        body: {
+          'id': id,
+          'email': email,
+          'role': role,
+          'fname': fname,
+          'mname': mname,
+          'lname': lname,
+          'contact_number': contactNumber,
+          'position': position,
+          'profile_image_url': profileImageUrl,
+        },
+      );
+
+      final int status =
+          (res is dynamic && res.status != null) ? (res.status as int) : 200;
+      dynamic data = (res is dynamic && res.data != null) ? res.data : res;
+
+      if (data is String) {
+        try {
+          data = jsonDecode(data);
+        } catch (_) {}
+      }
+
+      return {'status': status, 'data': data};
+    } catch (e) {
+      return _normalizeFunctionException(e);
+    }
   }
-  // ...existing code...
+
+  // Helper: normalize FunctionException / thrown errors into {status, data}
+  Map<String, dynamic> _normalizeFunctionException(dynamic e) {
+    int status = 500;
+    dynamic data = {'error': e.toString()};
+
+    try {
+      final dyn = e as dynamic;
+
+      // FunctionException often exposes .status and .details or .response
+      if (dyn.status != null) status = dyn.status as int;
+
+      if (dyn.details != null) {
+        data = dyn.details;
+      } else if (dyn.response != null) {
+        data = dyn.response;
+      } else if (dyn.message != null) {
+        data = {'error': dyn.message.toString()};
+      }
+
+      // If details/response is a JSON string, decode it
+      if (data is String) {
+        try {
+          data = jsonDecode(data);
+        } catch (_) {
+          data = {'error': data};
+        }
+      }
+
+      // Ensure final shape is a Map so _extractFieldErrors can parse it
+      if (data is! Map) {
+        data = {'error': data.toString()};
+      }
+    } catch (_) {
+      data = {'error': e.toString()};
+    }
+
+    return {'status': status, 'data': data};
+  }
 
   Future<void> deleteUserViaEdgeFunction(String id) async {
-    final res = await Supabase.instance.client.functions.invoke(
-      'delete_user',
-      body: {'id': id},
-    );
-    if (res.status != 200) {
-      final errorMsg =
-          res.data is Map && res.data['error'] != null
-              ? res.data['error']
-              : res.data.toString();
-      throw Exception(errorMsg);
+    try {
+      final res = await Supabase.instance.client.functions.invoke(
+        'delete_user',
+        body: {'id': id},
+      );
+      if (res.status != 200) {
+        final errorMsg =
+            res.data is Map && res.data['error'] != null
+                ? res.data['error']
+                : res.data.toString();
+        throw Exception(errorMsg);
+      }
+    } catch (e) {
+      // Try to surface a clearer message when invoke throws
+      dynamic data = e.toString();
+      try {
+        final dyn = e as dynamic;
+        if (dyn.details != null) data = dyn.details;
+        if (dyn.response != null) data = dyn.response;
+      } catch (_) {}
+      final message =
+          (data is Map && data['error'] != null)
+              ? data['error'].toString()
+              : data.toString();
+      throw Exception(message);
     }
   }
 
@@ -1046,9 +1127,20 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       } catch (e) {
                         // Unexpected error: show inline general error in dialog
                         setDialogState(() {
-                          fieldErrors = {
-                            '_general': 'Unexpected error: ${e.toString()}',
-                          };
+                          final normalized = _normalizeFunctionException(e);
+                          final dyn = normalized['data'];
+                          String message;
+                          if (dyn is Map && dyn['error'] != null) {
+                            message = dyn['error'].toString();
+                          } else if (dyn is Map && dyn['message'] != null) {
+                            message = dyn['message'].toString();
+                          } else if (dyn is Map && dyn.values.isNotEmpty) {
+                            // pick a sensible fallback if field_errors exist
+                            message = dyn.toString();
+                          } else {
+                            message = e.toString();
+                          }
+                          fieldErrors = {'_general': message};
                         });
                         formKey.currentState!.validate();
                       }
