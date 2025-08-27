@@ -42,6 +42,14 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   bool _selectAll = false;
   Uint8List? _selectedImageBytes;
 
+  // Responsive breakpoints
+  bool get isMobile => MediaQuery.of(context).size.width < 768;
+  bool get isTablet =>
+      MediaQuery.of(context).size.width >= 768 &&
+      MediaQuery.of(context).size.width < 1200;
+  bool get isDesktop => MediaQuery.of(context).size.width >= 1200;
+  bool get isSmallMobile => MediaQuery.of(context).size.width < 480;
+
   // For pagination
   int _currentPage = 1;
   int _itemsPerPage = 5;
@@ -1976,6 +1984,54 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     }
   }
 
+  Future<bool> _showDeleteConfirmDialog(String studentName) async {
+    return await showDialog<bool>(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 20,
+                shadowColor: Colors.black.withOpacity(0.2),
+                title: const Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.red, size: 24),
+                    SizedBox(width: 12),
+                    Text(
+                      'Confirm Delete',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A1A1A),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                content: Text(
+                  'Are you sure you want to delete the student "$studentName"? This action cannot be undone.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Delete'),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+  }
+
   void _exportData() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -2241,268 +2297,576 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     return Scaffold(
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Standardized Header
-            Row(
-              children: [
-                const Text(
-                  "Student Management",
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A1A1A),
-                    letterSpacing: 0.5,
+            // Responsive Header
+            if (isMobile) ...[
+              // Mobile: Stacked layout
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Student Management",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.5,
+                    ),
                   ),
-                ),
-                const Spacer(),
-                // Standardized Search bar
-                Container(
-                  width: 260,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: const Color(0xFFE0E0E0)),
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
+                  const SizedBox(height: 16),
+                  // Mobile search bar
+                  Container(
+                    width: double.infinity,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: const Color(0xFFE0E0E0)),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search students...',
+                        hintStyle: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF9E9E9E),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: Color(0xFF2ECC71),
+                          size: 20,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 12.0,
+                          horizontal: 16.0,
+                        ),
+                      ),
+                      onChanged:
+                          (val) => setState(() {
+                            _searchQuery = val;
+                            _currentPage =
+                                1; // Reset to first page on new search
+                          }),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Mobile action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 44,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(
+                              Icons.add,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            label: Text(
+                              isSmallMobile ? "Add" : "Add New Student",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2ECC71),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 2,
+                              shadowColor: Colors.black.withOpacity(0.1),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                            ),
+                            onPressed:
+                                isAdmin ? () => _addOrEditStudent() : null,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 44,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(
+                            Icons.file_download_outlined,
+                            color: Color(0xFF2ECC71),
+                            size: 18,
+                          ),
+                          label: const Text(
+                            "Export",
+                            style: TextStyle(
+                              color: Color(0xFF2ECC71),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            side: const BorderSide(
+                              color: Color(0xFF2ECC71),
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 1,
+                            shadowColor: Colors.black.withOpacity(0.05),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                          ),
+                          onPressed: _exportData,
+                        ),
                       ),
                     ],
                   ),
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Search students...',
-                      hintStyle: TextStyle(fontSize: 14, color: Color(0xFF9E9E9E)),
-                      prefixIcon: Icon(
-                        Icons.search,
-                        color: Color(0xFF2ECC71),
-                        size: 20,
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(
-                        vertical: 12.0,
-                        horizontal: 16.0,
-                      ),
+                ],
+              ),
+            ] else ...[
+              // Desktop/Tablet: Horizontal layout
+              Row(
+                children: [
+                  const Text(
+                    "Student Management",
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.5,
                     ),
-                    onChanged:
-                        (val) => setState(() {
-                          _searchQuery = val;
-                          _currentPage = 1; // Reset to first page on new search
-                        }),
                   ),
-                ),
-                const SizedBox(width: 12),
-                // Standardized Add New button
-                SizedBox(
-                  height: 44,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                    label: const Text(
-                      "Add New Student",
-                      style: TextStyle(
+                  const Spacer(),
+                  // Responsive search bar
+                  Container(
+                    width: isTablet ? 240 : 260,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: const Color(0xFFE0E0E0)),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search students...',
+                        hintStyle: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF9E9E9E),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: Color(0xFF2ECC71),
+                          size: 20,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 12.0,
+                          horizontal: 16.0,
+                        ),
+                      ),
+                      onChanged:
+                          (val) => setState(() {
+                            _searchQuery = val;
+                            _currentPage =
+                                1; // Reset to first page on new search
+                          }),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Responsive Add New button
+                  SizedBox(
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(
+                        Icons.add,
                         color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        size: 18,
                       ),
+                      label: Text(
+                        isTablet ? "Add Student" : "Add New Student",
+                        style: const TextStyle(
+                          color: Color(0xFF2ECC71),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2ECC71),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 2,
+                        shadowColor: Colors.black.withOpacity(0.1),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isTablet ? 12 : 16,
+                          vertical: 10,
+                        ),
+                      ),
+                      onPressed: isAdmin ? () => _addOrEditStudent() : null,
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2ECC71),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 2,
-                      shadowColor: Colors.black.withOpacity(0.1),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                    ),
-                    onPressed: isAdmin ? () => _addOrEditStudent() : null,
                   ),
-                ),
-                const SizedBox(width: 12),
-                // Standardized Export button
-                SizedBox(
-                  height: 44,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(
-                      Icons.file_download_outlined,
-                      color: Color(0xFF2ECC71),
-                      size: 18,
-                    ),
-                    label: const Text(
-                      "Export",
-                      style: TextStyle(
+                  const SizedBox(width: 12),
+                  // Responsive Export button
+                  SizedBox(
+                    height: 44,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(
+                        Icons.file_download_outlined,
                         color: Color(0xFF2ECC71),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                        size: 18,
                       ),
+                      label: const Text(
+                        "Export",
+                        style: TextStyle(
+                          color: Color(0xFF2ECC71),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        side: const BorderSide(
+                          color: Color(0xFF2ECC71),
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 1,
+                        shadowColor: Colors.black.withOpacity(0.05),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                      ),
+                      onPressed: _exportData,
                     ),
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      side: const BorderSide(
-                        color: Color(0xFF2ECC71),
-                        width: 1.5,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 1,
-                      shadowColor: Colors.black.withOpacity(0.05),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                    ),
-                    onPressed: _exportData,
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
 
-            // Standardized Breadcrumb
-            const Padding(
-              padding: EdgeInsets.only(top: 8.0, bottom: 24.0),
+            // Responsive Breadcrumb
+            Padding(
+              padding: EdgeInsets.only(
+                top: 8.0,
+                bottom: isMobile ? 16.0 : 24.0,
+              ),
               child: Text(
                 "Home / Student Management",
-                style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
+                style: TextStyle(
+                  fontSize: isMobile ? 11 : 12,
+                  color: const Color(0xFF9E9E9E),
+                ),
               ),
             ),
 
-            // Filter row
+            // Responsive Filter row
             Container(
               padding: const EdgeInsets.only(bottom: 16.0),
               decoration: const BoxDecoration(
                 border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE))),
               ),
-              child: Row(
-                children: [
-                  // Class filter dropdown
-                  Container(
-                    height: 48,
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _classFilter,
-                        icon: const Icon(Icons.keyboard_arrow_down),
-                        items:
-                            classOptions.map((String item) {
-                              return DropdownMenuItem(
-                                value: item,
-                                child: Text(item),
-                              );
-                            }).toList(),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _classFilter = newValue!;
-                            _currentPage = 1;
-                          });
-                        },
+              child:
+                  isMobile
+                      ? Column(
+                        children: [
+                          // Mobile: Stacked filters
+                          Container(
+                            width: double.infinity,
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _classFilter,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    classOptions.map((String item) {
+                                      return DropdownMenuItem(
+                                        value: item,
+                                        child: Text(item),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _classFilter = newValue!;
+                                    _currentPage = 1;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _statusFilter,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    <String>[
+                                      'All Status',
+                                      'Active',
+                                      'Inactive',
+                                    ].map<DropdownMenuItem<String>>((
+                                      String value,
+                                    ) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text(value),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _statusFilter = newValue!;
+                                    _currentPage = 1;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _sortOption,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    <String>[
+                                      'Name (A-Z)',
+                                      'Name (Z-A)',
+                                      'Date (Asc)',
+                                      'Date (Desc)',
+                                    ].map<DropdownMenuItem<String>>((
+                                      String value,
+                                    ) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text("Sort by: $value"),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _sortOption = newValue!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                      : Row(
+                        children: [
+                          // Desktop/Tablet: Horizontal filters
+                          Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _classFilter,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    classOptions.map((String item) {
+                                      return DropdownMenuItem(
+                                        value: item,
+                                        child: Text(item),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _classFilter = newValue!;
+                                    _currentPage = 1;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _statusFilter,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    <String>[
+                                      'All Status',
+                                      'Active',
+                                      'Inactive',
+                                    ].map<DropdownMenuItem<String>>((
+                                      String value,
+                                    ) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text(value),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _statusFilter = newValue!;
+                                    _currentPage = 1;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _sortOption,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    <String>[
+                                      'Name (A-Z)',
+                                      'Name (Z-A)',
+                                      'Date (Asc)',
+                                      'Date (Desc)',
+                                    ].map<DropdownMenuItem<String>>((
+                                      String value,
+                                    ) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text("Sort by: $value"),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _sortOption = newValue!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Status filter dropdown
-                  Container(
-                    height: 48,
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _statusFilter,
-                        icon: const Icon(Icons.keyboard_arrow_down),
-                        items:
-                            <String>[
-                              'All Status',
-                              'Active',
-                              'Inactive',
-                            ].map<DropdownMenuItem<String>>((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text(value),
-                              );
-                            }).toList(),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _statusFilter = newValue!;
-                            _currentPage = 1;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Sort by dropdown
-                  Container(
-                    height: 48,
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _sortOption,
-                        icon: const Icon(Icons.keyboard_arrow_down),
-                        items:
-                            <String>[
-                              'Name (A-Z)',
-                              'Name (Z-A)',
-                              'Date (Asc)',
-                              'Date (Desc)',
-                            ].map<DropdownMenuItem<String>>((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text("Sort by: $value"),
-                              );
-                            }).toList(),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _sortOption = newValue!;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ),
 
             const SizedBox(height: 16),
@@ -2584,7 +2948,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               ),
             ],
 
-            // Table content
+            // Responsive Table content
             if (isLoading || isLoadingSections)
               const Expanded(
                 child: Center(
@@ -2595,787 +2959,12 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               Expanded(
                 child: Column(
                   children: [
-                    // Table
+                    // Responsive Table
                     Expanded(
-                      child: SingleChildScrollView(
-                        child: Container(
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            border: Border.all(color: const Color(0xFFEEEEEE)),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child:
-                          // Replace your entire Table widget (around line 2080) with this corrected version:
-                          Table(
-                            border: TableBorder(
-                              horizontalInside: BorderSide(
-                                color: Colors.grey[200]!,
-                                width: 1,
-                              ),
-                            ),
-                            columnWidths: {
-                              0: const FlexColumnWidth(0.5), // Checkbox
-                              1: const FlexColumnWidth(0.8), // Student ID
-                              2: const FlexColumnWidth(2.0), // Name + Image
-                              3: const FlexColumnWidth(1.0), // Class
-                              4: FlexColumnWidth(MediaQuery.of(context).size.width < 768 ? 0.6 : 0.8), // Gender - responsive
-                              5: const FlexColumnWidth(1.2), // Contact
-                              6: const FlexColumnWidth(1.4), // Email
-                              7: const FlexColumnWidth(1.0), // Enrollment
-                              8: FlexColumnWidth(MediaQuery.of(context).size.width < 768 ? 0.6 : 0.8), // Status - responsive
-                              9: const FlexColumnWidth(0.6), // Actions
-                            },
-                            defaultVerticalAlignment:
-                                TableCellVerticalAlignment.middle,
-                            children: [
-                              // Table header row
-                              TableRow(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF8F9FA),
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: const Color(0xFFE0E0E0),
-                                      width: 2,
-                                    ),
-                                  ),
-                                ),
-                                children: [
-                                  // Select all checkbox
-                                  TableCell(
-                                    child: Container(
-                                      padding: const EdgeInsets.all(16),
-                                      child: Checkbox(
-                                        value: _selectAll,
-                                        onChanged:
-                                            (value) => _toggleSelectAll(
-                                              currentPageItems,
-                                            ),
-                                        activeColor: const Color(0xFF2ECC71),
-                                      ),
-                                    ),
-                                  ),
-                                  const TableHeaderCell(text: 'Student ID'),
-                                  const TableHeaderCell(text: 'Student Name'),
-                                  const TableHeaderCell(text: 'Class'),
-                                  const TableHeaderCell(text: 'Gender'),
-                                  const TableHeaderCell(text: 'Contact Number'),
-                                  const TableHeaderCell(text: 'Email'),
-                                  const TableHeaderCell(
-                                    text: 'Enrollment Date',
-                                  ),
-                                  const TableHeaderCell(text: 'Status'),
-                                  const TableHeaderCell(text: 'Actions'),
-                                ],
-                              ),
-
-                              // Table data rows - CORRECTED STRUCTURE
-                              ...currentPageItems.map((student) {
-                                final fullName =
-                                    "${student['fname'] ?? ''} ${student['lname'] ?? ''}";
-                                final String studentId =
-                                    "STU${student['id'].toString().padLeft(3, '0')}";
-                                final section = student['sections'];
-                                final String className =
-                                    section != null
-                                        ? "${section['name']} (${section['grade_level']})"
-                                        : "N/A";
-                                final enrollmentDate =
-                                    student['created_at'] != null
-                                        ? DateFormat('yyyy-MM-dd').format(
-                                          DateTime.parse(student['created_at']),
-                                        )
-                                        : "N/A";
-                                final status = student['status'] ?? 'Active';
-                                final profileImageUrl =
-                                    student['profile_image_url']?.toString();
-
-                                return TableRow(
-                                  decoration: BoxDecoration(
-                                    color:
-                                        _selectedStudents.contains(
-                                              student['id'],
-                                            )
-                                            ? const Color(
-                                              0xFF2ECC71,
-                                            ).withOpacity(0.1)
-                                            : Colors.white,
-                                  ),
-                                  children: [
-                                    // 1. Selection checkbox
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(16),
-                                        child: Checkbox(
-                                          value: _selectedStudents.contains(
-                                            student['id'],
-                                          ),
-                                          onChanged:
-                                              (value) =>
-                                                  _toggleStudentSelection(
-                                                    student['id'],
-                                                    currentPageItems,
-                                                  ),
-                                          activeColor: const Color(0xFF2ECC71),
-                                        ),
-                                      ),
-                                    ),
-
-                                    // 2. Student ID
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Text(
-                                          studentId,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                            color: Color(0xFF555555),
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    // 3. Student name WITH PROFILE IMAGE
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Row(
-                                          children: [
-                                            // Profile Image
-                                            Container(
-                                              width: 56,
-                                              height: 56,
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(28),
-                                                border: Border.all(
-                                                  color: const Color(
-                                                    0xFF2ECC71,
-                                                  ).withOpacity(0.4),
-                                                  width: 3,
-                                                ),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: const Color(
-                                                      0xFF2ECC71,
-                                                    ).withOpacity(0.15),
-                                                    blurRadius: 8,
-                                                    offset: const Offset(0, 2),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: ClipOval(
-                                                child:
-                                                    (student['profile_image_url'] !=
-                                                                null &&
-                                                            student['profile_image_url']
-                                                                .toString()
-                                                                .isNotEmpty)
-                                                        ? Image.network(
-                                                          student['profile_image_url'],
-                                                          width: 40,
-                                                          height: 40,
-                                                          fit: BoxFit.cover,
-                                                          loadingBuilder: (
-                                                            context,
-                                                            child,
-                                                            loadingProgress,
-                                                          ) {
-                                                            if (loadingProgress ==
-                                                                null)
-                                                              return child;
-                                                            return Container(
-                                                              width: 40,
-                                                              height: 40,
-                                                              color:
-                                                                  Colors
-                                                                      .grey[200],
-                                                              child: const Center(
-                                                                child: SizedBox(
-                                                                  width: 16,
-                                                                  height: 16,
-                                                                  child: CircularProgressIndicator(
-                                                                    strokeWidth:
-                                                                        2,
-                                                                    color: Color(
-                                                                      0xFF2ECC71,
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                            );
-                                                          },
-                                                          errorBuilder: (
-                                                            context,
-                                                            error,
-                                                            stackTrace,
-                                                          ) {
-                                                            return const Icon(
-                                                              Icons.person,
-                                                              size: 20,
-                                                              color:
-                                                                  Colors.grey,
-                                                            );
-                                                          },
-                                                        )
-                                                        : const Icon(
-                                                          Icons.person,
-                                                          size: 20,
-                                                          color: Colors.grey,
-                                                        ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            // Student Name
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  Text(
-                                                    fullName,
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      color: Color(0xFF1A1A1A),
-                                                      fontSize: 18,
-                                                      letterSpacing: 0.3,
-                                                    ),
-                                                  ),
-                                                  if (student['rfid_uid'] !=
-                                                          null &&
-                                                      student['rfid_uid']
-                                                          .toString()
-                                                          .isNotEmpty) ...[
-                                                    const SizedBox(height: 2),
-                                                    Row(
-                                                      children: [
-                                                        Icon(
-                                                          Icons.contactless,
-                                                          size: 12,
-                                                          color:
-                                                              Colors.green[600],
-                                                        ),
-                                                        const SizedBox(
-                                                          width: 4,
-                                                        ),
-                                                        Text(
-                                                          'RFID: ${student['rfid_uid'].toString().substring(0, 8)}...',
-                                                          style: TextStyle(
-                                                            fontSize: 13,
-                                                            color: const Color(
-                                                              0xFF2ECC71,
-                                                            ),
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ],
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-
-                                    // 4. Class
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(
-                                              0xFF2ECC71,
-                                            ).withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            className,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF2ECC71),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    // 5. Gender - Responsive
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: EdgeInsets.all(MediaQuery.of(context).size.width < 768 ? 8 : 16),
-                                        child: MediaQuery.of(context).size.width < 768
-                                            ? Icon(
-                                                student['gender'] == 'Male'
-                                                    ? Icons.male
-                                                    : student['gender'] == 'Female'
-                                                    ? Icons.female
-                                                    : Icons.person,
-                                                size: 18,
-                                                color: student['gender'] == 'Male'
-                                                    ? Colors.blue[600]
-                                                    : student['gender'] == 'Female'
-                                                    ? Colors.pink[600]
-                                                    : Colors.grey[600],
-                                              )
-                                            : Row(
-                                                children: [
-                                                  Icon(
-                                                    student['gender'] == 'Male'
-                                                        ? Icons.male
-                                                        : student['gender'] == 'Female'
-                                                        ? Icons.female
-                                                        : Icons.person,
-                                                    size: 16,
-                                                    color: student['gender'] == 'Male'
-                                                        ? Colors.blue[600]
-                                                        : student['gender'] == 'Female'
-                                                        ? Colors.pink[600]
-                                                        : Colors.grey[600],
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Flexible(
-                                                    child: Text(
-                                                      student['gender'] ?? 'N/A',
-                                                      style: const TextStyle(fontSize: 13),
-                                                      overflow: TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                      ),
-                                    ),
-
-                                    // 6. Contact number
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child:
-                                            student['contact_number'] != null &&
-                                                    student['contact_number']
-                                                        .toString()
-                                                        .isNotEmpty
-                                                ? Row(
-                                                  children: [
-                                                    Icon(
-                                                      Icons.phone,
-                                                      size: 14,
-                                                      color: Colors.grey[600],
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Text(
-                                                      student['contact_number'],
-                                                      style: const TextStyle(
-                                                        fontSize: 13,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                )
-                                                : Text(
-                                                  'N/A',
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                    color: Colors.grey[500],
-                                                    fontStyle: FontStyle.italic,
-                                                  ),
-                                                ),
-                                      ),
-                                    ),
-
-                                    // 7. Email
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child:
-                                            student['email'] != null &&
-                                                    student['email']
-                                                        .toString()
-                                                        .isNotEmpty
-                                                ? Row(
-                                                  children: [
-                                                    Icon(
-                                                      Icons.email,
-                                                      size: 14,
-                                                      color: Colors.grey[600],
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Expanded(
-                                                      child: Text(
-                                                        student['email'],
-                                                        style: const TextStyle(
-                                                          fontSize: 13,
-                                                        ),
-                                                        overflow:
-                                                            TextOverflow
-                                                                .ellipsis,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                )
-                                                : Text(
-                                                  'N/A',
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                    color: Colors.grey[500],
-                                                    fontStyle: FontStyle.italic,
-                                                  ),
-                                                ),
-                                      ),
-                                    ),
-
-                                    // 8. Enrollment date
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              enrollmentDate,
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                            if (enrollmentDate != 'N/A') ...[
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                _getTimeAgo(enrollmentDate),
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-
-                                    // 9. Status - Responsive
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Padding(
-                                        padding: EdgeInsets.all(MediaQuery.of(context).size.width < 768 ? 8 : 16),
-                                        child: Center(
-                                          child: Container(
-                                            padding: EdgeInsets.symmetric(
-                                              horizontal: MediaQuery.of(context).size.width < 768 ? 6 : 12,
-                                              vertical: MediaQuery.of(context).size.width < 768 ? 3 : 6,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color:
-                                                  status == 'Active'
-                                                      ? const Color(0xFFE8F5E9)
-                                                      : const Color(0xFFFFEBEE),
-                                              borderRadius:
-                                                  BorderRadius.circular(MediaQuery.of(context).size.width < 768 ? 12 : 16),
-                                              border: Border.all(
-                                                color:
-                                                    status == 'Active'
-                                                        ? const Color(
-                                                          0xFF4CAF50,
-                                                        )
-                                                        : const Color(
-                                                          0xFFE57373,
-                                                        ),
-                                                width: 1,
-                                              ),
-                                            ),
-                                            // Center the contents of the pill - Responsive
-                                            child: MediaQuery.of(context).size.width < 768
-                                                ? Container(
-                                                    width: 8,
-                                                    height: 8,
-                                                    decoration: BoxDecoration(
-                                                      color: status == 'Active'
-                                                          ? const Color(0xFF4CAF50)
-                                                          : const Color(0xFFE57373),
-                                                      borderRadius: BorderRadius.circular(4),
-                                                    ),
-                                                  )
-                                                : Row(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    mainAxisAlignment: MainAxisAlignment.center,
-                                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                                    children: [
-                                                      Container(
-                                                        width: 8,
-                                                        height: 8,
-                                                        decoration: BoxDecoration(
-                                                          color: status == 'Active'
-                                                              ? const Color(0xFF4CAF50)
-                                                              : const Color(0xFFE57373),
-                                                          borderRadius: BorderRadius.circular(4),
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      Flexible(
-                                                        child: Text(
-                                                          status,
-                                                          textAlign: TextAlign.center,
-                                                          style: TextStyle(
-                                                            color:
-                                                                status == 'Active'
-                                                                    ? const Color(
-                                                                      0xFF2E7D32,
-                                                                    )
-                                                                    : const Color(
-                                                                      0xFFC62828,
-                                                                    ),
-                                                            fontWeight: FontWeight.w600,
-                                                            fontSize: 12,
-                                                          ),
-                                                          overflow: TextOverflow.ellipsis,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    // 10. Actions
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Center(
-                                        child: PopupMenuButton<String>(
-                                          icon: Icon(
-                                            Icons.more_vert,
-                                            color: Colors.grey[600],
-                                          ),
-                                          iconSize: 20,
-                                          onSelected: (value) {
-                                            if (value == 'edit') {
-                                              _addOrEditStudent(
-                                                student: student,
-                                              );
-                                            } else if (value == 'delete') {
-                                              showDialog(
-                                                context: context,
-                                                builder:
-                                                    (ctx) => AlertDialog(
-                                                      title: const Row(
-                                                        children: [
-                                                          Icon(
-                                                            Icons.warning,
-                                                            color: Colors.red,
-                                                          ),
-                                                          SizedBox(width: 8),
-                                                          Text(
-                                                            'Confirm Delete',
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      content: Column(
-                                                        mainAxisSize:
-                                                            MainAxisSize.min,
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          Text(
-                                                            'Are you sure you want to delete ${student['fname']} ${student['lname']}?',
-                                                            style:
-                                                                const TextStyle(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w500,
-                                                                ),
-                                                          ),
-                                                          const SizedBox(
-                                                            height: 8,
-                                                          ),
-                                                          const Text(
-                                                            'This action cannot be undone and will permanently remove:',
-                                                            style: TextStyle(
-                                                              fontSize: 13,
-                                                            ),
-                                                          ),
-                                                          const SizedBox(
-                                                            height: 8,
-                                                          ),
-                                                          Padding(
-                                                            padding:
-                                                                const EdgeInsets.only(
-                                                                  left: 16,
-                                                                ),
-                                                            child: Column(
-                                                              crossAxisAlignment:
-                                                                  CrossAxisAlignment
-                                                                      .start,
-                                                              children: [
-                                                                const Text(
-                                                                  '• Student profile and data',
-                                                                  style:
-                                                                      TextStyle(
-                                                                        fontSize:
-                                                                            12,
-                                                                      ),
-                                                                ),
-                                                                const Text(
-                                                                  '• Attendance records',
-                                                                  style:
-                                                                      TextStyle(
-                                                                        fontSize:
-                                                                            12,
-                                                                      ),
-                                                                ),
-                                                                const Text(
-                                                                  '• Profile image',
-                                                                  style:
-                                                                      TextStyle(
-                                                                        fontSize:
-                                                                            12,
-                                                                      ),
-                                                                ),
-                                                                if (student['rfid_uid'] !=
-                                                                    null)
-                                                                  const Text(
-                                                                    '• RFID card assignment',
-                                                                    style: TextStyle(
-                                                                      fontSize:
-                                                                          12,
-                                                                    ),
-                                                                  ),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      actions: [
-                                                        TextButton(
-                                                          onPressed:
-                                                              () =>
-                                                                  Navigator.pop(
-                                                                    ctx,
-                                                                  ),
-                                                          child: const Text(
-                                                            'Cancel',
-                                                          ),
-                                                        ),
-                                                        ElevatedButton(
-                                                          style:
-                                                              ElevatedButton.styleFrom(
-                                                                backgroundColor:
-                                                                    Colors.red,
-                                                                foregroundColor:
-                                                                    Colors
-                                                                        .white,
-                                                              ),
-                                                          onPressed: () {
-                                                            Navigator.pop(ctx);
-                                                            _deleteStudent(
-                                                              student['id'],
-                                                            );
-                                                          },
-                                                          child: const Text(
-                                                            'Delete Student',
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                              );
-                                            }
-                                          },
-                                          itemBuilder:
-                                              (context) => [
-                                                const PopupMenuItem(
-                                                  value: 'edit',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(
-                                                        Icons.edit,
-                                                        size: 16,
-                                                        color: Color(
-                                                          0xFF2ECC71,
-                                                        ),
-                                                      ),
-                                                      SizedBox(width: 8),
-                                                      Text('Edit Student'),
-                                                    ],
-                                                  ),
-                                                ),
-                                                if (isAdmin)
-                                                  const PopupMenuItem(
-                                                    value: 'delete',
-                                                    child: Row(
-                                                      children: [
-                                                        Icon(
-                                                          Icons.delete,
-                                                          size: 16,
-                                                          color: Colors.red,
-                                                        ),
-                                                        SizedBox(width: 8),
-                                                        Text(
-                                                          'Delete Student',
-                                                          style: TextStyle(
-                                                            color: Colors.red,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                              ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
-                            ],
-                          ),
-                        ),
-                      ),
+                      child:
+                          isMobile
+                              ? _buildMobileTable(currentPageItems)
+                              : _buildDesktopTable(currentPageItems),
                     ),
 
                     // Enhanced Pagination with more controls
@@ -3685,6 +3274,1005 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Mobile table layout
+  Widget _buildMobileTable(List<Map<String, dynamic>> currentPageItems) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEEEEEE)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Mobile table header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F9FA),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+              border: Border(
+                bottom: BorderSide(color: const Color(0xFFE0E0E0), width: 2),
+              ),
+            ),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: _selectAll,
+                  onChanged: (value) => _toggleSelectAll(currentPageItems),
+                  activeColor: const Color(0xFF2ECC71),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Students',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${currentPageItems.length} student${currentPageItems.length == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Mobile table content - card layout
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: currentPageItems.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final student = currentPageItems[index];
+                final fullName =
+                    "${student['fname'] ?? ''} ${student['lname'] ?? ''}";
+                final String studentId =
+                    "STU${student['id'].toString().padLeft(3, '0')}";
+                final section = student['sections'];
+                final String className =
+                    section != null
+                        ? "${section['name']} (${section['grade_level']})"
+                        : "N/A";
+                final enrollmentDate =
+                    student['created_at'] != null
+                        ? DateFormat(
+                          'yyyy-MM-dd',
+                        ).format(DateTime.parse(student['created_at']))
+                        : "N/A";
+                final status = student['status'] ?? 'Active';
+
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color:
+                        _selectedStudents.contains(student['id'])
+                            ? const Color(0xFF2ECC71).withOpacity(0.1)
+                            : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[200]!),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Student header with checkbox and ID
+                      Row(
+                        children: [
+                          Checkbox(
+                            value: _selectedStudents.contains(student['id']),
+                            onChanged:
+                                (value) => _toggleStudentSelection(
+                                  student['id'],
+                                  currentPageItems,
+                                ),
+                            activeColor: const Color(0xFF2ECC71),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2ECC71).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              studentId,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF2ECC71),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  status == 'Active'
+                                      ? Colors.green[50]
+                                      : Colors.red[50],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color:
+                                    status == 'Active'
+                                        ? Colors.green[200]!
+                                        : Colors.red[200]!,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    color:
+                                        status == 'Active'
+                                            ? Colors.green[600]
+                                            : Colors.red[600],
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  status,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color:
+                                        status == 'Active'
+                                            ? Colors.green[600]
+                                            : Colors.red[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Student profile image and name
+                      Row(
+                        children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(
+                                color: const Color(0xFF2ECC71).withOpacity(0.4),
+                                width: 3,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xFF2ECC71,
+                                  ).withOpacity(0.15),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child:
+                                  (student['profile_image_url'] != null &&
+                                          student['profile_image_url']
+                                              .toString()
+                                              .isNotEmpty)
+                                      ? Image.network(
+                                        student['profile_image_url'],
+                                        width: 40,
+                                        height: 40,
+                                        fit: BoxFit.cover,
+                                        loadingBuilder: (
+                                          context,
+                                          child,
+                                          loadingProgress,
+                                        ) {
+                                          if (loadingProgress == null)
+                                            return child;
+                                          return Container(
+                                            width: 40,
+                                            height: 40,
+                                            color: Colors.grey[200],
+                                            child: const Center(
+                                              child: SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Color(0xFF2ECC71),
+                                                    ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        errorBuilder: (
+                                          context,
+                                          error,
+                                          stackTrace,
+                                        ) {
+                                          return const Icon(
+                                            Icons.person,
+                                            size: 20,
+                                            color: Colors.grey,
+                                          );
+                                        },
+                                      )
+                                      : const Icon(
+                                        Icons.person,
+                                        size: 20,
+                                        color: Colors.grey,
+                                      ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  fullName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1A1A1A),
+                                    fontSize: 16,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                                if (student['rfid_uid'] != null &&
+                                    student['rfid_uid']
+                                        .toString()
+                                        .isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.contactless,
+                                        size: 12,
+                                        color: Colors.green[600],
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'RFID',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: const Color(0xFF2ECC71),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Student details
+                      _buildMobileDetailRow('Class', className, Icons.class_),
+                      _buildMobileDetailRow(
+                        'Gender',
+                        student['gender'] ?? 'N/A',
+                        student['gender'] == 'Male' ? Icons.male : Icons.female,
+                      ),
+                      _buildMobileDetailRow(
+                        'Contact',
+                        student['contact_number'] ?? 'N/A',
+                        Icons.phone,
+                      ),
+                      _buildMobileDetailRow(
+                        'Email',
+                        student['email'] ?? 'N/A',
+                        Icons.email,
+                      ),
+                      _buildMobileDetailRow(
+                        'Enrollment',
+                        enrollmentDate,
+                        Icons.calendar_today,
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Action buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.edit, size: 16),
+                              label: const Text(
+                                "Edit",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2ECC71),
+                                foregroundColor: Colors.white,
+                                elevation: 2,
+                                shadowColor: Colors.black.withOpacity(0.1),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed:
+                                  () => _addOrEditStudent(student: student),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.delete, size: 16),
+                              label: const Text(
+                                "Delete",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                side: const BorderSide(
+                                  color: Colors.red,
+                                  width: 1.5,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: () async {
+                                final confirm = await _showDeleteConfirmDialog(
+                                  student['fname'],
+                                );
+                                if (confirm) {
+                                  await _deleteStudent(student['id']);
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Desktop table layout
+  Widget _buildDesktopTable(List<Map<String, dynamic>> currentPageItems) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFEEEEEE)),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Table(
+        border: TableBorder(
+          horizontalInside: BorderSide(color: Colors.grey[200]!, width: 1),
+        ),
+        columnWidths: {
+          0: const FlexColumnWidth(0.5), // Checkbox
+          1: const FlexColumnWidth(0.8), // Student ID
+          2: const FlexColumnWidth(2.0), // Name + Image
+          3: const FlexColumnWidth(1.0), // Class
+          4: FlexColumnWidth(isTablet ? 0.6 : 0.8), // Gender - responsive
+          5: const FlexColumnWidth(1.2), // Contact
+          6: const FlexColumnWidth(1.4), // Email
+          7: const FlexColumnWidth(1.0), // Enrollment
+          8: FlexColumnWidth(isTablet ? 0.6 : 0.8), // Status - responsive
+          9: const FlexColumnWidth(0.6), // Actions
+        },
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        children: [
+          // Table header row
+          TableRow(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F9FA),
+              border: Border(
+                bottom: BorderSide(color: const Color(0xFFE0E0E0), width: 2),
+              ),
+            ),
+            children: [
+              // Select all checkbox
+              TableCell(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Checkbox(
+                    value: _selectAll,
+                    onChanged: (value) => _toggleSelectAll(currentPageItems),
+                    activeColor: const Color(0xFF2ECC71),
+                  ),
+                ),
+              ),
+              const TableHeaderCell(text: 'Student ID'),
+              const TableHeaderCell(text: 'Student Name'),
+              const TableHeaderCell(text: 'Class'),
+              const TableHeaderCell(text: 'Gender'),
+              const TableHeaderCell(text: 'Contact Number'),
+              const TableHeaderCell(text: 'Email'),
+              const TableHeaderCell(text: 'Enrollment Date'),
+              const TableHeaderCell(text: 'Status'),
+              const TableHeaderCell(text: 'Actions'),
+            ],
+          ),
+
+          // Table data rows
+          ...currentPageItems.map((student) {
+            final fullName =
+                "${student['fname'] ?? ''} ${student['lname'] ?? ''}";
+            final String studentId =
+                "STU${student['id'].toString().padLeft(3, '0')}";
+            final section = student['sections'];
+            final String className =
+                section != null
+                    ? "${section['name']} (${section['grade_level']})"
+                    : "N/A";
+            final enrollmentDate =
+                student['created_at'] != null
+                    ? DateFormat(
+                      'yyyy-MM-dd',
+                    ).format(DateTime.parse(student['created_at']))
+                    : "N/A";
+            final status = student['status'] ?? 'Active';
+
+            return TableRow(
+              decoration: BoxDecoration(
+                color:
+                    _selectedStudents.contains(student['id'])
+                        ? const Color(0xFF2ECC71).withOpacity(0.1)
+                        : Colors.white,
+              ),
+              children: [
+                // 1. Selection checkbox
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Checkbox(
+                      value: _selectedStudents.contains(student['id']),
+                      onChanged:
+                          (value) => _toggleStudentSelection(
+                            student['id'],
+                            currentPageItems,
+                          ),
+                      activeColor: const Color(0xFF2ECC71),
+                    ),
+                  ),
+                ),
+
+                // 2. Student ID
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      studentId,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF555555),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 3. Student name WITH PROFILE IMAGE
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        // Profile Image
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(28),
+                            border: Border.all(
+                              color: const Color(0xFF2ECC71).withOpacity(0.4),
+                              width: 3,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFF2ECC71,
+                                ).withOpacity(0.15),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child:
+                                (student['profile_image_url'] != null &&
+                                        student['profile_image_url']
+                                            .toString()
+                                            .isNotEmpty)
+                                    ? Image.network(
+                                      student['profile_image_url'],
+                                      width: 40,
+                                      height: 40,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (
+                                        context,
+                                        child,
+                                        loadingProgress,
+                                      ) {
+                                        if (loadingProgress == null)
+                                          return child;
+                                        return Container(
+                                          width: 40,
+                                          height: 40,
+                                          color: Colors.grey[200],
+                                          child: const Center(
+                                            child: SizedBox(
+                                              width: 16,
+                                              height: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Color(0xFF2ECC71),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      errorBuilder: (
+                                        context,
+                                        error,
+                                        stackTrace,
+                                      ) {
+                                        return const Icon(
+                                          Icons.person,
+                                          size: 20,
+                                          color: Colors.grey,
+                                        );
+                                      },
+                                    )
+                                    : const Icon(
+                                      Icons.person,
+                                      size: 20,
+                                      color: Colors.grey,
+                                    ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // Student Name
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                fullName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1A1A1A),
+                                  fontSize: 18,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                              if (student['rfid_uid'] != null &&
+                                  student['rfid_uid']
+                                      .toString()
+                                      .isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.contactless,
+                                      size: 12,
+                                      color: Colors.green[600],
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'RFID',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: const Color(0xFF2ECC71),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 4. Class
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.all(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2ECC71).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        className,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF2ECC71),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 5. Gender
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Icon(
+                          student['gender'] == 'Male'
+                              ? Icons.male
+                              : student['gender'] == 'Female'
+                              ? Icons.female
+                              : Icons.person,
+                          size: 16,
+                          color:
+                              student['gender'] == 'Male'
+                                  ? Colors.blue[600]
+                                  : student['gender'] == 'Female'
+                                  ? Colors.pink[600]
+                                  : Colors.grey[600],
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            student['gender'] ?? 'N/A',
+                            style: const TextStyle(fontSize: 13),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 6. Contact number
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.all(16),
+                    child:
+                        student['contact_number'] != null &&
+                                student['contact_number'].toString().isNotEmpty
+                            ? Row(
+                              children: [
+                                Icon(
+                                  Icons.phone,
+                                  size: 14,
+                                  color: Colors.grey[600],
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  student['contact_number'],
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Color(0xFF555555),
+                                  ),
+                                ),
+                              ],
+                            )
+                            : Text(
+                              'N/A',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                  ),
+                ),
+
+                // 7. Email
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.all(16),
+                    child:
+                        student['email'] != null &&
+                                student['email'].toString().isNotEmpty
+                            ? Row(
+                              children: [
+                                Icon(
+                                  Icons.email,
+                                  size: 14,
+                                  color: Colors.grey[600],
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  student['email'],
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF555555),
+                                  ),
+                                ),
+                              ],
+                            )
+                            : Text(
+                              'N/A',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                  ),
+                ),
+
+                // 8. Enrollment date
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          enrollmentDate,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF555555),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _getTimeAgo(student['created_at']),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 9. Status
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.all(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            status == 'Active'
+                                ? Colors.green[50]
+                                : Colors.red[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color:
+                              status == 'Active'
+                                  ? Colors.green[200]!
+                                  : Colors.red[200]!,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color:
+                                  status == 'Active'
+                                      ? Colors.green[600]
+                                      : Colors.red[600],
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            status,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color:
+                                  status == 'Active'
+                                      ? Colors.green[600]
+                                      : Colors.red[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 10. Actions
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.all(16),
+                    child: PopupMenuButton<String>(
+                      icon: Icon(
+                        Icons.more_vert,
+                        color: Colors.grey[600],
+                        size: 20,
+                      ),
+                      tooltip: 'More options',
+                      onSelected: (value) async {
+                        if (value == 'edit') {
+                          await _addOrEditStudent(student: student);
+                        } else if (value == 'delete') {
+                          final confirm = await _showDeleteConfirmDialog(
+                            student['fname'],
+                          );
+                          if (confirm) {
+                            await _deleteStudent(student['id']);
+                          }
+                        }
+                      },
+                      itemBuilder:
+                          (context) => [
+                            const PopupMenuItem(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.edit,
+                                    size: 18,
+                                    color: Color(0xFF2ECC71),
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    'Edit Student',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.delete,
+                                    size: 18,
+                                    color: Colors.red,
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    'Delete Student',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+  // Helper method for mobile detail rows
+  Widget _buildMobileDetailRow(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.grey[600]),
+          const SizedBox(width: 8),
+          Text(
+            '$label: ',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF1A1A1A),
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }

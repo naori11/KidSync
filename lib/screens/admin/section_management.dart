@@ -20,6 +20,14 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
   String _gradeFilter = 'All Grades';
   String _sortOption = 'Name (A-Z)';
 
+  // Responsive breakpoints
+  bool get isMobile => MediaQuery.of(context).size.width < 768;
+  bool get isTablet =>
+      MediaQuery.of(context).size.width >= 768 &&
+      MediaQuery.of(context).size.width < 1200;
+  bool get isDesktop => MediaQuery.of(context).size.width >= 1200;
+  bool get isSmallMobile => MediaQuery.of(context).size.width < 480;
+
   @override
   void initState() {
     super.initState();
@@ -1972,255 +1980,530 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     return Scaffold(
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Standardized Header
-            Row(
-              children: [
-                const Text(
-                  "Section Management",
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A1A1A),
-                    letterSpacing: 0.5,
+            // Responsive Header
+            if (isMobile) ...[
+              // Mobile: Stacked layout
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Section Management",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.5,
+                    ),
                   ),
-                ),
-                const Spacer(),
-                // Standardized Search bar
-                Container(
-                  width: 260,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: const Color(0xFFE0E0E0)),
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
+                  const SizedBox(height: 16),
+                  // Mobile search bar
+                  Container(
+                    width: double.infinity,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: const Color(0xFFE0E0E0)),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search sections...',
+                        hintStyle: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF9E9E9E),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: Color(0xFF2ECC71),
+                          size: 20,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 12.0,
+                          horizontal: 16.0,
+                        ),
+                      ),
+                      onChanged:
+                          (val) => setState(() {
+                            _searchQuery = val;
+                          }),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Mobile action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 44,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(
+                              Icons.add,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            label: Text(
+                              isSmallMobile ? "Add" : "Add New Section",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2ECC71),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 2,
+                              shadowColor: Colors.black.withOpacity(0.1),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                            ),
+                            onPressed: () => _addOrEditSection(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 44,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(
+                            Icons.file_download_outlined,
+                            color: Color(0xFF2ECC71),
+                            size: 18,
+                          ),
+                          label: Text(
+                            isSmallMobile ? "Export" : "Export",
+                            style: const TextStyle(
+                              color: Color(0xFF2ECC71),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            side: const BorderSide(
+                              color: Color(0xFF2ECC71),
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 1,
+                            shadowColor: Colors.black.withOpacity(0.05),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                          ),
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Export functionality coming soon...',
+                                ),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     ],
                   ),
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Search sections...',
-                      hintStyle: TextStyle(fontSize: 14, color: Color(0xFF9E9E9E)),
-                      prefixIcon: Icon(
-                        Icons.search,
-                        color: Color(0xFF2ECC71),
-                        size: 20,
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(
-                        vertical: 12.0,
-                        horizontal: 16.0,
-                      ),
+                ],
+              ),
+            ] else ...[
+              // Desktop/Tablet: Horizontal layout
+              Row(
+                children: [
+                  const Text(
+                    "Section Management",
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.5,
                     ),
-                    onChanged:
-                        (val) => setState(() {
-                          _searchQuery = val;
-                        }),
                   ),
-                ),
-                const SizedBox(width: 12),
-                // Standardized Add New button
-                SizedBox(
-                  height: 44,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                    label: const Text(
-                      "Add New Section",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2ECC71),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 2,
-                      shadowColor: Colors.black.withOpacity(0.1),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                    ),
-                    onPressed: () => _addOrEditSection(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Standardized Export button
-                SizedBox(
-                  height: 44,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(
-                      Icons.file_download_outlined,
-                      color: Color(0xFF2ECC71),
-                      size: 18,
-                    ),
-                    label: const Text(
-                      "Export",
-                      style: TextStyle(
-                        color: Color(0xFF2ECC71),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      side: const BorderSide(
-                        color: Color(0xFF2ECC71),
-                        width: 1.5,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 1,
-                      shadowColor: Colors.black.withOpacity(0.05),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                    ),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Export functionality coming soon...'),
-                          backgroundColor: Colors.orange,
+                  const Spacer(),
+                  // Responsive search bar
+                  Container(
+                    width: isTablet ? 240 : 260,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: const Color(0xFFE0E0E0)),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
-                      );
-                    },
+                      ],
+                    ),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search sections...',
+                        hintStyle: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF9E9E9E),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: Color(0xFF2ECC71),
+                          size: 20,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 12.0,
+                          horizontal: 16.0,
+                        ),
+                      ),
+                      onChanged:
+                          (val) => setState(() {
+                            _searchQuery = val;
+                          }),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            // Standardized Breadcrumb
-            const Padding(
-              padding: EdgeInsets.only(top: 8.0, bottom: 24.0),
+                  const SizedBox(width: 12),
+                  // Responsive Add New button
+                  SizedBox(
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(
+                        Icons.add,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      label: Text(
+                        isTablet ? "Add Section" : "Add New Section",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2ECC71),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 2,
+                        shadowColor: Colors.black.withOpacity(0.1),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isTablet ? 12 : 16,
+                          vertical: 10,
+                        ),
+                      ),
+                      onPressed: () => _addOrEditSection(),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Responsive Export button
+                  SizedBox(
+                    height: 44,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(
+                        Icons.file_download_outlined,
+                        color: Color(0xFF2ECC71),
+                        size: 18,
+                      ),
+                      label: const Text(
+                        "Export",
+                        style: TextStyle(
+                          color: Color(0xFF2ECC71),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        side: const BorderSide(
+                          color: Color(0xFF2ECC71),
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 1,
+                        shadowColor: Colors.black.withOpacity(0.05),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                      ),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Export functionality coming soon...',
+                            ),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            // Responsive Breadcrumb
+            Padding(
+              padding: EdgeInsets.only(
+                top: 8.0,
+                bottom: isMobile ? 16.0 : 24.0,
+              ),
               child: Text(
                 "Home / Section Management",
-                style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
+                style: TextStyle(
+                  fontSize: isMobile ? 11 : 12,
+                  color: const Color(0xFF9E9E9E),
+                ),
               ),
             ),
 
-            // Filter row
+            // Responsive Filter row
             Container(
               padding: const EdgeInsets.only(bottom: 16.0),
               decoration: const BoxDecoration(
                 border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE))),
               ),
-              child: Row(
-                children: [
-                  // Grade filter dropdown
-                  Container(
-                    height: 48,
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _gradeFilter,
-                        icon: const Icon(Icons.keyboard_arrow_down),
-                        items:
-                            [
-                              'All Grades',
-                              'Preschool',
-                              'Kinder',
-                              'Grade 1',
-                              'Grade 2',
-                              'Grade 3',
-                              'Grade 4',
-                              'Grade 5',
-                              'Grade 6',
-                            ].map((String item) {
-                              return DropdownMenuItem(
-                                value: item,
-                                child: Text(item),
-                              );
-                            }).toList(),
-                        onChanged: (String? newValue) {
-                          if (newValue == null) return;
-                          setState(() {
-                            _gradeFilter = newValue;
-                          });
-                        },
+              child:
+                  isMobile
+                      ? Column(
+                        children: [
+                          // Mobile: Stacked filters
+                          Container(
+                            width: double.infinity,
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _gradeFilter,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    [
+                                      'All Grades',
+                                      'Preschool',
+                                      'Kinder',
+                                      'Grade 1',
+                                      'Grade 2',
+                                      'Grade 3',
+                                      'Grade 4',
+                                      'Grade 5',
+                                      'Grade 6',
+                                    ].map((String item) {
+                                      return DropdownMenuItem(
+                                        value: item,
+                                        child: Text(item),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  if (newValue == null) return;
+                                  setState(() {
+                                    _gradeFilter = newValue;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _sortOption,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    <String>[
+                                      'Name (A-Z)',
+                                      'Name (Z-A)',
+                                      'Grade Level',
+                                      'Date Created',
+                                    ].map<DropdownMenuItem<String>>((
+                                      String value,
+                                    ) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text('Sort by: $value'),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  if (newValue == null) return;
+                                  setState(() {
+                                    _sortOption = newValue;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                      : Row(
+                        children: [
+                          // Desktop/Tablet: Horizontal filters
+                          Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _gradeFilter,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    [
+                                      'All Grades',
+                                      'Preschool',
+                                      'Kinder',
+                                      'Grade 1',
+                                      'Grade 2',
+                                      'Grade 3',
+                                      'Grade 4',
+                                      'Grade 5',
+                                      'Grade 6',
+                                    ].map((String item) {
+                                      return DropdownMenuItem(
+                                        value: item,
+                                        child: Text(item),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  if (newValue == null) return;
+                                  setState(() {
+                                    _gradeFilter = newValue;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _sortOption,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    <String>[
+                                      'Name (A-Z)',
+                                      'Name (Z-A)',
+                                      'Grade Level',
+                                      'Date Created',
+                                    ].map<DropdownMenuItem<String>>((
+                                      String value,
+                                    ) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text('Sort by: $value'),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  if (newValue == null) return;
+                                  setState(() {
+                                    _sortOption = newValue;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Sort by dropdown
-                  Container(
-                    height: 48,
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _sortOption,
-                        icon: const Icon(Icons.keyboard_arrow_down),
-                        items:
-                            <String>[
-                              'Name (A-Z)',
-                              'Name (Z-A)',
-                              'Grade Level',
-                              'Date Created',
-                            ].map<DropdownMenuItem<String>>((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text('Sort by: $value'),
-                              );
-                            }).toList(),
-                        onChanged: (String? newValue) {
-                          if (newValue == null) return;
-                          setState(() {
-                            _sortOption = newValue;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ),
 
             const SizedBox(height: 16),
 
-            // Stats row
+            // Responsive Stats row
             if (isLoading)
               const Center(
                 child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
               )
             else
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(isMobile ? 16 : 20),
                 margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -2234,126 +2517,254 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                     ),
                   ],
                 ),
-                child: Row(
-                  children: [
-                    // Total sections stat
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2ECC71).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
+                child:
+                    isMobile
+                        ? Column(
+                          children: [
+                            // Mobile: Stacked stats
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(
+                                      0xFF2ECC71,
+                                    ).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.class_,
+                                    color: Color(0xFF2ECC71),
+                                    size: 28,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Total Sections',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${sections.length}',
+                                        style: const TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1A1A1A),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                            child: const Icon(
-                              Icons.class_,
-                              color: Color(0xFF2ECC71),
-                              size: 28,
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.school,
+                                    color: Colors.blue,
+                                    size: 28,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Grade Levels',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${sections.map((s) => s['grade_level']).toSet().length}',
+                                        style: const TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1A1A1A),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Total Sections',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.w500,
+                            const SizedBox(height: 16),
+                            // Mobile: Centered active indicator
+                            Center(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green[50],
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: Colors.green[200]!),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle,
+                                      size: 18,
+                                      color: Colors.green[600],
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'All Active',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.green[600],
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              Text(
-                                '${sections.length}',
-                                style: const TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1A1A1A),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Grade levels stat
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(
-                              Icons.school,
-                              color: Colors.blue,
-                              size: 28,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Grade Levels',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.w500,
-                                ),
+                          ],
+                        )
+                        : Row(
+                          children: [
+                            // Desktop/Tablet: Horizontal stats
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFF2ECC71,
+                                      ).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.class_,
+                                      color: Color(0xFF2ECC71),
+                                      size: 28,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Total Sections',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${sections.length}',
+                                        style: const TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1A1A1A),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                              Text(
-                                '${sections.map((s) => s['grade_level']).toSet().length}',
-                                style: const TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1A1A1A),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Active sections indicator
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.green[50],
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.green[200]!),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            size: 18,
-                            color: Colors.green[600],
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'All Active',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.green[600],
-                              fontWeight: FontWeight.w600,
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.school,
+                                      color: Colors.blue,
+                                      size: 28,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Grade Levels',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${sections.map((s) => s['grade_level']).toSet().length}',
+                                        style: const TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1A1A1A),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green[50],
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.green[200]!),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    size: 18,
+                                    color: Colors.green[600],
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'All Active',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.green[600],
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
               ),
 
-            // Enhanced Table with better styling
+            // Responsive Table
             Expanded(
               child:
                   isLoading
@@ -2363,10 +2774,9 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                         ),
                       )
                       : displaySections.isEmpty
-                      // show friendly "no results" when search/filter yields nothing
                       ? Center(
                         child: Container(
-                          padding: const EdgeInsets.all(32),
+                          padding: EdgeInsets.all(isMobile ? 24 : 32),
                           decoration: BoxDecoration(
                             color: Colors.grey[50],
                             borderRadius: BorderRadius.circular(16),
@@ -2377,45 +2787,53 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                             children: [
                               Icon(
                                 Icons.class_outlined,
-                                size: 64,
+                                size: isMobile ? 48 : 64,
                                 color: Colors.grey[400],
                               ),
-                              const SizedBox(height: 16),
+                              SizedBox(height: isMobile ? 12 : 16),
                               Text(
                                 _searchQuery.trim().isEmpty
                                     ? "No sections found"
                                     : "No sections match \"${_searchQuery.trim()}\"",
                                 style: TextStyle(
                                   color: Colors.grey[600],
-                                  fontSize: 16,
+                                  fontSize: isMobile ? 14 : 16,
                                   fontWeight: FontWeight.w500,
                                 ),
+                                textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 12),
                               Text(
                                 "Try a different search term or clear filters.",
                                 style: TextStyle(
                                   color: Colors.grey[500],
-                                  fontSize: 13,
+                                  fontSize: isMobile ? 12 : 13,
                                 ),
+                                textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 16),
                               ElevatedButton.icon(
                                 onPressed: () {
-                                  // clear search and reset grade filter to show all
                                   setState(() {
                                     _searchQuery = '';
                                     _gradeFilter = 'All Grades';
                                   });
                                 },
                                 icon: const Icon(Icons.search),
-                                label: const Text('Clear Search / Filters'),
+                                label: Text(
+                                  isMobile
+                                      ? 'Clear Filters'
+                                      : 'Clear Search / Filters',
+                                  style: TextStyle(
+                                    fontSize: isMobile ? 13 : 14,
+                                  ),
+                                ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF2ECC71),
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 12,
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isMobile ? 20 : 24,
+                                    vertical: isMobile ? 10 : 12,
                                   ),
                                 ),
                               ),
@@ -2423,437 +2841,680 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                           ),
                         ),
                       )
-                      : Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE0E0E0)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            // Enhanced table header
-                            Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(12),
-                                  topRight: Radius.circular(12),
-                                ),
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: Colors.grey[200]!,
-                                    width: 2,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.class_,
-                                    color: Color(0xFF2ECC71),
-                                    size: 24,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Text(
-                                    'Sections Overview',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF1A1A1A),
-                                      letterSpacing: 0.3,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    '${sections.length} section${sections.length == 1 ? '' : 's'}',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.grey[600],
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Table content
-                            Expanded(
-                              child: SingleChildScrollView(
-                                child: Table(
-                                  border: TableBorder(
-                                    horizontalInside: BorderSide(
-                                      color: Colors.grey[200]!,
-                                      width: 1,
-                                    ),
-                                  ),
-                                  columnWidths: const {
-                                    0: FlexColumnWidth(0.8), // Section ID
-                                    1: FlexColumnWidth(1.5), // Section Name
-                                    2: FlexColumnWidth(1.0), // Grade Level
-                                    3: FlexColumnWidth(1.2), // Created At
-                                    4: FlexColumnWidth(1.5), // Actions
-                                  },
-                                  defaultVerticalAlignment:
-                                      TableCellVerticalAlignment.middle,
-                                  children: [
-                                    // Table header row
-                                    TableRow(
-                                      decoration: BoxDecoration(
-                                        color: Color(0xFFF8F9FA),
-                                        border: Border(
-                                          bottom: BorderSide(
-                                            color: Colors.grey[200]!,
-                                            width: 2,
-                                          ),
-                                        ),
-                                      ),
-                                      children: const [
-                                        TableHeaderCell(text: 'Section ID'),
-                                        TableHeaderCell(text: 'Section Name'),
-                                        TableHeaderCell(text: 'Grade Level'),
-                                        TableHeaderCell(text: 'Created Date'),
-                                        TableHeaderCell(text: 'Actions'),
-                                      ],
-                                    ),
-                                    // Table data rows (use displaySections after filter/sort)
-                                    ...displaySections.map((section) {
-                                      final createdAt =
-                                          section['created_at'] != null
-                                              ? DateTime.tryParse(
-                                                section['created_at'],
-                                              )
-                                              : null;
-                                      final createdStr =
-                                          createdAt != null
-                                              ? "${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}"
-                                              : "N/A";
-
-                                      return TableRow(
-                                        decoration: const BoxDecoration(
-                                          color: Colors.white,
-                                        ),
-                                        children: [
-                                          // Section ID with enhanced styling
-                                          TableCell(
-                                            child: Container(
-                                              padding: const EdgeInsets.all(16),
-                                              child: Row(
-                                                children: [
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 4,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: const Color(
-                                                        0xFF2ECC71,
-                                                      ).withOpacity(0.1),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            6,
-                                                          ),
-                                                    ),
-                                                    child: Text(
-                                                      'SEC${section['id'].toString().padLeft(3, '0')}',
-                                                      style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        color: Color(
-                                                          0xFF2ECC71,
-                                                        ),
-                                                        fontSize: 14,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-
-                                          // Section Name with icon
-                                          TableCell(
-                                            child: Container(
-                                              padding: const EdgeInsets.all(16),
-                                              child: Row(
-                                                children: [
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.all(8),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.blue
-                                                          .withOpacity(0.1),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
-                                                          ),
-                                                    ),
-                                                    child: Icon(
-                                                      Icons.class_,
-                                                      size: 16,
-                                                      color: Colors.blue[600],
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                    child: Text(
-                                                      section['name'] ?? '',
-                                                      style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        color: Color(
-                                                          0xFF1A1A1A,
-                                                        ),
-                                                        fontSize: 18,
-                                                        letterSpacing: 0.3,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-
-                                          // Grade Level with badge
-                                          TableCell(
-                                            child: Container(
-                                              padding: const EdgeInsets.all(16),
-                                              child: Row(
-                                                children: [
-                                                  Flexible(
-                                                    child: Container(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 8,
-                                                            vertical: 4,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: _getGradeColor(
-                                                          section['grade_level'],
-                                                        ).withOpacity(0.1),
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              12,
-                                                            ),
-                                                        border: Border.all(
-                                                          color: _getGradeColor(
-                                                            section['grade_level'],
-                                                          ).withOpacity(0.3),
-                                                        ),
-                                                      ),
-                                                      child: Text(
-                                                        section['grade_level'] ??
-                                                            'N/A',
-                                                        style: TextStyle(
-                                                          fontSize: 13,
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                          color: _getGradeColor(
-                                                            section['grade_level'],
-                                                          ),
-                                                        ),
-                                                        overflow:
-                                                            TextOverflow
-                                                                .ellipsis,
-                                                        maxLines: 1,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-
-                                          // Created Date with icon
-                                          TableCell(
-                                            child: Container(
-                                              padding: const EdgeInsets.all(16),
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.calendar_today,
-                                                    size: 14,
-                                                    color: Colors.grey[600],
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Text(
-                                                    createdStr,
-                                                    style: const TextStyle(
-                                                      fontSize: 15,
-                                                      color: Color(0xFF555555),
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-
-                                          // Enhanced Actions
-                                          TableCell(
-                                            child: Container(
-                                              padding: const EdgeInsets.all(16),
-                                              child: Row(
-                                                children: [
-                                                  // Manage Teachers button
-                                                  Expanded(
-                                                    child: ElevatedButton.icon(
-                                                      icon: const Icon(
-                                                        Icons.group,
-                                                        size: 18,
-                                                      ),
-                                                      label: const Text(
-                                                        "Teachers",
-                                                        style: TextStyle(
-                                                          fontSize: 14,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                        ),
-                                                      ),
-                                                      style: ElevatedButton.styleFrom(
-                                                        backgroundColor:
-                                                            const Color(
-                                                              0xFF2ECC71,
-                                                            ),
-                                                        foregroundColor:
-                                                            Colors.white,
-                                                        elevation: 2,
-                                                        shadowColor: Colors
-                                                            .black
-                                                            .withOpacity(0.1),
-                                                        padding:
-                                                            const EdgeInsets.symmetric(
-                                                              horizontal: 12,
-                                                              vertical: 8,
-                                                            ),
-                                                        shape: RoundedRectangleBorder(
-                                                          borderRadius:
-                                                              BorderRadius.circular(
-                                                                8,
-                                                              ),
-                                                        ),
-                                                      ),
-                                                      onPressed:
-                                                          () =>
-                                                              _showManageTeachersDialog(
-                                                                section['id'],
-                                                                section['name'],
-                                                              ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  // More actions menu
-                                                  PopupMenuButton<String>(
-                                                    icon: Icon(
-                                                      Icons.more_vert,
-                                                      color: Colors.grey[600],
-                                                      size: 20,
-                                                    ),
-                                                    tooltip: 'More options',
-                                                    onSelected: (value) async {
-                                                      if (value == 'edit') {
-                                                        await _addOrEditSection(
-                                                          section: section,
-                                                        );
-                                                      } else if (value ==
-                                                          'delete') {
-                                                        final confirm =
-                                                            await _showDeleteConfirmDialog(
-                                                              section['name'],
-                                                            );
-                                                        if (confirm) {
-                                                          await _deleteSection(
-                                                            section['id'],
-                                                          );
-                                                        }
-                                                      }
-                                                    },
-                                                    itemBuilder:
-                                                        (context) => [
-                                                          const PopupMenuItem(
-                                                            value: 'edit',
-                                                            child: Row(
-                                                              children: [
-                                                                Icon(
-                                                                  Icons.edit,
-                                                                  size: 18,
-                                                                  color: Color(
-                                                                    0xFF2ECC71,
-                                                                  ),
-                                                                ),
-                                                                SizedBox(
-                                                                  width: 10,
-                                                                ),
-                                                                Text(
-                                                                  'Edit Section',
-                                                                  style: TextStyle(
-                                                                    fontSize:
-                                                                        15,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w500,
-                                                                  ),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                          const PopupMenuItem(
-                                                            value: 'delete',
-                                                            child: Row(
-                                                              children: [
-                                                                Icon(
-                                                                  Icons.delete,
-                                                                  size: 18,
-                                                                  color:
-                                                                      Colors
-                                                                          .red,
-                                                                ),
-                                                                SizedBox(
-                                                                  width: 10,
-                                                                ),
-                                                                Text(
-                                                                  'Delete Section',
-                                                                  style: TextStyle(
-                                                                    color:
-                                                                        Colors
-                                                                            .red,
-                                                                    fontSize:
-                                                                        15,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .w500,
-                                                                  ),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                        ],
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    }).toList(),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      : isMobile
+                      ? _buildMobileTable(displaySections)
+                      : _buildDesktopTable(displaySections),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Mobile table layout
+  Widget _buildMobileTable(List<Map<String, dynamic>> displaySections) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Mobile table header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+              border: Border(
+                bottom: BorderSide(color: Colors.grey[200]!, width: 2),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.class_, color: Color(0xFF2ECC71), size: 20),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Sections Overview',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${sections.length} section${sections.length == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Mobile table content - card layout
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: displaySections.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final section = displaySections[index];
+                final createdAt =
+                    section['created_at'] != null
+                        ? DateTime.tryParse(section['created_at'])
+                        : null;
+                final createdStr =
+                    createdAt != null
+                        ? "${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}"
+                        : "N/A";
+
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[200]!),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Section header
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2ECC71).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'SEC${section['id'].toString().padLeft(3, '0')}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF2ECC71),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getGradeColor(
+                                section['grade_level'],
+                              ).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _getGradeColor(
+                                  section['grade_level'],
+                                ).withOpacity(0.3),
+                              ),
+                            ),
+                            child: Text(
+                              section['grade_level'] ?? 'N/A',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: _getGradeColor(section['grade_level']),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Section name
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Icon(
+                              Icons.class_,
+                              size: 14,
+                              color: Colors.blue[600],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              section['name'] ?? '',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1A1A1A),
+                                fontSize: 16,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Created date
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_today,
+                            size: 12,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            createdStr,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Action buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.group, size: 16),
+                              label: const Text(
+                                "Teachers",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2ECC71),
+                                foregroundColor: Colors.white,
+                                elevation: 2,
+                                shadowColor: Colors.black.withOpacity(0.1),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed:
+                                  () => _showManageTeachersDialog(
+                                    section['id'],
+                                    section['name'],
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          PopupMenuButton<String>(
+                            icon: Icon(
+                              Icons.more_vert,
+                              color: Colors.grey[600],
+                              size: 18,
+                            ),
+                            tooltip: 'More options',
+                            onSelected: (value) async {
+                              if (value == 'edit') {
+                                await _addOrEditSection(section: section);
+                              } else if (value == 'delete') {
+                                final confirm = await _showDeleteConfirmDialog(
+                                  section['name'],
+                                );
+                                if (confirm) {
+                                  await _deleteSection(section['id']);
+                                }
+                              }
+                            },
+                            itemBuilder:
+                                (context) => [
+                                  const PopupMenuItem(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.edit,
+                                          size: 16,
+                                          color: Color(0xFF2ECC71),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Edit Section',
+                                          style: TextStyle(fontSize: 13),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.delete,
+                                          size: 16,
+                                          color: Colors.red,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Delete Section',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.red,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Desktop/Tablet table layout
+  Widget _buildDesktopTable(List<Map<String, dynamic>> displaySections) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Enhanced table header
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+              border: Border(
+                bottom: BorderSide(color: Colors.grey[200]!, width: 2),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.class_, color: Color(0xFF2ECC71), size: 24),
+                const SizedBox(width: 12),
+                const Text(
+                  'Sections Overview',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A1A1A),
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${sections.length} section${sections.length == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Table content
+          Expanded(
+            child: SingleChildScrollView(
+              child: Table(
+                border: TableBorder(
+                  horizontalInside: BorderSide(
+                    color: Colors.grey[200]!,
+                    width: 1,
+                  ),
+                ),
+                columnWidths:
+                    isTablet
+                        ? const {
+                          0: FlexColumnWidth(0.7), // Section ID
+                          1: FlexColumnWidth(1.3), // Section Name
+                          2: FlexColumnWidth(0.9), // Grade Level
+                          3: FlexColumnWidth(1.1), // Created At
+                          4: FlexColumnWidth(1.3), // Actions
+                        }
+                        : const {
+                          0: FlexColumnWidth(0.8), // Section ID
+                          1: FlexColumnWidth(1.5), // Section Name
+                          2: FlexColumnWidth(1.0), // Grade Level
+                          3: FlexColumnWidth(1.2), // Created At
+                          4: FlexColumnWidth(1.5), // Actions
+                        },
+                defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                children: [
+                  // Table header row
+                  TableRow(
+                    decoration: BoxDecoration(
+                      color: Color(0xFFF8F9FA),
+                      border: Border(
+                        bottom: BorderSide(color: Colors.grey[200]!, width: 2),
+                      ),
+                    ),
+                    children: const [
+                      TableHeaderCell(text: 'Section ID'),
+                      TableHeaderCell(text: 'Section Name'),
+                      TableHeaderCell(text: 'Grade Level'),
+                      TableHeaderCell(text: 'Created Date'),
+                      TableHeaderCell(text: 'Actions'),
+                    ],
+                  ),
+                  // Table data rows
+                  ...displaySections.map((section) {
+                    final createdAt =
+                        section['created_at'] != null
+                            ? DateTime.tryParse(section['created_at'])
+                            : null;
+                    final createdStr =
+                        createdAt != null
+                            ? "${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.day.toString().padLeft(2, '0')}"
+                            : "N/A";
+
+                    return TableRow(
+                      decoration: const BoxDecoration(color: Colors.white),
+                      children: [
+                        // Section ID with enhanced styling
+                        TableCell(
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(
+                                      0xFF2ECC71,
+                                    ).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    'SEC${section['id'].toString().padLeft(3, '0')}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF2ECC71),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Section Name with icon
+                        TableCell(
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.class_,
+                                    size: 16,
+                                    color: Colors.blue[600],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    section['name'] ?? '',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF1A1A1A),
+                                      fontSize: 18,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Grade Level with badge
+                        TableCell(
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: _getGradeColor(
+                                        section['grade_level'],
+                                      ).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: _getGradeColor(
+                                          section['grade_level'],
+                                        ).withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      section['grade_level'] ?? 'N/A',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: _getGradeColor(
+                                          section['grade_level'],
+                                        ),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Created Date with icon
+                        TableCell(
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.calendar_today,
+                                  size: 14,
+                                  color: Colors.grey[600],
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  createdStr,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    color: Color(0xFF555555),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Enhanced Actions
+                        TableCell(
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                // Manage Teachers button
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    icon: const Icon(Icons.group, size: 18),
+                                    label: Text(
+                                      "Teachers",
+                                      style: TextStyle(
+                                        fontSize: isTablet ? 13 : 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF2ECC71),
+                                      foregroundColor: Colors.white,
+                                      elevation: 2,
+                                      shadowColor: Colors.black.withOpacity(
+                                        0.1,
+                                      ),
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: isTablet ? 10 : 12,
+                                        vertical: 8,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    onPressed:
+                                        () => _showManageTeachersDialog(
+                                          section['id'],
+                                          section['name'],
+                                        ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                // More actions menu
+                                PopupMenuButton<String>(
+                                  icon: Icon(
+                                    Icons.more_vert,
+                                    color: Colors.grey[600],
+                                    size: 20,
+                                  ),
+                                  tooltip: 'More options',
+                                  onSelected: (value) async {
+                                    if (value == 'edit') {
+                                      await _addOrEditSection(section: section);
+                                    } else if (value == 'delete') {
+                                      final confirm =
+                                          await _showDeleteConfirmDialog(
+                                            section['name'],
+                                          );
+                                      if (confirm) {
+                                        await _deleteSection(section['id']);
+                                      }
+                                    }
+                                  },
+                                  itemBuilder:
+                                      (context) => [
+                                        const PopupMenuItem(
+                                          value: 'edit',
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.edit,
+                                                size: 18,
+                                                color: Color(0xFF2ECC71),
+                                              ),
+                                              SizedBox(width: 10),
+                                              Text(
+                                                'Edit Section',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'delete',
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.delete,
+                                                size: 18,
+                                                color: Colors.red,
+                                              ),
+                                              SizedBox(width: 10),
+                                              Text(
+                                                'Delete Section',
+                                                style: TextStyle(
+                                                  color: Colors.red,
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
