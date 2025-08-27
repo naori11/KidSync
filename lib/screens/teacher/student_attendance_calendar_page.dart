@@ -60,15 +60,16 @@ class _TeacherStudentAttendanceCalendarPageState
 
     try {
       // Load student information
-      final studentInfo = await supabase
-          .from('students')
-          .select('''
+      final studentInfo =
+          await supabase
+              .from('students')
+              .select('''
             grade_level,
             profile_image_url,
             sections!inner(name)
           ''')
-          .eq('id', widget.studentId)
-          .maybeSingle();
+              .eq('id', widget.studentId)
+              .maybeSingle();
 
       if (studentInfo != null) {
         studentGradeLevel = studentInfo['grade_level'];
@@ -76,23 +77,97 @@ class _TeacherStudentAttendanceCalendarPageState
         studentSectionName = studentInfo['sections']?['name'];
       }
 
-      final teacherAssignment =
-          await supabase
-              .from('section_teachers')
-              .select('days, start_time, end_time')
-              .eq('section_id', widget.sectionId)
-              .maybeSingle();
+      // Load all section_teachers rows for this section (supports multiple schedule rows)
+      final assignmentRows = await supabase
+          .from('section_teachers')
+          .select('days, start_time, end_time, assigned_at, subject')
+          .eq('section_id', widget.sectionId)
+          .order('assigned_at', ascending: true);
 
-      if (teacherAssignment != null) {
-        classDays =
-            teacherAssignment['days'] is List
-                ? (teacherAssignment['days'] as List).cast<String>()
-                : (teacherAssignment['days']?.toString() ?? '')
-                    .split(',')
-                    .map((e) => e.trim())
-                    .toList();
-        classStartTime = teacherAssignment['start_time'];
-        classEndTime = teacherAssignment['end_time'];
+      final List<Map<String, dynamic>> assignments =
+          List<Map<String, dynamic>>.from(assignmentRows ?? []);
+
+      // Reset schedule info
+      classDays = [];
+      classStartTime = null;
+      classEndTime = null;
+
+      if (assignments.isNotEmpty) {
+        final Set<String> unionDays = {};
+        final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        final now = DateTime.now();
+        final todayAbbrev = weekDays[now.weekday - 1];
+
+        // Collect union of days across all assignment rows
+        for (final a in assignments) {
+          final daysList =
+              a['days'] is List
+                  ? (a['days'] as List).cast<String>()
+                  : (a['days']?.toString() ?? '')
+                      .split(',')
+                      .map((e) => e.trim())
+                      .where((e) => e.isNotEmpty)
+                      .toList();
+          unionDays.addAll(daysList);
+        }
+        classDays = unionDays.toList();
+
+        // Prefer rows that include today; if none, consider all rows
+        final todays =
+            assignments.where((a) {
+              final daysList =
+                  a['days'] is List
+                      ? (a['days'] as List).cast<String>()
+                      : (a['days']?.toString() ?? '')
+                          .split(',')
+                          .map((e) => e.trim())
+                          .where((e) => e.isNotEmpty)
+                          .toList();
+              return daysList.contains(todayAbbrev);
+            }).toList();
+
+        final rowsToConsider = todays.isNotEmpty ? todays : assignments;
+
+        // Determine earliest start_time and latest end_time among considered rows
+        DateTime? earliest;
+        DateTime? latest;
+        String? earliestStr;
+        String? latestStr;
+        for (final a in rowsToConsider) {
+          final st = a['start_time']?.toString() ?? '';
+          final et = a['end_time']?.toString() ?? '';
+          final sp = st.split(':');
+          final ep = et.split(':');
+          if (sp.length >= 2 && ep.length >= 2) {
+            final sDt = DateTime(
+              now.year,
+              now.month,
+              now.day,
+              int.parse(sp[0]),
+              int.parse(sp[1]),
+            );
+            final eDt = DateTime(
+              now.year,
+              now.month,
+              now.day,
+              int.parse(ep[0]),
+              int.parse(ep[1]),
+            );
+            if (earliest == null || sDt.isBefore(earliest)) {
+              earliest = sDt;
+              earliestStr = st;
+            }
+            if (latest == null || eDt.isAfter(latest)) {
+              latest = eDt;
+              latestStr = et;
+            }
+          }
+        }
+
+        if (earliestStr != null && latestStr != null) {
+          classStartTime = earliestStr;
+          classEndTime = latestStr;
+        }
       }
 
       final startOfMonth = DateTime(selectedMonth.year, selectedMonth.month, 1);
@@ -150,14 +225,16 @@ class _TeacherStudentAttendanceCalendarPageState
         if (isClassDay(date)) {
           final records = scanRecordsByDate[date];
           String? dayStatus;
-          
+
           if (records != null && records.isNotEmpty) {
             dayStatus = records.first['status'];
           } else {
             // No attendance record for this class day
             // Mark as absent if it's a past date or today
-            if (date.isBefore(now.subtract(const Duration(days: 1))) || 
-                (date.year == now.year && date.month == now.month && date.day == now.day)) {
+            if (date.isBefore(now.subtract(const Duration(days: 1))) ||
+                (date.year == now.year &&
+                    date.month == now.month &&
+                    date.day == now.day)) {
               dayStatus = "Absent";
             }
             // Future dates are not counted in statistics
@@ -241,7 +318,8 @@ class _TeacherStudentAttendanceCalendarPageState
 
     final status = scan['status'] ?? "Absent";
     if (status == "Excused") return const Color(0xFF2563EB);
-    if (status == "Absent" || status == "No Data") return const Color(0xFFEB5757);
+    if (status == "Absent" || status == "No Data")
+      return const Color(0xFFEB5757);
 
     final scanTime = DateTime.tryParse(scan['scan_time'] ?? "");
     final start = classStartDateTime(date);
@@ -359,7 +437,7 @@ class _TeacherStudentAttendanceCalendarPageState
                 // Calculate available height for calendar rows
                 final availableHeight = constraints.maxHeight;
                 final rowHeight = availableHeight / numWeeks;
-                
+
                 return Column(
                   children: List.generate(numWeeks, (week) {
                     return Expanded(
@@ -369,20 +447,30 @@ class _TeacherStudentAttendanceCalendarPageState
                           children: List.generate(7, (d) {
                             int cellIndex = week * 7 + d;
                             int cellDay = cellIndex - leadingEmptyDays + 1;
-                            bool inMonth = cellDay >= 1 && cellDay <= daysInMonth;
+                            bool inMonth =
+                                cellDay >= 1 && cellDay <= daysInMonth;
                             DateTime cellDate =
                                 inMonth
-                                    ? DateTime(selectedMonth.year, selectedMonth.month, cellDay)
+                                    ? DateTime(
+                                      selectedMonth.year,
+                                      selectedMonth.month,
+                                      cellDay,
+                                    )
                                     : DateTime(2000);
 
-                            final records = inMonth ? scanRecordsByDate[cellDate] : null;
+                            final records =
+                                inMonth ? scanRecordsByDate[cellDate] : null;
 
                             return Expanded(
                               child: Padding(
                                 padding: const EdgeInsets.all(1.5),
                                 child:
                                     inMonth
-                                        ? _buildDayCell(cellDate, cellDay, records)
+                                        ? _buildDayCell(
+                                          cellDate,
+                                          cellDay,
+                                          records,
+                                        )
                                         : const SizedBox(),
                               ),
                             );
@@ -406,10 +494,13 @@ class _TeacherStudentAttendanceCalendarPageState
     List<Map<String, dynamic>>? records,
   ) {
     final bool isClassDay = this.isClassDay(cellDate);
-    final bool isToday = cellDate.year == DateTime.now().year &&
+    final bool isToday =
+        cellDate.year == DateTime.now().year &&
         cellDate.month == DateTime.now().month &&
         cellDate.day == DateTime.now().day;
-    final bool isPastDate = cellDate.isBefore(DateTime.now().subtract(const Duration(days: 1)));
+    final bool isPastDate = cellDate.isBefore(
+      DateTime.now().subtract(const Duration(days: 1)),
+    );
     final bool isFutureDate = cellDate.isAfter(DateTime.now());
 
     // Determine the primary status for this day
@@ -473,25 +564,32 @@ class _TeacherStudentAttendanceCalendarPageState
       borderColor = const Color(0xFF2563EB);
     }
 
-    final Color dayNumberColor = isClassDay 
-        ? (dayStatus.isEmpty && isFutureDate ? const Color(0xFF2E3A59) : statusColor)
-        : const Color(0xFFBDBDBD);
+    final Color dayNumberColor =
+        isClassDay
+            ? (dayStatus.isEmpty && isFutureDate
+                ? const Color(0xFF2E3A59)
+                : statusColor)
+            : const Color(0xFFBDBDBD);
 
     return Container(
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: borderColor, 
-          width: isToday ? 2.0 : (dayStatus.isNotEmpty && isClassDay ? 1.5 : 1.0)
+          color: borderColor,
+          width:
+              isToday ? 2.0 : (dayStatus.isNotEmpty && isClassDay ? 1.5 : 1.0),
         ),
-        boxShadow: dayStatus.isNotEmpty && isClassDay ? [
-          BoxShadow(
-            color: statusColor.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ] : null,
+        boxShadow:
+            dayStatus.isNotEmpty && isClassDay
+                ? [
+                  BoxShadow(
+                    color: statusColor.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+                : null,
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -499,10 +597,13 @@ class _TeacherStudentAttendanceCalendarPageState
           // Day number with enhanced visibility
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: isToday ? BoxDecoration(
-              color: const Color(0xFF2563EB),
-              borderRadius: BorderRadius.circular(12),
-            ) : null,
+            decoration:
+                isToday
+                    ? BoxDecoration(
+                      color: const Color(0xFF2563EB),
+                      borderRadius: BorderRadius.circular(12),
+                    )
+                    : null,
             child: Text(
               "$cellDay",
               style: TextStyle(
@@ -512,9 +613,9 @@ class _TeacherStudentAttendanceCalendarPageState
               ),
             ),
           ),
-          
+
           const SizedBox(height: 4),
-          
+
           // Enhanced status indicator
           if (isClassDay)
             Container(
@@ -542,9 +643,9 @@ class _TeacherStudentAttendanceCalendarPageState
                         borderRadius: BorderRadius.circular(1),
                       ),
                     ),
-                  
+
                   const SizedBox(height: 3),
-                  
+
                   // Status text or time
                   if (records != null && records.isNotEmpty)
                     _buildCompactTimeDisplay(records.first)
@@ -589,18 +690,22 @@ class _TeacherStudentAttendanceCalendarPageState
   Widget _buildCompactTimeDisplay(Map<String, dynamic> scan) {
     String scanTimeStr = scan['scan_time'] ?? "";
     DateTime? scanTime = DateTime.tryParse(scanTimeStr);
-    String timeDisplay = scanTime != null ? DateFormat.jm().format(scanTime) : "";
+    String timeDisplay =
+        scanTime != null ? DateFormat.jm().format(scanTime) : "";
 
     if (timeDisplay.isEmpty) {
       String status = scan['status'] ?? "Absent";
       // Don't show "No Data" - default to status or "Absent"
       if (status == "No Data") status = "Absent";
-      
+
       return Text(
         status.length > 6 ? status.substring(0, 6) : status,
         style: TextStyle(
           fontSize: 9,
-          color: status == "Absent" ? const Color(0xFFEB5757) : const Color(0xFF8F9BB3),
+          color:
+              status == "Absent"
+                  ? const Color(0xFFEB5757)
+                  : const Color(0xFF8F9BB3),
           fontWeight: FontWeight.w600,
         ),
         textAlign: TextAlign.center,
@@ -630,12 +735,15 @@ class _TeacherStudentAttendanceCalendarPageState
       String status = scan['status'] ?? "Absent";
       // Don't show "No Data" - default to status or "Absent"
       if (status == "No Data") status = "Absent";
-      
+
       return Text(
         status,
         style: TextStyle(
           fontSize: 10,
-          color: status == "Absent" ? const Color(0xFFEB5757) : const Color(0xFF8F9BB3),
+          color:
+              status == "Absent"
+                  ? const Color(0xFFEB5757)
+                  : const Color(0xFF8F9BB3),
           fontWeight: FontWeight.w600,
         ),
         textAlign: TextAlign.center,
@@ -769,28 +877,44 @@ class _TeacherStudentAttendanceCalendarPageState
                           decoration: BoxDecoration(
                             color: const Color(0xFFE8F4FD),
                             borderRadius: BorderRadius.circular(24),
-                            image: studentProfileImageUrl != null && studentProfileImageUrl!.isNotEmpty
-                                ? DecorationImage(
-                                    image: NetworkImage(studentProfileImageUrl!),
-                                    fit: BoxFit.cover,
-                                    onError: (exception, stackTrace) {
-                                      print('Error loading profile image: $exception');
-                                    },
-                                  )
-                                : null,
+                            image:
+                                studentProfileImageUrl != null &&
+                                        studentProfileImageUrl!.isNotEmpty
+                                    ? DecorationImage(
+                                      image: NetworkImage(
+                                        studentProfileImageUrl!,
+                                      ),
+                                      fit: BoxFit.cover,
+                                      onError: (exception, stackTrace) {
+                                        print(
+                                          'Error loading profile image: $exception',
+                                        );
+                                      },
+                                    )
+                                    : null,
                           ),
-                          child: studentProfileImageUrl == null || studentProfileImageUrl!.isEmpty
-                              ? Center(
-                                  child: Text(
-                                    widget.studentName.split(' ').map((name) => name.isNotEmpty ? name[0] : '').take(2).join('').toUpperCase(),
-                                    style: const TextStyle(
-                                      color: Color(0xFF2563EB),
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
+                          child:
+                              studentProfileImageUrl == null ||
+                                      studentProfileImageUrl!.isEmpty
+                                  ? Center(
+                                    child: Text(
+                                      widget.studentName
+                                          .split(' ')
+                                          .map(
+                                            (name) =>
+                                                name.isNotEmpty ? name[0] : '',
+                                          )
+                                          .take(2)
+                                          .join('')
+                                          .toUpperCase(),
+                                      style: const TextStyle(
+                                        color: Color(0xFF2563EB),
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
                                     ),
-                                  ),
-                                )
-                              : null,
+                                  )
+                                  : null,
                         ),
                         const SizedBox(width: 18),
                         Expanded(
@@ -904,7 +1028,7 @@ class _TeacherStudentAttendanceCalendarPageState
 
   String _buildStudentInfo() {
     List<String> infoParts = [];
-    
+
     if (studentGradeLevel != null && studentGradeLevel!.isNotEmpty) {
       if (studentSectionName != null && studentSectionName!.isNotEmpty) {
         infoParts.add("$studentGradeLevel - $studentSectionName");
@@ -914,7 +1038,7 @@ class _TeacherStudentAttendanceCalendarPageState
     } else if (studentSectionName != null && studentSectionName!.isNotEmpty) {
       infoParts.add("Section $studentSectionName");
     }
-    
+
     return infoParts.isNotEmpty ? infoParts.join(" • ") : "Student Information";
   }
 
