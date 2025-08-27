@@ -405,7 +405,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     List<Map<String, dynamic>> teacherSchedule = [];
     bool isLoadingSchedule = false;
 
-    final List<String> daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    final List<String> daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 
     // Populate data if editing existing assignment
     if (assignment != null) {
