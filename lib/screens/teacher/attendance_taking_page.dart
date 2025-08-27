@@ -1,3 +1,4 @@
+// ...existing code...
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -9,11 +10,11 @@ class TeacherSectionAttendancePage extends StatefulWidget {
   final VoidCallback? onBack;
 
   const TeacherSectionAttendancePage({
-    Key? key,
+    super.key,
     required this.sectionId,
     required this.sectionName,
     this.onBack,
-  }) : super(key: key);
+  });
 
   @override
   State<TeacherSectionAttendancePage> createState() =>
@@ -36,7 +37,8 @@ class _TeacherSectionAttendancePageState
   String filterStatus = "All";
   int lateThresholdMinutes = 10;
 
-  // Section schedule
+  // Section schedule (now supports multiple schedule rows)
+  List<Map<String, dynamic>> scheduleRows = [];
   List<String> classDays = [];
   TimeOfDay? startTime;
   TimeOfDay? endTime;
@@ -65,13 +67,14 @@ class _TeacherSectionAttendancePageState
 
     isTestingSection = sectionRes != null && sectionRes['is_testing'] == true;
 
-    // Load section schedule from section_teachers
-    final schedRes =
-        await supabase
-            .from('section_teachers')
-            .select('days, start_time, end_time')
-            .eq('section_id', widget.sectionId)
-            .maybeSingle();
+    // Load ALL section_teachers rows for this section (handle duplicates)
+    final schedRows = await supabase
+        .from('section_teachers')
+        .select('id, subject, days, start_time, end_time, assigned_at')
+        .eq('section_id', widget.sectionId)
+        .order('assigned_at', ascending: true);
+
+    scheduleRows = List<Map<String, dynamic>>.from(schedRows ?? []);
 
     DateTime now = DateTime.now();
     scheduleString = null;
@@ -82,60 +85,90 @@ class _TeacherSectionAttendancePageState
     classEndTime = null;
     attendanceActive = false;
 
-    if (schedRes != null) {
-      // Parse days
-      classDays =
-          schedRes['days'] is List
-              ? (schedRes['days'] as List).cast<String>()
-              : (schedRes['days']?.toString() ?? '')
-                  .split(',')
-                  .map((e) => e.trim())
-                  .toList();
-      // Parse start/end times
-      var st = schedRes['start_time'];
-      var et = schedRes['end_time'];
-      if (st != null) {
-        final p = st.split(":");
-        if (p.length >= 2) {
-          startTime = TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
-        }
+    if (scheduleRows.isNotEmpty) {
+      // Build a readable schedule string (list multiple rows)
+      final scheduleStrings = <String>[];
+      final Set<String> unionDays = {};
+      for (final r in scheduleRows) {
+        final days =
+            r['days'] is List
+                ? (r['days'] as List).cast<String>()
+                : (r['days']?.toString() ?? '')
+                    .split(',')
+                    .map((e) => e.trim())
+                    .toList();
+        final st = r['start_time']?.toString() ?? '';
+        final et = r['end_time']?.toString() ?? '';
+        if (days.isNotEmpty) unionDays.addAll(days);
+        scheduleStrings.add(
+          days.isNotEmpty
+              ? "${days.join(', ')} | ${_shortTime(st)} - ${_shortTime(et)}${r['subject'] != null ? ' (${r['subject']})' : ''}"
+              : "${_shortTime(st)} - ${_shortTime(et)}",
+        );
       }
-      if (et != null) {
-        final p = et.split(":");
-        if (p.length >= 2) {
-          endTime = TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
-        }
-      }
-      // Build readable schedule string
-      if (classDays.isNotEmpty && startTime != null && endTime != null) {
-        scheduleString =
-            "${classDays.join(', ')} | ${startTime!.format(context)} - ${endTime!.format(context)}";
-      }
+      scheduleString = scheduleStrings.join("  /  ");
+      classDays = unionDays.toList();
 
-      // Check if current day/time is within schedule
+      // Determine today's schedules (rows that include today)
       final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       final todayAbbrev = weekDays[now.weekday - 1];
-      if (classDays.contains(todayAbbrev) &&
-          startTime != null &&
-          endTime != null) {
-        // Build today's DateTime for start/end
-        classStartTime = DateTime(
-          now.year,
-          now.month,
-          now.day,
-          startTime!.hour,
-          startTime!.minute,
-        );
-        classEndTime = DateTime(
-          now.year,
-          now.month,
-          now.day,
-          endTime!.hour,
-          endTime!.minute,
-        );
-        if (now.isAfter(classStartTime!) && now.isBefore(classEndTime!)) {
-          attendanceActive = true;
+
+      final todays =
+          scheduleRows.where((r) {
+            final days =
+                r['days'] is List
+                    ? (r['days'] as List).cast<String>()
+                    : (r['days']?.toString() ?? '')
+                        .split(',')
+                        .map((e) => e.trim())
+                        .toList();
+            return days.contains(todayAbbrev);
+          }).toList();
+
+      final rowsToConsider = todays.isNotEmpty ? todays : scheduleRows;
+
+      // Pick earliest start_time and latest end_time among considered rows
+      DateTime? earliestStart;
+      DateTime? latestEnd;
+      for (final r in rowsToConsider) {
+        final st = r['start_time']?.toString() ?? '';
+        final et = r['end_time']?.toString() ?? '';
+        final sp = st.split(':');
+        final ep = et.split(':');
+        if (sp.length >= 2 && ep.length >= 2) {
+          final sDt = DateTime(
+            now.year,
+            now.month,
+            now.day,
+            int.parse(sp[0]),
+            int.parse(sp[1]),
+          );
+          final eDt = DateTime(
+            now.year,
+            now.month,
+            now.day,
+            int.parse(ep[0]),
+            int.parse(ep[1]),
+          );
+          if (earliestStart == null || sDt.isBefore(earliestStart))
+            earliestStart = sDt;
+          if (latestEnd == null || eDt.isAfter(latestEnd)) latestEnd = eDt;
         }
+      }
+      if (earliestStart != null && latestEnd != null) {
+        classStartTime = earliestStart;
+        classEndTime = latestEnd;
+        startTime = TimeOfDay(
+          hour: classStartTime!.hour,
+          minute: classStartTime!.minute,
+        );
+        endTime = TimeOfDay(
+          hour: classEndTime!.hour,
+          minute: classEndTime!.minute,
+        );
+        // If any of the considered rows envelop now, attendanceActive = true
+        if (now.isAfter(classStartTime!) && now.isBefore(classEndTime!))
+          attendanceActive = true;
       }
     }
 
@@ -155,7 +188,8 @@ class _TeacherSectionAttendancePageState
     final startOfDay = DateTime(today.year, today.month, today.day, 0, 0, 0);
     final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
 
-    final studentIds = [for (final s in studentList) s['id'] as int];
+    final sList = List<Map<String, dynamic>>.from(studentList ?? []);
+    final studentIds = [for (final s in sList) s['id'] as int];
     Map<int, Map<String, dynamic>> scanRecordByStudent = {};
     if (studentIds.isNotEmpty) {
       final scans = await supabase
@@ -192,7 +226,7 @@ class _TeacherSectionAttendancePageState
 
     // Compose student rows
     students.clear();
-    for (final stu in studentList) {
+    for (final stu in sList) {
       final id = stu['id'] as int;
       students.add({
         'id': id,
@@ -209,6 +243,17 @@ class _TeacherSectionAttendancePageState
       todayScan = scanRecordByStudent;
       todayAttendance = attendanceByStudent;
     });
+  }
+
+  String _shortTime(String t) {
+    if (t == null || t.isEmpty) return "";
+    final parts = t.split(':');
+    if (parts.length >= 2) {
+      final h = parts[0].padLeft(2, '0');
+      final m = parts[1].padLeft(2, '0');
+      return "$h:$m";
+    }
+    return t;
   }
 
   // --- Attendance marking logic ---
@@ -753,6 +798,7 @@ class _TeacherSectionAttendancePageState
                       ),
                     ),
                   ],
+                  // ... rest of UI remains unchanged ...
                   // Summary bar & filter
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32),

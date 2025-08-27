@@ -20,6 +20,7 @@ class TeacherClassListPage extends StatefulWidget {
 class _TeacherClassListPageState extends State<TeacherClassListPage> {
   final supabase = Supabase.instance.client;
   String? teacherId;
+  // assignedSections now holds one entry per section (aggregated)
   List<Map<String, dynamic>> assignedSections = [];
   Map<int, List<Map<String, dynamic>>> sectionStudents = {};
   bool isLoading = true;
@@ -30,113 +31,112 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
     _loadClassList();
   }
 
-  // Utility to format schedule
+  // Utility to format schedule (handles multiple schedule rows)
   String formatSchedule(Map<String, dynamic> assignment) {
-    final daysList = assignment['days'] is List
-        ? (assignment['days'] as List).cast<String>()
-        : (assignment['days']?.toString() ?? '')
-            .split(',')
-            .map((e) => e.trim())
-            .toList();
-    final startTime = assignment['start_time'] ?? '';
-    final endTime = assignment['end_time'] ?? '';
-    
-    if (daysList.isEmpty || startTime.isEmpty || endTime.isEmpty) {
-      return "--";
-    }
-    
-    final formattedDays = _formatDaysRange(daysList);
-    return "$formattedDays | $startTime - $endTime";
+    final schedules =
+        assignment['schedules'] as List<Map<String, dynamic>>? ?? [];
+    if (schedules.isEmpty) return "--";
+
+    // Each schedule map: {days: List<String>, start_time: String, end_time: String}
+    final pieces =
+        schedules.map((s) {
+          final daysList =
+              s['days'] is List
+                  ? (s['days'] as List).cast<String>()
+                  : (s['days']?.toString() ?? '')
+                      .split(',')
+                      .map((e) => e.trim())
+                      .toList();
+          final start = s['start_time'] ?? '';
+          final end = s['end_time'] ?? '';
+          final daysStr = daysList.isEmpty ? '' : daysList.join(',');
+          return daysStr.isNotEmpty
+              ? "$daysStr | ${_shortTime(start)} - ${_shortTime(end)}"
+              : "${_shortTime(start)} - ${_shortTime(end)}";
+        }).toList();
+
+    // If multiple schedules, join with " / "
+    return pieces.join("  /  ");
   }
 
-  // Helper method to format days in a compact range format
-  String _formatDaysRange(List<String> days) {
-    if (days.isEmpty) return '';
-    
-    final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final dayIndices = days
-        .map((day) => weekDays.indexOf(day))
-        .where((index) => index != -1)
-        .toList()
-      ..sort();
-    
-    if (dayIndices.isEmpty) return days.join(', ');
-    
-    List<String> ranges = [];
-    int start = dayIndices[0];
-    int end = start;
-    
-    for (int i = 1; i < dayIndices.length; i++) {
-      if (dayIndices[i] == end + 1) {
-        end = dayIndices[i];
-      } else {
-        if (start == end) {
-          ranges.add(weekDays[start]);
-        } else if (end == start + 1) {
-          ranges.add('${weekDays[start]}, ${weekDays[end]}');
-        } else {
-          ranges.add('${weekDays[start]}-${weekDays[end]}');
-        }
-        start = dayIndices[i];
-        end = start;
-      }
+  String _shortTime(String t) {
+    if (t == null || t.isEmpty) return "";
+    final parts = t.split(':');
+    if (parts.length >= 2) {
+      final h = parts[0].padLeft(2, '0');
+      final m = parts[1].padLeft(2, '0');
+      return "$h:$m";
     }
-    
-    // Add the last range
-    if (start == end) {
-      ranges.add(weekDays[start]);
-    } else if (end == start + 1) {
-      ranges.add('${weekDays[start]}, ${weekDays[end]}');
-    } else {
-      ranges.add('${weekDays[start]}-${weekDays[end]}');
-    }
-    
-    return ranges.join(', ');
+    return t;
   }
 
-  // Compute status string: Upcoming, Ongoing, Completed
+  // Compute status string using the aggregated schedules
   String computeSectionStatus(Map<String, dynamic> assignment) {
-    final days =
-        assignment['days'] is List
-            ? (assignment['days'] as List).cast<String>()
-            : (assignment['days']?.toString() ?? '')
-                .split(',')
-                .map((e) => e.trim())
-                .toList();
-    final startTimeStr = assignment['start_time'] ?? '';
-    final endTimeStr = assignment['end_time'] ?? '';
-    if (days.isEmpty || startTimeStr.isEmpty || endTimeStr.isEmpty)
-      return "No Schedule";
+    final schedules =
+        assignment['schedules'] as List<Map<String, dynamic>>? ?? [];
+    if (schedules.isEmpty) return "No Schedule";
 
     final now = DateTime.now();
     final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final todayAbbrev = weekDays[now.weekday - 1];
 
-    // If today is not a class day, return "No Class Today" instead of "Upcoming"
-    if (!days.contains(todayAbbrev)) return "No Class Today";
+    // Check schedules that include today
+    final todaysSchedules =
+        schedules.where((s) {
+          final days =
+              s['days'] is List
+                  ? (s['days'] as List).cast<String>()
+                  : (s['days']?.toString() ?? '')
+                      .split(',')
+                      .map((e) => e.trim())
+                      .toList();
+          return days.contains(todayAbbrev);
+        }).toList();
 
-    final startTimeParts = startTimeStr.split(':');
-    final endTimeParts = endTimeStr.split(':');
-    if (startTimeParts.length < 2 || endTimeParts.length < 2) return "No Schedule";
+    // If there are no schedules that include today, explicitly return "No Class Today"
+    if (todaysSchedules.isEmpty) {
+      return "No Class Today";
+    }
 
-    final start = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      int.parse(startTimeParts[0]),
-      int.parse(startTimeParts[1]),
-    );
-    final end = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      int.parse(endTimeParts[0]),
-      int.parse(endTimeParts[1]),
-    );
+    // Otherwise consider only today's schedules for status computations
+    List<Map<String, dynamic>> checkList = todaysSchedules;
 
-    if (now.isBefore(start)) return "Upcoming";
-    if (now.isAfter(end)) return "Completed";
-    return "Ongoing";
+    bool anyActive = false;
+    bool anyUpcoming = false;
+    bool anyCompleted = false;
+
+    for (final s in checkList) {
+      final st = s['start_time'] ?? '';
+      final et = s['end_time'] ?? '';
+      final startParts = st.split(':');
+      final endParts = et.split(':');
+      if (startParts.length < 2 || endParts.length < 2) continue;
+      final start = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        int.parse(startParts[0]),
+        int.parse(startParts[1]),
+      );
+      final end = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        int.parse(endParts[0]),
+        int.parse(endParts[1]),
+      );
+      if (now.isBefore(start))
+        anyUpcoming = true;
+      else if (now.isAfter(end))
+        anyCompleted = true;
+      else
+        anyActive = true;
+    }
+
+    if (anyActive) return "Ongoing";
+    if (anyUpcoming) return "Upcoming";
+    if (anyCompleted) return "Completed";
+    return "No Schedule";
   }
 
   Future<void> _loadClassList() async {
@@ -151,7 +151,7 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
     }
 
     try {
-      // Fetch schedule fields from section_teachers
+      // Fetch all assignments (may contain multiple rows per section)
       final sectionAssignments = await supabase
           .from('section_teachers')
           .select(
@@ -159,10 +159,53 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
           )
           .eq('teacher_id', teacherId!);
 
-      assignedSections = List<Map<String, dynamic>>.from(
-        sectionAssignments ?? [],
-      );
+      final rows = List<Map<String, dynamic>>.from(sectionAssignments ?? []);
 
+      // Aggregate by section_id to avoid duplicate section cards
+      final Map<int, Map<String, dynamic>> bySection = {};
+      for (final assignment in rows) {
+        final section = assignment['sections'] as Map<String, dynamic>?;
+        if (section == null) continue;
+        final sid = section['id'] as int;
+        final subj = assignment['subject']?.toString() ?? '';
+        final sched = <String, dynamic>{
+          'days': assignment['days'],
+          'start_time': assignment['start_time'],
+          'end_time': assignment['end_time'],
+          'subject': subj,
+          'assigned_at': assignment['assigned_at'],
+        };
+
+        if (!bySection.containsKey(sid)) {
+          bySection[sid] = {
+            'sections': section,
+            'subjects': <String>{if (subj.isNotEmpty) subj},
+            'schedules': <Map<String, dynamic>>[],
+            'assigned_rows': [assignment],
+          };
+        }
+        final entry = bySection[sid]!;
+        if (subj.isNotEmpty) (entry['subjects'] as Set<String>).add(subj);
+        (entry['schedules'] as List).add(sched);
+        (entry['assigned_rows'] as List).add(assignment);
+      }
+
+      // Convert to list-friendly structure
+      assignedSections =
+          bySection.values.map((v) {
+            final subjSet = v['subjects'] as Set<String>;
+            final subjStr = subjSet.isEmpty ? '' : subjSet.join(', ');
+            return {
+              'sections': v['sections'],
+              'subjects': subjStr,
+              'schedules': List<Map<String, dynamic>>.from(
+                v['schedules'] as List,
+              ),
+              // keep assigned_rows if you need later
+            };
+          }).toList();
+
+      // Load students for each section
       sectionStudents.clear();
       for (final assignment in assignedSections) {
         final section = assignment['sections'];
@@ -253,7 +296,7 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
                                 padding: const EdgeInsets.only(bottom: 18.0),
                                 child: _SectionListCard(
                                   title: assignment['sections']['name'],
-                                  subject: assignment['subject'] ?? '',
+                                  subject: assignment['subjects'] ?? '',
                                   time: formatSchedule(assignment),
                                   students:
                                       sectionStudents[assignment['sections']['id']]
@@ -373,12 +416,15 @@ class _SectionListCard extends StatelessWidget {
                       ),
                       if (subject.isNotEmpty) ...[
                         const SizedBox(width: 10),
-                        Text(
-                          subject,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF2563EB),
+                        Flexible(
+                          child: Text(
+                            subject,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2563EB),
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
