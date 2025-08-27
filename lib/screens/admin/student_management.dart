@@ -3715,11 +3715,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
           2: const FlexColumnWidth(2.0), // Name + Image
           3: const FlexColumnWidth(1.0), // Class
           4: FlexColumnWidth(isTablet ? 0.6 : 0.8), // Gender - responsive
-          5: const FlexColumnWidth(1.2), // Contact
-          6: const FlexColumnWidth(1.4), // Email
-          7: const FlexColumnWidth(1.0), // Enrollment
-          8: FlexColumnWidth(isTablet ? 0.6 : 0.8), // Status - responsive
-          9: const FlexColumnWidth(0.6), // Actions
+          5: const FlexColumnWidth(1.0), // Enrollment
+          6: FlexColumnWidth(isTablet ? 0.6 : 0.8), // Status - responsive
+          7: const FlexColumnWidth(0.6), // Actions
         },
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         children: [
@@ -3747,8 +3745,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               const TableHeaderCell(text: 'Student Name'),
               const TableHeaderCell(text: 'Class'),
               const TableHeaderCell(text: 'Gender'),
-              const TableHeaderCell(text: 'Contact Number'),
-              const TableHeaderCell(text: 'Email'),
               const TableHeaderCell(text: 'Enrollment Date'),
               const TableHeaderCell(text: 'Status'),
               const TableHeaderCell(text: 'Actions'),
@@ -4007,79 +4003,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   ),
                 ),
 
-                // 6. Contact number
-                TableCell(
-                  verticalAlignment: TableCellVerticalAlignment.middle,
-                  child: Container(
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.all(16),
-                    child:
-                        student['contact_number'] != null &&
-                                student['contact_number'].toString().isNotEmpty
-                            ? Row(
-                              children: [
-                                Icon(
-                                  Icons.phone,
-                                  size: 14,
-                                  color: Colors.grey[600],
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  student['contact_number'],
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: Color(0xFF555555),
-                                  ),
-                                ),
-                              ],
-                            )
-                            : Text(
-                              'N/A',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey[500],
-                              ),
-                            ),
-                  ),
-                ),
-
-                // 7. Email
-                TableCell(
-                  verticalAlignment: TableCellVerticalAlignment.middle,
-                  child: Container(
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.all(16),
-                    child:
-                        student['email'] != null &&
-                                student['email'].toString().isNotEmpty
-                            ? Row(
-                              children: [
-                                Icon(
-                                  Icons.email,
-                                  size: 14,
-                                  color: Colors.grey[600],
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  student['email'],
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF555555),
-                                  ),
-                                ),
-                              ],
-                            )
-                            : Text(
-                              'N/A',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey[500],
-                              ),
-                            ),
-                  ),
-                ),
-
-                // 8. Enrollment date
+                // 6. Enrollment date
                 TableCell(
                   verticalAlignment: TableCellVerticalAlignment.middle,
                   child: Container(
@@ -4109,7 +4033,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   ),
                 ),
 
-                // 9. Status
+                // 7. Status
                 TableCell(
                   verticalAlignment: TableCellVerticalAlignment.middle,
                   child: Container(
@@ -4165,7 +4089,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   ),
                 ),
 
-                // 10. Actions
+                // 8. Actions
                 TableCell(
                   verticalAlignment: TableCellVerticalAlignment.middle,
                   child: Container(
