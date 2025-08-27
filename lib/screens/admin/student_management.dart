@@ -3810,7 +3810,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               const TableHeaderCell(text: 'Class'),
               const TableHeaderCell(text: 'Gender'),
               const TableHeaderCell(text: 'Enrollment Date'),
-              const TableHeaderCell(text: 'Status'),
+              const TableHeaderCell(text: 'Status', alignment: Alignment.center),
               const TableHeaderCell(text: 'Actions'),
             ],
           ),
@@ -4286,14 +4286,19 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 // Custom header cell for table
 class TableHeaderCell extends StatelessWidget {
   final String text;
+  final Alignment alignment;
 
-  const TableHeaderCell({super.key, required this.text});
+  const TableHeaderCell({
+    super.key, 
+    required this.text,
+    this.alignment = Alignment.centerLeft,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-      alignment: Alignment.centerLeft,
+      alignment: alignment,
       child: Text(
         text,
         style: const TextStyle(
