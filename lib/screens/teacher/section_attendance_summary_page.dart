@@ -41,6 +41,22 @@ class _TeacherSectionAttendanceSummaryPageState
   int totalAbsent = 0;
   int totalExcused = 0;
 
+  int totalPresentToday = 0;
+  int totalLateToday = 0;
+  int totalAbsentToday = 0;
+  int totalExcusedToday = 0;
+
+  // Shared styles to ensure consistent font family/weight across monthly/daily
+  final TextStyle _statLabelStyle = const TextStyle(
+    fontSize: 13,
+    color: Color(0xFF8F9BB3),
+    fontWeight: FontWeight.w600,
+  );
+  // Single base for numeric stat text so both monthly and daily use the same font family/weight
+  final TextStyle _statNumberStyleBase = const TextStyle(
+    fontWeight: FontWeight.bold,
+  );
+
   @override
   void initState() {
     super.initState();
@@ -55,6 +71,10 @@ class _TeacherSectionAttendanceSummaryPageState
       totalLate = 0;
       totalAbsent = 0;
       totalExcused = 0;
+      totalPresentToday = 0;
+      totalLateToday = 0;
+      totalAbsentToday = 0;
+      totalExcusedToday = 0;
     });
 
     try {
@@ -122,6 +142,26 @@ class _TeacherSectionAttendanceSummaryPageState
         0,
         (sum, stat) => sum + (stat['excused'] ?? 0),
       );
+
+      final today = DateTime.now();
+      final todayStr = DateFormat('yyyy-MM-dd').format(today);
+      final todayRows = await supabase
+          .from('section_attendance')
+          .select('status')
+          .eq('section_id', widget.sectionId)
+          .eq('date', todayStr);
+
+      for (final r in todayRows) {
+        final status = (r['status'] ?? '').toString().toLowerCase();
+        if (status == 'present')
+          totalPresentToday++;
+        else if (status == 'absent')
+          totalAbsentToday++;
+        else if (status == 'late')
+          totalLateToday++;
+        else if (status == 'excused')
+          totalExcusedToday++;
+      }
     } catch (e) {
       errorMessage = "Error loading data: $e";
     }
@@ -149,50 +189,198 @@ class _TeacherSectionAttendanceSummaryPageState
       const SnackBar(content: Text('Export attendance not implemented yet')),
     );
   }
-  
+
   Widget _buildSummaryStats() {
+    final monthLabel = DateFormat.yMMMM().format(selectedMonth);
+    final todayLabel = DateFormat.yMMMd().format(DateTime.now());
+
     return Card(
       color: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 2,
       margin: const EdgeInsets.only(bottom: 20),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        // Use available space: Monthly on left (primary), Daily on right (compact)
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            _statColumn("Present", totalPresent, const Color(0xFF19AE61)),
-            const SizedBox(width: 28),
-            _statColumn("Late", totalLate, const Color(0xFFFFA726)),
-            const SizedBox(width: 28),
-            _statColumn("Absent", totalAbsent, const Color(0xFFEB5757)),
-            const SizedBox(width: 28),
-            _statColumn("Excused", totalExcused, const Color(0xFF2563EB)),
+            // Monthly panel (uses most space)
+            Expanded(
+              flex: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.date_range,
+                        size: 16,
+                        color: Color(0xFF2E3A59),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Monthly — $monthLabel',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF2E3A59),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      _statColumn(
+                        "Present",
+                        totalPresent,
+                        const Color(0xFF19AE61),
+                      ),
+                      const SizedBox(width: 24),
+                      _statColumn("Late", totalLate, const Color(0xFFFFA726)),
+                      const SizedBox(width: 24),
+                      _statColumn(
+                        "Absent",
+                        totalAbsent,
+                        const Color(0xFFEB5757),
+                      ),
+                      const SizedBox(width: 24),
+                      _statColumn(
+                        "Excused",
+                        totalExcused,
+                        const Color(0xFF2563EB),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // small gap between panels
+            const SizedBox(width: 24),
+
+            // Daily panel (aligned to the right side)
+            Expanded(
+              flex: 1,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      const Icon(
+                        Icons.today,
+                        size: 16,
+                        color: Color(0xFF2E3A59),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Daily — $todayLabel',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF2E3A59),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      _statColumnSmall(
+                        "Present",
+                        totalPresentToday,
+                        const Color(0xFF19AE61),
+                      ),
+                      const SizedBox(width: 12),
+                      _statColumnSmall(
+                        "Late",
+                        totalLateToday,
+                        const Color(0xFFFFA726),
+                      ),
+                      const SizedBox(width: 12),
+                      _statColumnSmall(
+                        "Absent",
+                        totalAbsentToday,
+                        const Color(0xFFEB5757),
+                      ),
+                      const SizedBox(width: 12),
+                      _statColumnSmall(
+                        "Excused",
+                        totalExcusedToday,
+                        const Color(0xFF2563EB),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _statColumn(String label, int value, Color color) {
+  // show monthly total (large)
+  Widget _statColumn(String label, int monthlyValue, Color color) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
+          "$monthlyValue",
+          style: _statNumberStyleBase.copyWith(fontSize: 18, color: color),
+        ),
+        const SizedBox(height: 6),
+        Text(label, style: _statLabelStyle),
+      ],
+    );
+  }
+
+  // smaller version of _statColumn used for the daily panel to match visual style
+  Widget _statColumnSmall(String label, int value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
           "$value",
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
+          style: _statNumberStyleBase.copyWith(fontSize: 18, color: color),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: _statLabelStyle.copyWith(fontSize: 12)),
+      ],
+    );
+  }
+
+  // compact row used in the right-side Daily panel (still available if needed elsewhere)
+  Widget _dailyStatRow(String label, int value, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
             color: color,
+            borderRadius: BorderRadius.circular(4),
           ),
         ),
-        const SizedBox(height: 2),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: Color(0xFF222B45)),
+          ),
+        ),
         Text(
-          label,
+          '$value',
           style: const TextStyle(
-            fontSize: 14,
-            color: Color(0xFF8F9BB3),
-            fontWeight: FontWeight.w500,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF2E3A59),
           ),
         ),
       ],
@@ -316,15 +504,13 @@ class _TeacherSectionAttendanceSummaryPageState
                 ),
 
                 const SizedBox(width: 12),
-                // Spacer to push export button to the right edge
+                // Spacer to push controls to the right edge
                 const Spacer(),
+                const SizedBox(width: 8),
                 // Export button (consistent system design)
                 ElevatedButton.icon(
                   onPressed: _exportAttendance,
-                  icon: const Icon(
-                    Icons.download_rounded,
-                    size: 18,
-                  ),
+                  icon: const Icon(Icons.download_rounded, size: 18),
                   label: const Text(
                     'Export',
                     style: TextStyle(fontWeight: FontWeight.w600),
@@ -332,8 +518,13 @@ class _TeacherSectionAttendanceSummaryPageState
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     elevation: 0,
                   ),
                 ),
@@ -433,7 +624,9 @@ class _TeacherSectionAttendanceSummaryPageState
                                           ),
                                       borderRadius: BorderRadius.circular(8),
                                       hoverColor: const Color(0xFFF8FAFF),
-                                      splashColor: const Color(0xFFE3F2FD).withOpacity(0.3),
+                                      splashColor: const Color(
+                                        0xFFE3F2FD,
+                                      ).withOpacity(0.3),
                                       child: Container(
                                         decoration: BoxDecoration(
                                           border: Border(
@@ -457,61 +650,111 @@ class _TeacherSectionAttendanceSummaryPageState
                                                     width: 32,
                                                     height: 32,
                                                     decoration: BoxDecoration(
-                                                      color: const Color(0xFFE8F4FD),
-                                                      borderRadius: BorderRadius.circular(16),
-                                                      image: s['profile_image_url'] != null && s['profile_image_url'].toString().isNotEmpty
-                                                          ? DecorationImage(
-                                                              image: NetworkImage(s['profile_image_url']),
-                                                              fit: BoxFit.cover,
-                                                              onError: (exception, stackTrace) {
-                                                                // Handle image loading error silently
-                                                                print('Error loading profile image: $exception');
-                                                              },
-                                                            )
-                                                          : null,
+                                                      color: const Color(
+                                                        0xFFE8F4FD,
+                                                      ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            16,
+                                                          ),
+                                                      image:
+                                                          s['profile_image_url'] !=
+                                                                      null &&
+                                                                  s['profile_image_url']
+                                                                      .toString()
+                                                                      .isNotEmpty
+                                                              ? DecorationImage(
+                                                                image: NetworkImage(
+                                                                  s['profile_image_url'],
+                                                                ),
+                                                                fit:
+                                                                    BoxFit
+                                                                        .cover,
+                                                                onError: (
+                                                                  exception,
+                                                                  stackTrace,
+                                                                ) {
+                                                                  // Handle image loading error silently
+                                                                  print(
+                                                                    'Error loading profile image: $exception',
+                                                                  );
+                                                                },
+                                                              )
+                                                              : null,
                                                     ),
-                                                    child: s['profile_image_url'] == null || s['profile_image_url'].toString().isEmpty
-                                                        ? Center(
-                                                            child: Text(
-                                                              "${s['fname']?[0] ?? ''}${s['lname']?[0] ?? ''}".toUpperCase(),
-                                                              style: const TextStyle(
-                                                                color: Color(0xFF2563EB),
-                                                                fontWeight: FontWeight.bold,
-                                                                fontSize: 12,
+                                                    child:
+                                                        s['profile_image_url'] ==
+                                                                    null ||
+                                                                s['profile_image_url']
+                                                                    .toString()
+                                                                    .isEmpty
+                                                            ? Center(
+                                                              child: Text(
+                                                                "${s['fname']?[0] ?? ''}${s['lname']?[0] ?? ''}"
+                                                                    .toUpperCase(),
+                                                                style: const TextStyle(
+                                                                  color: Color(
+                                                                    0xFF2563EB,
+                                                                  ),
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  fontSize: 12,
+                                                                ),
                                                               ),
-                                                            ),
-                                                          )
-                                                        : null,
+                                                            )
+                                                            : null,
                                                   ),
                                                   const SizedBox(width: 12),
                                                   Expanded(
                                                     child: Column(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
                                                       children: [
                                                         Text(
                                                           "${s['fname']} ${s['lname']}",
-                                                          overflow: TextOverflow.ellipsis,
-                                                          style: const TextStyle(
-                                                            color: Color(0xFF222B45),
-                                                            fontWeight: FontWeight.w600,
-                                                            fontSize: 14,
-                                                          ),
+                                                          overflow:
+                                                              TextOverflow
+                                                                  .ellipsis,
+                                                          style:
+                                                              const TextStyle(
+                                                                color: Color(
+                                                                  0xFF222B45,
+                                                                ),
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                fontSize: 14,
+                                                              ),
                                                         ),
-                                                        const SizedBox(height: 2),
+                                                        const SizedBox(
+                                                          height: 2,
+                                                        ),
                                                         Row(
                                                           children: [
                                                             Icon(
-                                                              Icons.calendar_today,
+                                                              Icons
+                                                                  .calendar_today,
                                                               size: 12,
-                                                              color: const Color(0xFF8F9BB3),
+                                                              color:
+                                                                  const Color(
+                                                                    0xFF8F9BB3,
+                                                                  ),
                                                             ),
-                                                            const SizedBox(width: 4),
+                                                            const SizedBox(
+                                                              width: 4,
+                                                            ),
                                                             Text(
                                                               "View calendar",
                                                               style: const TextStyle(
-                                                                color: Color(0xFF8F9BB3),
+                                                                color: Color(
+                                                                  0xFF8F9BB3,
+                                                                ),
                                                                 fontSize: 11,
-                                                                fontWeight: FontWeight.w500,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
                                                               ),
                                                             ),
                                                           ],
