@@ -1194,16 +1194,42 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                 bottom: BorderSide(color: Colors.grey[200]!, width: 2),
               ),
             ),
-            child: const Row(
+            // make Row non-const so we can use Align for per-column alignment
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Expanded(flex: 2, child: TableHeaderCell(text: 'Student')),
-                Expanded(flex: 1, child: TableHeaderCell(text: 'Grade')),
-                Expanded(flex: 2, child: TableHeaderCell(text: 'Address')),
+                // Student - left aligned (matches content)
                 Expanded(
                   flex: 2,
-                  child: TableHeaderCell(text: 'Assignment Status'),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: const TableHeaderCell(text: 'Student'),
+                  ),
                 ),
-                Expanded(flex: 1, child: TableHeaderCell(text: 'Actions')),
+                // Grade - centered
+                Expanded(
+                  flex: 1,
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: const TableHeaderCell(text: 'Grade'),
+                  ),
+                ),
+                // Address - left aligned
+                Expanded(
+                  flex: 2,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: const TableHeaderCell(text: 'Address'),
+                  ),
+                ),
+                // Assignment Status - centered to match content
+                Expanded(
+                  flex: 1,
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: const TableHeaderCell(text: 'Assignment Status'),
+                  ),
+                ),
               ],
             ),
           ),
@@ -1234,15 +1260,14 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                       itemBuilder: (context, index) {
                         final student = paginatedStudents[index];
                         final section = student['sections'];
-                        final assignment =
-                            student['driver_assignments'].isNotEmpty
-                                ? student['driver_assignments'][0]
-                                : null;
-                        final isAssigned = student['driver_assignments'].any(
-                          (assignment) =>
-                              assignment['status']?.toString().toLowerCase() ==
-                              'active',
-                        );
+                        final isAssigned =
+                            (student['driver_assignments'] as List).any(
+                              (assignment) =>
+                                  assignment['status']
+                                      ?.toString()
+                                      .toLowerCase() ==
+                                  'active',
+                            );
 
                         return Container(
                           padding: const EdgeInsets.symmetric(
@@ -1255,11 +1280,13 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                             ),
                           ),
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // Student Info
+                              // Student Info (left)
                               Expanded(
                                 flex: 2,
                                 child: Column(
+                                  mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
@@ -1285,124 +1312,84 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                 ),
                               ),
 
-                              // Grade
+                              // Grade (centered both vertically & horizontally)
                               Expanded(
                                 flex: 1,
-                                child: Text(
-                                  student['grade_level'] ?? '-',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF1A1A1A),
+                                child: Center(
+                                  child: Text(
+                                    student['grade_level'] ?? '-',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF1A1A1A),
+                                    ),
                                   ),
                                 ),
                               ),
 
-                              // Address
+                              // Address (left)
                               Expanded(
                                 flex: 2,
-                                child: Text(
-                                  student['address'] ?? 'No address',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    color: Color(0xFF1A1A1A),
-                                    fontWeight: FontWeight.w500,
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    student['address'] ?? 'No address',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Color(0xFF1A1A1A),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
 
-                              // Assignment Status
+                              // Assignment Status (centered)
                               Expanded(
-                                flex: 2,
-                                child:
-                                    isAssigned
-                                        ? Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.check_circle,
-                                              color: Colors.green,
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            const Text(
-                                              'Assigned',
-                                              style: TextStyle(
+                                flex: 1,
+                                child: Center(
+                                  child:
+                                      isAssigned
+                                          ? Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: const [
+                                              Icon(
+                                                Icons.check_circle,
                                                 color: Colors.green,
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
+                                                size: 20,
                                               ),
-                                            ),
-                                          ],
-                                        )
-                                        : Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.warning,
-                                              color: Colors.orange,
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            const Text(
-                                              'Unassigned',
-                                              style: TextStyle(
-                                                color: Colors.orange,
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                              ),
-
-                              // Actions
-                              Expanded(
-                                flex: 1,
-                                child:
-                                    isAssigned
-                                        ? TextButton(
-                                          onPressed:
-                                              () => _editAssignment(
-                                                assignments.firstWhere(
-                                                  (a) =>
-                                                      a['student_id'] ==
-                                                      student['id'],
+                                              SizedBox(width: 8),
+                                              Text(
+                                                'Assigned',
+                                                style: TextStyle(
+                                                  color: Colors.green,
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w600,
                                                 ),
                                               ),
-                                          child: const Text(
-                                            'Edit',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                            ],
+                                          )
+                                          : Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: const [
+                                              Icon(
+                                                Icons.warning,
+                                                color: Colors.orange,
+                                                size: 20,
+                                              ),
+                                              SizedBox(width: 8),
+                                              Text(
+                                                'Unassigned',
+                                                style: TextStyle(
+                                                  color: Colors.orange,
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        )
-                                        : ElevatedButton(
-                                          onPressed:
-                                              () => _assignStudent(student),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(
-                                              0xFF2ECC71,
-                                            ),
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 8,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                          child: const Text(
-                                            'Assign',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
+                                ),
                               ),
                             ],
                           ),
