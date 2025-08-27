@@ -1947,11 +1947,34 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
         ),
       );
     } else if (_sortOption == 'Grade Level') {
-      displaySections.sort(
-        (a, b) => (a['grade_level'] ?? '').toString().compareTo(
-          (b['grade_level'] ?? '').toString(),
-        ),
-      );
+      // Custom grade order so Preschool and Kinder appear first
+      final gradeOrder = [
+        'Preschool',
+        'Kinder',
+        'Grade 1',
+        'Grade 2',
+        'Grade 3',
+        'Grade 4',
+        'Grade 5',
+        'Grade 6',
+      ];
+
+      int gradeIndex(String? grade) {
+        if (grade == null) return gradeOrder.length + 1;
+        final idx = gradeOrder.indexOf(grade);
+        // If grade not in predefined list, push it after known grades
+        return idx >= 0 ? idx : gradeOrder.length + 1;
+      }
+
+      displaySections.sort((a, b) {
+        final ai = gradeIndex((a['grade_level'] ?? '').toString());
+        final bi = gradeIndex((b['grade_level'] ?? '').toString());
+        if (ai != bi) return ai.compareTo(bi);
+        // If same order, fallback to name comparison
+        return (a['name'] ?? '').toString().compareTo(
+          (b['name'] ?? '').toString(),
+        );
+      });
     } else if (_sortOption == 'Date Created') {
       displaySections.sort((a, b) {
         final da =
