@@ -1999,31 +1999,31 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header row with title and search/add buttons
+            // Standardized Header
             Row(
               children: [
                 const Text(
                   "Section Management",
                   style: TextStyle(
-                    fontSize: 32,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF1A1A1A),
                     letterSpacing: 0.5,
                   ),
                 ),
                 const Spacer(),
-                // Search bar
+                // Standardized Search bar
                 Container(
-                  width: 280,
-                  height: 48,
+                  width: 260,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     border: Border.all(color: const Color(0xFFE0E0E0)),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.04),
-                        blurRadius: 8,
+                        blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
                     ],
@@ -2031,15 +2031,15 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                   child: TextField(
                     decoration: const InputDecoration(
                       hintText: 'Search sections...',
-                      hintStyle: TextStyle(fontSize: 16),
+                      hintStyle: TextStyle(fontSize: 14, color: Color(0xFF9E9E9E)),
                       prefixIcon: Icon(
                         Icons.search,
                         color: Color(0xFF2ECC71),
-                        size: 22,
+                        size: 20,
                       ),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(
-                        vertical: 14.0,
+                        vertical: 12.0,
                         horizontal: 16.0,
                       ),
                     ),
@@ -2049,17 +2049,17 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                         }),
                   ),
                 ),
-                const SizedBox(width: 16),
-                // Add New Section button
+                const SizedBox(width: 12),
+                // Standardized Add New button
                 SizedBox(
-                  height: 48,
+                  height: 44,
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add, color: Colors.white, size: 22),
+                    icon: const Icon(Icons.add, color: Colors.white, size: 18),
                     label: const Text(
                       "Add New Section",
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -2067,33 +2067,33 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                       backgroundColor: const Color(0xFF2ECC71),
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      elevation: 4,
-                      shadowColor: Colors.black.withOpacity(0.2),
+                      elevation: 2,
+                      shadowColor: Colors.black.withOpacity(0.1),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
+                        horizontal: 16,
+                        vertical: 10,
                       ),
                     ),
                     onPressed: () => _addOrEditSection(),
                   ),
                 ),
-                const SizedBox(width: 16),
-                // Export button
+                const SizedBox(width: 12),
+                // Standardized Export button
                 SizedBox(
-                  height: 48,
+                  height: 44,
                   child: OutlinedButton.icon(
                     icon: const Icon(
                       Icons.file_download_outlined,
                       color: Color(0xFF2ECC71),
-                      size: 22,
+                      size: 18,
                     ),
                     label: const Text(
                       "Export",
                       style: TextStyle(
                         color: Color(0xFF2ECC71),
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -2101,13 +2101,17 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                       backgroundColor: Colors.white,
                       side: const BorderSide(
                         color: Color(0xFF2ECC71),
-                        width: 2,
+                        width: 1.5,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      elevation: 2,
-                      shadowColor: Colors.black.withOpacity(0.1),
+                      elevation: 1,
+                      shadowColor: Colors.black.withOpacity(0.05),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
                     ),
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -2121,17 +2125,12 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                 ),
               ],
             ),
-
-            // Breadcrumb / subtitle
+            // Standardized Breadcrumb
             const Padding(
               padding: EdgeInsets.only(top: 8.0, bottom: 24.0),
               child: Text(
                 "Home / Section Management",
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF666666),
-                  fontWeight: FontWeight.w500,
-                ),
+                style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
               ),
             ),
 

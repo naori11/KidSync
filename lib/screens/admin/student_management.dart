@@ -2245,31 +2245,31 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with breadcrumb
+            // Standardized Header
             Row(
               children: [
                 const Text(
                   "Student Management",
                   style: TextStyle(
-                    fontSize: 32,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF1A1A1A),
                     letterSpacing: 0.5,
                   ),
                 ),
                 const Spacer(),
-                // Search bar
+                // Standardized Search bar
                 Container(
-                  width: 280,
-                  height: 48,
+                  width: 260,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     border: Border.all(color: const Color(0xFFE0E0E0)),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 8,
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
                     ],
@@ -2277,18 +2277,15 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   child: TextField(
                     decoration: const InputDecoration(
                       hintText: 'Search students...',
-                      hintStyle: TextStyle(
-                        color: Color(0xFF9E9E9E),
-                        fontSize: 16,
-                      ),
+                      hintStyle: TextStyle(fontSize: 14, color: Color(0xFF9E9E9E)),
                       prefixIcon: Icon(
                         Icons.search,
                         color: Color(0xFF2ECC71),
-                        size: 22,
+                        size: 20,
                       ),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(
-                        vertical: 14.0,
+                        vertical: 12.0,
                         horizontal: 16.0,
                       ),
                     ),
@@ -2299,51 +2296,51 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                         }),
                   ),
                 ),
-                const SizedBox(width: 16),
-                // Add New Student button
+                const SizedBox(width: 12),
+                // Standardized Add New button
                 SizedBox(
-                  height: 48,
+                  height: 44,
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add, color: Colors.white, size: 22),
+                    icon: const Icon(Icons.add, color: Colors.white, size: 18),
                     label: const Text(
                       "Add New Student",
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2ECC71),
                       foregroundColor: Colors.white,
-                      elevation: 4,
-                      shadowColor: const Color(0xFF2ECC71).withOpacity(0.3),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
+                      elevation: 2,
+                      shadowColor: Colors.black.withOpacity(0.1),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
+                        horizontal: 16,
+                        vertical: 10,
                       ),
                     ),
                     onPressed: isAdmin ? () => _addOrEditStudent() : null,
                   ),
                 ),
-                const SizedBox(width: 16),
-                // Export button
+                const SizedBox(width: 12),
+                // Standardized Export button
                 SizedBox(
-                  height: 48,
+                  height: 44,
                   child: OutlinedButton.icon(
                     icon: const Icon(
                       Icons.file_download_outlined,
                       color: Color(0xFF2ECC71),
-                      size: 22,
+                      size: 18,
                     ),
                     label: const Text(
                       "Export",
                       style: TextStyle(
                         color: Color(0xFF2ECC71),
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -2351,13 +2348,17 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       backgroundColor: Colors.white,
                       side: const BorderSide(
                         color: Color(0xFF2ECC71),
-                        width: 2,
+                        width: 1.5,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      elevation: 2,
-                      shadowColor: Colors.black.withOpacity(0.1),
+                      elevation: 1,
+                      shadowColor: Colors.black.withOpacity(0.05),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
                     ),
                     onPressed: _exportData,
                   ),
@@ -2365,16 +2366,12 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               ],
             ),
 
-            // Breadcrumb / subtitle
+            // Standardized Breadcrumb
             const Padding(
               padding: EdgeInsets.only(top: 8.0, bottom: 24.0),
               child: Text(
                 "Home / Student Management",
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF666666),
-                  fontWeight: FontWeight.w500,
-                ),
+                style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
               ),
             ),
 
@@ -2930,40 +2927,52 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                       ),
                                     ),
 
-                                    // 5. Gender
+                                    // 5. Gender - Responsive
                                     TableCell(
                                       verticalAlignment:
                                           TableCellVerticalAlignment.middle,
                                       child: Container(
                                         alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              student['gender'] == 'Male'
-                                                  ? Icons.male
-                                                  : student['gender'] ==
-                                                      'Female'
-                                                  ? Icons.female
-                                                  : Icons.person,
-                                              size: 16,
-                                              color:
-                                                  student['gender'] == 'Male'
-                                                      ? Colors.blue[600]
-                                                      : student['gender'] ==
-                                                          'Female'
-                                                      ? Colors.pink[600]
-                                                      : Colors.grey[600],
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              student['gender'] ?? 'N/A',
-                                              style: const TextStyle(
-                                                fontSize: 13,
+                                        padding: EdgeInsets.all(MediaQuery.of(context).size.width < 768 ? 8 : 16),
+                                        child: MediaQuery.of(context).size.width < 768
+                                            ? Icon(
+                                                student['gender'] == 'Male'
+                                                    ? Icons.male
+                                                    : student['gender'] == 'Female'
+                                                    ? Icons.female
+                                                    : Icons.person,
+                                                size: 18,
+                                                color: student['gender'] == 'Male'
+                                                    ? Colors.blue[600]
+                                                    : student['gender'] == 'Female'
+                                                    ? Colors.pink[600]
+                                                    : Colors.grey[600],
+                                              )
+                                            : Row(
+                                                children: [
+                                                  Icon(
+                                                    student['gender'] == 'Male'
+                                                        ? Icons.male
+                                                        : student['gender'] == 'Female'
+                                                        ? Icons.female
+                                                        : Icons.person,
+                                                    size: 16,
+                                                    color: student['gender'] == 'Male'
+                                                        ? Colors.blue[600]
+                                                        : student['gender'] == 'Female'
+                                                        ? Colors.pink[600]
+                                                        : Colors.grey[600],
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Flexible(
+                                                    child: Text(
+                                                      student['gender'] ?? 'N/A',
+                                                      style: const TextStyle(fontSize: 13),
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                            ),
-                                          ],
-                                        ),
                                       ),
                                     ),
 
@@ -3007,12 +3016,12 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                       verticalAlignment:
                                           TableCellVerticalAlignment.middle,
                                       child: Padding(
-                                        padding: const EdgeInsets.all(16),
+                                        padding: EdgeInsets.all(MediaQuery.of(context).size.width < 768 ? 8 : 16),
                                         child: Center(
                                           child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 6,
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: MediaQuery.of(context).size.width < 768 ? 6 : 12,
+                                              vertical: MediaQuery.of(context).size.width < 768 ? 3 : 6,
                                             ),
                                             decoration: BoxDecoration(
                                               color:
@@ -3020,7 +3029,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                                       ? const Color(0xFFE8F5E9)
                                                       : const Color(0xFFFFEBEE),
                                               borderRadius:
-                                                  BorderRadius.circular(16),
+                                                  BorderRadius.circular(MediaQuery.of(context).size.width < 768 ? 12 : 16),
                                               border: Border.all(
                                                 color:
                                                     status == 'Active'
@@ -3033,51 +3042,55 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                                 width: 1,
                                               ),
                                             ),
-                                            // Center the contents of the pill
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.center,
-                                              children: [
-                                                Container(
-                                                  width: 8,
-                                                  height: 8,
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        status == 'Active'
-                                                            ? const Color(
-                                                              0xFF4CAF50,
-                                                            )
-                                                            : const Color(
-                                                              0xFFE57373,
-                                                            ),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          4,
+                                            // Center the contents of the pill - Responsive
+                                            child: MediaQuery.of(context).size.width < 768
+                                                ? Container(
+                                                    width: 8,
+                                                    height: 8,
+                                                    decoration: BoxDecoration(
+                                                      color: status == 'Active'
+                                                          ? const Color(0xFF4CAF50)
+                                                          : const Color(0xFFE57373),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                  )
+                                                : Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    mainAxisAlignment: MainAxisAlignment.center,
+                                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                                    children: [
+                                                      Container(
+                                                        width: 8,
+                                                        height: 8,
+                                                        decoration: BoxDecoration(
+                                                          color: status == 'Active'
+                                                              ? const Color(0xFF4CAF50)
+                                                              : const Color(0xFFE57373),
+                                                          borderRadius: BorderRadius.circular(4),
                                                         ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Flexible(
+                                                        child: Text(
+                                                          status,
+                                                          textAlign: TextAlign.center,
+                                                          style: TextStyle(
+                                                            color:
+                                                                status == 'Active'
+                                                                    ? const Color(
+                                                                      0xFF2E7D32,
+                                                                    )
+                                                                    : const Color(
+                                                                      0xFFC62828,
+                                                                    ),
+                                                            fontWeight: FontWeight.w600,
+                                                            fontSize: 12,
+                                                          ),
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Text(
-                                                  status,
-                                                  textAlign: TextAlign.center,
-                                                  style: TextStyle(
-                                                    color:
-                                                        status == 'Active'
-                                                            ? const Color(
-                                                              0xFF2E7D32,
-                                                            )
-                                                            : const Color(
-                                                              0xFFC62828,
-                                                            ),
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
                                           ),
                                         ),
                                       ),

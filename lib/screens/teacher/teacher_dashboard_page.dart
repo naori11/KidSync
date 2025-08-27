@@ -288,35 +288,35 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   Widget _buildSummaryCards() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
         children: [
           _SummaryTile(
             label: "Classes Today",
             value: "$totalClassesToday",
-            icon: Icons.class_,
+            icon: Icons.folder_copy_outlined,
             color: Color(0xFF2563EB),
           ),
-          const SizedBox(width: 18),
+          const SizedBox(width: 16),
           _SummaryTile(
             label: "Total Students",
             value: "$totalStudentsToday",
-            icon: Icons.people,
-            color: Color(0xFF19AE61),
+            icon: Icons.people_outline,
+            color: Color(0xFF10B981),
           ),
-          const SizedBox(width: 18),
+          const SizedBox(width: 16),
           _SummaryTile(
             label: "Present",
             value: "$totalPresentToday",
-            icon: Icons.check_circle,
-            color: Color(0xFF19AE61),
+            icon: Icons.check_circle_outline,
+            color: Color(0xFF10B981),
           ),
-          const SizedBox(width: 18),
+          const SizedBox(width: 16),
           _SummaryTile(
             label: "Absent",
             value: "$totalAbsentToday",
-            icon: Icons.cancel,
-            color: Color(0xFFEB5757),
+            icon: Icons.cancel_outlined,
+            color: Color(0xFFEF4444),
           ),
         ],
       ),
@@ -325,70 +325,94 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   Widget _buildScheduleList() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             "Today's Schedule",
             style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF222B45),
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF1F2937),
             ),
           ),
-          const SizedBox(height: 10),
-          Column(
-            children: [
-              for (final assignment in todayAssignments)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12.0),
-                  child: _ScheduleListTile(
-                    className: assignment['sections']['name'],
-                    subject: assignment['subject'] ?? '',
-                    time: formatSchedule(assignment),
-                    status: computeSectionStatus(assignment),
-                    present:
-                        sectionAttendanceStats[assignment['sections']['id']]?['present'] ??
-                        0,
-                    total:
-                        sectionStudents[assignment['sections']['id']]?.length ??
-                        0,
-                    onGoToClass: () {
-                      showDialog(
-                        context: context,
-                        builder:
-                            (_) => AlertDialog(
-                              contentPadding: const EdgeInsets.all(0),
-                              backgroundColor: Colors.transparent,
-                              elevation: 0,
-                              content: SizedBox(
-                                width: 540,
-                                child: _ClassStudentListModal(
-                                  classTitle: assignment['sections']['name'],
-                                  schedule: formatSchedule(assignment),
-                                  subject: assignment['subject'] ?? '',
-                                  students: [
-                                    for (final student
-                                        in sectionStudents[assignment['sections']['id']] ??
-                                            [])
-                                      _StudentRowData(
-                                        "${student['fname']} ${student['lname']}",
-                                        _avatarImages[student['id'] %
-                                            _avatarImages.length],
-                                        sectionStudentStatus[assignment['sections']['id']]?[student['id']] ??
-                                            "Absent",
-                                      ),
-                                  ],
+          const SizedBox(height: 16),
+          if (todayAssignments.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Text(
+                "No classes scheduled for today",
+                style: TextStyle(
+                  color: Color(0xFF6B7280),
+                  fontSize: 14,
+                ),
+              ),
+            )
+          else
+            Column(
+              children: [
+                for (final assignment in todayAssignments)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: _ScheduleListTile(
+                      className: assignment['sections']['name'],
+                      subject: assignment['subject'] ?? '',
+                      time: formatSchedule(assignment),
+                      status: computeSectionStatus(assignment),
+                      present:
+                          sectionAttendanceStats[assignment['sections']['id']]?['present'] ??
+                          0,
+                      total:
+                          sectionStudents[assignment['sections']['id']]?.length ??
+                          0,
+                      onGoToClass: () {
+                        showDialog(
+                          context: context,
+                          builder:
+                              (_) => AlertDialog(
+                                contentPadding: const EdgeInsets.all(0),
+                                backgroundColor: Colors.transparent,
+                                elevation: 0,
+                                content: SizedBox(
+                                  width: 540,
+                                  child: _ClassStudentListModal(
+                                    classTitle: assignment['sections']['name'],
+                                    schedule: formatSchedule(assignment),
+                                    subject: assignment['subject'] ?? '',
+                                    students: [
+                                      for (final student
+                                          in sectionStudents[assignment['sections']['id']] ??
+                                              [])
+                                        _StudentRowData(
+                                          "${student['fname']} ${student['lname']}",
+                                          _avatarImages[student['id'] %
+                                              _avatarImages.length],
+                                          sectionStudentStatus[assignment['sections']['id']]?[student['id']] ??
+                                              "Absent",
+                                        ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-                ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
     );
@@ -396,87 +420,97 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   Widget _buildAlerts() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Card(
-        color: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Attendance Alerts",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Color(0xFF222B45),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Attendance Alerts",
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 18,
+                color: Color(0xFF1F2937),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (totalAbsentToday > 0)
+              Text(
+                "$totalAbsentToday student${totalAbsentToday > 1 ? 's' : ''} absent today.",
+                style: const TextStyle(
+                  color: Color(0xFFEF4444),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
                 ),
               ),
-              const SizedBox(height: 10),
-              if (totalAbsentToday > 0)
-                Text(
-                  "$totalAbsentToday student${totalAbsentToday > 1 ? 's' : ''} absent today.",
-                  style: const TextStyle(
-                    color: Color(0xFFEB5757),
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                  ),
+            if (lateArrivals.isNotEmpty) ...[
+              if (totalAbsentToday > 0) const SizedBox(height: 8),
+              Text(
+                "${lateArrivals.length} late arrival${lateArrivals.length > 1 ? 's' : ''}:",
+                style: const TextStyle(
+                  color: Color(0xFFEF4444),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
                 ),
-              if (lateArrivals.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  "${lateArrivals.length} late arrival${lateArrivals.length > 1 ? 's' : ''}:",
-                  style: const TextStyle(
-                    color: Color(0xFFEB5757),
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final late in lateArrivals)
-                      Row(
+              ),
+              const SizedBox(height: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final late in lateArrivals)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
                         children: [
                           CircleAvatar(
                             radius: 12,
                             backgroundImage: NetworkImage(late['avatar']),
                           ),
-                          const SizedBox(width: 7),
+                          const SizedBox(width: 8),
                           Text(
                             "${late['name']} (${late['section']})",
                             style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF222B45),
+                              fontSize: 14,
+                              color: Color(0xFF1F2937),
                             ),
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 8),
                           Text(
                             "at ${late['time'].hour.toString().padLeft(2, '0')}:${late['time'].minute.toString().padLeft(2, '0')}",
                             style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF8F9BB3),
+                              fontSize: 14,
+                              color: Color(0xFF6B7280),
                             ),
                           ),
                         ],
                       ),
-                  ],
-                ),
-              ],
-              if (totalAbsentToday == 0 && lateArrivals.isEmpty)
-                const Text(
-                  "No alerts. All students are present and on time!",
-                  style: TextStyle(
-                    color: Color(0xFF19AE61),
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                ),
+                    ),
+                ],
+              ),
             ],
-          ),
+            if (totalAbsentToday == 0 && lateArrivals.isEmpty)
+              const Text(
+                "No alerts. All students are present and on time!",
+                style: TextStyle(
+                  color: Color(0xFF10B981),
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -484,7 +518,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
   Widget _buildViewAllClassesButton() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
       child: Align(
         alignment: Alignment.centerLeft,
         child: OutlinedButton.icon(
@@ -500,18 +534,18 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             );
           },
           style: OutlinedButton.styleFrom(
-            foregroundColor: const Color(0xFF2563EB),
-            side: const BorderSide(color: Color(0xFF2563EB)),
+            foregroundColor: const Color(0xFF10B981),
+            side: const BorderSide(color: Color(0xFF10B981), width: 1.5),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(8),
             ),
             textStyle: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              fontSize: 14,
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
-          icon: const Icon(Icons.list_alt, size: 19),
+          icon: const Icon(Icons.list_alt_outlined, size: 18),
           label: const Text("View All Classes"),
         ),
       ),
@@ -535,12 +569,12 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                     children: [
                       // Header
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(32, 0, 32, 0),
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
                         child: Row(
                           children: [
                             CircleAvatar(
-                              backgroundColor: Colors.blue[100],
-                              radius: 23,
+                              backgroundColor: const Color(0xFFDDD6FE),
+                              radius: 26,
                               backgroundImage:
                                   profileImageUrl != null &&
                                           profileImageUrl!.isNotEmpty
@@ -553,40 +587,41 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                                         (teacherName != null &&
                                                 teacherName!.isNotEmpty)
                                             ? teacherName![0].toUpperCase()
-                                            : 'A',
+                                            : 'T',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 24,
-                                          color: Color(0xFF2563EB),
+                                          fontSize: 20,
+                                          color: Color(0xFF7C3AED),
                                         ),
                                       )
                                       : null,
                             ),
-                            const SizedBox(width: 15),
+                            const SizedBox(width: 16),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    "Good day, ${teacherName ?? ''}!",
+                                    "Good day, ${teacherName?.split(' ').first ?? 'Teacher'}!",
                                     style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF222B45),
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF1F2937),
                                     ),
                                   ),
+                                  const SizedBox(height: 4),
                                   Row(
                                     children: [
                                       const Icon(
-                                        Icons.calendar_today,
+                                        Icons.calendar_today_outlined,
                                         size: 16,
-                                        color: Color(0xFF8F9BB3),
+                                        color: Color(0xFF6B7280),
                                       ),
-                                      const SizedBox(width: 5),
+                                      const SizedBox(width: 6),
                                       Text(
                                         getTodayLabel(),
                                         style: const TextStyle(
-                                          color: Color(0xFF8F9BB3),
+                                          color: Color(0xFF6B7280),
                                           fontWeight: FontWeight.w500,
                                           fontSize: 14,
                                         ),
@@ -599,14 +634,14 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 22),
+                      const SizedBox(height: 24),
                       _buildSummaryCards(),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 24),
                       _buildScheduleList(),
                       const SizedBox(height: 24),
                       _buildAlerts(),
                       _buildViewAllClassesButton(),
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 32),
                     ],
                   ),
                 ),
@@ -631,36 +666,44 @@ class _SummaryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Card(
+      child: Container(
         margin: EdgeInsets.zero,
-        color: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 29, color: color),
-              const SizedBox(height: 7),
-              Text(
-                value,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                  color: color,
-                ),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 24, color: color),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 24,
+                color: color,
               ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF8F9BB3),
-                  fontWeight: FontWeight.w500,
-                ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF6B7280),
+                fontWeight: FontWeight.w500,
               ),
-            ],
-          ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
@@ -689,138 +732,145 @@ class _ScheduleListTile extends StatelessWidget {
   Color getStatusColor() {
     switch (status.toLowerCase()) {
       case "completed":
-        return const Color(0xFF19AE61);
+        return const Color(0xFF10B981);
       case "ongoing":
-        return const Color(0xFF2563EB);
+        return const Color(0xFF10B981);
       case "upcoming":
-        return const Color(0xFF8F9BB3);
+        return const Color(0xFF6B7280);
       default:
-        return const Color(0xFF2563EB);
+        return const Color(0xFF10B981);
     }
   }
 
   Color getStatusBgColor() {
     switch (status.toLowerCase()) {
       case "completed":
-        return const Color(0xFFD9FBE8);
+        return const Color(0xFFD1FAE5);
       case "ongoing":
-        return const Color(0xFFE8F1FF);
+        return const Color(0xFFD1FAE5);
       case "upcoming":
-        return const Color(0xFFF2F3F5);
+        return const Color(0xFFF3F4F6);
       default:
-        return const Color(0xFFE8F1FF);
+        return const Color(0xFFD1FAE5);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Container(
       margin: EdgeInsets.zero,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-        width: double.infinity,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Class Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
+      padding: const EdgeInsets.all(20),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Class Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      className,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                    if (subject.isNotEmpty) ...[
+                      const SizedBox(width: 8),
                       Text(
-                        className,
+                        subject,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                          color: Color(0xFF222B45),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF2563EB),
                         ),
                       ),
-                      if (subject.isNotEmpty) ...[
-                        const SizedBox(width: 10),
-                        Text(
-                          subject,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF2563EB),
-                          ),
-                        ),
-                      ],
                     ],
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    time,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF8F9BB3),
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    "Present: $present / $total",
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF2563EB),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Status badge and button in a Row, right side
-            Row(
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(right: 12),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: getStatusBgColor(),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Text(
-                    status[0].toUpperCase() + status.substring(1),
-                    style: TextStyle(
-                      color: getStatusColor(),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  time,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
                   ),
                 ),
-                SizedBox(
-                  height: 36,
-                  child: ElevatedButton(
-                    onPressed: onGoToClass,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(7),
-                      ),
-                      elevation: 0,
-                      textStyle: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 0,
-                      ),
-                    ),
-                    child: const Text("Go to Class"),
+                const SizedBox(height: 4),
+                Text(
+                  "Present: $present / $total",
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF2563EB),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          // Status badge and button in a Row, right side
+          Row(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: getStatusBgColor(),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  status[0].toUpperCase() + status.substring(1),
+                  style: TextStyle(
+                    color: getStatusColor(),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: 36,
+                child: ElevatedButton(
+                  onPressed: onGoToClass,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 0,
+                    textStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 0,
+                    ),
+                  ),
+                  child: const Text("Go to Class"),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
