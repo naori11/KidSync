@@ -218,7 +218,19 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
     // Main nav items
     switch (index) {
       case 0:
-        return const TeacherDashboardPage();
+        return TeacherDashboardPage(
+          onOpenClassList: () {
+            // Navigate via the panel: select "Class list" and reset subpage state
+            setState(() {
+              selectedIndex = 1;
+              subPage = null;
+              selectedSectionId = null;
+              selectedSectionName = null;
+              selectedStudentId = null;
+              selectedStudentName = null;
+            });
+          },
+        );
       case 1:
         return TeacherClassListPage(
           onViewAttendance: _showAttendancePage,

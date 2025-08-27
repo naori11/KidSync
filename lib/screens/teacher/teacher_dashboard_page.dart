@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'class_list_page.dart';
 
 // Sample avatars for mock/student images
 const _avatarImages = [
@@ -11,7 +12,9 @@ const _avatarImages = [
 ];
 
 class TeacherDashboardPage extends StatefulWidget {
-  const TeacherDashboardPage({super.key});
+  final VoidCallback? onOpenClassList;
+
+  const TeacherDashboardPage({super.key, this.onOpenClassList});
 
   @override
   State<TeacherDashboardPage> createState() => _TeacherDashboardPageState();
@@ -486,8 +489,15 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         alignment: Alignment.centerLeft,
         child: OutlinedButton.icon(
           onPressed: () {
-            // Navigate to the full class list page (implement navigation as needed)
-            Navigator.of(context).pushNamed('/teacher_classes');
+            // If parent provided a callback, use it to navigate via the panel nav.
+            if (widget.onOpenClassList != null) {
+              widget.onOpenClassList!();
+              return;
+            }
+            // Fallback: Navigate to the full class list page directly.
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => TeacherClassListPage()),
+            );
           },
           style: OutlinedButton.styleFrom(
             foregroundColor: const Color(0xFF2563EB),
