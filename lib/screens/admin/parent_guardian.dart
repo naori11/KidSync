@@ -1248,18 +1248,21 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                               int crossAxisCount;
                               double childAspectRatio;
 
-                              if (constraints.maxWidth > 1400) {
+                              if (constraints.maxWidth > 1600) {
+                                crossAxisCount = 5;
+                                childAspectRatio = 0.85;
+                              } else if (constraints.maxWidth > 1200) {
                                 crossAxisCount = 4;
-                                childAspectRatio = 1.1;
-                              } else if (constraints.maxWidth > 1000) {
+                                childAspectRatio = 0.9;
+                              } else if (constraints.maxWidth > 900) {
                                 crossAxisCount = 3;
-                                childAspectRatio = 1.15;
+                                childAspectRatio = 0.95;
                               } else if (constraints.maxWidth > 600) {
                                 crossAxisCount = 2;
-                                childAspectRatio = 1.25;
+                                childAspectRatio = 1.0;
                               } else {
                                 crossAxisCount = 1;
-                                childAspectRatio = 1.4;
+                                childAspectRatio = 1.1;
                               }
 
                               return GridView.builder(
