@@ -266,7 +266,54 @@ class _UserManagementPageState extends State<UserManagementPage> {
     final formKey = GlobalKey<FormState>();
 
     // Role options based on schema constraint
-    final roleOptions = ['Guard', 'Teacher', 'Driver', 'Admin'];
+    final roleOptionsBase = ['Guard', 'Teacher', 'Driver', 'Admin'];
+
+    // Build DropdownMenuItem list; insert a disabled 'Parent' item when editing a Parent
+    List<DropdownMenuItem<String>> roleItems =
+        roleOptionsBase.map((role) {
+          IconData roleIcon;
+          switch (role) {
+            case 'Teacher':
+              roleIcon = Icons.school;
+              break;
+            case 'Guard':
+              roleIcon = Icons.security;
+              break;
+            case 'Driver':
+              roleIcon = Icons.directions_bus;
+              break;
+            default:
+              roleIcon = Icons.person;
+          }
+          return DropdownMenuItem(
+            value: role,
+            child: Row(
+              children: [
+                Icon(roleIcon, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 8),
+                Text(role),
+              ],
+            ),
+          );
+        }).toList();
+
+    // If editing a Parent, include a non-selectable Parent item so the dropdown can show it
+    if (selectedRole == 'Parent') {
+      roleItems.insert(
+        0,
+        DropdownMenuItem<String>(
+          value: 'Parent',
+          enabled: false,
+          child: Row(
+            children: [
+              Icon(Icons.family_restroom, size: 16, color: Colors.grey[600]),
+              const SizedBox(width: 8),
+              const Text('Parent (manage via Parents page)'),
+            ],
+          ),
+        ),
+      );
+    }
 
     print('Debug: selectedRole: $selectedRole'); // Debug print
 
@@ -361,8 +408,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 ),
                                 validator: (value) {
                                   // server-provided field error takes precedence
-                                  if (fieldErrors['fname'] != null)
+                                  if (fieldErrors['fname'] != null) {
                                     return fieldErrors['fname'];
+                                  }
                                   if (value?.trim().isEmpty ?? true) {
                                     return 'First name is required';
                                   }
@@ -491,46 +539,18 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   Icons.admin_panel_settings,
                                   isRequired: true,
                                 ),
-                                value:
-                                    roleOptions.contains(selectedRole)
-                                        ? selectedRole
-                                        : null,
-                                items:
-                                    roleOptions.map((role) {
-                                      IconData roleIcon;
-                                      switch (role) {
-                                        case 'Teacher':
-                                          roleIcon = Icons.school;
-                                          break;
-                                        case 'Guard':
-                                          roleIcon = Icons.security;
-                                          break;
-                                        case 'Driver':
-                                          roleIcon = Icons.directions_bus;
-                                          break;
-                                        default:
-                                          roleIcon = Icons.person;
-                                      }
-                                      return DropdownMenuItem(
-                                        value: role,
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              roleIcon,
-                                              size: 16,
-                                              color: Colors.grey[600],
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(role),
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
-                                onChanged: (value) {
-                                  setDialogState(() {
-                                    selectedRole = value;
-                                  });
-                                },
+                                value: selectedRole,
+                                items: roleItems,
+                                // Disable role changes when editing a user whose role is "Parent"
+                                // (keeps the dropdown visible but non-interactive for Parent).
+                                onChanged:
+                                    (selectedRole == 'Parent')
+                                        ? null
+                                        : (value) {
+                                          setDialogState(() {
+                                            selectedRole = value;
+                                          });
+                                        },
                                 validator: (value) {
                                   if (value == null) {
                                     return 'Please select a role';
