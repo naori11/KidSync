@@ -2507,7 +2507,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       label: Text(
                         isTablet ? "Add Student" : "Add New Student",
                         style: const TextStyle(
-                          color: Color(0xFF2ECC71),
+                          color: Colors.white,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -3089,52 +3089,84 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   ),
                                 ),
 
-                                // Enhanced pagination controls
-                                Row(
+                                // Enhanced responsive pagination controls
+                                Wrap(
+                                  alignment: WrapAlignment.center,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  spacing: 4,
+                                  runSpacing: 4,
                                   children: [
-                                    // First page button
-                                    IconButton(
-                                      icon: const Icon(Icons.first_page),
-                                      onPressed:
-                                          _currentPage > 1
-                                              ? () => setState(
-                                                () => _currentPage = 1,
-                                              )
-                                              : null,
-                                      color:
-                                          _currentPage > 1
-                                              ? const Color(0xFF666666)
-                                              : const Color(0xFFCCCCCC),
-                                      tooltip: 'First page',
-                                    ),
+                                    // First page button - only show on larger screens or when needed
+                                    if (!isSmallMobile || _totalPages > 5)
+                                      Container(
+                                        constraints: const BoxConstraints(
+                                          minWidth: 36,
+                                          minHeight: 36,
+                                        ),
+                                        child: IconButton(
+                                          icon: Icon(
+                                            Icons.first_page,
+                                            size: isSmallMobile ? 18 : 20,
+                                          ),
+                                          onPressed:
+                                              _currentPage > 1
+                                                  ? () => setState(
+                                                    () => _currentPage = 1,
+                                                  )
+                                                  : null,
+                                          color:
+                                              _currentPage > 1
+                                                  ? const Color(0xFF666666)
+                                                  : const Color(0xFFCCCCCC),
+                                          tooltip: 'First page',
+                                          padding: EdgeInsets.all(
+                                            isSmallMobile ? 6 : 8,
+                                          ),
+                                        ),
+                                      ),
 
                                     // Previous button
-                                    IconButton(
-                                      icon: const Icon(Icons.chevron_left),
-                                      onPressed:
-                                          _currentPage > 1
-                                              ? () =>
-                                                  setState(() => _currentPage--)
-                                              : null,
-                                      color:
-                                          _currentPage > 1
-                                              ? const Color(0xFF666666)
-                                              : const Color(0xFFCCCCCC),
-                                      tooltip: 'Previous page',
+                                    Container(
+                                      constraints: const BoxConstraints(
+                                        minWidth: 36,
+                                        minHeight: 36,
+                                      ),
+                                      child: IconButton(
+                                        icon: Icon(
+                                          Icons.chevron_left,
+                                          size: isSmallMobile ? 18 : 20,
+                                        ),
+                                        onPressed:
+                                            _currentPage > 1
+                                                ? () => setState(
+                                                  () => _currentPage--,
+                                                )
+                                                : null,
+                                        color:
+                                            _currentPage > 1
+                                                ? const Color(0xFF666666)
+                                                : const Color(0xFFCCCCCC),
+                                        tooltip: 'Previous page',
+                                        padding: EdgeInsets.all(
+                                          isSmallMobile ? 6 : 8,
+                                        ),
+                                      ),
                                     ),
 
                                     // Page input field for quick navigation
                                     Container(
-                                      width: 80,
+                                      width: isSmallMobile ? 60 : 80,
                                       height: 32,
                                       margin: const EdgeInsets.symmetric(
-                                        horizontal: 8,
+                                        horizontal: 4,
                                       ),
                                       child: TextFormField(
                                         initialValue: _currentPage.toString(),
                                         textAlign: TextAlign.center,
                                         keyboardType: TextInputType.number,
-                                        style: const TextStyle(fontSize: 14),
+                                        style: TextStyle(
+                                          fontSize: isSmallMobile ? 12 : 14,
+                                        ),
                                         decoration: InputDecoration(
                                           contentPadding:
                                               const EdgeInsets.symmetric(
@@ -3170,43 +3202,70 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
                                     Text(
                                       'of $_totalPages',
-                                      style: const TextStyle(
-                                        color: Color(0xFF666666),
-                                        fontSize: 13,
+                                      style: TextStyle(
+                                        color: const Color(0xFF666666),
+                                        fontSize: isSmallMobile ? 11 : 13,
                                       ),
                                     ),
 
                                     // Next button
-                                    IconButton(
-                                      icon: const Icon(Icons.chevron_right),
-                                      onPressed:
-                                          _currentPage < _totalPages
-                                              ? () =>
-                                                  setState(() => _currentPage++)
-                                              : null,
-                                      color:
-                                          _currentPage < _totalPages
-                                              ? const Color(0xFF666666)
-                                              : const Color(0xFFCCCCCC),
-                                      tooltip: 'Next page',
+                                    Container(
+                                      constraints: const BoxConstraints(
+                                        minWidth: 36,
+                                        minHeight: 36,
+                                      ),
+                                      child: IconButton(
+                                        icon: Icon(
+                                          Icons.chevron_right,
+                                          size: isSmallMobile ? 18 : 20,
+                                        ),
+                                        onPressed:
+                                            _currentPage < _totalPages
+                                                ? () => setState(
+                                                  () => _currentPage++,
+                                                )
+                                                : null,
+                                        color:
+                                            _currentPage < _totalPages
+                                                ? const Color(0xFF666666)
+                                                : const Color(0xFFCCCCCC),
+                                        tooltip: 'Next page',
+                                        padding: EdgeInsets.all(
+                                          isSmallMobile ? 6 : 8,
+                                        ),
+                                      ),
                                     ),
 
-                                    // Last page button
-                                    IconButton(
-                                      icon: const Icon(Icons.last_page),
-                                      onPressed:
-                                          _currentPage < _totalPages
-                                              ? () => setState(
-                                                () =>
-                                                    _currentPage = _totalPages,
-                                              )
-                                              : null,
-                                      color:
-                                          _currentPage < _totalPages
-                                              ? const Color(0xFF666666)
-                                              : const Color(0xFFCCCCCC),
-                                      tooltip: 'Last page',
-                                    ),
+                                    // Last page button - only show on larger screens or when needed
+                                    if (!isSmallMobile || _totalPages > 5)
+                                      Container(
+                                        constraints: const BoxConstraints(
+                                          minWidth: 36,
+                                          minHeight: 36,
+                                        ),
+                                        child: IconButton(
+                                          icon: Icon(
+                                            Icons.last_page,
+                                            size: isSmallMobile ? 18 : 20,
+                                          ),
+                                          onPressed:
+                                              _currentPage < _totalPages
+                                                  ? () => setState(
+                                                    () =>
+                                                        _currentPage =
+                                                            _totalPages,
+                                                  )
+                                                  : null,
+                                          color:
+                                              _currentPage < _totalPages
+                                                  ? const Color(0xFF666666)
+                                                  : const Color(0xFFCCCCCC),
+                                          tooltip: 'Last page',
+                                          padding: EdgeInsets.all(
+                                            isSmallMobile ? 6 : 8,
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ],
@@ -3423,40 +3482,43 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                             decoration: BoxDecoration(
                               color:
                                   status == 'Active'
-                                      ? Colors.green[50]
-                                      : Colors.red[50],
-                              borderRadius: BorderRadius.circular(12),
+                                      ? const Color(0xFFE8F5E9)
+                                      : const Color(0xFFFFEBEE),
+                              borderRadius: BorderRadius.circular(16),
                               border: Border.all(
                                 color:
                                     status == 'Active'
-                                        ? Colors.green[200]!
-                                        : Colors.red[200]!,
+                                        ? const Color(0xFF4CAF50)
+                                        : const Color(0xFFE57373),
+                                width: 1,
                               ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Container(
-                                  width: 6,
-                                  height: 6,
+                                  width: 8,
+                                  height: 8,
                                   decoration: BoxDecoration(
                                     color:
                                         status == 'Active'
-                                            ? Colors.green[600]
-                                            : Colors.red[600],
-                                    shape: BoxShape.circle,
+                                            ? const Color(0xFF4CAF50)
+                                            : const Color(0xFFE57373),
+                                    borderRadius: BorderRadius.circular(4),
                                   ),
                                 ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 8),
                                 Text(
                                   status,
                                   style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
                                     color:
                                         status == 'Active'
-                                            ? Colors.green[600]
-                                            : Colors.red[600],
+                                            ? const Color(0xFF2E7D32)
+                                            : const Color(0xFFC62828),
                                   ),
                                 ),
                               ],
@@ -3718,7 +3780,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
           5: const FlexColumnWidth(1.2), // Contact
           6: const FlexColumnWidth(1.4), // Email
           7: const FlexColumnWidth(1.0), // Enrollment
-          8: FlexColumnWidth(isTablet ? 0.6 : 0.8), // Status - responsive
+          8: FlexColumnWidth(
+            isTablet ? 0.8 : 1.0,
+          ), // Status - responsive (increased for tablet)
           9: const FlexColumnWidth(0.6), // Actions
         },
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
@@ -3949,24 +4013,29 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                 TableCell(
                   verticalAlignment: TableCellVerticalAlignment.middle,
                   child: Container(
-                    alignment: Alignment.centerLeft,
+                    alignment: Alignment.center,
                     padding: const EdgeInsets.all(16),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+                        horizontal: 12,
+                        vertical: 6,
                       ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF2ECC71).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFF2ECC71).withOpacity(0.3),
+                          width: 1,
+                        ),
                       ),
                       child: Text(
                         className,
                         style: const TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
                           color: Color(0xFF2ECC71),
                         ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ),
@@ -4109,56 +4178,68 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   ),
                 ),
 
-                // 9. Status
+                // 9. Status - Responsive with consistent alignment
                 TableCell(
                   verticalAlignment: TableCellVerticalAlignment.middle,
                   child: Container(
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.all(16),
+                    alignment: Alignment.center,
+                    padding: EdgeInsets.all(isTablet ? 8 : 16),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+                      constraints: BoxConstraints(
+                        minWidth: isTablet ? 24 : 80,
+                        maxWidth: isTablet ? 80 : 120,
+                      ),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isTablet ? 8 : 12,
+                        vertical: 6,
                       ),
                       decoration: BoxDecoration(
                         color:
                             status == 'Active'
-                                ? Colors.green[50]
-                                : Colors.red[50],
-                        borderRadius: BorderRadius.circular(12),
+                                ? const Color(0xFFE8F5E9)
+                                : const Color(0xFFFFEBEE),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color:
                               status == 'Active'
-                                  ? Colors.green[200]!
-                                  : Colors.red[200]!,
+                                  ? const Color(0xFF4CAF50)
+                                  : const Color(0xFFE57373),
+                          width: 1,
                         ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
-                            width: 6,
-                            height: 6,
+                            width: 8,
+                            height: 8,
                             decoration: BoxDecoration(
                               color:
                                   status == 'Active'
-                                      ? Colors.green[600]
-                                      : Colors.red[600],
-                              shape: BoxShape.circle,
+                                      ? const Color(0xFF4CAF50)
+                                      : const Color(0xFFE57373),
+                              borderRadius: BorderRadius.circular(4),
                             ),
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            status,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color:
-                                  status == 'Active'
-                                      ? Colors.green[600]
-                                      : Colors.red[600],
+                          if (!isTablet) ...[
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                status,
+                                style: TextStyle(
+                                  color:
+                                      status == 'Active'
+                                          ? const Color(0xFF2E7D32)
+                                          : const Color(0xFFC62828),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ),
