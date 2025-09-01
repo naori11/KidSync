@@ -7,7 +7,8 @@ import 'package:web_socket_channel/html.dart';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
-import 'dart:html' as html; // Add this for web file handling
+import 'dart:html' as html;
+import 'package:excel/excel.dart' as excel_lib;
 
 class StudentManagementPageAdmin extends StatelessWidget {
   const StudentManagementPageAdmin({super.key});
@@ -1690,17 +1691,22 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   }
 
   void _exportSelectedStudents() {
-    final selectedData =
-        students.where((s) => _selectedStudents.contains(s['id'])).toList();
+    if (_selectedStudents.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No students selected for export'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Exporting ${selectedData.length} selected students...'),
-        backgroundColor: const Color(0xFF2ECC71),
-      ),
-    );
+    final selectedData = students
+        .where((s) => _selectedStudents.contains(s['id']))
+        .toList();
 
-    // TODO: Implement actual export functionality
+    _exportToExcel(selectedData, 'Selected_Students_Export');
   }
 
   void _showBulkEditDialog() {
@@ -2033,12 +2039,240 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   }
 
   void _exportData() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Export functionality would be implemented here'),
-        behavior: SnackBarBehavior.floating,
-      ),
+    // Apply current filters to determine what data to export
+    var filteredStudents = students.where((s) {
+      final name = "${s['fname']} ${s['lname']}".toLowerCase();
+      final classMatch = _classFilter == 'All Classes' ||
+          s['grade_level']?.toString() == _classFilter;
+      final statusMatch = _statusFilter == 'All Status' ||
+          (s['status'] ?? 'Active') == _statusFilter;
+
+      return name.contains(_searchQuery.toLowerCase()) &&
+          classMatch &&
+          statusMatch;
+    }).toList();
+
+    if (filteredStudents.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No students match the current filters'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    _exportToExcel(filteredStudents, 'Students_Export');
+  }
+
+  Future<void> _exportToExcel(List<Map<String, dynamic>> studentsToExport, String baseFileName) async {
+    try {
+      // Create a new Excel workbook
+      var excel = excel_lib.Excel.createExcel();
+      
+      // Remove default Sheet1
+      excel.delete('Sheet1');
+      
+      // Create Students sheet
+      var studentsSheet = excel['Students'];
+      _createStudentsSheet(studentsSheet, studentsToExport);
+      
+      // Create Summary sheet
+      var summarySheet = excel['Summary'];
+      _createSummarySheet(summarySheet, studentsToExport);
+      
+      // Get current user info for metadata
+      final user = Supabase.instance.client.auth.currentUser;
+      final userName = user?.userMetadata?['fname'] != null && user?.userMetadata?['lname'] != null
+          ? '${user?.userMetadata?['fname']} ${user?.userMetadata?['lname']}'
+          : user?.email ?? 'Unknown User';
+      
+      // Set workbook metadata
+      excel.setDefaultSheet('Students');
+      
+      // Save the Excel file as bytes
+      List<int>? fileBytes = excel.save();
+      if (fileBytes == null) {
+        throw Exception('Failed to generate Excel file');
+      }
+      
+      // Create filename with timestamp
+      final timestamp = DateTime.now().toIso8601String().split('T')[0];
+      final fileName = '${baseFileName}_${timestamp}.xlsx';
+      
+      // Download the file using dart:html
+      final blob = html.Blob([fileBytes], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..style.display = 'none';
+      
+      html.document.body?.children.add(anchor);
+      anchor.click();
+      html.document.body?.children.remove(anchor);
+      html.Url.revokeObjectUrl(url);
+      
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Excel file exported successfully: $fileName'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _createStudentsSheet(excel_lib.Sheet sheet, List<Map<String, dynamic>> studentsData) {
+    // Set column headers
+    final headers = [
+      'Student ID',
+      'First Name',
+      'Last Name', 
+      'Grade Level',
+      'Section',
+      'Status',
+      'Parent Name',
+      'Parent Phone',
+      'Parent Email',
+      'Emergency Contact',
+      'Emergency Phone',
+      'Medical Info',
+      'Date Added'
+    ];
+    
+    // Add headers to first row
+    for (int i = 0; i < headers.length; i++) {
+      var cell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
+      cell.value = excel_lib.TextCellValue(headers[i]);
+      cell.cellStyle = excel_lib.CellStyle(
+        bold: true,
+      );
+    }
+    
+    // Add student data
+    for (int rowIndex = 0; rowIndex < studentsData.length; rowIndex++) {
+      final student = studentsData[rowIndex];
+      final dataRow = [
+        student['student_id']?.toString() ?? '',
+        student['fname']?.toString() ?? '',
+        student['lname']?.toString() ?? '',
+        student['grade_level']?.toString() ?? '',
+        student['section_name']?.toString() ?? '',
+        student['status']?.toString() ?? 'Active',
+        student['parent_fname'] != null && student['parent_lname'] != null
+            ? '${student['parent_fname']} ${student['parent_lname']}'
+            : '',
+        student['parent_phone']?.toString() ?? '',
+        student['parent_email']?.toString() ?? '',
+        student['emergency_contact_name']?.toString() ?? '',
+        student['emergency_contact_phone']?.toString() ?? '',
+        student['medical_info']?.toString() ?? '',
+        student['created_at'] != null 
+            ? DateTime.parse(student['created_at'].toString()).toLocal().toString().split(' ')[0]
+            : '',
+      ];
+      
+      for (int colIndex = 0; colIndex < dataRow.length; colIndex++) {
+        var cell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: colIndex, 
+          rowIndex: rowIndex + 1
+        ));
+        cell.value = excel_lib.TextCellValue(dataRow[colIndex]);
+      }
+    }
+    
+    // Auto-fit columns (approximate)
+    for (int i = 0; i < headers.length; i++) {
+      sheet.setColumnWidth(i, 15.0);
+    }
+  }
+
+  void _createSummarySheet(excel_lib.Sheet sheet, List<Map<String, dynamic>> studentsData) {
+    // Get current user info
+    final user = Supabase.instance.client.auth.currentUser;
+    final userName = user?.userMetadata?['fname'] != null && user?.userMetadata?['lname'] != null
+        ? '${user?.userMetadata?['fname']} ${user?.userMetadata?['lname']}'
+        : user?.email ?? 'Unknown User';
+    
+    // Calculate statistics
+    final totalStudents = studentsData.length;
+    final activeStudents = studentsData.where((s) => (s['status'] ?? 'Active') == 'Active').length;
+    final inactiveStudents = totalStudents - activeStudents;
+    
+    // Count by grade level
+    final gradeStats = <String, int>{};
+    for (var student in studentsData) {
+      final grade = student['grade_level']?.toString() ?? 'Unknown';
+      gradeStats[grade] = (gradeStats[grade] ?? 0) + 1;
+    }
+    
+    int rowIndex = 0;
+    
+    // Title
+    var titleCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    titleCell.value = excel_lib.TextCellValue('Student Export Summary');
+    titleCell.cellStyle = excel_lib.CellStyle(
+      bold: true,
+      fontSize: 16,
     );
+    rowIndex += 2;
+    
+    // Export details
+    final exportData = [
+      ['Export Date:', DateTime.now().toLocal().toString().split('.')[0]],
+      ['Generated By:', userName],
+      ['Total Students:', totalStudents.toString()],
+      ['Active Students:', activeStudents.toString()],
+      ['Inactive Students:', inactiveStudents.toString()],
+    ];
+    
+    for (var row in exportData) {
+      var labelCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+      labelCell.value = excel_lib.TextCellValue(row[0]);
+      labelCell.cellStyle = excel_lib.CellStyle(bold: true);
+      
+      var valueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+      valueCell.value = excel_lib.TextCellValue(row[1]);
+      
+      rowIndex++;
+    }
+    
+    rowIndex++; // Empty row
+    
+    // Grade distribution
+    var gradeHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    gradeHeaderCell.value = excel_lib.TextCellValue('Grade Distribution:');
+    gradeHeaderCell.cellStyle = excel_lib.CellStyle(bold: true);
+    rowIndex++;
+    
+    for (var entry in gradeStats.entries) {
+      var gradeCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+      gradeCell.value = excel_lib.TextCellValue('Grade ${entry.key}:');
+      
+      var countCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+      countCell.value = excel_lib.TextCellValue(entry.value.toString());
+      
+      rowIndex++;
+    }
+    
+    // Set column widths
+    sheet.setColumnWidth(0, 20.0);
+    sheet.setColumnWidth(1, 15.0);
   }
 
   // Image picker function
