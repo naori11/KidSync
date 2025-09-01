@@ -645,13 +645,29 @@ class _TeacherSectionAttendancePageState
                                 ],
                               ),
                               const SizedBox(height: 2),
-                              const Text(
-                                "Take Attendance",
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF222B45),
-                                ),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.arrow_back,
+                                      size: 24,
+                                      color: Color(0xFF8F9BB3),
+                                    ),
+                                    tooltip: 'Back to Class List',
+                                    splashRadius: 22,
+                                    onPressed:
+                                        widget.onBack ??
+                                        () => Navigator.of(context).maybePop(),
+                                  ),
+                                  const Text(
+                                    "Take Attendance",
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF222B45),
+                                    ),
+                                  ),
+                                ],
                               ),
                               if (scheduleString != null)
                                 Padding(
@@ -667,36 +683,41 @@ class _TeacherSectionAttendancePageState
                             ],
                           ),
                         ),
-                        // Export
-                        OutlinedButton.icon(
-                          icon: const Icon(Icons.download_outlined, size: 18),
-                          label: const Text("Export CSV"),
-                          onPressed: _exportCSV,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Color(0xFF2E3A59),
-                            side: const BorderSide(color: Color(0xFFE4E9F2)),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
+                        // Export button with student management styling
+                        SizedBox(
+                          height: 44,
+                          child: OutlinedButton.icon(
+                            icon: const Icon(
+                              Icons.file_download_outlined,
+                              color: Color(0xFF2ECC71),
+                              size: 18,
                             ),
-                            textStyle: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
+                            label: const Text(
+                              "Export",
+                              style: TextStyle(
+                                color: Color(0xFF2ECC71),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            onPressed: _exportCSV,
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              side: const BorderSide(
+                                color: Color(0xFF2ECC71),
+                                width: 1.5,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 1,
+                              shadowColor: Colors.black.withOpacity(0.05),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.close_rounded,
-                            size: 26,
-                            color: Color(0xFF8F9BB3),
-                          ),
-                          tooltip: 'Close',
-                          splashRadius: 22,
-                          onPressed:
-                              widget.onBack ??
-                              () => Navigator.of(context).maybePop(),
                         ),
                       ],
                     ),

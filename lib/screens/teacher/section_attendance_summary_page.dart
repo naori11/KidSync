@@ -427,9 +427,10 @@ class _TeacherSectionAttendanceSummaryPageState
   Widget build(BuildContext context) {
     final monthLabel = DateFormat.yMMMM().format(selectedMonth);
 
-    return Container(
-      color: const Color(0xFFF7F9FC),
-      width: double.infinity,
+    return Scaffold(
+      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
+      body: Container(
+        width: double.infinity,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
         child: Column(

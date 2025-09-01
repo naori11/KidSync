@@ -454,195 +454,176 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Container
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    spreadRadius: 1,
+            // Standardized Header
+            Row(
+              children: [
+                const Text(
+                  "Driver Assignment Management",
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A1A1A),
+                    letterSpacing: 0.5,
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Standardized Header
-                  Row(
-                    children: [
-                      const Text(
-                        "Driver Assignment Management",
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1A1A1A),
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const Spacer(),
-                      // Standardized Search bar
-                      Container(
-                        width: 260,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(color: const Color(0xFFE0E0E0)),
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: TextField(
-                          decoration: const InputDecoration(
-                            hintText: "Search students, drivers...",
-                            hintStyle: TextStyle(fontSize: 14, color: Color(0xFF9E9E9E)),
-                            prefixIcon: Icon(
-                              Icons.search,
-                              color: Color(0xFF2ECC71),
-                              size: 20,
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(
-                              vertical: 12.0,
-                              horizontal: 16.0,
-                            ),
-                          ),
-                          onChanged: (value) {
-                            setState(() => _searchQuery = value);
-                            _applyFiltersAndSearch();
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Standardized Add New button
-                      SizedBox(
-                        height: 44,
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                          label: const Text(
-                            "Add Assignment",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2ECC71),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 2,
-                            shadowColor: Colors.black.withOpacity(0.1),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
-                          ),
-                          onPressed:
-                              isAdmin ? () => _showAssignmentDialog() : null,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Standardized Export button
-                      SizedBox(
-                        height: 44,
-                        child: OutlinedButton.icon(
-                          icon: const Icon(
-                            Icons.file_download_outlined,
-                            color: Color(0xFF2ECC71),
-                            size: 18,
-                          ),
-                          label: const Text(
-                            "Export",
-                            style: TextStyle(
-                              color: Color(0xFF2ECC71),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            side: const BorderSide(
-                              color: Color(0xFF2ECC71),
-                              width: 1.5,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 1,
-                            shadowColor: Colors.black.withOpacity(0.05),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
-                          ),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Export functionality coming soon...'),
-                                backgroundColor: Colors.orange,
-                              ),
-                            );
-                          },
-                        ),
+                ),
+                const Spacer(),
+                // Standardized Search bar
+                Container(
+                  width: 260,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: const Color(0xFFE0E0E0)),
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-
-                  // Standardized Breadcrumb
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8.0, bottom: 24.0),
-                    child: Text(
-                      "Home / Driver Assignment Management",
-                      style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: "Search students, drivers...",
+                      hintStyle: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF9E9E9E),
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: Color(0xFF2ECC71),
+                        size: 20,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(
+                        vertical: 12.0,
+                        horizontal: 16.0,
+                      ),
                     ),
+                    onChanged: (value) {
+                      setState(() => _searchQuery = value);
+                      _applyFiltersAndSearch();
+                    },
                   ),
+                ),
+                const SizedBox(width: 12),
+                // Standardized Add New button
+                SizedBox(
+                  height: 44,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.add, color: Colors.white, size: 18),
+                    label: const Text(
+                      "Add Assignment",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2ECC71),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 2,
+                      shadowColor: Colors.black.withOpacity(0.1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                    ),
+                    onPressed: isAdmin ? () => _showAssignmentDialog() : null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Standardized Export button
+                SizedBox(
+                  height: 44,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(
+                      Icons.file_download_outlined,
+                      color: Color(0xFF2ECC71),
+                      size: 18,
+                    ),
+                    label: const Text(
+                      "Export",
+                      style: TextStyle(
+                        color: Color(0xFF2ECC71),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      side: const BorderSide(
+                        color: Color(0xFF2ECC71),
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 1,
+                      shadowColor: Colors.black.withOpacity(0.05),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                    ),
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Export functionality coming soon...'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
 
-                  // Stats
-                  Row(
-                    children: [
-                      _buildStatCard(
-                        'Total Students',
-                        totalStudents.toString(),
-                        Icons.school,
-                        const Color(0xFF2ECC71),
-                      ),
-                      const SizedBox(width: 16),
-                      _buildStatCard(
-                        'Active Drivers',
-                        activeDrivers.toString(),
-                        Icons.directions_bus,
-                        Colors.blue,
-                      ),
-                      const SizedBox(width: 16),
-                      _buildStatCard(
-                        'Unassigned',
-                        unassignedStudents.toString(),
-                        Icons.warning,
-                        Colors.orange,
-                      ),
-                      const SizedBox(width: 16),
-                      _buildStatCard(
-                        'Pending',
-                        pendingAssignments.toString(),
-                        Icons.schedule,
-                        Colors.purple,
-                      ),
-                    ],
-                  ),
-                ],
+            // Standardized Breadcrumb
+            const Padding(
+              padding: EdgeInsets.only(top: 8.0, bottom: 24.0),
+              child: Text(
+                "Home / Driver Assignment Management",
+                style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
               ),
+            ),
+
+            // Stats
+            Row(
+              children: [
+                _buildStatCard(
+                  'Total Students',
+                  totalStudents.toString(),
+                  Icons.school,
+                  const Color(0xFF2ECC71),
+                ),
+                const SizedBox(width: 16),
+                _buildStatCard(
+                  'Active Drivers',
+                  activeDrivers.toString(),
+                  Icons.directions_bus,
+                  Colors.blue,
+                ),
+                const SizedBox(width: 16),
+                _buildStatCard(
+                  'Unassigned',
+                  unassignedStudents.toString(),
+                  Icons.warning,
+                  Colors.orange,
+                ),
+                const SizedBox(width: 16),
+                _buildStatCard(
+                  'Pending',
+                  pendingAssignments.toString(),
+                  Icons.schedule,
+                  Colors.purple,
+                ),
+              ],
             ),
 
             const SizedBox(height: 24),

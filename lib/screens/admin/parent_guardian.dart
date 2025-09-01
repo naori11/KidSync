@@ -751,262 +751,242 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Enhanced Header Container with white background
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        spreadRadius: 1,
+                // Standardized Header
+                Row(
+                  children: [
+                    const Text(
+                      "Parent/Guardian",
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A1A1A),
+                        letterSpacing: 0.5,
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Standardized Header
-                      Row(
-                        children: [
-                          const Text(
-                            "Parent & Guardian Management",
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1A1A1A),
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const Spacer(),
-                          // Standardized Search bar
-                          Container(
-                            width: 260,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              border: Border.all(color: const Color(0xFFE0E0E0)),
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.04),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: TextField(
-                              decoration: const InputDecoration(
-                                hintText: 'Search parents...',
-                                hintStyle: TextStyle(fontSize: 14, color: Color(0xFF9E9E9E)),
-                                prefixIcon: Icon(
-                                  Icons.search,
-                                  color: Color(0xFF2ECC71),
-                                  size: 20,
-                                ),
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(
-                                  vertical: 12.0,
-                                  horizontal: 16.0,
-                                ),
-                              ),
-                              onChanged:
-                                  (val) => setState(() => _searchQuery = val),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          // Standardized Add New button
-                          SizedBox(
-                            height: 44,
-                            child: ElevatedButton.icon(
-                              icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                              label: const Text(
-                                "Add New Parent",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF2ECC71),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                elevation: 2,
-                                shadowColor: Colors.black.withOpacity(0.1),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 10,
-                                ),
-                              ),
-                              onPressed: () async {
-                                await _openAddEditParentModal();
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          // Standardized Export button
-                          SizedBox(
-                            height: 44,
-                            child: OutlinedButton.icon(
-                              icon: const Icon(
-                                Icons.file_download_outlined,
-                                color: Color(0xFF2ECC71),
-                                size: 18,
-                              ),
-                              label: const Text(
-                                "Export",
-                                style: TextStyle(
-                                  color: Color(0xFF2ECC71),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                side: const BorderSide(
-                                  color: Color(0xFF2ECC71),
-                                  width: 1.5,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                elevation: 1,
-                                shadowColor: Colors.black.withOpacity(0.05),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 10,
-                                ),
-                              ),
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Export functionality coming soon...',
-                                    ),
-                                    backgroundColor: Colors.orange,
-                                  ),
-                                );
-                              },
-                            ),
+                    ),
+                    const Spacer(),
+                    // Standardized Search bar
+                    Container(
+                      width: 260,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: const Color(0xFFE0E0E0)),
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
-
-                      // Enhanced Breadcrumb / subtitle
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8.0, bottom: 20.0),
-                        child: Text(
-                          "Home / Parent & Guardian Management",
-                          style: TextStyle(
+                      child: TextField(
+                        decoration: const InputDecoration(
+                          hintText: 'Search parents...',
+                          hintStyle: TextStyle(
                             fontSize: 14,
                             color: Color(0xFF9E9E9E),
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Color(0xFF2ECC71),
+                            size: 20,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                            vertical: 12.0,
+                            horizontal: 16.0,
+                          ),
+                        ),
+                        onChanged: (val) => setState(() => _searchQuery = val),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Standardized Add New button
+                    SizedBox(
+                      height: 44,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(
+                          Icons.add,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                        label: const Text(
+                          "Add New Parent",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2ECC71),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 2,
+                          shadowColor: Colors.black.withOpacity(0.1),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                        ),
+                        onPressed: () async {
+                          await _openAddEditParentModal();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Standardized Export button
+                    SizedBox(
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(
+                          Icons.file_download_outlined,
+                          color: Color(0xFF2ECC71),
+                          size: 18,
+                        ),
+                        label: const Text(
+                          "Export",
+                          style: TextStyle(
+                            color: Color(0xFF2ECC71),
+                            fontSize: 14,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ),
-
-                      // Enhanced Filter row with better visibility
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey[200]!),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          side: const BorderSide(
+                            color: Color(0xFF2ECC71),
+                            width: 1.5,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 1,
+                          shadowColor: Colors.black.withOpacity(0.05),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
                         ),
-                        child: Row(
-                          children: [
-                            // Status filter dropdown
-                            Container(
-                              height: 42,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16.0,
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Export functionality coming soon...',
                               ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border.all(
-                                  color: const Color(0xFFE0E0E0),
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _statusFilter,
-                                  icon: const Icon(Icons.keyboard_arrow_down),
-                                  items: [
-                                    const DropdownMenuItem(
-                                      value: 'All Status',
-                                      child: Text('All Status'),
-                                    ),
-                                    const DropdownMenuItem(
-                                      value: 'Active',
-                                      child: Text('Active'),
-                                    ),
-                                    const DropdownMenuItem(
-                                      value: 'Inactive',
-                                      child: Text('Inactive'),
-                                    ),
-                                  ],
-                                  onChanged: (String? newValue) {
-                                    if (newValue == null) return;
-                                    setState(() {
-                                      _statusFilter = newValue;
-                                    });
-                                  },
-                                ),
-                              ),
+                              backgroundColor: Colors.orange,
                             ),
-                            const SizedBox(width: 16),
-                            // Sort by dropdown
-                            Container(
-                              height: 42,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16.0,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Standardized Breadcrumb
+                const Padding(
+                  padding: EdgeInsets.only(top: 8.0, bottom: 24.0),
+                  child: Text(
+                    "Home / Parent/Guardian",
+                    style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
+                  ),
+                ),
+
+                // Filter row
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[200]!),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      // Status filter dropdown
+                      Container(
+                        height: 42,
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: const Color(0xFFE0E0E0)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _statusFilter,
+                            icon: const Icon(Icons.keyboard_arrow_down),
+                            items: [
+                              const DropdownMenuItem(
+                                value: 'All Status',
+                                child: Text('All Status'),
                               ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border.all(
-                                  color: const Color(0xFFE0E0E0),
-                                ),
-                                borderRadius: BorderRadius.circular(8),
+                              const DropdownMenuItem(
+                                value: 'Active',
+                                child: Text('Active'),
                               ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _sortOption,
-                                  icon: const Icon(Icons.keyboard_arrow_down),
-                                  items: [
-                                    const DropdownMenuItem(
-                                      value: 'Name (A-Z)',
-                                      child: Text('Sort by: Name (A-Z)'),
-                                    ),
-                                    const DropdownMenuItem(
-                                      value: 'Name (Z-A)',
-                                      child: Text('Sort by: Name (Z-A)'),
-                                    ),
-                                    const DropdownMenuItem(
-                                      value: 'Status',
-                                      child: Text('Sort by: Status'),
-                                    ),
-                                    const DropdownMenuItem(
-                                      value: 'Students Count',
-                                      child: Text('Sort by: Students Count'),
-                                    ),
-                                  ],
-                                  onChanged: (String? newValue) {
-                                    if (newValue == null) return;
-                                    setState(() {
-                                      _sortOption = newValue;
-                                    });
-                                  },
-                                ),
+                              const DropdownMenuItem(
+                                value: 'Inactive',
+                                child: Text('Inactive'),
                               ),
-                            ),
-                          ],
+                            ],
+                            onChanged: (String? newValue) {
+                              if (newValue == null) return;
+                              setState(() {
+                                _statusFilter = newValue;
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Sort by dropdown
+                      Container(
+                        height: 42,
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: const Color(0xFFE0E0E0)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _sortOption,
+                            icon: const Icon(Icons.keyboard_arrow_down),
+                            items: [
+                              const DropdownMenuItem(
+                                value: 'Name (A-Z)',
+                                child: Text('Sort by: Name (A-Z)'),
+                              ),
+                              const DropdownMenuItem(
+                                value: 'Name (Z-A)',
+                                child: Text('Sort by: Name (Z-A)'),
+                              ),
+                              const DropdownMenuItem(
+                                value: 'Status',
+                                child: Text('Sort by: Status'),
+                              ),
+                              const DropdownMenuItem(
+                                value: 'Students Count',
+                                child: Text('Sort by: Students Count'),
+                              ),
+                            ],
+                            onChanged: (String? newValue) {
+                              if (newValue == null) return;
+                              setState(() {
+                                _sortOption = newValue;
+                              });
+                            },
+                          ),
                         ),
                       ),
                     ],
