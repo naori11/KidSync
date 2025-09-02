@@ -431,369 +431,375 @@ class _TeacherSectionAttendanceSummaryPageState
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: Container(
         width: double.infinity,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header Section
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                if (widget.onBack != null)
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header Section
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (widget.onBack != null)
+                    Container(
+                      margin: const EdgeInsets.only(right: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5F7FA),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: Color(0xFF8F9BB3),
+                          size: 24,
+                        ),
+                        onPressed: widget.onBack,
+                        tooltip: "Back",
+                      ),
+                    ),
+                  Text(
+                    widget.sectionName,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF222B45),
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  // Month navigation
                   Container(
-                    margin: const EdgeInsets.only(right: 16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF5F7FA),
                       borderRadius: BorderRadius.circular(8),
+                      color: const Color(0xFFEDF1F7),
                     ),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_rounded,
-                        color: Color(0xFF8F9BB3),
-                        size: 24,
-                      ),
-                      onPressed: widget.onBack,
-                      tooltip: "Back",
-                    ),
-                  ),
-                Text(
-                  widget.sectionName,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF222B45),
-                  ),
-                ),
-                const SizedBox(width: 24),
-                // Month navigation
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    color: const Color(0xFFEDF1F7),
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.chevron_left,
-                          color: Color(0xFF2563EB),
-                        ),
-                        splashRadius: 18,
-                        tooltip: "Previous Month",
-                        onPressed: _prevMonth,
-                      ),
-                      Text(
-                        monthLabel,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                          color: Color(0xFF2E3A59),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.chevron_right,
-                          color: Color(0xFF2563EB),
-                        ),
-                        splashRadius: 18,
-                        tooltip: "Next Month",
-                        onPressed: _nextMonth,
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-                // Spacer to push controls to the right edge
-                const Spacer(),
-                const SizedBox(width: 8),
-                // Export button (consistent system design)
-                ElevatedButton.icon(
-                  onPressed: _exportAttendance,
-                  icon: const Icon(Icons.download_rounded, size: 18),
-                  label: const Text(
-                    'Export',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    elevation: 0,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Attendance stats summary row
-            _buildSummaryStats(),
-
-            // Table Card
-            Card(
-              color: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
-                child:
-                    isLoading
-                        ? const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 60.0),
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              color: Color(0xFF2563EB),
-                            ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.chevron_left,
+                            color: Color(0xFF2563EB),
                           ),
-                        )
-                        : (errorMessage != null
-                            ? Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Text(
-                                errorMessage!,
-                                style: const TextStyle(color: Colors.red),
+                          splashRadius: 18,
+                          tooltip: "Previous Month",
+                          onPressed: _prevMonth,
+                        ),
+                        Text(
+                          monthLabel,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                            color: Color(0xFF2E3A59),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.chevron_right,
+                            color: Color(0xFF2563EB),
+                          ),
+                          splashRadius: 18,
+                          tooltip: "Next Month",
+                          onPressed: _nextMonth,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+                  // Spacer to push controls to the right edge
+                  const Spacer(),
+                  const SizedBox(width: 8),
+                  // Export button (consistent system design)
+                  ElevatedButton.icon(
+                    onPressed: _exportAttendance,
+                    icon: const Icon(Icons.download_rounded, size: 18),
+                    label: const Text(
+                      'Export',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Attendance stats summary row
+              _buildSummaryStats(),
+
+              // Table Card
+              Card(
+                color: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 0,
+                    vertical: 0,
+                  ),
+                  child:
+                      isLoading
+                          ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 60.0),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFF2563EB),
                               ),
-                            )
-                            : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Table Header
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF2F6FF),
-                                    borderRadius: BorderRadius.only(
-                                      topLeft: Radius.circular(12),
-                                      topRight: Radius.circular(12),
-                                    ),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                    horizontal: 24,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      _th("Student", flex: 3),
-                                      _th("Present"),
-                                      _th("Late"),
-                                      _th("Absent"),
-                                      _th("Excused"),
-                                      _th("% Present"),
-                                    ],
-                                  ),
+                            ),
+                          )
+                          : (errorMessage != null
+                              ? Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Text(
+                                  errorMessage!,
+                                  style: const TextStyle(color: Colors.red),
                                 ),
-                                if (students.isEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 40,
+                              )
+                              : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Table Header
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF2F6FF),
+                                      borderRadius: BorderRadius.only(
+                                        topLeft: Radius.circular(12),
+                                        topRight: Radius.circular(12),
+                                      ),
                                     ),
-                                    child: Center(
-                                      child: Text(
-                                        "No students found in this section.",
-                                        style: TextStyle(
-                                          color: Color(0xFF8F9BB3),
-                                          fontSize: 15,
-                                          fontStyle: FontStyle.italic,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                      horizontal: 24,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        _th("Student", flex: 3),
+                                        _th("Present"),
+                                        _th("Late"),
+                                        _th("Absent"),
+                                        _th("Excused"),
+                                        _th("% Present"),
+                                      ],
+                                    ),
+                                  ),
+                                  if (students.isEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 40,
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          "No students found in this section.",
+                                          style: TextStyle(
+                                            color: Color(0xFF8F9BB3),
+                                            fontSize: 15,
+                                            fontStyle: FontStyle.italic,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ...students.map((s) {
-                                  final stat =
-                                      studentAttendanceStats[s['id']] ?? {};
-                                  final total = stat['total'] ?? 0;
-                                  final present = stat['present'] ?? 0;
-                                  final pct =
-                                      total > 0
-                                          ? ((present / total) * 100).round()
-                                          : 0;
-                                  return Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      onTap:
-                                          () => _showStudentAttendanceCalendar(
-                                            s['id'] as int,
-                                            "${s['fname']} ${s['lname']}",
-                                          ),
-                                      borderRadius: BorderRadius.circular(8),
-                                      hoverColor: const Color(0xFFF8FAFF),
-                                      splashColor: const Color(
-                                        0xFFE3F2FD,
-                                      ).withOpacity(0.3),
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          border: Border(
-                                            bottom: BorderSide(
-                                              color: const Color(0xFFF0F1F5),
-                                              width: 1,
+                                  ...students.map((s) {
+                                    final stat =
+                                        studentAttendanceStats[s['id']] ?? {};
+                                    final total = stat['total'] ?? 0;
+                                    final present = stat['present'] ?? 0;
+                                    final pct =
+                                        total > 0
+                                            ? ((present / total) * 100).round()
+                                            : 0;
+                                    return Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap:
+                                            () =>
+                                                _showStudentAttendanceCalendar(
+                                                  s['id'] as int,
+                                                  "${s['fname']} ${s['lname']}",
+                                                ),
+                                        borderRadius: BorderRadius.circular(8),
+                                        hoverColor: const Color(0xFFF8FAFF),
+                                        splashColor: const Color(
+                                          0xFFE3F2FD,
+                                        ).withOpacity(0.3),
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            border: Border(
+                                              bottom: BorderSide(
+                                                color: const Color(0xFFF0F1F5),
+                                                width: 1,
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 16,
-                                          horizontal: 24,
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              flex: 3,
-                                              child: Row(
-                                                children: [
-                                                  Container(
-                                                    width: 32,
-                                                    height: 32,
-                                                    decoration: BoxDecoration(
-                                                      color: const Color(
-                                                        0xFFE8F4FD,
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 16,
+                                            horizontal: 24,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                flex: 3,
+                                                child: Row(
+                                                  children: [
+                                                    Container(
+                                                      width: 32,
+                                                      height: 32,
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(
+                                                          0xFFE8F4FD,
+                                                        ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              16,
+                                                            ),
+                                                        image:
+                                                            s['profile_image_url'] !=
+                                                                        null &&
+                                                                    s['profile_image_url']
+                                                                        .toString()
+                                                                        .isNotEmpty
+                                                                ? DecorationImage(
+                                                                  image: NetworkImage(
+                                                                    s['profile_image_url'],
+                                                                  ),
+                                                                  fit:
+                                                                      BoxFit
+                                                                          .cover,
+                                                                  onError: (
+                                                                    exception,
+                                                                    stackTrace,
+                                                                  ) {
+                                                                    // Handle image loading error silently
+                                                                    print(
+                                                                      'Error loading profile image: $exception',
+                                                                    );
+                                                                  },
+                                                                )
+                                                                : null,
                                                       ),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            16,
-                                                          ),
-                                                      image:
-                                                          s['profile_image_url'] !=
-                                                                      null &&
+                                                      child:
+                                                          s['profile_image_url'] ==
+                                                                      null ||
                                                                   s['profile_image_url']
                                                                       .toString()
-                                                                      .isNotEmpty
-                                                              ? DecorationImage(
-                                                                image: NetworkImage(
-                                                                  s['profile_image_url'],
+                                                                      .isEmpty
+                                                              ? Center(
+                                                                child: Text(
+                                                                  "${s['fname']?[0] ?? ''}${s['lname']?[0] ?? ''}"
+                                                                      .toUpperCase(),
+                                                                  style: const TextStyle(
+                                                                    color: Color(
+                                                                      0xFF2563EB,
+                                                                    ),
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold,
+                                                                    fontSize:
+                                                                        12,
+                                                                  ),
                                                                 ),
-                                                                fit:
-                                                                    BoxFit
-                                                                        .cover,
-                                                                onError: (
-                                                                  exception,
-                                                                  stackTrace,
-                                                                ) {
-                                                                  // Handle image loading error silently
-                                                                  print(
-                                                                    'Error loading profile image: $exception',
-                                                                  );
-                                                                },
                                                               )
                                                               : null,
                                                     ),
-                                                    child:
-                                                        s['profile_image_url'] ==
-                                                                    null ||
-                                                                s['profile_image_url']
-                                                                    .toString()
-                                                                    .isEmpty
-                                                            ? Center(
-                                                              child: Text(
-                                                                "${s['fname']?[0] ?? ''}${s['lname']?[0] ?? ''}"
-                                                                    .toUpperCase(),
-                                                                style: const TextStyle(
+                                                    const SizedBox(width: 12),
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            "${s['fname']} ${s['lname']}",
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                            style:
+                                                                const TextStyle(
                                                                   color: Color(
-                                                                    0xFF2563EB,
+                                                                    0xFF222B45,
                                                                   ),
                                                                   fontWeight:
                                                                       FontWeight
-                                                                          .bold,
-                                                                  fontSize: 12,
+                                                                          .w600,
+                                                                  fontSize: 14,
                                                                 ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 2,
+                                                          ),
+                                                          Row(
+                                                            children: [
+                                                              Icon(
+                                                                Icons
+                                                                    .calendar_today,
+                                                                size: 12,
+                                                                color:
+                                                                    const Color(
+                                                                      0xFF8F9BB3,
+                                                                    ),
                                                               ),
-                                                            )
-                                                            : null,
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Text(
-                                                          "${s['fname']} ${s['lname']}",
-                                                          overflow:
-                                                              TextOverflow
-                                                                  .ellipsis,
-                                                          style:
-                                                              const TextStyle(
-                                                                color: Color(
-                                                                  0xFF222B45,
-                                                                ),
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
-                                                                fontSize: 14,
+                                                              const SizedBox(
+                                                                width: 4,
                                                               ),
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 2,
-                                                        ),
-                                                        Row(
-                                                          children: [
-                                                            Icon(
-                                                              Icons
-                                                                  .calendar_today,
-                                                              size: 12,
-                                                              color:
-                                                                  const Color(
+                                                              Text(
+                                                                "View calendar",
+                                                                style: const TextStyle(
+                                                                  color: Color(
                                                                     0xFF8F9BB3,
                                                                   ),
-                                                            ),
-                                                            const SizedBox(
-                                                              width: 4,
-                                                            ),
-                                                            Text(
-                                                              "View calendar",
-                                                              style: const TextStyle(
-                                                                color: Color(
-                                                                  0xFF8F9BB3,
+                                                                  fontSize: 11,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w500,
                                                                 ),
-                                                                fontSize: 11,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w500,
                                                               ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ],
+                                                            ],
+                                                          ),
+                                                        ],
+                                                      ),
                                                     ),
-                                                  ),
-                                                ],
+                                                  ],
+                                                ),
                                               ),
-                                            ),
-                                            _td("${stat['present'] ?? 0}"),
-                                            _td("${stat['late'] ?? 0}"),
-                                            _td("${stat['absent'] ?? 0}"),
-                                            _td("${stat['excused'] ?? 0}"),
-                                            _td("$pct%"),
-                                          ],
+                                              _td("${stat['present'] ?? 0}"),
+                                              _td("${stat['late'] ?? 0}"),
+                                              _td("${stat['absent'] ?? 0}"),
+                                              _td("${stat['excused'] ?? 0}"),
+                                              _td("$pct%"),
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  );
-                                }),
-                              ],
-                            )),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Padding(
-              padding: EdgeInsets.only(left: 4),
-              child: Text(
-                "Tap a student's name to view detailed calendar.",
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF8F9BB3),
-                  fontWeight: FontWeight.w500,
+                                    );
+                                  }),
+                                ],
+                              )),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              const Padding(
+                padding: EdgeInsets.only(left: 4),
+                child: Text(
+                  "Tap a student's name to view detailed calendar.",
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF8F9BB3),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
