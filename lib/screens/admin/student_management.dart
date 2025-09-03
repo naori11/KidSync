@@ -80,15 +80,96 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
   Future<void> _fetchStudents() async {
     setState(() => isLoading = true);
-    // Fetch students with joined section info
+    // Fetch students with joined section info and parent information
     final response = await supabase
         .from('students')
-        .select('*, sections(id, name, grade_level)')
+        .select('''
+          *, 
+          sections(id, name, grade_level),
+          parent_student(
+            relationship_type,
+            is_primary,
+            parents(
+              id,
+              fname,
+              mname,
+              lname,
+              phone,
+              email,
+              address,
+              status
+            )
+          )
+        ''')
         .order('lname', ascending: true);
+    
+    // Process the data to automatically set primary parent if only one exists
+    final processedStudents = List<Map<String, dynamic>>.from(response);
+    for (var student in processedStudents) {
+      if (student['parent_student'] != null) {
+        final parentStudentList = student['parent_student'] as List;
+        
+        // If there's only one parent/guardian, automatically mark them as primary
+        if (parentStudentList.length == 1) {
+          parentStudentList[0]['is_primary'] = true;
+        } else if (parentStudentList.length > 1) {
+          // Check if there's already a primary parent marked
+          final hasPrimary = parentStudentList.any((ps) => ps['is_primary'] == true);
+          
+          // If no primary parent is marked, make the first one primary
+          if (!hasPrimary) {
+            parentStudentList[0]['is_primary'] = true;
+          }
+        }
+      }
+    }
+    
     setState(() {
-      students = List<Map<String, dynamic>>.from(response);
+      students = processedStudents;
       isLoading = false;
     });
+  }
+
+  /// Ensures that a student has a primary parent/guardian
+  /// If there's only one parent, they become primary automatically
+  /// If there are multiple parents but none marked as primary, the first one becomes primary
+  Future<void> _ensurePrimaryParent(int studentId) async {
+    try {
+      // Get current parent-student relationships
+      final parentStudentResponse = await supabase
+          .from('parent_student')
+          .select('id, parent_id, is_primary')
+          .eq('student_id', studentId);
+
+      final relationships = List<Map<String, dynamic>>.from(parentStudentResponse);
+      
+      if (relationships.isEmpty) {
+        return; // No parents to process
+      }
+
+      if (relationships.length == 1) {
+        // Only one parent - ensure they're marked as primary
+        final relationshipId = relationships[0]['id'];
+        await supabase
+            .from('parent_student')
+            .update({'is_primary': true})
+            .eq('id', relationshipId);
+      } else {
+        // Multiple parents - check if any is marked as primary
+        final hasPrimary = relationships.any((rel) => rel['is_primary'] == true);
+        
+        if (!hasPrimary) {
+          // No primary parent marked - make the first one primary
+          final firstRelationshipId = relationships[0]['id'];
+          await supabase
+              .from('parent_student')
+              .update({'is_primary': true})
+              .eq('id', firstRelationshipId);
+        }
+      }
+    } catch (e) {
+      print('Error ensuring primary parent for student $studentId: $e');
+    }
   }
 
   void _calculateTotalPages(List<Map<String, dynamic>> filteredStudents) {
@@ -2138,97 +2219,51 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     }
   }
 
-  // Future<void> _exportToExcel(List<Map<String, dynamic>> studentsToExport, String baseFileName) async {
-  //   try {
-  //     // Create a new Excel workbook
-  //     var excel = excel_lib.Excel.createExcel();
-
-  //     // Remove default Sheet1
-  //     excel.delete('Sheet1');
-
-  //     // Create Students sheet
-  //     var studentsSheet = excel['Students'];
-  //     _createStudentsSheet(studentsSheet, studentsToExport);
-
-  //     // Create Summary sheet
-  //     var summarySheet = excel['Summary'];
-  //     _createSummarySheet(summarySheet, studentsToExport);
-
-  //     // Get current user info for metadata
-  //     final user = Supabase.instance.client.auth.currentUser;
-  //     final userName = user?.userMetadata?['fname'] != null && user?.userMetadata?['lname'] != null
-  //         ? '${user?.userMetadata?['fname']} ${user?.userMetadata?['lname']}'
-  //         : user?.email ?? 'Unknown User';
-
-  //     // Set workbook metadata
-  //     excel.setDefaultSheet('Students');
-
-  //     // Save the Excel file as bytes
-  //     List<int>? fileBytes = excel.save();
-  //     if (fileBytes == null) {
-  //       throw Exception('Failed to generate Excel file');
-  //     }
-
-  //     // Create filename with timestamp
-  //     final timestamp = DateTime.now().toIso8601String().split('T')[0];
-  //     final fileName = '${baseFileName}_${timestamp}.xlsx';
-
-  //     // Download the file using dart:html
-  //     final blob = html.Blob([fileBytes], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  //     final url = html.Url.createObjectUrlFromBlob(blob);
-  //     final anchor = html.AnchorElement(href: url)
-  //       ..setAttribute('download', fileName)
-  //       ..style.display = 'none';
-
-  //     html.document.body?.children.add(anchor);
-  //     anchor.click();
-  //     html.document.body?.children.remove(anchor);
-  //     html.Url.revokeObjectUrl(url);
-
-  //     // Show success message
-  //     if (mounted) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(
-  //           content: Text('Excel file exported successfully: $fileName'),
-  //           backgroundColor: Colors.green,
-  //           behavior: SnackBarBehavior.floating,
-  //         ),
-  //       );
-  //     }
-
-  //   } catch (e) {
-  //     if (mounted) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(
-  //           content: Text('Export failed: ${e.toString()}'),
-  //           backgroundColor: Colors.red,
-  //           behavior: SnackBarBehavior.floating,
-  //         ),
-  //       );
-  //     }
-  //   }
-  // }
-
   void _createStudentsSheet(
     excel_lib.Sheet sheet,
     List<Map<String, dynamic>> studentsData,
   ) {
-    // Set column headers
-    final headers = [
-      'Student ID',
+    // Check if any student has a secondary parent
+    final hasSecondaryParents = studentsData.any((student) {
+      if (student['parent_student'] != null) {
+        final parentStudentList = student['parent_student'] as List;
+        return parentStudentList.any((ps) => ps['is_primary'] == false);
+      }
+      return false;
+    });
+
+    // Set column headers - Enhanced with more parent information
+    List<String> headers = [
       'First Name',
+      'Middle Name',
       'Last Name',
+      'Gender',
+      'Birthday',
       'Grade Level',
       'Section',
-      'Status',
-      'Parent Name',
-      'Parent Phone',
-      'Parent Email',
-      'Emergency Contact',
-      'Emergency Phone',
-      'Medical Info',
-      'Date Added',
+      'Student Address',
+      'Student Status',
+      'RFID UID',
+      'Primary Parent Name',
+      'Primary Parent Phone',
+      'Primary Parent Email',
+      'Primary Parent Address',
+      'Parent Relationship',
     ];
+
+    // Add secondary parent columns only if there are secondary parents
+    if (hasSecondaryParents) {
+      headers.addAll([
+        'Secondary Parent Name',
+        'Secondary Parent Phone',
+        'Secondary Parent Email',
+        'Secondary Parent Address',
+        'Secondary Parent Relationship',
+      ]);
+    }
+
+    // Add final column
+    headers.add('Date Added');
 
     // Add headers to first row
     for (int i = 0; i < headers.length; i++) {
@@ -2242,27 +2277,106 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     // Add student data
     for (int rowIndex = 0; rowIndex < studentsData.length; rowIndex++) {
       final student = studentsData[rowIndex];
-      final dataRow = [
-        student['student_id']?.toString() ?? '',
+      
+      // Extract parent information
+      Map<String, dynamic>? primaryParent;
+      Map<String, dynamic>? secondaryParent;
+      String primaryRelationship = '';
+      String secondaryRelationship = '';
+
+      // Handle the parent_student relationship data
+      if (student['parent_student'] != null) {
+        final parentStudentList = student['parent_student'] as List;
+        
+        for (var ps in parentStudentList) {
+          final parentData = ps['parents'];
+          final isPrimary = ps['is_primary'] == true;
+          final relationshipType = ps['relationship_type']?.toString() ?? 'parent';
+          
+          if (isPrimary && primaryParent == null) {
+            primaryParent = parentData;
+            primaryRelationship = relationshipType;
+          } else if (!isPrimary && secondaryParent == null) {
+            secondaryParent = parentData;
+            secondaryRelationship = relationshipType;
+          }
+        }
+      }
+
+      // Format section name
+      String sectionName = '';
+      if (student['sections'] != null) {
+        final section = student['sections'];
+        sectionName = '${section['name']} (${section['grade_level']})';
+      }
+
+      // Format primary parent name
+      String primaryParentName = '';
+      if (primaryParent != null) {
+        final fname = primaryParent['fname']?.toString() ?? '';
+        final mname = primaryParent['mname']?.toString() ?? '';
+        final lname = primaryParent['lname']?.toString() ?? '';
+        primaryParentName = '$fname ${mname.isNotEmpty ? '$mname ' : ''}$lname'.trim();
+      }
+
+      // Format secondary parent name
+      String secondaryParentName = '';
+      if (secondaryParent != null) {
+        final fname = secondaryParent['fname']?.toString() ?? '';
+        final mname = secondaryParent['mname']?.toString() ?? '';
+        final lname = secondaryParent['lname']?.toString() ?? '';
+        secondaryParentName = '$fname ${mname.isNotEmpty ? '$mname ' : ''}$lname'.trim();
+      }
+
+      // Format birthday
+      String formattedBirthday = '';
+      if (student['birthday'] != null) {
+        try {
+          final birthday = DateTime.parse(student['birthday'].toString());
+          formattedBirthday = DateFormat('yyyy-MM-dd').format(birthday);
+        } catch (e) {
+          formattedBirthday = student['birthday'].toString();
+        }
+      }
+
+      // Create data row - conditional based on secondary parent existence
+      List<String> dataRow = [
         student['fname']?.toString() ?? '',
+        student['mname']?.toString() ?? '',
         student['lname']?.toString() ?? '',
+        student['gender']?.toString() ?? '',
+        formattedBirthday,
         student['grade_level']?.toString() ?? '',
-        student['section_name']?.toString() ?? '',
+        sectionName,
+        student['address']?.toString() ?? '',
         student['status']?.toString() ?? 'Active',
-        student['parent_fname'] != null && student['parent_lname'] != null
-            ? '${student['parent_fname']} ${student['parent_lname']}'
-            : '',
-        student['parent_phone']?.toString() ?? '',
-        student['parent_email']?.toString() ?? '',
-        student['emergency_contact_name']?.toString() ?? '',
-        student['emergency_contact_phone']?.toString() ?? '',
-        student['medical_info']?.toString() ?? '',
+        student['rfid_uid']?.toString() ?? '',
+        primaryParentName,
+        primaryParent?['phone']?.toString() ?? '',
+        primaryParent?['email']?.toString() ?? '',
+        primaryParent?['address']?.toString() ?? '',
+        primaryRelationship.toUpperCase(),
+      ];
+
+      // Add secondary parent data only if secondary parents exist
+      if (hasSecondaryParents) {
+        dataRow.addAll([
+          secondaryParentName,
+          secondaryParent?['phone']?.toString() ?? '',
+          secondaryParent?['email']?.toString() ?? '',
+          secondaryParent?['address']?.toString() ?? '',
+          secondaryRelationship.toUpperCase(),
+        ]);
+      }
+
+      // Add final column
+      dataRow.add(
         student['created_at'] != null
             ? DateTime.parse(
               student['created_at'].toString(),
             ).toLocal().toString().split(' ')[0]
             : '',
-      ];
+      );
 
       for (int colIndex = 0; colIndex < dataRow.length; colIndex++) {
         var cell = sheet.cell(
@@ -2275,9 +2389,16 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       }
     }
 
-    // Auto-fit columns (approximate)
+    // Auto-fit columns (approximate) - adjusted for dynamic columns
     for (int i = 0; i < headers.length; i++) {
-      sheet.setColumnWidth(i, 15.0);
+      final header = headers[i];
+      if (header.contains('Address')) { // Address columns
+        sheet.setColumnWidth(i, 25.0);
+      } else if (header.contains('Name')) { // Name columns
+        sheet.setColumnWidth(i, 20.0);
+      } else {
+        sheet.setColumnWidth(i, 15.0);
+      }
     }
   }
 
@@ -2306,6 +2427,47 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       gradeStats[grade] = (gradeStats[grade] ?? 0) + 1;
     }
 
+    // Calculate parent statistics
+    int studentsWithPrimaryParent = 0;
+    int studentsWithSecondaryParent = 0;
+    int studentsWithNoParent = 0;
+    int studentsWithRFID = 0;
+    final parentRelationshipTypes = <String, int>{};
+
+    for (var student in studentsData) {
+      // Check RFID
+      if (student['rfid_uid'] != null && student['rfid_uid'].toString().isNotEmpty) {
+        studentsWithRFID++;
+      }
+
+      // Check parent relationships
+      bool hasPrimary = false;
+      bool hasSecondary = false;
+      
+      if (student['parent_student'] != null) {
+        final parentStudentList = student['parent_student'] as List;
+        
+        for (var ps in parentStudentList) {
+          final isPrimary = ps['is_primary'] == true;
+          final relationshipType = ps['relationship_type']?.toString() ?? 'parent';
+          
+          // Count relationship types
+          parentRelationshipTypes[relationshipType] = 
+              (parentRelationshipTypes[relationshipType] ?? 0) + 1;
+          
+          if (isPrimary) {
+            hasPrimary = true;
+          } else {
+            hasSecondary = true;
+          }
+        }
+      }
+
+      if (hasPrimary) studentsWithPrimaryParent++;
+      if (hasSecondary) studentsWithSecondaryParent++;
+      if (!hasPrimary && !hasSecondary) studentsWithNoParent++;
+    }
+
     int rowIndex = 0;
 
     // Title
@@ -2323,6 +2485,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       ['Total Students:', totalStudents.toString()],
       ['Active Students:', activeStudents.toString()],
       ['Inactive Students:', inactiveStudents.toString()],
+      ['Students with RFID:', studentsWithRFID.toString()],
     ];
 
     for (var row in exportData) {
@@ -2348,6 +2511,74 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
     rowIndex++; // Empty row
 
+    // Parent statistics
+    var parentHeaderCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    parentHeaderCell.value = excel_lib.TextCellValue('Parent Information:');
+    parentHeaderCell.cellStyle = excel_lib.CellStyle(bold: true);
+    rowIndex++;
+
+    final parentData = [
+      ['Students with Primary Parent:', studentsWithPrimaryParent.toString()],
+      ['Students with Secondary Parent:', studentsWithSecondaryParent.toString()],
+      ['Students with No Parent Info:', studentsWithNoParent.toString()],
+    ];
+
+    for (var row in parentData) {
+      var labelCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
+      labelCell.value = excel_lib.TextCellValue(row[0]);
+
+      var valueCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
+      valueCell.value = excel_lib.TextCellValue(row[1]);
+
+      rowIndex++;
+    }
+
+    rowIndex++; // Empty row
+
+    // Parent relationship types
+    if (parentRelationshipTypes.isNotEmpty) {
+      var relationshipHeaderCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+      );
+      relationshipHeaderCell.value = excel_lib.TextCellValue('Parent Relationship Types:');
+      relationshipHeaderCell.cellStyle = excel_lib.CellStyle(bold: true);
+      rowIndex++;
+
+      for (var entry in parentRelationshipTypes.entries) {
+        var typeCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: 0,
+            rowIndex: rowIndex,
+          ),
+        );
+        typeCell.value = excel_lib.TextCellValue('${entry.key.toUpperCase()}:');
+
+        var countCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: 1,
+            rowIndex: rowIndex,
+          ),
+        );
+        countCell.value = excel_lib.TextCellValue(entry.value.toString());
+
+        rowIndex++;
+      }
+
+      rowIndex++; // Empty row
+    }
+
     // Grade distribution
     var gradeHeaderCell = sheet.cell(
       excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
@@ -2363,7 +2594,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
           rowIndex: rowIndex,
         ),
       );
-      gradeCell.value = excel_lib.TextCellValue('Grade ${entry.key}:');
+      gradeCell.value = excel_lib.TextCellValue('${entry.key}:');
 
       var countCell = sheet.cell(
         excel_lib.CellIndex.indexByColumnRow(
@@ -2377,7 +2608,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     }
 
     // Set column widths
-    sheet.setColumnWidth(0, 20.0);
+    sheet.setColumnWidth(0, 25.0);
     sheet.setColumnWidth(1, 15.0);
   }
 
