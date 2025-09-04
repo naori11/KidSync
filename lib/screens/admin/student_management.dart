@@ -102,20 +102,22 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
           )
         ''')
         .order('lname', ascending: true);
-    
+
     // Process the data to automatically set primary parent if only one exists
     final processedStudents = List<Map<String, dynamic>>.from(response);
     for (var student in processedStudents) {
       if (student['parent_student'] != null) {
         final parentStudentList = student['parent_student'] as List;
-        
+
         // If there's only one parent/guardian, automatically mark them as primary
         if (parentStudentList.length == 1) {
           parentStudentList[0]['is_primary'] = true;
         } else if (parentStudentList.length > 1) {
           // Check if there's already a primary parent marked
-          final hasPrimary = parentStudentList.any((ps) => ps['is_primary'] == true);
-          
+          final hasPrimary = parentStudentList.any(
+            (ps) => ps['is_primary'] == true,
+          );
+
           // If no primary parent is marked, make the first one primary
           if (!hasPrimary) {
             parentStudentList[0]['is_primary'] = true;
@@ -123,7 +125,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         }
       }
     }
-    
+
     setState(() {
       students = processedStudents;
       isLoading = false;
@@ -141,8 +143,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
           .select('id, parent_id, is_primary')
           .eq('student_id', studentId);
 
-      final relationships = List<Map<String, dynamic>>.from(parentStudentResponse);
-      
+      final relationships = List<Map<String, dynamic>>.from(
+        parentStudentResponse,
+      );
+
       if (relationships.isEmpty) {
         return; // No parents to process
       }
@@ -156,8 +160,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
             .eq('id', relationshipId);
       } else {
         // Multiple parents - check if any is marked as primary
-        final hasPrimary = relationships.any((rel) => rel['is_primary'] == true);
-        
+        final hasPrimary = relationships.any(
+          (rel) => rel['is_primary'] == true,
+        );
+
         if (!hasPrimary) {
           // No primary parent marked - make the first one primary
           final firstRelationshipId = relationships[0]['id'];
@@ -2170,6 +2176,14 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       var summarySheet = excel['Summary'];
       _createSummarySheet(summarySheet, studentsToExport);
 
+      // Clean up: Remove any default sheets
+      final defaultSheetNames = ['Sheet1', 'Sheet', 'Worksheet'];
+      for (String defaultName in defaultSheetNames) {
+        if (excel.sheets.containsKey(defaultName)) {
+          excel.delete(defaultName);
+        }
+      }
+
       // Set default sheet
       excel.setDefaultSheet('Students');
 
@@ -2277,7 +2291,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     // Add student data
     for (int rowIndex = 0; rowIndex < studentsData.length; rowIndex++) {
       final student = studentsData[rowIndex];
-      
+
       // Extract parent information
       Map<String, dynamic>? primaryParent;
       Map<String, dynamic>? secondaryParent;
@@ -2287,12 +2301,13 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       // Handle the parent_student relationship data
       if (student['parent_student'] != null) {
         final parentStudentList = student['parent_student'] as List;
-        
+
         for (var ps in parentStudentList) {
           final parentData = ps['parents'];
           final isPrimary = ps['is_primary'] == true;
-          final relationshipType = ps['relationship_type']?.toString() ?? 'parent';
-          
+          final relationshipType =
+              ps['relationship_type']?.toString() ?? 'parent';
+
           if (isPrimary && primaryParent == null) {
             primaryParent = parentData;
             primaryRelationship = relationshipType;
@@ -2316,7 +2331,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         final fname = primaryParent['fname']?.toString() ?? '';
         final mname = primaryParent['mname']?.toString() ?? '';
         final lname = primaryParent['lname']?.toString() ?? '';
-        primaryParentName = '$fname ${mname.isNotEmpty ? '$mname ' : ''}$lname'.trim();
+        primaryParentName =
+            '$fname ${mname.isNotEmpty ? '$mname ' : ''}$lname'.trim();
       }
 
       // Format secondary parent name
@@ -2325,7 +2341,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         final fname = secondaryParent['fname']?.toString() ?? '';
         final mname = secondaryParent['mname']?.toString() ?? '';
         final lname = secondaryParent['lname']?.toString() ?? '';
-        secondaryParentName = '$fname ${mname.isNotEmpty ? '$mname ' : ''}$lname'.trim();
+        secondaryParentName =
+            '$fname ${mname.isNotEmpty ? '$mname ' : ''}$lname'.trim();
       }
 
       // Format birthday
@@ -2392,9 +2409,11 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     // Auto-fit columns (approximate) - adjusted for dynamic columns
     for (int i = 0; i < headers.length; i++) {
       final header = headers[i];
-      if (header.contains('Address')) { // Address columns
+      if (header.contains('Address')) {
+        // Address columns
         sheet.setColumnWidth(i, 25.0);
-      } else if (header.contains('Name')) { // Name columns
+      } else if (header.contains('Name')) {
+        // Name columns
         sheet.setColumnWidth(i, 20.0);
       } else {
         sheet.setColumnWidth(i, 15.0);
@@ -2436,25 +2455,27 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
     for (var student in studentsData) {
       // Check RFID
-      if (student['rfid_uid'] != null && student['rfid_uid'].toString().isNotEmpty) {
+      if (student['rfid_uid'] != null &&
+          student['rfid_uid'].toString().isNotEmpty) {
         studentsWithRFID++;
       }
 
       // Check parent relationships
       bool hasPrimary = false;
       bool hasSecondary = false;
-      
+
       if (student['parent_student'] != null) {
         final parentStudentList = student['parent_student'] as List;
-        
+
         for (var ps in parentStudentList) {
           final isPrimary = ps['is_primary'] == true;
-          final relationshipType = ps['relationship_type']?.toString() ?? 'parent';
-          
+          final relationshipType =
+              ps['relationship_type']?.toString() ?? 'parent';
+
           // Count relationship types
-          parentRelationshipTypes[relationshipType] = 
+          parentRelationshipTypes[relationshipType] =
               (parentRelationshipTypes[relationshipType] ?? 0) + 1;
-          
+
           if (isPrimary) {
             hasPrimary = true;
           } else {
@@ -2521,7 +2542,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
     final parentData = [
       ['Students with Primary Parent:', studentsWithPrimaryParent.toString()],
-      ['Students with Secondary Parent:', studentsWithSecondaryParent.toString()],
+      [
+        'Students with Secondary Parent:',
+        studentsWithSecondaryParent.toString(),
+      ],
       ['Students with No Parent Info:', studentsWithNoParent.toString()],
     ];
 
@@ -2550,9 +2574,14 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     // Parent relationship types
     if (parentRelationshipTypes.isNotEmpty) {
       var relationshipHeaderCell = sheet.cell(
-        excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
       );
-      relationshipHeaderCell.value = excel_lib.TextCellValue('Parent Relationship Types:');
+      relationshipHeaderCell.value = excel_lib.TextCellValue(
+        'Parent Relationship Types:',
+      );
       relationshipHeaderCell.cellStyle = excel_lib.CellStyle(bold: true);
       rowIndex++;
 
