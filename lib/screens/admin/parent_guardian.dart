@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kidsync/widgets/add_edit_parent_modal.dart';
+import 'package:excel/excel.dart' as excel_lib;
+import 'dart:html' as html;
 
 class ParentGuardianPage extends StatefulWidget {
   const ParentGuardianPage({super.key});
@@ -21,8 +23,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
   Map<String, dynamic>? _selectedParent;
   bool _showDetailModal = false;
-  bool _showAddEditModal = false;
-  Map<String, dynamic>? _editingParent;
 
   @override
   void initState() {
@@ -699,6 +699,402 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     );
   }
 
+  // Export parents functionality
+  Future<void> _exportParents() async {
+    try {
+      if (parents.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No parents available to export'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(color: Color(0xFF2ECC71)),
+              SizedBox(width: 16),
+              Text('Exporting parents...'),
+            ],
+          ),
+        ),
+      );
+
+      // Apply current filters to determine which parents to export
+      final query = _searchQuery.trim().toLowerCase();
+      List<Map<String, dynamic>> parentsToExport = parents.where((parent) {
+        final fullName = "${parent['first_name']} ${parent['last_name']}".toLowerCase();
+        final matchesName = fullName.contains(query);
+        final status = (parent['status']?.toString() ?? '').toLowerCase();
+        final matchesStatus = _statusFilter == 'All Status' || status == _statusFilter.toLowerCase();
+        return matchesName && matchesStatus;
+      }).toList();
+
+      // Sort parents by account creation date (ascending) - this is the primary sort
+      parentsToExport.sort((a, b) {
+        final aDate = a['created_at'] != null 
+            ? DateTime.parse(a['created_at'].toString()) 
+            : DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = b['created_at'] != null 
+            ? DateTime.parse(b['created_at'].toString()) 
+            : DateTime.fromMillisecondsSinceEpoch(0);
+        return aDate.compareTo(bDate);
+      });
+
+      // Create Excel workbook
+      var excel = excel_lib.Excel.createExcel();
+
+      // Create main Parents sheet
+      var parentsSheet = excel['Parents'];
+      await _createParentsSheet(parentsSheet, parentsToExport);
+
+      // Create Summary sheet
+      var summarySheet = excel['Summary'];
+      await _createParentsSummarySheet(summarySheet, parentsToExport);
+
+      // Clean up: Remove any default sheets
+      final defaultSheetNames = ['Sheet1', 'Sheet', 'Worksheet'];
+      for (String defaultName in defaultSheetNames) {
+        if (excel.sheets.containsKey(defaultName)) {
+          excel.delete(defaultName);
+        }
+      }
+
+      // Set Parents as the default sheet
+      excel.setDefaultSheet('Parents');
+
+      // Generate and download file
+      List<int>? fileBytes = excel.encode();
+      if (fileBytes == null) {
+        throw Exception('Failed to generate Excel file');
+      }
+
+      final timestamp = DateTime.now().toIso8601String().split('T')[0];
+      final fileName = 'Parents_Export_${timestamp}.xlsx';
+
+      // Download file
+      final blob = html.Blob([fileBytes], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..style.display = 'none';
+
+      html.document.body?.children.add(anchor);
+      anchor.click();
+      html.document.body?.children.remove(anchor);
+      html.Url.revokeObjectUrl(url);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Parents exported successfully: $fileName'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if still open
+      if (mounted) Navigator.of(context).pop();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  // Create the main Parents sheet with user data only
+  Future<void> _createParentsSheet(
+    excel_lib.Sheet sheet,
+    List<Map<String, dynamic>> parentsData,
+  ) async {
+    int rowIndex = 0;
+
+    // Add title
+    var titleCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    titleCell.value = excel_lib.TextCellValue('PARENTS DATA EXPORT');
+    titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
+    rowIndex += 2;
+
+    // Add export info
+    var dateCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    dateCell.value = excel_lib.TextCellValue('Export Date:');
+    dateCell.cellStyle = excel_lib.CellStyle(bold: true);
+    
+    var dateValueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+    dateValueCell.value = excel_lib.TextCellValue(DateTime.now().toLocal().toString().split('.')[0]);
+    rowIndex += 2;
+
+    // Column headers based on users table schema
+    final headers = [
+      'User ID',
+      'First Name',
+      'Middle Name', 
+      'Last Name',
+      'Full Name',
+      'Email',
+      'Contact Number',
+      'Role',
+      'Account Status',
+      'Account Created',
+      'Students Count',
+    ];
+
+    // Track maximum width for each column (including headers)
+    List<int> columnWidths = List.filled(headers.length, 0);
+    
+    // Calculate header widths
+    for (int col = 0; col < headers.length; col++) {
+      columnWidths[col] = headers[col].length;
+    }
+
+    // Calculate maximum content width for each column
+    for (int i = 0; i < parentsData.length; i++) {
+      final parent = parentsData[i];
+      
+      // Generate user ID (Parent prefix + index)
+      final parentIndex = i + 1;
+      final userId = "PAR${parentIndex.toString().padLeft(3, '0')}";
+      
+      final fullName = "${parent['first_name'] ?? ''} ${parent['middle_name'] ?? ''} ${parent['last_name'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
+      final formattedCreatedAt = parent['created_at'] != null
+          ? DateTime.parse(parent['created_at'].toString()).toLocal().toString().split('.')[0]
+          : '';
+
+      final rowData = [
+        userId,
+        parent['first_name'] ?? '',
+        parent['middle_name'] ?? '',
+        parent['last_name'] ?? '',
+        fullName,
+        parent['email'] ?? '',
+        parent['phone'] ?? '',
+        parent['role'] ?? 'Parent',
+        parent['status'] ?? 'active',
+        formattedCreatedAt,
+        (parent['student_count'] ?? 0).toString(),
+      ];
+
+      // Update column widths based on content
+      for (int col = 0; col < rowData.length; col++) {
+        final contentLength = rowData[col].length;
+        if (contentLength > columnWidths[col]) {
+          columnWidths[col] = contentLength;
+        }
+      }
+    }
+
+    // Set column widths with some padding (add 2 characters for padding)
+    for (int col = 0; col < columnWidths.length; col++) {
+      final width = (columnWidths[col] + 2).clamp(8, 50); // Min 8, Max 50 characters
+      sheet.setColumnWidth(col, width.toDouble());
+    }
+
+    // Add column headers
+    for (int col = 0; col < headers.length; col++) {
+      var headerCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+      headerCell.value = excel_lib.TextCellValue(headers[col]);
+      headerCell.cellStyle = excel_lib.CellStyle(
+        bold: true,
+        leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+      );
+    }
+    rowIndex++;
+
+    // Add parent data rows
+    for (int i = 0; i < parentsData.length; i++) {
+      final parent = parentsData[i];
+      
+      // Generate user ID (Parent prefix + index)
+      final parentIndex = i + 1;
+      final userId = "PAR${parentIndex.toString().padLeft(3, '0')}";
+      
+      final fullName = "${parent['first_name'] ?? ''} ${parent['middle_name'] ?? ''} ${parent['last_name'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
+      final formattedCreatedAt = parent['created_at'] != null
+          ? DateTime.parse(parent['created_at'].toString()).toLocal().toString().split('.')[0]
+          : '';
+
+      final rowData = [
+        userId,
+        parent['first_name'] ?? '',
+        parent['middle_name'] ?? '',
+        parent['last_name'] ?? '',
+        fullName,
+        parent['email'] ?? '',
+        parent['phone'] ?? '',
+        parent['role'] ?? 'Parent',
+        parent['status'] ?? 'active',
+        formattedCreatedAt,
+        (parent['student_count'] ?? 0).toString(),
+      ];
+
+      for (int col = 0; col < rowData.length; col++) {
+        var cell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+        cell.value = excel_lib.TextCellValue(rowData[col]);
+        cell.cellStyle = excel_lib.CellStyle(
+          leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        );
+      }
+      rowIndex++;
+    }
+  }
+
+  // Create the Summary sheet
+  Future<void> _createParentsSummarySheet(
+    excel_lib.Sheet sheet,
+    List<Map<String, dynamic>> parentsData,
+  ) async {
+    int rowIndex = 0;
+
+    // Add title
+    var titleCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    titleCell.value = excel_lib.TextCellValue('PARENTS SUMMARY REPORT');
+    titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
+    rowIndex += 2;
+
+    // Add export info
+    var dateCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    dateCell.value = excel_lib.TextCellValue('Export Date:');
+    dateCell.cellStyle = excel_lib.CellStyle(bold: true);
+    
+    var dateValueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+    dateValueCell.value = excel_lib.TextCellValue(DateTime.now().toLocal().toString().split('.')[0]);
+    rowIndex += 2;
+
+    // Calculate statistics
+    final totalParents = parentsData.length;
+    final activeParents = parentsData.where((p) => p['status'] == 'active').length;
+    final inactiveParents = parentsData.where((p) => p['status'] == 'inactive').length;
+    final totalStudentsAssigned = parentsData.fold<int>(0, (sum, parent) => sum + (parent['student_count'] as int? ?? 0));
+    final averageStudentsPerParent = totalParents > 0 ? (totalStudentsAssigned / totalParents).toStringAsFixed(1) : '0';
+
+    // Statistics section
+    final stats = [
+      ['Total Parents:', totalParents.toString()],
+      ['Active Parents:', activeParents.toString()],
+      ['Inactive Parents:', inactiveParents.toString()],
+      ['Total Students Assigned:', totalStudentsAssigned.toString()],
+      ['Average Students per Parent:', averageStudentsPerParent],
+    ];
+
+    // Calculate column widths for statistics
+    int maxLabelWidth = 0;
+    int maxValueWidth = 0;
+    
+    for (final stat in stats) {
+      if (stat[0].length > maxLabelWidth) maxLabelWidth = stat[0].length;
+      if (stat[1].length > maxValueWidth) maxValueWidth = stat[1].length;
+    }
+    
+    // Set column widths for statistics (add padding)
+    sheet.setColumnWidth(0, (maxLabelWidth + 2).toDouble());
+    sheet.setColumnWidth(1, (maxValueWidth + 2).toDouble());
+
+    for (final stat in stats) {
+      var labelCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+      labelCell.value = excel_lib.TextCellValue(stat[0]);
+      labelCell.cellStyle = excel_lib.CellStyle(bold: true);
+      
+      var valueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+      valueCell.value = excel_lib.TextCellValue(stat[1]);
+      
+      rowIndex++;
+    }
+
+    rowIndex += 2;
+
+    // Status breakdown table
+    var statusHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    statusHeaderCell.value = excel_lib.TextCellValue('STATUS BREAKDOWN');
+    statusHeaderCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 14);
+    rowIndex += 2;
+
+    // Status table headers
+    final statusHeaders = ['Status', 'Count', 'Percentage'];
+    
+    // Status data for width calculation
+    final statusBreakdown = [
+      ['Active', activeParents.toString(), totalParents > 0 ? '${((activeParents / totalParents) * 100).toStringAsFixed(1)}%' : '0%'],
+      ['Inactive', inactiveParents.toString(), totalParents > 0 ? '${((inactiveParents / totalParents) * 100).toStringAsFixed(1)}%' : '0%'],
+    ];
+
+    // Calculate column widths for status table
+    List<int> statusColumnWidths = List.filled(statusHeaders.length, 0);
+    
+    // Check header widths
+    for (int col = 0; col < statusHeaders.length; col++) {
+      statusColumnWidths[col] = statusHeaders[col].length;
+    }
+    
+    // Check data widths
+    for (final statusRow in statusBreakdown) {
+      for (int col = 0; col < statusRow.length; col++) {
+        if (statusRow[col].length > statusColumnWidths[col]) {
+          statusColumnWidths[col] = statusRow[col].length;
+        }
+      }
+    }
+
+    // Set column widths for status table (starting from column 0, add padding)
+    for (int col = 0; col < statusColumnWidths.length; col++) {
+      final width = (statusColumnWidths[col] + 2).clamp(8, 30);
+      sheet.setColumnWidth(col, width.toDouble());
+    }
+
+    // Status table headers
+    for (int col = 0; col < statusHeaders.length; col++) {
+      var headerCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+      headerCell.value = excel_lib.TextCellValue(statusHeaders[col]);
+      headerCell.cellStyle = excel_lib.CellStyle(
+        bold: true,
+        leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+      );
+    }
+    rowIndex++;
+
+    // Status data rows
+    for (final statusRow in statusBreakdown) {
+      for (int col = 0; col < statusRow.length; col++) {
+        var cell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+        cell.value = excel_lib.TextCellValue(statusRow[col]);
+        cell.cellStyle = excel_lib.CellStyle(
+          leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        );
+      }
+      rowIndex++;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Filter parents by search query and status, then apply sorting
@@ -871,15 +1267,8 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                             vertical: 10,
                           ),
                         ),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Export functionality coming soon...',
-                              ),
-                              backgroundColor: Colors.orange,
-                            ),
-                          );
+                        onPressed: () async {
+                          await _exportParents();
                         },
                       ),
                     ),
@@ -1089,37 +1478,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                     ),
                                   ),
                                 ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Data sync indicator
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.blue[50],
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.blue[200]!),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.sync,
-                                size: 16,
-                                color: Colors.blue[600],
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Synced with User Accounts',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.blue[600],
-                                  fontWeight: FontWeight.w500,
-                                ),
                               ),
                             ],
                           ),
@@ -1479,41 +1837,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                               ],
                             ),
                           ),
-                          if (parent['user_id'] != null) ...[
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [Colors.blue[100]!, Colors.blue[50]!],
-                                ),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.blue[300]!),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.sync,
-                                    size: 8,
-                                    color: Colors.blue[700],
-                                  ),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    'Synced',
-                                    style: TextStyle(
-                                      fontSize: 8,
-                                      color: Colors.blue[700],
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ],
@@ -2003,25 +2326,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                           border: Border.all(
                                             color: Colors.green[200]!,
                                           ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Icons.sync,
-                                              size: 12,
-                                              color: Colors.green[600],
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              'Synced Account',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: Colors.green[600],
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
                                         ),
                                       ),
                                     ],
