@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kidsync/widgets/role_protection.dart';
-import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:excel/excel.dart' as excel_lib;
+import 'dart:html' as html;
 import 'dart:convert';
 
 class UserManagementPageAdmin extends StatelessWidget {
@@ -56,6 +57,497 @@ class _UserManagementPageState extends State<UserManagementPage> {
     if (_currentPage > _totalPages) _currentPage = _totalPages;
   }
 
+  // Export users functionality
+  Future<void> _exportUsers() async {
+    try {
+      if (users.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No users available to export'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(color: Color(0xFF2ECC71)),
+              SizedBox(width: 16),
+              Text('Exporting users...'),
+            ],
+          ),
+        ),
+      );
+
+      // Apply current filters to determine which users to export
+      final query = _searchQuery.trim().toLowerCase();
+      List<Map<String, dynamic>> usersToExport = users.where((u) {
+        final roleMatch = _roleFilter == 'All Roles' || u['role'] == _roleFilter;
+        if (!roleMatch) return false;
+
+        if (query.isEmpty) return true;
+        final name = "${u['fname'] ?? ''} ${u['lname'] ?? ''}".toLowerCase();
+        final email = (u['email'] ?? '').toString().toLowerCase();
+        return name.contains(query) || email.contains(query);
+      }).toList();
+
+      // Sort users based on current sort option
+      if (_sortOption == 'Name (A-Z)') {
+        usersToExport.sort(
+          (a, b) => "${a['fname'] ?? ''} ${a['lname'] ?? ''}".compareTo(
+            "${b['fname'] ?? ''} ${b['lname'] ?? ''}",
+          ),
+        );
+      } else if (_sortOption == 'Name (Z-A)') {
+        usersToExport.sort(
+          (a, b) => "${b['fname'] ?? ''} ${b['lname'] ?? ''}".compareTo(
+            "${a['fname'] ?? ''} ${a['lname'] ?? ''}",
+          ),
+        );
+      } else if (_sortOption == 'Role') {
+        usersToExport.sort(
+          (a, b) => (a['role'] ?? '').compareTo(b['role'] ?? ''),
+        );
+      }
+
+      // Create Excel workbook
+      var excel = excel_lib.Excel.createExcel();
+
+      // Create main Users sheet
+      var usersSheet = excel['Users'];
+      await _createUsersSheet(usersSheet, usersToExport);
+
+      // Create Summary sheet
+      var summarySheet = excel['Summary'];
+      await _createUsersSummarySheet(summarySheet, usersToExport);
+
+      // Clean up: Remove any default sheets
+      final defaultSheetNames = ['Sheet1', 'Sheet', 'Worksheet'];
+      for (String defaultName in defaultSheetNames) {
+        if (excel.sheets.containsKey(defaultName)) {
+          excel.delete(defaultName);
+        }
+      }
+
+      // Set Users as the default sheet
+      excel.setDefaultSheet('Users');
+
+      // Generate and download file
+      List<int>? fileBytes = excel.encode();
+      if (fileBytes == null) {
+        throw Exception('Failed to generate Excel file');
+      }
+
+      final timestamp = DateTime.now().toIso8601String().split('T')[0];
+      final fileName = 'Users_Export_${timestamp}.xlsx';
+
+      // Download file
+      final blob = html.Blob([fileBytes], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..style.display = 'none';
+
+      html.document.body?.children.add(anchor);
+      anchor.click();
+      html.document.body?.children.remove(anchor);
+      html.Url.revokeObjectUrl(url);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Users exported successfully: $fileName'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if still open
+      if (mounted) Navigator.of(context).pop();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  // Create the main Users sheet
+  Future<void> _createUsersSheet(
+    excel_lib.Sheet sheet,
+    List<Map<String, dynamic>> usersData,
+  ) async {
+    int rowIndex = 0;
+
+    // Add title
+    var titleCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    titleCell.value = excel_lib.TextCellValue('USERS DATA EXPORT');
+    titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
+    rowIndex += 2;
+
+    // Add export info
+    var dateCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    dateCell.value = excel_lib.TextCellValue('Export Date:');
+    dateCell.cellStyle = excel_lib.CellStyle(bold: true);
+    
+    var dateValueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+    dateValueCell.value = excel_lib.TextCellValue(DateTime.now().toLocal().toString().split('.')[0]);
+    rowIndex += 2;
+
+    // Column headers
+    final headers = [
+      'User ID',
+      'First Name',
+      'Middle Name', 
+      'Last Name',
+      'Full Name',
+      'Email',
+      'Contact Number',
+      'Position/Title',
+      'Status',
+      'Account Created',
+    ];
+
+    // Role order as specified
+    final roleOrder = ['Admin', 'Teacher', 'Guard', 'Driver', 'Parent'];
+
+    // Group users by role and sort each group by account creation date
+    Map<String, List<Map<String, dynamic>>> usersByRole = {};
+    for (final role in roleOrder) {
+      usersByRole[role] = [];
+    }
+
+    // Add users to their respective role groups
+    for (final user in usersData) {
+      final role = user['role']?.toString() ?? 'Unknown';
+      if (usersByRole.containsKey(role)) {
+        usersByRole[role]!.add(user);
+      } else {
+        // Handle unknown roles by adding them to a separate list
+        usersByRole.putIfAbsent('Other', () => []).add(user);
+      }
+    }
+
+    // Sort each role group by account creation date (ascending)
+    for (final role in usersByRole.keys) {
+      usersByRole[role]!.sort((a, b) {
+        final aDate = a['created_at'] != null 
+            ? DateTime.parse(a['created_at'].toString()) 
+            : DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = b['created_at'] != null 
+            ? DateTime.parse(b['created_at'].toString()) 
+            : DateTime.fromMillisecondsSinceEpoch(0);
+        return aDate.compareTo(bDate);
+      });
+    }
+
+    // Create tables for each role
+    for (final role in roleOrder) {
+      if (usersByRole[role]!.isEmpty) continue;
+
+      // Role header - just one cell, no merging
+      var roleHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+      roleHeaderCell.value = excel_lib.TextCellValue(role);
+      roleHeaderCell.cellStyle = excel_lib.CellStyle(
+        bold: true,
+        fontSize: 16,
+      );
+      rowIndex++;
+
+      // Column headers for this role
+      for (int col = 0; col < headers.length; col++) {
+        var headerCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+        headerCell.value = excel_lib.TextCellValue(headers[col]);
+        headerCell.cellStyle = excel_lib.CellStyle(
+          bold: true,
+          leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        );
+      }
+      rowIndex++;
+
+      // Add user data for this role
+      for (int i = 0; i < usersByRole[role]!.length; i++) {
+        final user = usersByRole[role]![i];
+        final userRole = user['role'] ?? '';
+        final userPrefix = _getUserIdPrefix(userRole);
+        final userIndex = users.indexWhere((item) => item['id'] == user['id']) + 1;
+        final userId = "$userPrefix${userIndex.toString().padLeft(3, '0')}";
+        
+        final fullName = "${user['fname'] ?? ''} ${user['mname'] ?? ''} ${user['lname'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
+        final formattedCreatedAt = user['created_at'] != null
+            ? DateTime.parse(user['created_at'].toString()).toLocal().toString().split('.')[0]
+            : '';
+
+        // Get actual status (default to 'Active' since schema doesn't have status field for users)
+        final status = user['status']?.toString() ?? 'Active';
+
+        final rowData = [
+          userId,
+          user['fname']?.toString() ?? '',
+          user['mname']?.toString() ?? '',
+          user['lname']?.toString() ?? '',
+          fullName,
+          user['email']?.toString() ?? '',
+          user['contact_number']?.toString() ?? '',
+          user['position']?.toString() ?? '',
+          status,
+          formattedCreatedAt,
+        ];
+
+        for (int col = 0; col < rowData.length; col++) {
+          var dataCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+          dataCell.value = excel_lib.TextCellValue(rowData[col]);
+          dataCell.cellStyle = excel_lib.CellStyle(
+            leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+            rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+            bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          );
+        }
+        rowIndex++;
+      }
+
+      // Add total row for this role
+      var totalLabelCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+      totalLabelCell.value = excel_lib.TextCellValue('TOTAL:');
+      totalLabelCell.cellStyle = excel_lib.CellStyle(
+        bold: true,
+      );
+
+      var totalCountCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+      totalCountCell.value = excel_lib.TextCellValue('${usersByRole[role]!.length} users');
+      totalCountCell.cellStyle = excel_lib.CellStyle(
+        bold: true,
+        leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+      );
+
+      rowIndex++;
+
+      // Add spacing between role tables
+      rowIndex += 2;
+    }
+
+    // Handle any users with unknown roles
+    if (usersByRole.containsKey('Other') && usersByRole['Other']!.isNotEmpty) {
+      // Other roles header - just one cell, no merging
+      var otherHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+      otherHeaderCell.value = excel_lib.TextCellValue('Other Roles');
+      otherHeaderCell.cellStyle = excel_lib.CellStyle(
+        bold: true,
+        fontSize: 16,
+      );
+      rowIndex++;
+
+      // Column headers for other roles
+      for (int col = 0; col < headers.length; col++) {
+        var headerCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+        headerCell.value = excel_lib.TextCellValue(headers[col]);
+        headerCell.cellStyle = excel_lib.CellStyle(
+          bold: true,
+          leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        );
+      }
+      rowIndex++;
+
+      // Add other role users
+      for (final user in usersByRole['Other']!) {
+        final userRole = user['role'] ?? '';
+        final userPrefix = _getUserIdPrefix(userRole);
+        final userIndex = users.indexWhere((item) => item['id'] == user['id']) + 1;
+        final userId = "$userPrefix${userIndex.toString().padLeft(3, '0')}";
+        
+        final fullName = "${user['fname'] ?? ''} ${user['mname'] ?? ''} ${user['lname'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
+        final formattedCreatedAt = user['created_at'] != null
+            ? DateTime.parse(user['created_at'].toString()).toLocal().toString().split('.')[0]
+            : '';
+
+        final status = user['status']?.toString() ?? 'Active';
+
+        final rowData = [
+          userId,
+          user['fname']?.toString() ?? '',
+          user['mname']?.toString() ?? '',
+          user['lname']?.toString() ?? '',
+          fullName,
+          user['email']?.toString() ?? '',
+          user['contact_number']?.toString() ?? '',
+          user['position']?.toString() ?? '',
+          status,
+          formattedCreatedAt,
+        ];
+
+        for (int col = 0; col < rowData.length; col++) {
+          var dataCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+          dataCell.value = excel_lib.TextCellValue(rowData[col]);
+          dataCell.cellStyle = excel_lib.CellStyle(
+            leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+            rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+            bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          );
+        }
+        rowIndex++;
+      }
+
+      // Add total row for other roles
+      var totalLabelCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+      totalLabelCell.value = excel_lib.TextCellValue('TOTAL:');
+      totalLabelCell.cellStyle = excel_lib.CellStyle(
+        bold: true,
+      );
+
+      var totalCountCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+      totalCountCell.value = excel_lib.TextCellValue('${usersByRole['Other']!.length} users');
+      totalCountCell.cellStyle = excel_lib.CellStyle(
+        bold: true,
+        leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+      );
+    }
+
+    // Set column widths for better readability
+    sheet.setColumnWidth(0, 12.0);  // User ID
+    sheet.setColumnWidth(1, 15.0);  // First Name
+    sheet.setColumnWidth(2, 15.0);  // Middle Name
+    sheet.setColumnWidth(3, 15.0);  // Last Name
+    sheet.setColumnWidth(4, 25.0);  // Full Name
+    sheet.setColumnWidth(5, 30.0);  // Email
+    sheet.setColumnWidth(6, 15.0);  // Contact Number
+    sheet.setColumnWidth(7, 20.0);  // Position
+    sheet.setColumnWidth(8, 10.0);  // Status
+    sheet.setColumnWidth(9, 20.0);  // Account Created
+  }
+
+  // Create the Summary sheet
+  Future<void> _createUsersSummarySheet(
+    excel_lib.Sheet sheet,
+    List<Map<String, dynamic>> usersData,
+  ) async {
+    int rowIndex = 0;
+
+    // Get current user info
+    final user = supabase.auth.currentUser;
+    final userName = user?.userMetadata?['fname'] != null && user?.userMetadata?['lname'] != null
+        ? '${user?.userMetadata?['fname']} ${user?.userMetadata?['lname']}'
+        : user?.email ?? 'Unknown User';
+
+    // Title
+    var titleCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    titleCell.value = excel_lib.TextCellValue('USERS EXPORT SUMMARY');
+    titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
+    rowIndex += 2;
+
+    // Generation info
+    var dateCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    dateCell.value = excel_lib.TextCellValue('Export Date & Time:');
+    dateCell.cellStyle = excel_lib.CellStyle(bold: true);
+    
+    var dateValueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+    dateValueCell.value = excel_lib.TextCellValue(DateTime.now().toLocal().toString().split('.')[0]);
+    rowIndex++;
+
+    var generatedByCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    generatedByCell.value = excel_lib.TextCellValue('Generated By:');
+    generatedByCell.cellStyle = excel_lib.CellStyle(bold: true);
+    
+    var generatedByValueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+    generatedByValueCell.value = excel_lib.TextCellValue(userName);
+    rowIndex += 2;
+
+    // Overall statistics
+    var statsHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    statsHeaderCell.value = excel_lib.TextCellValue('OVERALL STATISTICS');
+    statsHeaderCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 16);
+    rowIndex += 2;
+
+    // Calculate statistics
+    final totalUsers = usersData.length;
+    final activeUsers = usersData.where((u) => (u['status'] ?? 'Active') == 'Active').length;
+    final inactiveUsers = totalUsers - activeUsers;
+
+    // Role statistics
+    Map<String, int> roleStats = {};
+    for (final userData in usersData) {
+      final role = userData['role']?.toString() ?? 'Unknown';
+      roleStats[role] = (roleStats[role] ?? 0) + 1;
+    }
+
+    // Display overall stats
+    final overallStats = [
+      ['Total Users:', totalUsers.toString()],
+      ['Active Users:', activeUsers.toString()],
+      ['Inactive Users:', inactiveUsers.toString()],
+    ];
+
+    for (var stat in overallStats) {
+      var labelCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+      labelCell.value = excel_lib.TextCellValue(stat[0]);
+      labelCell.cellStyle = excel_lib.CellStyle(bold: true);
+
+      var valueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+      valueCell.value = excel_lib.TextCellValue(stat[1]);
+
+      rowIndex++;
+    }
+
+    rowIndex += 2;
+
+    // Role breakdown
+    var roleBreakdownHeader = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    roleBreakdownHeader.value = excel_lib.TextCellValue('USERS BY ROLE');
+    roleBreakdownHeader.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 14);
+    rowIndex++;
+
+    // Sort role stats by role importance
+    final roleOrder = ['Admin', 'Teacher', 'Guard', 'Driver', 'Parent'];
+    final sortedRoleEntries = roleStats.entries.toList();
+    sortedRoleEntries.sort((a, b) {
+      final aIndex = roleOrder.indexOf(a.key);
+      final bIndex = roleOrder.indexOf(b.key);
+      if (aIndex == -1 && bIndex == -1) return a.key.compareTo(b.key);
+      if (aIndex == -1) return 1;
+      if (bIndex == -1) return -1;
+      return aIndex.compareTo(bIndex);
+    });
+
+    for (var entry in sortedRoleEntries) {
+      var roleCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+      roleCell.value = excel_lib.TextCellValue('${entry.key}:');
+      roleCell.cellStyle = excel_lib.CellStyle(bold: true);
+
+      var countCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+      countCell.value = excel_lib.TextCellValue(entry.value.toString());
+
+      rowIndex++;
+    }
+  }
+
   Future<void> _fetchUsers() async {
     setState(() => isLoading = true);
     final response = await supabase
@@ -93,9 +585,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
         },
       );
 
-      final int status =
-          (res is dynamic && res.status != null) ? (res.status as int) : 200;
-      dynamic data = (res is dynamic && res.data != null) ? res.data : res;
+      final int status = res.status;
+      dynamic data = res.data ?? res;
 
       if (data is String) {
         try {
@@ -136,16 +627,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
         },
       );
 
-      final int status =
-          (res is dynamic && res.status != null) ? (res.status as int) : 200;
-      dynamic data = (res is dynamic && res.data != null) ? res.data : res;
+      final int status = res.status;
+      dynamic data = res.data ?? res;
 
       if (data is String) {
         try {
           data = jsonDecode(data);
         } catch (_) {}
       }
-
       return {'status': status, 'data': data};
     } catch (e) {
       return _normalizeFunctionException(e);
@@ -1417,22 +1906,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
     try {
       setState(() => _isUploadingImage = true);
 
-      Uint8List imageBytes;
       if (_selectedImageBytes != null) {
-        imageBytes = _selectedImageBytes!;
       } else {
-        imageBytes = await image.readAsBytes();
       }
 
       // Generate unique filename
       final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       final String extension = image.name.split('.').last.toLowerCase();
       final String fileName = 'user_${userId}_$timestamp.$extension';
-
-      // Upload to Supabase Storage
-      final String uploadPath = await supabase.storage
-          .from('user-profile')
-          .uploadBinary(fileName, imageBytes);
 
       // Get public URL
       final String publicUrl = supabase.storage
@@ -1710,14 +2191,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         vertical: 10,
                       ),
                     ),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Export functionality coming soon...'),
-                          backgroundColor: Colors.orange,
-                        ),
-                      );
-                    },
+                    onPressed: _exportUsers,
                   ),
                 ),
               ],
