@@ -2326,8 +2326,8 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
 
     // Calculate starting positions for columns
     const int maleStartCol = 0;
-    const int femaleStartCol = 3;
-    const int teacherStartCol = 8; // 3 columns gap after female students (columns 5, 6, 7 are empty)
+    const int femaleStartCol = 2;
+    const int teacherStartCol = 7; // 3 columns gap after female students (columns 5, 6, 7 are empty)
 
     // Create headers with borders
     var maleHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: maleStartCol, rowIndex: rowIndex));
