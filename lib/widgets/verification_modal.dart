@@ -33,21 +33,13 @@ class _VerificationModalState extends State<VerificationModal>
       vsync: this,
     );
 
-    _scaleAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutBack,
-    ));
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack),
+    );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOut,
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
 
     _animationController.forward();
   }
@@ -69,28 +61,30 @@ class _VerificationModalState extends State<VerificationModal>
       if (isConfirmed) {
         success = await _verificationService.confirmVerification(
           verificationId,
-          parentNotes: _notesController.text.trim().isEmpty 
-              ? null 
-              : _notesController.text.trim(),
+          parentNotes:
+              _notesController.text.trim().isEmpty
+                  ? null
+                  : _notesController.text.trim(),
         );
       } else {
         success = await _verificationService.denyVerification(
           verificationId,
-          parentNotes: _notesController.text.trim().isEmpty 
-              ? null 
-              : _notesController.text.trim(),
+          parentNotes:
+              _notesController.text.trim().isEmpty
+                  ? null
+                  : _notesController.text.trim(),
         );
       }
 
       if (success) {
         widget.onVerificationUpdated();
         Navigator.of(context).pop();
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              isConfirmed 
-                  ? 'Pickup/Dropoff verified successfully' 
+              isConfirmed
+                  ? 'Pickup/Dropoff verified successfully'
                   : 'Pickup/Dropoff dispute reported',
             ),
             backgroundColor: isConfirmed ? Colors.green : Colors.orange,
@@ -106,10 +100,7 @@ class _VerificationModalState extends State<VerificationModal>
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     } finally {
       setState(() => _isProcessing = false);
@@ -119,30 +110,72 @@ class _VerificationModalState extends State<VerificationModal>
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final isMobile = screenSize.width < 500;
+    final screenWidth = screenSize.width;
+    final screenHeight = screenSize.height;
+    final isMobile = screenWidth < 600;
+    final isTablet = screenWidth >= 600 && screenWidth < 1024;
+    final isDesktop = screenWidth >= 1024;
+    final isLandscape = screenWidth > screenHeight;
+
+    // Get text scale factor for accessibility
+    final textScaleFactor = MediaQuery.of(context).textScaleFactor;
+    final isLargeText = textScaleFactor > 1.2;
+
+    // Responsive sizing
+    final modalWidth =
+        isMobile
+            ? screenWidth - 32
+            : isTablet
+            ? screenWidth * 0.8
+            : screenWidth * 0.6;
+    final modalHeight =
+        isMobile
+            ? (isLandscape ? screenHeight * 0.95 : screenHeight * 0.9)
+            : isTablet
+            ? (isLandscape ? screenHeight * 0.9 : screenHeight * 0.85)
+            : (isLandscape ? screenHeight * 0.85 : screenHeight * 0.8);
+    final maxHeight = modalHeight;
+
+    // Ensure minimum and maximum sizes
+    final minWidth = isMobile ? 280.0 : 400.0;
+    final maxWidth = isDesktop ? 800.0 : double.infinity;
+    final minHeight = isMobile ? 400.0 : 500.0;
+
     const Color primaryGreen = Color(0xFF19AE61);
     const Color black = Color(0xFF000000);
     const Color white = Color(0xFFFFFFFF);
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: EdgeInsets.all(isMobile ? 16 : 40),
+      insetPadding: EdgeInsets.all(
+        isMobile
+            ? 16
+            : isTablet
+            ? 24
+            : 40,
+      ),
       child: FadeTransition(
         opacity: _fadeAnimation,
         child: ScaleTransition(
           scale: _scaleAnimation,
           child: Container(
-            width: double.infinity,
-            height: screenSize.height * 0.85,
+            width: modalWidth.clamp(minWidth, maxWidth),
+            height: maxHeight.clamp(minHeight, screenHeight * 0.95),
+            constraints: BoxConstraints(
+              minWidth: minWidth,
+              maxWidth: maxWidth,
+              minHeight: minHeight,
+              maxHeight: screenHeight * 0.95,
+            ),
             decoration: BoxDecoration(
               color: white,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                  spreadRadius: 5,
+                  blurRadius: isMobile ? 16 : 20,
+                  offset: const Offset(0, 8),
+                  spreadRadius: isMobile ? 2 : 5,
                 ),
               ],
             ),
@@ -150,12 +183,12 @@ class _VerificationModalState extends State<VerificationModal>
               children: [
                 // Modal Header
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(isMobile ? 16 : 20),
                   decoration: BoxDecoration(
                     color: white,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(20),
-                      topRight: Radius.circular(20),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(isMobile ? 16 : 20),
+                      topRight: Radius.circular(isMobile ? 16 : 20),
                     ),
                     border: Border(
                       bottom: BorderSide(
@@ -167,19 +200,21 @@ class _VerificationModalState extends State<VerificationModal>
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: EdgeInsets.all(isMobile ? 6 : 8),
                         decoration: BoxDecoration(
                           color: primaryGreen.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(
+                            isMobile ? 8 : 10,
+                          ),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.verified_user,
                           color: primaryGreen,
-                          size: 24,
+                          size: isMobile ? 20 : 24,
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      const Expanded(
+                      SizedBox(width: isMobile ? 12 : 16),
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -188,25 +223,35 @@ class _VerificationModalState extends State<VerificationModal>
                               style: TextStyle(
                                 color: black,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 20,
+                                fontSize:
+                                    isMobile
+                                        ? 18
+                                        : isTablet
+                                        ? 20
+                                        : 22,
                               ),
                             ),
                             Text(
                               'Please verify the following events',
                               style: TextStyle(
                                 color: Colors.grey,
-                                fontSize: 14,
+                                fontSize: isMobile ? 12 : 14,
                               ),
                             ),
                           ],
                         ),
                       ),
                       IconButton(
-                        icon: Icon(Icons.close, color: black.withOpacity(0.6)),
+                        icon: Icon(
+                          Icons.close,
+                          color: black.withOpacity(0.6),
+                          size: isMobile ? 20 : 24,
+                        ),
                         onPressed: () => Navigator.of(context).pop(),
                         style: IconButton.styleFrom(
                           backgroundColor: Colors.grey.withOpacity(0.1),
                           shape: const CircleBorder(),
+                          padding: EdgeInsets.all(isMobile ? 8 : 12),
                         ),
                       ),
                     ],
@@ -215,25 +260,25 @@ class _VerificationModalState extends State<VerificationModal>
                 // Modal Content
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
+                    padding: EdgeInsets.all(isMobile ? 16 : 20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         if (widget.pendingVerifications.isEmpty)
                           Container(
-                            padding: const EdgeInsets.all(40),
-                            child: const Column(
+                            padding: EdgeInsets.all(isMobile ? 30 : 40),
+                            child: Column(
                               children: [
                                 Icon(
                                   Icons.check_circle_outline,
-                                  size: 64,
+                                  size: isMobile ? 48 : 64,
                                   color: Colors.grey,
                                 ),
-                                SizedBox(height: 16),
+                                SizedBox(height: isMobile ? 12 : 16),
                                 Text(
                                   'No pending verifications',
                                   style: TextStyle(
-                                    fontSize: 18,
+                                    fontSize: isMobile ? 16 : 18,
                                     color: Colors.grey,
                                   ),
                                 ),
@@ -241,8 +286,16 @@ class _VerificationModalState extends State<VerificationModal>
                             ),
                           )
                         else
-                          ...widget.pendingVerifications.map((verification) =>
-                              _buildVerificationCard(verification, isMobile)),
+                          ...widget.pendingVerifications.map(
+                            (verification) => _buildVerificationCard(
+                              verification,
+                              isMobile,
+                              isTablet,
+                              isDesktop,
+                              isLandscape,
+                              isLargeText,
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -255,11 +308,18 @@ class _VerificationModalState extends State<VerificationModal>
     );
   }
 
-  Widget _buildVerificationCard(Map<String, dynamic> verification, bool isMobile) {
+  Widget _buildVerificationCard(
+    Map<String, dynamic> verification,
+    bool isMobile,
+    bool isTablet,
+    bool isDesktop,
+    bool isLandscape,
+    bool isLargeText,
+  ) {
     const Color primaryGreen = Color(0xFF19AE61);
     const Color black = Color(0xFF000000);
     const Color white = Color(0xFFFFFFFF);
-    
+
     final student = verification['students'];
     final driver = verification['drivers'];
     final eventType = verification['event_type'];
@@ -270,20 +330,17 @@ class _VerificationModalState extends State<VerificationModal>
     final driverImageUrl = driver['profile_image_url'];
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(20),
+      margin: EdgeInsets.only(bottom: isMobile ? 16 : 20),
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
       decoration: BoxDecoration(
         color: white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: primaryGreen.withOpacity(0.3),
-          width: 2,
-        ),
+        borderRadius: BorderRadius.circular(isMobile ? 12 : 16),
+        border: Border.all(color: primaryGreen.withOpacity(0.3), width: 2),
         boxShadow: [
           BoxShadow(
             color: primaryGreen.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            blurRadius: isMobile ? 8 : 10,
+            offset: const Offset(0, 4),
             spreadRadius: 1,
           ),
         ],
@@ -297,18 +354,24 @@ class _VerificationModalState extends State<VerificationModal>
               Icon(
                 eventType == 'pickup' ? Icons.directions_car : Icons.home,
                 color: eventType == 'pickup' ? primaryGreen : Colors.orange,
-                size: 24,
+                size: isMobile ? 20 : 24,
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: isMobile ? 10 : 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '${eventType == 'pickup' ? 'Pickup' : 'Dropoff'} Verification',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                        fontSize:
+                            (isMobile
+                                ? 16
+                                : isTablet
+                                ? 18
+                                : 20) *
+                            (isLargeText ? 1.1 : 1.0),
                         color: black,
                       ),
                     ),
@@ -316,7 +379,8 @@ class _VerificationModalState extends State<VerificationModal>
                       DateFormat('MMM dd, yyyy at h:mm a').format(eventTime),
                       style: TextStyle(
                         color: black.withOpacity(0.6),
-                        fontSize: 14,
+                        fontSize:
+                            (isMobile ? 12 : 14) * (isLargeText ? 1.1 : 1.0),
                       ),
                     ),
                   ],
@@ -324,203 +388,448 @@ class _VerificationModalState extends State<VerificationModal>
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          
+          SizedBox(height: (isMobile ? 16 : 20) * (isLargeText ? 1.2 : 1.0)),
+
           // Student and Driver Info
-          Row(
-            children: [
-              // Student Info
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: primaryGreen.withOpacity(0.1),
-                        radius: 24,
-                        backgroundImage: profileImageUrl != null && profileImageUrl.isNotEmpty
-                            ? NetworkImage(profileImageUrl)
-                            : null,
-                        child: profileImageUrl == null || profileImageUrl.isEmpty
-                            ? const Icon(
-                                Icons.person,
-                                color: primaryGreen,
-                                size: 24,
-                              )
-                            : null,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Student',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            Text(
-                              studentName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
-                                color: black,
-                              ),
-                            ),
-                          ],
+          (isMobile || (isTablet && isLandscape))
+              ? Column(
+                children: [
+                  // Student Info
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(isMobile ? 12 : 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: primaryGreen.withOpacity(0.1),
+                          radius: isMobile ? 20 : 24,
+                          backgroundImage:
+                              profileImageUrl != null &&
+                                      profileImageUrl.isNotEmpty
+                                  ? NetworkImage(profileImageUrl)
+                                  : null,
+                          child:
+                              profileImageUrl == null || profileImageUrl.isEmpty
+                                  ? Icon(
+                                    Icons.person,
+                                    color: primaryGreen,
+                                    size: isMobile ? 20 : 24,
+                                  )
+                                  : null,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Driver Info
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: primaryGreen.withOpacity(0.1),
-                        radius: 24,
-                        backgroundImage: driverImageUrl != null && driverImageUrl.isNotEmpty
-                            ? NetworkImage(driverImageUrl)
-                            : null,
-                        child: driverImageUrl == null || driverImageUrl.isEmpty
-                            ? const Icon(
-                                Icons.local_shipping,
-                                color: primaryGreen,
-                                size: 24,
-                              )
-                            : null,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Driver',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                                fontWeight: FontWeight.w500,
+                        SizedBox(width: isMobile ? 10 : 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Student',
+                                style: TextStyle(
+                                  fontSize: isMobile ? 10 : 12,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                            ),
-                            Text(
-                              driverName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
-                                color: black,
+                              Text(
+                                studentName,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: isMobile ? 14 : 16,
+                                  color: black,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                  SizedBox(height: isMobile ? 12 : 16),
+                  // Driver Info
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(isMobile ? 12 : 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: primaryGreen.withOpacity(0.1),
+                          radius: isMobile ? 20 : 24,
+                          backgroundImage:
+                              driverImageUrl != null &&
+                                      driverImageUrl.isNotEmpty
+                                  ? NetworkImage(driverImageUrl)
+                                  : null,
+                          child:
+                              driverImageUrl == null || driverImageUrl.isEmpty
+                                  ? Icon(
+                                    Icons.local_shipping,
+                                    color: primaryGreen,
+                                    size: isMobile ? 20 : 24,
+                                  )
+                                  : null,
+                        ),
+                        SizedBox(width: isMobile ? 10 : 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Driver',
+                                style: TextStyle(
+                                  fontSize: isMobile ? 10 : 12,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                driverName,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: isMobile ? 14 : 16,
+                                  color: black,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+              : Row(
+                children: [
+                  // Student Info
+                  Expanded(
+                    child: Container(
+                      padding: EdgeInsets.all(isMobile ? 12 : 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: primaryGreen.withOpacity(0.1),
+                            radius: isMobile ? 20 : 24,
+                            backgroundImage:
+                                profileImageUrl != null &&
+                                        profileImageUrl.isNotEmpty
+                                    ? NetworkImage(profileImageUrl)
+                                    : null,
+                            child:
+                                profileImageUrl == null ||
+                                        profileImageUrl.isEmpty
+                                    ? Icon(
+                                      Icons.person,
+                                      color: primaryGreen,
+                                      size: isMobile ? 20 : 24,
+                                    )
+                                    : null,
+                          ),
+                          SizedBox(width: isMobile ? 10 : 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Student',
+                                  style: TextStyle(
+                                    fontSize: isMobile ? 10 : 12,
+                                    color: Colors.grey,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Text(
+                                  studentName,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: isMobile ? 14 : 16,
+                                    color: black,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: isMobile ? 12 : 16),
+                  // Driver Info
+                  Expanded(
+                    child: Container(
+                      padding: EdgeInsets.all(isMobile ? 12 : 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: primaryGreen.withOpacity(0.1),
+                            radius: isMobile ? 20 : 24,
+                            backgroundImage:
+                                driverImageUrl != null &&
+                                        driverImageUrl.isNotEmpty
+                                    ? NetworkImage(driverImageUrl)
+                                    : null,
+                            child:
+                                driverImageUrl == null || driverImageUrl.isEmpty
+                                    ? Icon(
+                                      Icons.local_shipping,
+                                      color: primaryGreen,
+                                      size: isMobile ? 20 : 24,
+                                    )
+                                    : null,
+                          ),
+                          SizedBox(width: isMobile ? 10 : 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Driver',
+                                  style: TextStyle(
+                                    fontSize: isMobile ? 10 : 12,
+                                    color: Colors.grey,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Text(
+                                  driverName,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: isMobile ? 14 : 16,
+                                    color: black,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          
+          SizedBox(height: isMobile ? 16 : 20),
+
           // Notes Field
           TextField(
             controller: _notesController,
             decoration: InputDecoration(
               labelText: 'Notes (optional)',
               hintText: 'Add any comments about this ${eventType}...',
+              labelStyle: TextStyle(fontSize: isMobile ? 12 : 14),
+              hintStyle: TextStyle(fontSize: isMobile ? 12 : 14),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
                 borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
                 borderSide: const BorderSide(color: primaryGreen, width: 2),
               ),
+              contentPadding: EdgeInsets.all(isMobile ? 12 : 16),
             ),
-            maxLines: 3,
+            maxLines: isMobile ? 2 : 3,
+            style: TextStyle(fontSize: isMobile ? 14 : 16),
           ),
-          const SizedBox(height: 24),
-          
+          SizedBox(height: isMobile ? 20 : 24),
+
           // Action Buttons
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _isProcessing 
-                      ? null 
-                      : () => _handleVerification(verification['id'], true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryGreen,
-                    foregroundColor: white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 4,
-                    shadowColor: primaryGreen.withOpacity(0.3),
-                  ),
-                  icon: _isProcessing
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(white),
+          (isMobile || (isTablet && isLandscape))
+              ? Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed:
+                          _isProcessing
+                              ? null
+                              : () =>
+                                  _handleVerification(verification['id'], true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryGreen,
+                        foregroundColor: white,
+                        padding: EdgeInsets.symmetric(
+                          vertical: isMobile ? 14 : 16,
+                          horizontal: 16,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            isMobile ? 10 : 12,
                           ),
-                        )
-                      : const Icon(Icons.check, color: white),
-                  label: Text(
-                    _isProcessing ? 'Processing...' : 'Confirm',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                        ),
+                        elevation: 4,
+                        shadowColor: primaryGreen.withOpacity(0.3),
+                      ),
+                      icon:
+                          _isProcessing
+                              ? SizedBox(
+                                width: isMobile ? 14 : 16,
+                                height: isMobile ? 14 : 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    white,
+                                  ),
+                                ),
+                              )
+                              : Icon(
+                                Icons.check,
+                                color: white,
+                                size: isMobile ? 18 : 20,
+                              ),
+                      label: Text(
+                        _isProcessing ? 'Processing...' : 'Confirm',
+                        style: TextStyle(
+                          fontSize: isMobile ? 14 : 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  SizedBox(height: isMobile ? 12 : 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed:
+                          _isProcessing
+                              ? null
+                              : () => _handleVerification(
+                                verification['id'],
+                                false,
+                              ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red, width: 2),
+                        padding: EdgeInsets.symmetric(
+                          vertical: isMobile ? 14 : 16,
+                          horizontal: 16,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            isMobile ? 10 : 12,
+                          ),
+                        ),
+                      ),
+                      icon: Icon(
+                        Icons.close,
+                        color: Colors.red,
+                        size: isMobile ? 18 : 20,
+                      ),
+                      label: Text(
+                        'Dispute',
+                        style: TextStyle(
+                          fontSize: isMobile ? 14 : 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+              : Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed:
+                          _isProcessing
+                              ? null
+                              : () =>
+                                  _handleVerification(verification['id'], true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryGreen,
+                        foregroundColor: white,
+                        padding: EdgeInsets.symmetric(
+                          vertical: isMobile ? 14 : 16,
+                          horizontal: 16,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            isMobile ? 10 : 12,
+                          ),
+                        ),
+                        elevation: 4,
+                        shadowColor: primaryGreen.withOpacity(0.3),
+                      ),
+                      icon:
+                          _isProcessing
+                              ? SizedBox(
+                                width: isMobile ? 14 : 16,
+                                height: isMobile ? 14 : 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    white,
+                                  ),
+                                ),
+                              )
+                              : Icon(
+                                Icons.check,
+                                color: white,
+                                size: isMobile ? 18 : 20,
+                              ),
+                      label: Text(
+                        _isProcessing ? 'Processing...' : 'Confirm',
+                        style: TextStyle(
+                          fontSize: isMobile ? 14 : 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: isMobile ? 12 : 16),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed:
+                          _isProcessing
+                              ? null
+                              : () => _handleVerification(
+                                verification['id'],
+                                false,
+                              ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red, width: 2),
+                        padding: EdgeInsets.symmetric(
+                          vertical: isMobile ? 14 : 16,
+                          horizontal: 16,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            isMobile ? 10 : 12,
+                          ),
+                        ),
+                      ),
+                      icon: Icon(
+                        Icons.close,
+                        color: Colors.red,
+                        size: isMobile ? 18 : 20,
+                      ),
+                      label: Text(
+                        'Dispute',
+                        style: TextStyle(
+                          fontSize: isMobile ? 14 : 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _isProcessing 
-                      ? null 
-                      : () => _handleVerification(verification['id'], false),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    side: const BorderSide(color: Colors.red, width: 2),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  icon: const Icon(Icons.close, color: Colors.red),
-                  label: const Text(
-                    'Dispute',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.red,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
