@@ -217,6 +217,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       'First Name',
       'Middle Name', 
       'Last Name',
+      'Suffix',
       'Full Name',
       'Email',
       'Contact Number',
@@ -293,7 +294,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
         final userIndex = users.indexWhere((item) => item['id'] == user['id']) + 1;
         final userId = "$userPrefix${userIndex.toString().padLeft(3, '0')}";
         
-        final fullName = "${user['fname'] ?? ''} ${user['mname'] ?? ''} ${user['lname'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
+        final fullName = "${user['fname'] ?? ''} ${user['mname'] ?? ''} ${user['lname'] ?? ''} ${user['suffix'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
         final formattedCreatedAt = user['created_at'] != null
             ? DateTime.parse(user['created_at'].toString()).toLocal().toString().split('.')[0]
             : '';
@@ -306,6 +307,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
           user['fname']?.toString() ?? '',
           user['mname']?.toString() ?? '',
           user['lname']?.toString() ?? '',
+          user['suffix']?.toString() ?? '',
           fullName,
           user['email']?.toString() ?? '',
           user['contact_number']?.toString() ?? '',
@@ -381,7 +383,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
         final userIndex = users.indexWhere((item) => item['id'] == user['id']) + 1;
         final userId = "$userPrefix${userIndex.toString().padLeft(3, '0')}";
         
-        final fullName = "${user['fname'] ?? ''} ${user['mname'] ?? ''} ${user['lname'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
+        final fullName = "${user['fname'] ?? ''} ${user['mname'] ?? ''} ${user['lname'] ?? ''} ${user['suffix'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
         final formattedCreatedAt = user['created_at'] != null
             ? DateTime.parse(user['created_at'].toString()).toLocal().toString().split('.')[0]
             : '';
@@ -393,6 +395,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
           user['fname']?.toString() ?? '',
           user['mname']?.toString() ?? '',
           user['lname']?.toString() ?? '',
+          user['suffix']?.toString() ?? '',
           fullName,
           user['email']?.toString() ?? '',
           user['contact_number']?.toString() ?? '',
@@ -436,12 +439,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
     sheet.setColumnWidth(1, 15.0);  // First Name
     sheet.setColumnWidth(2, 15.0);  // Middle Name
     sheet.setColumnWidth(3, 15.0);  // Last Name
-    sheet.setColumnWidth(4, 25.0);  // Full Name
-    sheet.setColumnWidth(5, 30.0);  // Email
-    sheet.setColumnWidth(6, 15.0);  // Contact Number
-    sheet.setColumnWidth(7, 20.0);  // Position
-    sheet.setColumnWidth(8, 10.0);  // Status
-    sheet.setColumnWidth(9, 20.0);  // Account Created
+    sheet.setColumnWidth(4, 10.0);  // Suffix
+    sheet.setColumnWidth(5, 25.0);  // Full Name
+    sheet.setColumnWidth(6, 30.0);  // Email
+    sheet.setColumnWidth(7, 15.0);  // Contact Number
+    sheet.setColumnWidth(8, 20.0);  // Position
+    sheet.setColumnWidth(9, 10.0);  // Status
+    sheet.setColumnWidth(10, 20.0); // Account Created
   }
 
   // Create the Summary sheet
@@ -566,6 +570,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     required String fname,
     String? mname,
     required String lname,
+    String? suffix,
     String? contactNumber,
     String? position,
     String? profileImageUrl,
@@ -579,6 +584,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
           'fname': fname,
           'mname': mname,
           'lname': lname,
+          'suffix': suffix,
           'contact_number': contactNumber,
           'position': position,
           'profile_image_url': profileImageUrl,
@@ -607,6 +613,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     required String fname,
     String? mname,
     required String lname,
+    String? suffix,
     String? contactNumber,
     String? position,
     String? profileImageUrl,
@@ -621,6 +628,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
           'fname': fname,
           'mname': mname,
           'lname': lname,
+          'suffix': suffix,
           'contact_number': contactNumber,
           'position': position,
           'profile_image_url': profileImageUrl,
@@ -736,6 +744,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
     final lnameController = TextEditingController(
       text: user?['lname']?.toString() ?? '',
+    );
+    final suffixController = TextEditingController(
+      text: user?['suffix']?.toString() ?? '',
     );
     final emailController = TextEditingController(
       text: user?['email']?.toString() ?? '',
@@ -937,6 +948,17 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   }
                                   return null;
                                 },
+                                textCapitalization: TextCapitalization.words,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: suffixController,
+                                decoration: _buildCompactInputDecoration(
+                                  'Suffix',
+                                  Icons.person_2,
+                                ),
                                 textCapitalization: TextCapitalization.words,
                               ),
                             ),
@@ -1440,6 +1462,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                       ? null
                                       : mnameController.text.trim(),
                               lname: lnameController.text.trim(),
+                              suffix:
+                                  suffixController.text.trim().isEmpty
+                                      ? null
+                                      : suffixController.text.trim(),
                               contactNumber:
                                   contactController.text.trim().isEmpty
                                       ? null
@@ -1522,6 +1548,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                       ? null
                                       : mnameController.text.trim(),
                               lname: lnameController.text.trim(),
+                              suffix:
+                                  suffixController.text.trim().isEmpty
+                                      ? null
+                                      : suffixController.text.trim(),
                               contactNumber:
                                   contactController.text.trim().isEmpty
                                       ? null
@@ -1551,6 +1581,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                       ? null
                                       : mnameController.text.trim(),
                               lname: lnameController.text.trim(),
+                              suffix:
+                                  suffixController.text.trim().isEmpty
+                                      ? null
+                                      : suffixController.text.trim(),
                               contactNumber:
                                   contactController.text.trim().isEmpty
                                       ? null
@@ -1580,6 +1614,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                       ? null
                                       : mnameController.text.trim(),
                               lname: lnameController.text.trim(),
+                              suffix:
+                                  suffixController.text.trim().isEmpty
+                                      ? null
+                                      : suffixController.text.trim(),
                               contactNumber:
                                   contactController.text.trim().isEmpty
                                       ? null
@@ -1681,6 +1719,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     fnameController.dispose();
     mnameController.dispose();
     lnameController.dispose();
+    suffixController.dispose();
     emailController.dispose();
     contactController.dispose();
     positionController.dispose();
@@ -2353,7 +2392,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 final String userId =
                                     "$userPrefix${userIndex.toString().padLeft(3, '0')}";
                                 final fullName =
-                                    "${u['fname'] ?? ''} ${u['lname'] ?? ''}";
+                                    "${u['fname'] ?? ''} ${u['lname'] ?? ''} ${u['suffix'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
                                 final status = u['status'] ?? 'Active';
 
                                 return TableRow(
