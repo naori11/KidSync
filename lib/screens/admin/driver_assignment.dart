@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:excel/excel.dart' as excel_lib;
+import 'dart:html' as html;
 import 'dart:math' as math;
 
 class DriverAssignmentPage extends StatefulWidget {
@@ -66,7 +68,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
             students!inner(id, fname, mname, lname, grade_level, address, section_id,
               sections(name, grade_level)
             ),
-            users!inner(id, fname, mname, lname, contact_number)
+            users!inner(id, fname, mname, lname, contact_number, email)
           ''')
           .order('created_at', ascending: false);
 
@@ -571,14 +573,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                         vertical: 10,
                       ),
                     ),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Export functionality coming soon...'),
-                          backgroundColor: Colors.orange,
-                        ),
-                      );
-                    },
+                    onPressed: _exportDriverAssignments,
                   ),
                 ),
               ],
@@ -2186,6 +2181,991 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
     } finally {
       setState(() => isLoading = false);
     }
+  }
+
+  // Export driver assignments functionality
+  Future<void> _exportDriverAssignments() async {
+    try {
+      if (assignments.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No driver assignments available to export'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) => const AlertDialog(
+              content: Row(
+                children: [
+                  CircularProgressIndicator(color: Color(0xFF2ECC71)),
+                  SizedBox(width: 16),
+                  Text('Exporting driver assignments...'),
+                ],
+              ),
+            ),
+      );
+
+      // Apply current filters to determine which assignments to export
+      List<Map<String, dynamic>> assignmentsToExport =
+          _getFilteredAssignments();
+
+      // Sort assignments by student name (A-Z) for consistent output
+      assignmentsToExport.sort((a, b) {
+        final studentA = a['students'];
+        final studentB = b['students'];
+        final nameA = '${studentA['fname']} ${studentA['lname']}';
+        final nameB = '${studentB['fname']} ${studentB['lname']}';
+        return nameA.compareTo(nameB);
+      });
+
+      // Create Excel workbook
+      var excel = excel_lib.Excel.createExcel();
+
+      // Create main Driver Assignments sheet
+      var assignmentsSheet = excel['Driver_Assignments'];
+      await _createDriverAssignmentsSheet(
+        assignmentsSheet,
+        assignmentsToExport,
+      );
+
+      // Create Summary sheet
+      var summarySheet = excel['Summary'];
+      await _createDriverAssignmentsSummarySheet(
+        summarySheet,
+        assignmentsToExport,
+      );
+
+      // Clean up: Remove any default sheets
+      final defaultSheetNames = ['Sheet1', 'Sheet', 'Worksheet'];
+      for (String defaultName in defaultSheetNames) {
+        if (excel.sheets.containsKey(defaultName)) {
+          excel.delete(defaultName);
+        }
+      }
+
+      // Set Driver_Assignments as the default sheet
+      excel.setDefaultSheet('Driver_Assignments');
+
+      // Generate and download file
+      List<int>? fileBytes = excel.encode();
+      if (fileBytes == null) {
+        throw Exception('Failed to generate Excel file');
+      }
+
+      final timestamp = DateTime.now().toIso8601String().split('T')[0];
+      final fileName = 'Driver_Assignments_Export_${timestamp}.xlsx';
+
+      // Download file
+      final blob = html.Blob([
+        fileBytes,
+      ], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor =
+          html.AnchorElement(href: url)
+            ..setAttribute('download', fileName)
+            ..style.display = 'none';
+
+      html.document.body?.children.add(anchor);
+      anchor.click();
+      html.document.body?.children.remove(anchor);
+      html.Url.revokeObjectUrl(url);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Driver assignments exported successfully: $fileName',
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if still open
+      if (mounted) Navigator.of(context).pop();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  // Create the main Driver Assignments sheet organized by driver
+  Future<void> _createDriverAssignmentsSheet(
+    excel_lib.Sheet sheet,
+    List<Map<String, dynamic>> assignmentsData,
+  ) async {
+    int rowIndex = 0;
+
+    // Get current user info
+    final user = supabase.auth.currentUser;
+    final userName =
+        user?.userMetadata?['fname'] != null &&
+                user?.userMetadata?['lname'] != null
+            ? '${user?.userMetadata?['fname']} ${user?.userMetadata?['lname']}'
+            : user?.email ?? 'Unknown User';
+
+    // Track all column widths for auto-adjustment
+    List<int> columnWidths = List.filled(
+      6,
+      10,
+    ); // Minimum width of 10 for 6 columns
+
+    // Add title
+    var titleCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    titleCell.value = excel_lib.TextCellValue('DRIVER ASSIGNMENTS DATA EXPORT');
+    titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
+
+    // Update column width for title
+    if ('DRIVER ASSIGNMENTS DATA EXPORT'.length > columnWidths[0]) {
+      columnWidths[0] = 'DRIVER ASSIGNMENTS DATA EXPORT'.length;
+    }
+
+    rowIndex += 2;
+
+    // Add export info
+    var dateCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    dateCell.value = excel_lib.TextCellValue('Export Date:');
+    dateCell.cellStyle = excel_lib.CellStyle(bold: true);
+
+    var dateValueCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex),
+    );
+    dateValueCell.value = excel_lib.TextCellValue(
+      DateTime.now().toLocal().toString().split('.')[0],
+    );
+    
+    rowIndex++; // Move to next row for Generated By
+
+    var generatedByCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    generatedByCell.value = excel_lib.TextCellValue('Generated By:');
+    generatedByCell.cellStyle = excel_lib.CellStyle(bold: true);
+
+    var generatedByValueCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex),
+    );
+    generatedByValueCell.value = excel_lib.TextCellValue(userName);
+    rowIndex++;
+
+    // Update column widths
+    if ('Export Date:'.length > columnWidths[0])
+      columnWidths[0] = 'Export Date:'.length;
+    if ('Generated By:'.length > columnWidths[0])
+      columnWidths[0] = 'Generated By:'.length;
+    if (DateTime.now().toLocal().toString().split('.')[0].length >
+        columnWidths[1]) {
+      columnWidths[1] =
+          DateTime.now().toLocal().toString().split('.')[0].length;
+    }
+    if (userName.length > columnWidths[1]) {
+      columnWidths[1] = userName.length;
+    }
+
+    rowIndex += 3;
+
+    // Group assignments by driver
+    Map<String, List<Map<String, dynamic>>> assignmentsByDriver = {};
+    Map<String, Map<String, dynamic>> driverInfo = {};
+
+    for (final assignment in assignmentsData) {
+      final driver = assignment['users'];
+      final driverId = driver['id'].toString();
+
+      if (!assignmentsByDriver.containsKey(driverId)) {
+        assignmentsByDriver[driverId] = [];
+        driverInfo[driverId] = driver;
+      }
+      assignmentsByDriver[driverId]!.add(assignment);
+    }
+
+    // Sort drivers by name
+    final sortedDriverIds =
+        assignmentsByDriver.keys.toList()..sort((a, b) {
+          final driverA = driverInfo[a]!;
+          final driverB = driverInfo[b]!;
+          final nameA =
+              '${driverA['fname'] ?? ''} ${driverA['lname'] ?? ''}'.trim();
+          final nameB =
+              '${driverB['fname'] ?? ''} ${driverB['lname'] ?? ''}'.trim();
+          return nameA.compareTo(nameB);
+        });
+
+    // Process each driver
+    for (
+      int driverIndex = 0;
+      driverIndex < sortedDriverIds.length;
+      driverIndex++
+    ) {
+      final driverId = sortedDriverIds[driverIndex];
+      final driver = driverInfo[driverId]!;
+      final driverAssignments = assignmentsByDriver[driverId]!;
+
+      // Generate driver user ID
+      final globalDriverIndex =
+          drivers.indexWhere((d) => d['id'] == driver['id']) + 1;
+      final driverUserId = "DRV${globalDriverIndex.toString().padLeft(3, '0')}";
+
+      // Driver header section
+      var driverHeaderCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
+      driverHeaderCell.value = excel_lib.TextCellValue(
+        'DRIVER ${driverIndex + 1}',
+      );
+      driverHeaderCell.cellStyle = excel_lib.CellStyle(
+        bold: true,
+        fontSize: 16,
+        leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thick),
+        topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thick),
+        rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thick),
+        bottomBorder: excel_lib.Border(
+          borderStyle: excel_lib.BorderStyle.Thick,
+        ),
+      );
+
+      // Update column width for driver header
+      if ('DRIVER ${driverIndex + 1}'.length > columnWidths[0]) {
+        columnWidths[0] = 'DRIVER ${driverIndex + 1}'.length;
+      }
+
+      // Merge cells for driver header
+      sheet.merge(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 5,
+          rowIndex: rowIndex,
+        ),
+      );
+      rowIndex++;
+
+      final driverDetails = [
+        ['Driver ID:', driverUserId],
+        ['First Name:', driver['fname'] ?? ''],
+        [
+          'Middle Name:',
+          '',
+        ], // Middle Name field (blank since not in schema yet)
+        ['Last Name:', driver['lname'] ?? ''],
+        ['Suffix:', ''], // Suffix field (blank since not in schema yet)
+        ['Email:', driver['email'] ?? 'N/A'],
+        ['Contact Number:', driver['contact_number'] ?? ''],
+        ['Total Assignments:', driverAssignments.length.toString()],
+      ];
+
+      for (final detail in driverDetails) {
+        var labelCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: 0,
+            rowIndex: rowIndex,
+          ),
+        );
+        labelCell.value = excel_lib.TextCellValue(detail[0]);
+        labelCell.cellStyle = excel_lib.CellStyle(
+          bold: true,
+          leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+        );
+
+        var valueCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: 1,
+            rowIndex: rowIndex,
+          ),
+        );
+        valueCell.value = excel_lib.TextCellValue(detail[1]);
+        valueCell.cellStyle = excel_lib.CellStyle(
+          leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+        );
+
+        // Update column widths
+        if (detail[0].length > columnWidths[0])
+          columnWidths[0] = detail[0].length;
+        if (detail[1].length > columnWidths[1])
+          columnWidths[1] = detail[1].length;
+
+        rowIndex++;
+      }
+
+      rowIndex++; // Add space before students
+
+      // Students assigned to this driver header
+      var studentsHeaderCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
+      studentsHeaderCell.value = excel_lib.TextCellValue('ASSIGNED STUDENTS');
+      studentsHeaderCell.cellStyle = excel_lib.CellStyle(
+        bold: true,
+        fontSize: 14,
+        leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Medium),
+        topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Medium),
+        rightBorder: excel_lib.Border(
+          borderStyle: excel_lib.BorderStyle.Medium,
+        ),
+        bottomBorder: excel_lib.Border(
+          borderStyle: excel_lib.BorderStyle.Medium,
+        ),
+      );
+
+      // Update column width for students header
+      if ('ASSIGNED STUDENTS'.length > columnWidths[0]) {
+        columnWidths[0] = 'ASSIGNED STUDENTS'.length;
+      }
+
+      // Merge cells for students header
+      sheet.merge(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 5,
+          rowIndex: rowIndex,
+        ),
+      );
+      rowIndex++;
+
+      // Sort students by name within this driver's assignments
+      driverAssignments.sort((a, b) {
+        final studentA = a['students'];
+        final studentB = b['students'];
+        final nameA = '${studentA['fname']} ${studentA['lname']}';
+        final nameB = '${studentB['fname']} ${studentB['lname']}';
+        return nameA.compareTo(nameB);
+      });
+
+      // Process each student assignment for this driver
+      for (
+        int studentIndex = 0;
+        studentIndex < driverAssignments.length;
+        studentIndex++
+      ) {
+        final assignment = driverAssignments[studentIndex];
+        final student = assignment['students'];
+        final section = student['sections'];
+
+        // Generate IDs
+        final globalStudentIndex =
+            students.indexWhere((s) => s['id'] == student['id']) + 1;
+        final studentId = "STU${globalStudentIndex.toString().padLeft(3, '0')}";
+
+        // Student header
+        var studentHeaderCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: 0,
+            rowIndex: rowIndex,
+          ),
+        );
+        studentHeaderCell.value = excel_lib.TextCellValue(
+          'Student ${studentIndex + 1}',
+        );
+        studentHeaderCell.cellStyle = excel_lib.CellStyle(
+          bold: true,
+          leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+        );
+
+        // Student basic info
+        final sectionName =
+            section != null ? section['name'] ?? 'No Section' : 'No Section';
+
+        // Student information in columns 0-1
+        final studentInfo = [
+          ['Student ID:', studentId],
+          ['First Name:', student['fname'] ?? ''],
+          [
+            'Middle Name:',
+            '',
+          ], // Middle Name field (blank since not in schema yet)
+          ['Last Name:', student['lname'] ?? ''],
+          ['Suffix:', ''], // Suffix field (blank since not in schema yet)
+          ['Grade Level:', student['grade_level'] ?? ''],
+          ['Section:', sectionName],
+        ];
+
+        // Assignment information in columns 2-3
+        final scheduleDaysStr = _formatScheduleDaysForExport(
+          assignment['schedule_days'],
+        );
+
+        // Format assignment date (date only, no time)
+        String assignmentDate = 'N/A';
+        if (assignment['created_at'] != null) {
+          try {
+            DateTime dateTime = DateTime.parse(assignment['created_at']);
+            assignmentDate =
+                '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')}';
+          } catch (e) {
+            assignmentDate = 'N/A';
+          }
+        }
+
+        final assignmentInfo = [
+          ['Assignment Date:', assignmentDate],
+          ['Pickup Time:', _displayTime(assignment['pickup_time'])],
+          ['Dropoff Time:', _displayTime(assignment['dropoff_time'])],
+          ['Pickup Address:', assignment['pickup_address'] ?? ''],
+          ['Schedule Days:', scheduleDaysStr],
+          ['Status:', assignment['status'] ?? ''],
+          ['Notes:', assignment['notes'] ?? ''],
+        ];
+
+        // Update column widths for student and assignment info
+        for (final info in studentInfo) {
+          if (info[0].length > columnWidths[0])
+            columnWidths[0] = info[0].length;
+          if (info[1].length > columnWidths[1])
+            columnWidths[1] = info[1].length;
+        }
+        for (final info in assignmentInfo) {
+          if (info[0].length > columnWidths[2])
+            columnWidths[2] = info[0].length;
+          if (info[1].length > columnWidths[3])
+            columnWidths[3] = info[1].length;
+        }
+
+        // Fill student and assignment data side by side
+        int maxRows = math.max(studentInfo.length, assignmentInfo.length);
+        int currentRow = rowIndex;
+
+        for (int i = 0; i < maxRows; i++) {
+          // Student info (columns 0-1)
+          if (i < studentInfo.length) {
+            var studentLabelCell = sheet.cell(
+              excel_lib.CellIndex.indexByColumnRow(
+                columnIndex: 0,
+                rowIndex: currentRow,
+              ),
+            );
+            studentLabelCell.value = excel_lib.TextCellValue(studentInfo[i][0]);
+            studentLabelCell.cellStyle = excel_lib.CellStyle(
+              bold: true,
+              leftBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+              topBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+              rightBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+              bottomBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+            );
+
+            var studentValueCell = sheet.cell(
+              excel_lib.CellIndex.indexByColumnRow(
+                columnIndex: 1,
+                rowIndex: currentRow,
+              ),
+            );
+            studentValueCell.value = excel_lib.TextCellValue(studentInfo[i][1]);
+            studentValueCell.cellStyle = excel_lib.CellStyle(
+              leftBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+              topBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+              rightBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+              bottomBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+            );
+          }
+
+          // Assignment info (columns 2-3)
+          if (i < assignmentInfo.length) {
+            var assignmentLabelCell = sheet.cell(
+              excel_lib.CellIndex.indexByColumnRow(
+                columnIndex: 2,
+                rowIndex: currentRow,
+              ),
+            );
+            assignmentLabelCell.value = excel_lib.TextCellValue(
+              assignmentInfo[i][0],
+            );
+            assignmentLabelCell.cellStyle = excel_lib.CellStyle(
+              bold: true,
+              leftBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+              topBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+              rightBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+              bottomBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+            );
+
+            var assignmentValueCell = sheet.cell(
+              excel_lib.CellIndex.indexByColumnRow(
+                columnIndex: 3,
+                rowIndex: currentRow,
+              ),
+            );
+            assignmentValueCell.value = excel_lib.TextCellValue(
+              assignmentInfo[i][1],
+            );
+            assignmentValueCell.cellStyle = excel_lib.CellStyle(
+              leftBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+              topBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+              rightBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+              bottomBorder: excel_lib.Border(
+                borderStyle: excel_lib.BorderStyle.Thin,
+              ),
+            );
+          }
+
+          currentRow++;
+        }
+
+        rowIndex = currentRow + 1; // Add space between students
+      }
+
+      rowIndex += 2; // Add extra space between drivers
+    }
+
+    // Apply auto-adjusted column widths with padding and constraints
+    for (int col = 0; col < columnWidths.length; col++) {
+      final width = (columnWidths[col] + 2).clamp(
+        10,
+        50,
+      ); // Min 10, Max 50, with 2 padding
+      sheet.setColumnWidth(col, width.toDouble());
+    }
+  }
+
+  // Create the Summary sheet
+  Future<void> _createDriverAssignmentsSummarySheet(
+    excel_lib.Sheet sheet,
+    List<Map<String, dynamic>> assignmentsData,
+  ) async {
+    int rowIndex = 0;
+
+    // Add title
+    var titleCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    titleCell.value = excel_lib.TextCellValue(
+      'DRIVER ASSIGNMENTS SUMMARY REPORT',
+    );
+    titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
+    rowIndex += 2;
+
+    // Add export info
+    var dateCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    dateCell.value = excel_lib.TextCellValue('Export Date:');
+    dateCell.cellStyle = excel_lib.CellStyle(bold: true);
+
+    var dateValueCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex),
+    );
+    dateValueCell.value = excel_lib.TextCellValue(
+      DateTime.now().toLocal().toString().split('.')[0],
+    );
+    rowIndex += 2;
+
+    // Calculate statistics
+    final totalAssignments = assignmentsData.length;
+    final activeAssignments =
+        assignmentsData.where((a) => a['status'] == 'active').length;
+    final pendingAssignments =
+        assignmentsData.where((a) => a['status'] == 'pending').length;
+    final inactiveAssignments =
+        assignmentsData.where((a) => a['status'] == 'inactive').length;
+
+    // Get unique drivers and students from assignments
+    final uniqueDriverIds = assignmentsData.map((a) => a['driver_id']).toSet();
+    final uniqueStudentIds =
+        assignmentsData.map((a) => a['student_id']).toSet();
+    final driversWithAssignments = uniqueDriverIds.length;
+    final studentsWithAssignments = uniqueStudentIds.length;
+
+    // Statistics section
+    final stats = [
+      ['Total Assignments:', totalAssignments.toString()],
+      ['Active Assignments:', activeAssignments.toString()],
+      ['Pending Assignments:', pendingAssignments.toString()],
+      ['Inactive Assignments:', inactiveAssignments.toString()],
+      ['Drivers with Assignments:', driversWithAssignments.toString()],
+      ['Students with Assignments:', studentsWithAssignments.toString()],
+      [
+        'Average Assignments per Driver:',
+        driversWithAssignments > 0
+            ? (totalAssignments / driversWithAssignments).toStringAsFixed(1)
+            : '0',
+      ],
+    ];
+
+    // Calculate column widths for statistics
+    int maxLabelWidth = 0;
+    int maxValueWidth = 0;
+
+    for (final stat in stats) {
+      if (stat[0].length > maxLabelWidth) maxLabelWidth = stat[0].length;
+      if (stat[1].length > maxValueWidth) maxValueWidth = stat[1].length;
+    }
+
+    // Set column widths for statistics (add padding)
+    sheet.setColumnWidth(0, (maxLabelWidth + 2).toDouble());
+    sheet.setColumnWidth(1, (maxValueWidth + 2).toDouble());
+
+    for (final stat in stats) {
+      var labelCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
+      labelCell.value = excel_lib.TextCellValue(stat[0]);
+      labelCell.cellStyle = excel_lib.CellStyle(bold: true);
+
+      var valueCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
+      valueCell.value = excel_lib.TextCellValue(stat[1]);
+
+      rowIndex++;
+    }
+
+    rowIndex += 2;
+
+    // Status breakdown table
+    var statusHeaderCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    statusHeaderCell.value = excel_lib.TextCellValue('STATUS BREAKDOWN');
+    statusHeaderCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 14);
+    rowIndex += 2;
+
+    // Status table headers
+    final statusHeaders = ['Status', 'Count', 'Percentage'];
+
+    // Status data for width calculation
+    final statusBreakdown = [
+      [
+        'Active',
+        activeAssignments.toString(),
+        totalAssignments > 0
+            ? '${((activeAssignments / totalAssignments) * 100).toStringAsFixed(1)}%'
+            : '0%',
+      ],
+      [
+        'Pending',
+        pendingAssignments.toString(),
+        totalAssignments > 0
+            ? '${((pendingAssignments / totalAssignments) * 100).toStringAsFixed(1)}%'
+            : '0%',
+      ],
+      [
+        'Inactive',
+        inactiveAssignments.toString(),
+        totalAssignments > 0
+            ? '${((inactiveAssignments / totalAssignments) * 100).toStringAsFixed(1)}%'
+            : '0%',
+      ],
+    ];
+
+    // Calculate column widths for status table
+    List<int> statusColumnWidths = List.filled(statusHeaders.length, 0);
+
+    // Check header widths
+    for (int col = 0; col < statusHeaders.length; col++) {
+      statusColumnWidths[col] = statusHeaders[col].length;
+    }
+
+    // Check data widths
+    for (final statusRow in statusBreakdown) {
+      for (int col = 0; col < statusRow.length; col++) {
+        if (statusRow[col].length > statusColumnWidths[col]) {
+          statusColumnWidths[col] = statusRow[col].length;
+        }
+      }
+    }
+
+    // Set column widths for status table (starting from column 0, add padding)
+    for (int col = 0; col < statusColumnWidths.length; col++) {
+      final width = (statusColumnWidths[col] + 2).clamp(8, 30);
+      sheet.setColumnWidth(col, width.toDouble());
+    }
+
+    // Status table headers
+    for (int col = 0; col < statusHeaders.length; col++) {
+      var headerCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: col,
+          rowIndex: rowIndex,
+        ),
+      );
+      headerCell.value = excel_lib.TextCellValue(statusHeaders[col]);
+      headerCell.cellStyle = excel_lib.CellStyle(
+        bold: true,
+        leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+      );
+    }
+    rowIndex++;
+
+    // Status data rows
+    for (final statusRow in statusBreakdown) {
+      for (int col = 0; col < statusRow.length; col++) {
+        var cell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: col,
+            rowIndex: rowIndex,
+          ),
+        );
+        cell.value = excel_lib.TextCellValue(statusRow[col]);
+        cell.cellStyle = excel_lib.CellStyle(
+          leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+        );
+      }
+      rowIndex++;
+    }
+
+    rowIndex += 3;
+
+    // Driver breakdown section
+    var driverBreakdownHeader = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    driverBreakdownHeader.value = excel_lib.TextCellValue(
+      'ASSIGNMENTS BY DRIVER',
+    );
+    driverBreakdownHeader.cellStyle = excel_lib.CellStyle(
+      bold: true,
+      fontSize: 14,
+    );
+    rowIndex += 2;
+
+    // Group assignments by driver for breakdown
+    Map<String, List<Map<String, dynamic>>> assignmentsByDriver = {};
+    Map<String, Map<String, dynamic>> driverInfo = {};
+
+    for (final assignment in assignmentsData) {
+      final driver = assignment['users'];
+      final driverId = driver['id'].toString();
+
+      if (!assignmentsByDriver.containsKey(driverId)) {
+        assignmentsByDriver[driverId] = [];
+        driverInfo[driverId] = driver;
+      }
+      assignmentsByDriver[driverId]!.add(assignment);
+    }
+
+    // Driver breakdown table headers
+    final driverHeaders = [
+      'Driver Name',
+      'Driver Email',
+      'Total Students',
+      'Active',
+      'Pending',
+      'Inactive',
+    ];
+
+    // Set column widths for driver table
+    sheet.setColumnWidth(0, 25.0); // Driver Name
+    sheet.setColumnWidth(1, 30.0); // Driver Email
+    sheet.setColumnWidth(2, 15.0); // Total Students
+    sheet.setColumnWidth(3, 10.0); // Active
+    sheet.setColumnWidth(4, 10.0); // Pending
+    sheet.setColumnWidth(5, 10.0); // Inactive
+
+    // Driver table headers
+    for (int col = 0; col < driverHeaders.length; col++) {
+      var headerCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: col,
+          rowIndex: rowIndex,
+        ),
+      );
+      headerCell.value = excel_lib.TextCellValue(driverHeaders[col]);
+      headerCell.cellStyle = excel_lib.CellStyle(
+        bold: true,
+        leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+        bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+      );
+    }
+    rowIndex++;
+
+    // Sort drivers by name for consistent output
+    final sortedDriverIds =
+        assignmentsByDriver.keys.toList()..sort((a, b) {
+          final driverA = driverInfo[a]!;
+          final driverB = driverInfo[b]!;
+          final nameA =
+              '${driverA['fname'] ?? ''} ${driverA['lname'] ?? ''}'.trim();
+          final nameB =
+              '${driverB['fname'] ?? ''} ${driverB['lname'] ?? ''}'.trim();
+          return nameA.compareTo(nameB);
+        });
+
+    // Driver data rows
+    for (final driverId in sortedDriverIds) {
+      final driver = driverInfo[driverId]!;
+      final driverAssignments = assignmentsByDriver[driverId]!;
+
+      final driverName =
+          '${driver['fname'] ?? ''} ${driver['lname'] ?? ''}'.trim();
+      final driverEmail = driver['email'] ?? '';
+      final totalStudents = driverAssignments.length;
+      final activeCount =
+          driverAssignments.where((a) => a['status'] == 'active').length;
+      final pendingCount =
+          driverAssignments.where((a) => a['status'] == 'pending').length;
+      final inactiveCount =
+          driverAssignments.where((a) => a['status'] == 'inactive').length;
+
+      final driverRowData = [
+        driverName,
+        driverEmail,
+        totalStudents.toString(),
+        activeCount.toString(),
+        pendingCount.toString(),
+        inactiveCount.toString(),
+      ];
+
+      for (int col = 0; col < driverRowData.length; col++) {
+        var cell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: col,
+            rowIndex: rowIndex,
+          ),
+        );
+        cell.value = excel_lib.TextCellValue(driverRowData[col]);
+        cell.cellStyle = excel_lib.CellStyle(
+          leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+        );
+      }
+      rowIndex++;
+    }
+  }
+
+  // Helper method to format schedule days for export
+  String _formatScheduleDaysForExport(dynamic scheduleDays) {
+    if (scheduleDays == null) return '';
+
+    if (scheduleDays is List) {
+      return scheduleDays.cast<String>().join(', ');
+    } else if (scheduleDays is String) {
+      // Handle different possible formats
+      if (scheduleDays.startsWith('[') && scheduleDays.endsWith(']')) {
+        // JSON array format: ["Monday", "Tuesday"]
+        final cleanDays = scheduleDays
+            .substring(1, scheduleDays.length - 1)
+            .split(',')
+            .map((day) => day.trim().replaceAll('"', ''))
+            .where((day) => day.isNotEmpty)
+            .join(', ');
+        return cleanDays;
+      } else if (scheduleDays.startsWith('{') && scheduleDays.endsWith('}')) {
+        // PostgreSQL array format: {Monday,Tuesday}
+        final cleanDays = scheduleDays
+            .substring(1, scheduleDays.length - 1)
+            .split(',')
+            .map((day) => day.trim())
+            .where((day) => day.isNotEmpty)
+            .join(', ');
+        return cleanDays;
+      } else {
+        // Comma-separated format: "Monday,Tuesday,Wednesday"
+        return scheduleDays
+            .split(',')
+            .map((day) => day.trim())
+            .where((day) => day.isNotEmpty)
+            .join(', ');
+      }
+    }
+
+    return scheduleDays.toString();
   }
 
   void _showSuccessSnackBar(String message) {
