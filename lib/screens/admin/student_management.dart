@@ -533,6 +533,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     final lnameController = TextEditingController(
       text: student?['lname']?.toString() ?? '',
     );
+    final suffixController = TextEditingController(
+      text: student?['suffix']?.toString() ?? '',
+    );
     final addressController = TextEditingController(
       text: student?['address']?.toString() ?? '',
     );
@@ -681,6 +684,17 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   }
                                   return null;
                                 },
+                                textCapitalization: TextCapitalization.words,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: suffixController,
+                                decoration: _buildInputDecoration(
+                                  'Suffix',
+                                  Icons.person_pin,
+                                ),
                                 textCapitalization: TextCapitalization.words,
                               ),
                             ),
@@ -1473,6 +1487,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                     ? null
                                     : mnameController.text.trim(),
                             'lname': lnameController.text.trim(),
+                            'suffix':
+                                suffixController.text.trim().isEmpty
+                                    ? null
+                                    : suffixController.text.trim(),
                             'gender': selectedGender,
                             'address': addressController.text.trim(),
                             'birthday':
@@ -1545,6 +1563,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   ? null
                                   : mnameController.text.trim(),
                           'lname': lnameController.text.trim(),
+                          'suffix':
+                              suffixController.text.trim().isEmpty
+                                  ? null
+                                  : suffixController.text.trim(),
                           'gender': selectedGender,
                           'address': addressController.text.trim(),
                           'birthday':
@@ -1671,6 +1693,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     fnameController.dispose();
     mnameController.dispose();
     lnameController.dispose();
+    suffixController.dispose();
     addressController.dispose();
     birthdayController.dispose();
   }
@@ -2251,6 +2274,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       'First Name',
       'Middle Name',
       'Last Name',
+      'Suffix',
       'Gender',
       'Birthday',
       'Grade Level',
@@ -2361,6 +2385,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         student['fname']?.toString() ?? '',
         student['mname']?.toString() ?? '',
         student['lname']?.toString() ?? '',
+        student['suffix']?.toString() ?? '',
         student['gender']?.toString() ?? '',
         formattedBirthday,
         student['grade_level']?.toString() ?? '',
@@ -2835,7 +2860,12 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     // Apply filters
     var filteredStudents =
         students.where((s) {
-          final name = "${s['fname']} ${s['lname']}".toLowerCase();
+          final String fname = s['fname'] ?? '';
+          final String lname = s['lname'] ?? '';
+          final String suffix = s['suffix'] ?? '';
+          final name = suffix.isNotEmpty 
+              ? "$fname $lname $suffix" 
+              : "$fname $lname";
           final classMatch =
               _classFilter == 'All Classes' ||
               s['grade_level']?.toString() == _classFilter;
@@ -2843,7 +2873,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               _statusFilter == 'All Status' ||
               (s['status'] ?? 'Active') == _statusFilter;
 
-          return name.contains(_searchQuery.toLowerCase()) &&
+          return name.toLowerCase().contains(_searchQuery.toLowerCase()) &&
               classMatch &&
               statusMatch;
         }).toList();
@@ -2851,15 +2881,43 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     // Apply sorting
     if (_sortOption == 'Name (A-Z)') {
       filteredStudents.sort(
-        (a, b) => "${a['fname'] ?? ''} ${a['lname'] ?? ''}".compareTo(
-          "${b['fname'] ?? ''} ${b['lname'] ?? ''}",
-        ),
+        (a, b) {
+          final String aFname = a['fname'] ?? '';
+          final String aLname = a['lname'] ?? '';
+          final String aSuffix = a['suffix'] ?? '';
+          final String aFullName = aSuffix.isNotEmpty 
+              ? "$aFname $aLname $aSuffix" 
+              : "$aFname $aLname";
+          
+          final String bFname = b['fname'] ?? '';
+          final String bLname = b['lname'] ?? '';
+          final String bSuffix = b['suffix'] ?? '';
+          final String bFullName = bSuffix.isNotEmpty 
+              ? "$bFname $bLname $bSuffix" 
+              : "$bFname $bLname";
+              
+          return aFullName.compareTo(bFullName);
+        },
       );
     } else if (_sortOption == 'Name (Z-A)') {
       filteredStudents.sort(
-        (a, b) => "${b['fname'] ?? ''} ${b['lname'] ?? ''}".compareTo(
-          "${a['fname'] ?? ''} ${a['lname'] ?? ''}",
-        ),
+        (a, b) {
+          final String aFname = a['fname'] ?? '';
+          final String aLname = a['lname'] ?? '';
+          final String aSuffix = a['suffix'] ?? '';
+          final String aFullName = aSuffix.isNotEmpty 
+              ? "$aFname $aLname $aSuffix" 
+              : "$aFname $aLname";
+          
+          final String bFname = b['fname'] ?? '';
+          final String bLname = b['lname'] ?? '';
+          final String bSuffix = b['suffix'] ?? '';
+          final String bFullName = bSuffix.isNotEmpty 
+              ? "$bFname $bLname $bSuffix" 
+              : "$bFname $bLname";
+              
+          return bFullName.compareTo(aFullName);
+        },
       );
     } else if (_sortOption.contains('Date')) {
       filteredStudents.sort(
@@ -4005,8 +4063,12 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final student = currentPageItems[index];
-                final fullName =
-                    "${student['fname'] ?? ''} ${student['lname'] ?? ''}";
+                final String fname = student['fname'] ?? '';
+                final String lname = student['lname'] ?? '';
+                final String suffix = student['suffix'] ?? '';
+                final fullName = suffix.isNotEmpty 
+                    ? "$fname $lname $suffix" 
+                    : "$fname $lname";
                 final String studentId =
                     "STU${student['id'].toString().padLeft(3, '0')}";
                 final section = student['sections'];
@@ -4420,8 +4482,12 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
           // Table data rows
           ...currentPageItems.map((student) {
-            final fullName =
-                "${student['fname'] ?? ''} ${student['lname'] ?? ''}";
+            final String fname = student['fname'] ?? '';
+            final String lname = student['lname'] ?? '';
+            final String suffix = student['suffix'] ?? '';
+            final fullName = suffix.isNotEmpty 
+                ? "$fname $lname $suffix" 
+                : "$fname $lname";
             final String studentId =
                 "STU${student['id'].toString().padLeft(3, '0')}";
             final section = student['sections'];
