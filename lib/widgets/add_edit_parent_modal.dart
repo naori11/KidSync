@@ -27,6 +27,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
   final _fnameController = TextEditingController();
   final _mnameController = TextEditingController();
   final _lnameController = TextEditingController();
+  final _suffixController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
@@ -62,6 +63,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
       _fnameController.text = widget.parent!['first_name'] ?? '';
       _mnameController.text = widget.parent!['middle_name'] ?? '';
       _lnameController.text = widget.parent!['last_name'] ?? '';
+      _suffixController.text = widget.parent!['suffix'] ?? '';
       _emailController.text = widget.parent!['email'] ?? '';
       _phoneController.text = widget.parent!['phone'] ?? '';
       _addressController.text = widget.parent!['address'] ?? '';
@@ -95,6 +97,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
       _fnameController.text = data['fname']?.toString() ?? '';
       _mnameController.text = data['mname']?.toString() ?? '';
       _lnameController.text = data['lname']?.toString() ?? '';
+      _suffixController.text = data['suffix']?.toString() ?? '';
       _emailController.text = data['email']?.toString() ?? '';
       _phoneController.text = data['phone']?.toString() ?? '';
       _addressController.text = data['address']?.toString() ?? '';
@@ -213,6 +216,10 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
               ? null
               : _mnameController.text.trim(),
       'lname': _lnameController.text.trim(),
+      'suffix':
+          _suffixController.text.trim().isEmpty
+              ? null
+              : _suffixController.text.trim(),
       'email': _emailController.text.trim(),
       'phone': _phoneController.text.trim(),
       'address':
@@ -419,6 +426,15 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
                                                   val?.trim().isEmpty == true
                                                       ? 'Last name is required'
                                                       : null,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        flex: 1,
+                                        child: _buildTextField(
+                                          controller: _suffixController,
+                                          label: 'Suffix',
+                                          fieldKey: 'suffix', // NEW
                                         ),
                                       ),
                                     ],
@@ -1403,10 +1419,12 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
   }
 
   @override
+  @override
   void dispose() {
     _fnameController.dispose();
     _mnameController.dispose();
     _lnameController.dispose();
+    _suffixController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     _addressController.dispose();

@@ -44,6 +44,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
               fname,
               mname,
               lname,
+              suffix,
               email,
               contact_number,
               profile_image_url,
@@ -122,6 +123,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
           'first_name': userData?['fname'] ?? parentData['fname'],
           'middle_name': userData?['mname'] ?? parentData['mname'],
           'last_name': userData?['lname'] ?? parentData['lname'],
+          'suffix': userData?['suffix'] ?? '',
           'phone': userData?['contact_number'] ?? parentData['phone'],
           'email': userData?['email'] ?? parentData['email'],
           'address': parentData['address'], // This remains in parent table only
@@ -279,6 +281,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
             fname: result['fname'],
             mname: result['mname'],
             lname: result['lname'],
+            suffix: result['suffix'],
             email: result['email'],
             phone: result['phone'],
             address: result['address'],
@@ -292,6 +295,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
             fname: result['fname'],
             mname: result['mname'],
             lname: result['lname'],
+            suffix: result['suffix'],
             email: result['email'],
             phone: result['phone'],
             address: result['address'],
@@ -326,6 +330,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     required String fname,
     String? mname,
     required String lname,
+    String? suffix,
     required String email,
     required String phone,
     String? address,
@@ -482,6 +487,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
           'fname': fname.trim(),
           'mname': mname?.trim(),
           'lname': lname.trim(),
+          'suffix': suffix?.trim(),
           'contact_number': phone.trim(),
           'position': null,
         },
@@ -559,6 +565,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     required String fname,
     String? mname,
     required String lname,
+    String? suffix,
     required String email,
     required String phone,
     String? address,
@@ -576,6 +583,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
           'fname': fname,
           'mname': mname,
           'lname': lname,
+          'suffix': suffix,
           'contact_number': phone,
           'position': null,
         },
@@ -731,7 +739,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
       // Apply current filters to determine which parents to export
       final query = _searchQuery.trim().toLowerCase();
       List<Map<String, dynamic>> parentsToExport = parents.where((parent) {
-        final fullName = "${parent['first_name']} ${parent['last_name']}".toLowerCase();
+        final fullName = "${parent['first_name']} ${parent['last_name']} ${parent['suffix'] ?? ''}".trim().toLowerCase();
         final matchesName = fullName.contains(query);
         final status = (parent['status']?.toString() ?? '').toLowerCase();
         final matchesStatus = _statusFilter == 'All Status' || status == _statusFilter.toLowerCase();
@@ -849,6 +857,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
       'First Name',
       'Middle Name', 
       'Last Name',
+      'Suffix',
       'Full Name',
       'Email',
       'Contact Number',
@@ -874,7 +883,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
       final parentIndex = i + 1;
       final userId = "PAR${parentIndex.toString().padLeft(3, '0')}";
       
-      final fullName = "${parent['first_name'] ?? ''} ${parent['middle_name'] ?? ''} ${parent['last_name'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
+      final fullName = "${parent['first_name'] ?? ''} ${parent['middle_name'] ?? ''} ${parent['last_name'] ?? ''} ${parent['suffix'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
       final formattedCreatedAt = parent['created_at'] != null
           ? DateTime.parse(parent['created_at'].toString()).toLocal().toString().split('.')[0]
           : '';
@@ -884,6 +893,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
         parent['first_name'] ?? '',
         parent['middle_name'] ?? '',
         parent['last_name'] ?? '',
+        parent['suffix'] ?? '',
         fullName,
         parent['email'] ?? '',
         parent['phone'] ?? '',
@@ -930,7 +940,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
       final parentIndex = i + 1;
       final userId = "PAR${parentIndex.toString().padLeft(3, '0')}";
       
-      final fullName = "${parent['first_name'] ?? ''} ${parent['middle_name'] ?? ''} ${parent['last_name'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
+      final fullName = "${parent['first_name'] ?? ''} ${parent['middle_name'] ?? ''} ${parent['last_name'] ?? ''} ${parent['suffix'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
       final formattedCreatedAt = parent['created_at'] != null
           ? DateTime.parse(parent['created_at'].toString()).toLocal().toString().split('.')[0]
           : '';
@@ -940,6 +950,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
         parent['first_name'] ?? '',
         parent['middle_name'] ?? '',
         parent['last_name'] ?? '',
+        parent['suffix'] ?? '',
         fullName,
         parent['email'] ?? '',
         parent['phone'] ?? '',
@@ -1139,15 +1150,15 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     // Sorting
     if (_sortOption == 'Name (A-Z)') {
       filteredParents.sort(
-        (a, b) => ("${a['first_name']} ${a['last_name']}")
+        (a, b) => ("${a['first_name']} ${a['last_name']} ${a['suffix'] ?? ''}")
             .toLowerCase()
-            .compareTo(("${b['first_name']} ${b['last_name']}").toLowerCase()),
+            .compareTo(("${b['first_name']} ${b['last_name']} ${b['suffix'] ?? ''}").toLowerCase()),
       );
     } else if (_sortOption == 'Name (Z-A)') {
       filteredParents.sort(
-        (a, b) => ("${b['first_name']} ${b['last_name']}")
+        (a, b) => ("${b['first_name']} ${b['last_name']} ${b['suffix'] ?? ''}")
             .toLowerCase()
-            .compareTo(("${a['first_name']} ${a['last_name']}").toLowerCase()),
+            .compareTo(("${a['first_name']} ${a['last_name']} ${a['suffix'] ?? ''}").toLowerCase()),
       );
     } else if (_sortOption == 'Status') {
       filteredParents.sort(
@@ -1659,7 +1670,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
   }
 
   Widget _buildParentCard(Map<String, dynamic> parent) {
-    final fullName = "${parent['first_name']} ${parent['last_name']}";
+    final fullName = "${parent['first_name']} ${parent['last_name']} ${parent['suffix'] ?? ''}".trim();
     final initial = parent['first_name'][0].toUpperCase();
     final profileImageUrl = parent['profile_image_url'];
 
@@ -2150,7 +2161,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
   Widget _buildParentDetailModal() {
     final parent = _selectedParent!;
     final students = parent['students'] as List;
-    final fullName = "${parent['first_name']} ${parent['last_name']}";
+    final fullName = "${parent['first_name']} ${parent['last_name']} ${parent['suffix'] ?? ''}".trim();
     final initial = parent['first_name'][0].toUpperCase();
     final profileImageUrl = parent['profile_image_url'];
 
