@@ -194,13 +194,26 @@ class _TeacherSectionAttendanceSummaryPageState
     final monthLabel = DateFormat.yMMMM().format(selectedMonth);
     final todayLabel = DateFormat.yMMMd().format(DateTime.now());
 
-    return Card(
-      color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
-      margin: const EdgeInsets.only(bottom: 20),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      margin: const EdgeInsets.only(bottom: 24),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         // Use available space: Monthly on left (primary), Daily on right (compact)
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -537,12 +550,23 @@ class _TeacherSectionAttendanceSummaryPageState
               _buildSummaryStats(),
 
               // Table Card
-              Card(
-                color: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 20,
+                      offset: const Offset(0, 4),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 6,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
                 ),
-                elevation: 2,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 0,
@@ -572,10 +596,17 @@ class _TeacherSectionAttendanceSummaryPageState
                                   // Table Header
                                   Container(
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFF2F6FF),
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          const Color(0xFFF2F6FF),
+                                          const Color(0xFFE8F1FF),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
                                       borderRadius: BorderRadius.only(
-                                        topLeft: Radius.circular(12),
-                                        topRight: Radius.circular(12),
+                                        topLeft: Radius.circular(16),
+                                        topRight: Radius.circular(16),
                                       ),
                                     ),
                                     padding: const EdgeInsets.symmetric(

@@ -388,173 +388,184 @@ class _SectionListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Container(
       margin: EdgeInsets.zero,
-      color: Colors.white,
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-        width: double.infinity,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Class info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                          color: Color(0xFF222B45),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Class info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: Color(0xFF222B45),
+                      ),
+                    ),
+                    if (subject.isNotEmpty) ...[
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          subject,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2563EB),
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (subject.isNotEmpty) ...[
-                        const SizedBox(width: 10),
-                        Flexible(
-                          child: Text(
-                            subject,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF2563EB),
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                      if (gradeLevel.isNotEmpty) ...[
-                        const SizedBox(width: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Color(0xFFE8F1FF),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Text(
-                            gradeLevel,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF2563EB),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
                     ],
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    time,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF8F9BB3),
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    "Total Students: $students",
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF2563EB),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Status badge and button right-aligned
-            Row(
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(right: 12),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: getStatusBgColor(),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Text(
-                    status[0].toUpperCase() + status.substring(1),
-                    style: TextStyle(
-                      color: getStatusColor(),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
+                    if (gradeLevel.isNotEmpty) ...[
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Color(0xFFE8F1FF),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          gradeLevel,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF2563EB),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  time,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF8F9BB3),
                   ),
                 ),
-                SizedBox(
-                  height: 36,
-                  child: Row(
-                    children: [
-                      ElevatedButton(
-                        onPressed: onViewAttendance,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(7),
-                          ),
-                          elevation: 0,
-                          textStyle: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 0,
-                          ),
-                        ),
-                        child: const Text("Attendance"),
-                      ),
-                      const SizedBox(width: 8),
-                      OutlinedButton.icon(
-                        onPressed: onViewSummary,
-                        icon: const Icon(
-                          Icons.bar_chart,
-                          size: 16,
-                          color: Color(0xFF2563EB),
-                        ),
-                        label: const Text(
-                          "Summary",
-                          style: TextStyle(color: Color(0xFF2563EB)),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Color(0xFF2563EB),
-                          side: const BorderSide(
-                            color: Color(0xFF2563EB),
-                            width: 1.1,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(7),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 13,
-                            vertical: 0,
-                          ),
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 5),
+                Text(
+                  "Total Students: $students",
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF2563EB),
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          // Status badge and button right-aligned
+          Row(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: getStatusBgColor(),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Text(
+                  status[0].toUpperCase() + status.substring(1),
+                  style: TextStyle(
+                    color: getStatusColor(),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: 36,
+                child: Row(
+                  children: [
+                    ElevatedButton(
+                      onPressed: onViewAttendance,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        elevation: 0,
+                        textStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 0,
+                        ),
+                      ),
+                      child: const Text("Attendance"),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: onViewSummary,
+                      icon: const Icon(
+                        Icons.bar_chart,
+                        size: 16,
+                        color: Color(0xFF2563EB),
+                      ),
+                      label: const Text(
+                        "Summary",
+                        style: TextStyle(color: Color(0xFF2563EB)),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Color(0xFF2563EB),
+                        side: const BorderSide(
+                          color: Color(0xFF2563EB),
+                          width: 1.1,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

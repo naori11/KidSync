@@ -341,24 +341,40 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           if (todayAssignments.isEmpty)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 1),
                   ),
                 ],
               ),
-              child: const Text(
-                "No classes scheduled for today",
-                style: TextStyle(
-                  color: Color(0xFF6B7280),
-                  fontSize: 14,
-                ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.calendar_today_outlined,
+                    size: 48,
+                    color: Color(0xFF8F9BB3).withOpacity(0.6),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "No classes scheduled for today",
+                    style: TextStyle(
+                      color: Color(0xFF6B7280),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             )
           else
@@ -376,7 +392,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                           sectionAttendanceStats[assignment['sections']['id']]?['present'] ??
                           0,
                       total:
-                          sectionStudents[assignment['sections']['id']]?.length ??
+                          sectionStudents[assignment['sections']['id']]
+                              ?.length ??
                           0,
                       onGoToClass: () {
                         showDialog(
@@ -423,15 +440,20 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
+            ),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 1),
             ),
           ],
         ),
@@ -668,15 +690,20 @@ class _SummaryTile extends StatelessWidget {
     return Expanded(
       child: Container(
         margin: EdgeInsets.zero,
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
+            ),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 1),
             ),
           ],
         ),
@@ -759,16 +786,21 @@ class _ScheduleListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: EdgeInsets.zero,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 1),
           ),
         ],
       ),

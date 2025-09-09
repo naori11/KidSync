@@ -576,6 +576,24 @@ class _TeacherSectionAttendancePageState
     return null;
   }
 
+  Widget _buildStatChip(String label, int value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        "$label: $value",
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final summary = _getSummary();
@@ -757,60 +775,86 @@ class _TeacherSectionAttendancePageState
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 32,
-                        vertical: 14,
+                        vertical: 8,
                       ),
-                      child: Card(
-                        color: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.06),
+                              blurRadius: 12,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: Padding(
-                          padding: const EdgeInsets.all(22),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          child: Row(
                             children: [
-                              Text(
-                                classStartTime != null &&
-                                        now.isBefore(classStartTime!)
-                                    ? "Attendance not open yet"
-                                    : "Attendance is closed for this session",
-                                style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.bold,
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF2563EB,
+                                  ).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Icon(
+                                  Icons.schedule,
+                                  size: 16,
                                   color: Color(0xFF2563EB),
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                classStartTime != null &&
-                                        now.isBefore(classStartTime!)
-                                    ? "You can take attendance starting at ${DateFormat.jm().format(classStartTime!)}."
-                                    : "You can only take attendance during your scheduled class time.",
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF8F9BB3),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  classStartTime != null &&
+                                          now.isBefore(classStartTime!)
+                                      ? "Attendance not open yet"
+                                      : "Attendance is closed for this session",
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF2563EB),
+                                  ),
                                 ),
                               ),
                               if (countdown != null) ...[
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.timer,
-                                      size: 18,
-                                      color: Color(0xFF2563EB),
-                                    ),
-                                    const SizedBox(width: 7),
-                                    Text(
-                                      "Next attendance opens in: $countdown",
-                                      style: const TextStyle(
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(
+                                      0xFF2563EB,
+                                    ).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.timer,
+                                        size: 12,
                                         color: Color(0xFF2563EB),
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        countdown!,
+                                        style: const TextStyle(
+                                          color: Color(0xFF2563EB),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ],
@@ -820,137 +864,208 @@ class _TeacherSectionAttendancePageState
                     ),
                   ],
                   // ... rest of UI remains unchanged ...
-                  // Summary bar & filter
+                  // Summary and Controls Container
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Row(
-                      children: [
-                        Text(
-                          "Present: ${summary['Present']}   ",
-                          style: const TextStyle(
-                            color: Color(0xFF19AE61),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
                           ),
-                        ),
-                        Text(
-                          "Late: ${summary['Late']}   ",
-                          style: const TextStyle(
-                            color: Color(0xFFFFA726),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                          ),
-                        ),
-                        Text(
-                          "Absent: ${summary['Absent']}   ",
-                          style: const TextStyle(
-                            color: Color(0xFFEB5757),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                          ),
-                        ),
-                        Text(
-                          "Excused: ${summary['Excused']}   ",
-                          style: const TextStyle(
-                            color: Color(0xFF2563EB),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Text(
-                          "${percent.round()}% attended",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF2563EB),
-                            fontSize: 15,
-                          ),
-                        ),
-                        const Spacer(),
-                        DropdownButton<String>(
-                          value: filterStatus,
-                          items:
-                              ["All", "Present", "Late", "Absent", "Excused"]
-                                  .map(
-                                    (s) => DropdownMenuItem(
-                                      value: s,
-                                      child: Text(s),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged:
-                              (v) => setState(() => filterStatus = v ?? "All"),
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // Bulk/Settings
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Row(
-                      children: [
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.check_circle),
-                          label: const Text("Mark All as Present"),
-                          onPressed:
-                              attendanceActive && summary['Absent']! > 0
-                                  ? _markAllPresent
-                                  : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF19AE61),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 7,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            textStyle: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 18),
-                        Row(
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
                           children: [
-                            const Text(
-                              "Late after: ",
-                              style: TextStyle(fontSize: 14),
-                            ),
-                            DropdownButton<int>(
-                              value: lateThresholdMinutes,
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 5,
-                                  child: Text("5 mins"),
+                            // Summary Stats Row
+                            Row(
+                              children: [
+                                _buildStatChip(
+                                  "Present",
+                                  summary['Present']!,
+                                  const Color(0xFF19AE61),
                                 ),
-                                DropdownMenuItem(
-                                  value: 10,
-                                  child: Text("10 mins"),
+                                const SizedBox(width: 8),
+                                _buildStatChip(
+                                  "Late",
+                                  summary['Late']!,
+                                  const Color(0xFFFFA726),
                                 ),
-                                DropdownMenuItem(
-                                  value: 15,
-                                  child: Text("15 mins"),
+                                const SizedBox(width: 8),
+                                _buildStatChip(
+                                  "Absent",
+                                  summary['Absent']!,
+                                  const Color(0xFFEB5757),
                                 ),
-                                DropdownMenuItem(
-                                  value: 20,
-                                  child: Text("20 mins"),
+                                const SizedBox(width: 8),
+                                _buildStatChip(
+                                  "Excused",
+                                  summary['Excused']!,
+                                  const Color(0xFF2563EB),
+                                ),
+                                const SizedBox(width: 12),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(
+                                      0xFF2563EB,
+                                    ).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    "${percent.round()}% attended",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF2563EB),
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                                const Spacer(),
+                                // Filter Dropdown
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: const Color(0xFFE4E9F2),
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: DropdownButton<String>(
+                                    value: filterStatus,
+                                    items:
+                                        [
+                                              "All",
+                                              "Present",
+                                              "Late",
+                                              "Absent",
+                                              "Excused",
+                                            ]
+                                            .map(
+                                              (s) => DropdownMenuItem(
+                                                value: s,
+                                                child: Text(s),
+                                              ),
+                                            )
+                                            .toList(),
+                                    onChanged:
+                                        (v) => setState(
+                                          () => filterStatus = v ?? "All",
+                                        ),
+                                    style: const TextStyle(fontSize: 13),
+                                    underline: const SizedBox(),
+                                    icon: const Icon(
+                                      Icons.keyboard_arrow_down,
+                                      size: 16,
+                                    ),
+                                  ),
                                 ),
                               ],
-                              onChanged:
-                                  attendanceActive
-                                      ? (v) => setState(() {
-                                        if (v != null) lateThresholdMinutes = v;
-                                      })
-                                      : null,
+                            ),
+                            const SizedBox(height: 12),
+                            // Controls Row
+                            Row(
+                              children: [
+                                ElevatedButton.icon(
+                                  icon: const Icon(
+                                    Icons.check_circle,
+                                    size: 16,
+                                  ),
+                                  label: const Text("Mark All as Present"),
+                                  onPressed:
+                                      attendanceActive && summary['Absent']! > 0
+                                          ? _markAllPresent
+                                          : null,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF19AE61),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 8,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    textStyle: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Row(
+                                  children: [
+                                    const Text(
+                                      "Late after: ",
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFF8F9BB3),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: const Color(0xFFE4E9F2),
+                                        ),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: DropdownButton<int>(
+                                        value: lateThresholdMinutes,
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: 5,
+                                            child: Text("5 mins"),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 10,
+                                            child: Text("10 mins"),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 15,
+                                            child: Text("15 mins"),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 20,
+                                            child: Text("20 mins"),
+                                          ),
+                                        ],
+                                        onChanged:
+                                            attendanceActive
+                                                ? (v) => setState(() {
+                                                  if (v != null)
+                                                    lateThresholdMinutes = v;
+                                                })
+                                                : null,
+                                        style: const TextStyle(fontSize: 13),
+                                        underline: const SizedBox(),
+                                        icon: const Icon(
+                                          Icons.keyboard_arrow_down,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -958,24 +1073,45 @@ class _TeacherSectionAttendancePageState
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 32),
-                      child: Card(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.06),
+                              blurRadius: 20,
+                              offset: const Offset(0, 4),
+                            ),
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.02),
+                              blurRadius: 6,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                         ),
-                        color: Colors.white,
-                        margin: EdgeInsets.zero,
-                        elevation: 0,
                         child: Column(
                           children: [
                             // Table header
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
+                                horizontal: 20,
+                                vertical: 16,
                               ),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFF7F9FC),
-                                border: Border(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    const Color(0xFFF7F9FC),
+                                    const Color(0xFFF2F6FF),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(16),
+                                  topRight: Radius.circular(16),
+                                ),
+                                border: const Border(
                                   bottom: BorderSide(
                                     color: Color(0xFFE4E9F2),
                                     width: 1,
@@ -1287,43 +1423,63 @@ class _TeacherSectionAttendancePageState
                   // Submit attendance
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: ElevatedButton.icon(
-                      icon:
-                          isSubmitting
-                              ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
-                              )
-                              : const Icon(Icons.done_all),
-                      label: Text(
-                        isSubmitting ? "Submitting..." : "Submit Attendance",
-                      ),
-                      onPressed:
-                          attendanceActive && !isSubmitting && hasUnsavedChanges
-                              ? _submitAttendance
-                              : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow:
                             hasUnsavedChanges
-                                ? const Color(0xFF2563EB)
-                                : Colors.grey,
-                        foregroundColor: Colors.white,
-                        textStyle: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                                ? [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF2563EB,
+                                    ).withOpacity(0.3),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ]
+                                : null,
+                      ),
+                      child: ElevatedButton.icon(
+                        icon:
+                            isSubmitting
+                                ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                                : const Icon(Icons.done_all),
+                        label: Text(
+                          isSubmitting ? "Submitting..." : "Submit Attendance",
                         ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 30,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(9),
+                        onPressed:
+                            attendanceActive &&
+                                    !isSubmitting &&
+                                    hasUnsavedChanges
+                                ? _submitAttendance
+                                : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              hasUnsavedChanges
+                                  ? const Color(0xFF2563EB)
+                                  : Colors.grey,
+                          foregroundColor: Colors.white,
+                          textStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
                         ),
                       ),
                     ),
