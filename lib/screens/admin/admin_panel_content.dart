@@ -5,6 +5,7 @@ import 'parent_guardian.dart';
 import 'audit_logs.dart';
 import 'section_management.dart';
 import 'driver_assignment.dart';
+import 'bulk_import.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminPanelContent extends StatefulWidget {
@@ -46,6 +47,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       _NavItem("Parent/Guardian", Icons.family_restroom, ParentGuardianPage()),
       _NavItem("Driver Assignment", Icons.drive_eta, DriverAssignmentPage()),
       _NavItem("Audit Logs", Icons.description_outlined, AuditLogsPage()),
+      _NavItem("Bulk Import", Icons.upload_file, BulkImportPage()),
     ];
   }
 
