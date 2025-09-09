@@ -957,6 +957,9 @@ class _TeacherSectionAttendancePageState
                                 const Spacer(),
                                 // Filter Dropdown
                                 Container(
+                                  constraints: const BoxConstraints(
+                                    minWidth: 80,
+                                  ),
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 8,
                                   ),
@@ -968,6 +971,7 @@ class _TeacherSectionAttendancePageState
                                   ),
                                   child: DropdownButton<String>(
                                     value: filterStatus,
+                                    isExpanded: false,
                                     items:
                                         [
                                               "All",
@@ -979,7 +983,12 @@ class _TeacherSectionAttendancePageState
                                             .map(
                                               (s) => DropdownMenuItem(
                                                 value: s,
-                                                child: Text(s),
+                                                child: Text(
+                                                  s,
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
                                               ),
                                             )
                                             .toList(),
@@ -993,6 +1002,8 @@ class _TeacherSectionAttendancePageState
                                       Icons.keyboard_arrow_down,
                                       size: 16,
                                     ),
+                                    dropdownColor: Colors.white,
+                                    menuMaxHeight: 200,
                                   ),
                                 ),
                               ],
@@ -1039,6 +1050,9 @@ class _TeacherSectionAttendancePageState
                                       ),
                                     ),
                                     Container(
+                                      constraints: const BoxConstraints(
+                                        minWidth: 80,
+                                      ),
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 8,
                                       ),
@@ -1050,22 +1064,35 @@ class _TeacherSectionAttendancePageState
                                       ),
                                       child: DropdownButton<int>(
                                         value: lateThresholdMinutes,
+                                        isExpanded: false,
                                         items: const [
                                           DropdownMenuItem(
                                             value: 5,
-                                            child: Text("5 mins"),
+                                            child: Text(
+                                              "5 mins",
+                                              style: TextStyle(fontSize: 13),
+                                            ),
                                           ),
                                           DropdownMenuItem(
                                             value: 10,
-                                            child: Text("10 mins"),
+                                            child: Text(
+                                              "10 mins",
+                                              style: TextStyle(fontSize: 13),
+                                            ),
                                           ),
                                           DropdownMenuItem(
                                             value: 15,
-                                            child: Text("15 mins"),
+                                            child: Text(
+                                              "15 mins",
+                                              style: TextStyle(fontSize: 13),
+                                            ),
                                           ),
                                           DropdownMenuItem(
                                             value: 20,
-                                            child: Text("20 mins"),
+                                            child: Text(
+                                              "20 mins",
+                                              style: TextStyle(fontSize: 13),
+                                            ),
                                           ),
                                         ],
                                         onChanged:
@@ -1081,6 +1108,8 @@ class _TeacherSectionAttendancePageState
                                           Icons.keyboard_arrow_down,
                                           size: 16,
                                         ),
+                                        dropdownColor: Colors.white,
+                                        menuMaxHeight: 200,
                                       ),
                                     ),
                                   ],

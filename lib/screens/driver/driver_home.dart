@@ -126,6 +126,7 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
   int selectedIndex = 0;
   bool showNotifications = false;
   bool showProfile = false;
+  late PageController _pageController;
 
   void _toggleNotifications() {
     setState(() {
@@ -194,6 +195,18 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
         );
       },
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: 0);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   @override
@@ -294,14 +307,23 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
               ),
               // Main Content
               Expanded(
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
-                    child: _buildTabContent(selectedIndex, isMobile),
-                  ),
+                child: PageView.builder(
+                  controller: _pageController,
+                  onPageChanged: (index) {
+                    setState(() => selectedIndex = index);
+                  },
+                  itemCount: widget.navItems.length,
+                  itemBuilder: (context, index) {
+                    return SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 8,
+                        ),
+                        child: _buildTabContent(index, isMobile),
+                      ),
+                    );
+                  },
                 ),
               ),
               // Bottom Navigation Bar
@@ -340,6 +362,11 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
                       ),
                       onPressed: () {
                         setState(() => selectedIndex = i);
+                        _pageController.animateToPage(
+                          i,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
                       },
                     );
                   }),

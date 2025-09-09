@@ -132,6 +132,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  late PageController _pageController;
 
   List<AuthorizedFetcher> dashboardFetchers = [];
   bool isDashboardLoading = true;
@@ -156,6 +157,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: 0);
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -177,6 +179,14 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     // Load all data
     _loadUserProfile();
     _loadStudents();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _animationController.dispose();
+    _fadeController.dispose();
+    super.dispose();
   }
 
   // Add method to load all students for this parent
@@ -392,13 +402,6 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
       print('Error loading dashboard fetchers: $error');
       setState(() => isDashboardLoading = false);
     }
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    _fadeController.dispose();
-    super.dispose();
   }
 
   void _navigateToNotifications() async {
@@ -1247,15 +1250,27 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
               ),
               // Main Content
               Expanded(
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    child: _buildTabContent(
-                      selectedIndex,
-                      widget.primaryColor,
-                      isMobile,
-                    ),
-                  ),
+                child: PageView.builder(
+                  controller: _pageController,
+                  onPageChanged: (index) {
+                    setState(() => selectedIndex = index);
+                  },
+                  itemCount: widget.navItems.length,
+                  itemBuilder: (context, index) {
+                    return SingleChildScrollView(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 8,
+                        ),
+                        child: _buildTabContent(
+                          index,
+                          widget.primaryColor,
+                          isMobile,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
               // Bottom Navigation Bar
@@ -1304,6 +1319,11 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                         ),
                         onPressed: () {
                           setState(() => selectedIndex = i);
+                          _pageController.animateToPage(
+                            i,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
                         },
                       ),
                     );
