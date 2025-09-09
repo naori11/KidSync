@@ -626,44 +626,7 @@ class _TeacherSectionAttendancePageState
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                children: [
-                                  Text(
-                                    widget.sectionName,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Color(0xFF8F9BB3),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  // Add unsaved changes indicator
-                                  if (hasUnsavedChanges) ...[
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.orange.shade100,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: Colors.orange.shade300,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        "Unsaved Changes",
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.orange.shade700,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              const SizedBox(height: 2),
-                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   IconButton(
                                     icon: const Icon(
@@ -677,27 +640,88 @@ class _TeacherSectionAttendancePageState
                                         widget.onBack ??
                                         () => Navigator.of(context).maybePop(),
                                   ),
-                                  const Text(
-                                    "Take Attendance",
-                                    style: TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF222B45),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Text(
+                                              "Take Attendance",
+                                              style: TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF222B45),
+                                              ),
+                                            ),
+                                            const Text(
+                                              "/",
+                                              style: TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF8F9BB3),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              widget.sectionName,
+                                              style: const TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF8F9BB3),
+                                              ),
+                                            ),
+                                            // Add unsaved changes indicator
+                                            if (hasUnsavedChanges) ...[
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 2,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.orange.shade100,
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  border: Border.all(
+                                                    color:
+                                                        Colors.orange.shade300,
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  "Unsaved Changes",
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color:
+                                                        Colors.orange.shade700,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        if (scheduleString != null)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 8,
+                                            ),
+                                            child: Text(
+                                              "Schedule: $scheduleString",
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                color: Color(0xFF2E3A59),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
                                 ],
                               ),
-                              if (scheduleString != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 3),
-                                  child: Text(
-                                    "Schedule: $scheduleString",
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Color(0xFF8F9BB3),
-                                    ),
-                                  ),
-                                ),
                             ],
                           ),
                         ),

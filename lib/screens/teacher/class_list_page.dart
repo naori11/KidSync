@@ -509,54 +509,64 @@ class _SectionListCard extends StatelessWidget {
                 height: 36,
                 child: Row(
                   children: [
-                    ElevatedButton(
-                      onPressed: onViewAttendance,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(7),
+                    SizedBox(
+                      height: 44,
+                      child: ElevatedButton(
+                        onPressed: onViewAttendance,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 1,
+                          shadowColor: Colors.black.withOpacity(0.05),
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                         ),
-                        elevation: 0,
-                        textStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 0,
-                        ),
+                        child: const Text("Attendance"),
                       ),
-                      child: const Text("Attendance"),
                     ),
                     const SizedBox(width: 8),
-                    OutlinedButton.icon(
-                      onPressed: onViewSummary,
-                      icon: const Icon(
-                        Icons.bar_chart,
-                        size: 16,
-                        color: Color(0xFF2563EB),
-                      ),
-                      label: const Text(
-                        "Summary",
-                        style: TextStyle(color: Color(0xFF2563EB)),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Color(0xFF2563EB),
-                        side: const BorderSide(
+                    SizedBox(
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        onPressed: onViewSummary,
+                        icon: const Icon(
+                          Icons.bar_chart,
+                          size: 18,
                           color: Color(0xFF2563EB),
-                          width: 1.1,
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(7),
+                        label: const Text(
+                          "Summary",
+                          style: TextStyle(
+                            color: Color(0xFF2563EB),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                        textStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 13,
-                          vertical: 0,
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Color(0xFF2563EB),
+                          side: const BorderSide(
+                            color: Color(0xFF2563EB),
+                            width: 1.5,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 1,
+                          shadowColor: Colors.black.withOpacity(0.05),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                         ),
                       ),
                     ),

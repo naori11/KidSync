@@ -543,32 +543,38 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: OutlinedButton.icon(
-          onPressed: () {
-            // If parent provided a callback, use it to navigate via the panel nav.
-            if (widget.onOpenClassList != null) {
-              widget.onOpenClassList!();
-              return;
-            }
-            // Fallback: Navigate to the full class list page directly.
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => TeacherClassListPage()),
-            );
-          },
-          style: OutlinedButton.styleFrom(
-            foregroundColor: const Color(0xFF10B981),
-            side: const BorderSide(color: Color(0xFF10B981), width: 1.5),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          height: 44,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              // If parent provided a callback, use it to navigate via the panel nav.
+              if (widget.onOpenClassList != null) {
+                widget.onOpenClassList!();
+                return;
+              }
+              // Fallback: Navigate to the full class list page directly.
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => TeacherClassListPage()),
+              );
+            },
+            style: OutlinedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: const Color(0xFF10B981),
+              side: const BorderSide(color: Color(0xFF10B981), width: 1.5),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: 1,
+              shadowColor: Colors.black.withOpacity(0.05),
+              textStyle: const TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
-            textStyle: const TextStyle(
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            icon: const Icon(Icons.list_alt_outlined, size: 18),
+            label: const Text("View All Classes"),
           ),
-          icon: const Icon(Icons.list_alt_outlined, size: 18),
-          label: const Text("View All Classes"),
         ),
       ),
     );
@@ -878,7 +884,7 @@ class _ScheduleListTile extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                height: 36,
+                height: 44,
                 child: ElevatedButton(
                   onPressed: onGoToClass,
                   style: ElevatedButton.styleFrom(
@@ -887,14 +893,15 @@ class _ScheduleListTile extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    elevation: 0,
+                    elevation: 1,
+                    shadowColor: Colors.black.withOpacity(0.05),
                     textStyle: const TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
-                      vertical: 0,
+                      vertical: 12,
                     ),
                   ),
                   child: const Text("Go to Class"),

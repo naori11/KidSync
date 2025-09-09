@@ -521,25 +521,40 @@ class _TeacherSectionAttendanceSummaryPageState
                   // Spacer to push controls to the right edge
                   const Spacer(),
                   const SizedBox(width: 8),
-                  // Export button (consistent system design)
-                  ElevatedButton.icon(
-                    onPressed: _exportAttendance,
-                    icon: const Icon(Icons.download_rounded, size: 18),
-                    label: const Text(
-                      'Export',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
+                  // Export button (consistent with attendance taking page)
+                  SizedBox(
+                    height: 44,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(
+                        Icons.file_download_outlined,
+                        color: Color(0xFF2ECC71),
+                        size: 18,
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      label: const Text(
+                        "Export",
+                        style: TextStyle(
+                          color: Color(0xFF2ECC71),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                      elevation: 0,
+                      onPressed: _exportAttendance,
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        side: const BorderSide(
+                          color: Color(0xFF2ECC71),
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 1,
+                        shadowColor: Colors.black.withOpacity(0.05),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
                     ),
                   ),
                 ],
