@@ -188,20 +188,26 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
   }
 
   // Group logs by date
-  Map<String, List<ConfirmationLog>> _groupLogsByDate(List<ConfirmationLog> logs) {
+  Map<String, List<ConfirmationLog>> _groupLogsByDate(
+    List<ConfirmationLog> logs,
+  ) {
     final Map<String, List<ConfirmationLog>> grouped = {};
-    
+
     for (final log in logs) {
-      final dateOnly = DateTime(log.eventTime.year, log.eventTime.month, log.eventTime.day);
+      final dateOnly = DateTime(
+        log.eventTime.year,
+        log.eventTime.month,
+        log.eventTime.day,
+      );
       final key = _formatDateKey(dateOnly);
       grouped.putIfAbsent(key, () => []).add(log);
     }
-    
+
     // Sort each group by time (most recent first)
     grouped.forEach((key, value) {
       value.sort((a, b) => b.eventTime.compareTo(a.eventTime));
     });
-    
+
     return grouped;
   }
 
@@ -218,13 +224,29 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
     } else {
       // Format as "Monday, January 15, 2024"
       const months = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
       ];
       const weekdays = [
-        'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday',
       ];
-      
+
       final weekday = weekdays[date.weekday - 1];
       final month = months[date.month - 1];
       return '$weekday, $month ${date.day}, ${date.year}';
@@ -246,11 +268,7 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.calendar_today,
-            color: widget.primaryColor,
-            size: 16,
-          ),
+          Icon(Icons.calendar_today, color: widget.primaryColor, size: 16),
           const SizedBox(width: 8),
           Text(
             dateKey,
@@ -268,7 +286,7 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
   List<Widget> _buildGroupedLogs() {
     final groupedLogs = _groupLogsByDate(confirmationLogs);
     final List<Widget> widgets = [];
-    
+
     // Sort date keys to show most recent first
     final sortedKeys = groupedLogs.keys.toList();
     sortedKeys.sort((a, b) {
@@ -277,7 +295,7 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
       if (b == 'Today') return 1;
       if (a == 'Yesterday') return -1;
       if (b == 'Yesterday') return 1;
-      
+
       // For other dates, we need to parse them back to compare
       // Since they're formatted as "Monday, January 15, 2024", we'll use the original logs to sort
       final logsA = groupedLogs[a]!;
@@ -286,11 +304,11 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
       final dateB = logsB.first.eventTime;
       return dateB.compareTo(dateA); // Most recent first
     });
-    
+
     for (int i = 0; i < sortedKeys.length; i++) {
       final dateKey = sortedKeys[i];
       final logs = groupedLogs[dateKey]!;
-      
+
       // Add date header (no top margin for first header)
       widgets.add(
         Container(
@@ -307,11 +325,7 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.calendar_today,
-                color: widget.primaryColor,
-                size: 16,
-              ),
+              Icon(Icons.calendar_today, color: widget.primaryColor, size: 16),
               const SizedBox(width: 8),
               Text(
                 dateKey,
@@ -325,13 +339,13 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
           ),
         ),
       );
-      
+
       // Add logs for this date
       for (final log in logs) {
         widgets.add(_buildLogCard(log));
       }
     }
-    
+
     return widgets;
   }
 
@@ -603,196 +617,196 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Header
-        Container(
-          color: white,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              SizedBox(
-                height: 32,
-                width: 32,
-                child: Image.asset(
-                  'assets/logo.png',
-                  fit: BoxFit.contain,
-                  errorBuilder:
-                      (context, error, stackTrace) => Icon(
-                        Icons.school,
-                        color: widget.primaryColor,
-                        size: 28,
-                      ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Pickup & Drop-off Logs',
-                style: TextStyle(
-                  color: black,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: _loadConfirmationLogs,
-                icon: Icon(Icons.refresh, color: widget.primaryColor, size: 20),
-              ),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: widget.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.history,
-                  color: widget.primaryColor,
-                  size: 20,
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Summary Card
-        Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header
+          Container(
             color: white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: _buildSummaryItem(
-                  'Total Events',
-                  '${confirmationLogs.length}',
-                  Icons.event,
-                  widget.primaryColor,
-                ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: _buildSummaryItem(
-                  'This Month',
-                  '${confirmationLogs.where((log) => log.eventTime.month == DateTime.now().month).length}',
-                  Icons.calendar_month,
-                  Colors.blue,
-                ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: _buildSummaryItem(
-                  'Verified',
-                  '${confirmationLogs.where((log) => log.verificationStatus?.toLowerCase() == "confirmed").length}',
-                  Icons.verified,
-                  Colors.green,
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Logs List
-        if (isLoading)
-          const Padding(
-            padding: EdgeInsets.all(32),
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else if (errorMessage != null)
-          Padding(
-            padding: const EdgeInsets.all(32),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 48,
-                    color: Colors.red[300],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    errorMessage!,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF8F9BB3),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _loadConfirmationLogs,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: widget.primaryColor,
-                      foregroundColor: white,
-                    ),
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else if (confirmationLogs.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(32),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.history,
-                    size: 48,
-                    color: Colors.grey[300],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No pickup/drop-off logs found',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF8F9BB3),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Pickup and drop-off logs will appear here once your child has transportation events.',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF8F9BB3),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          )
-        else
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
               children: [
-                Text(
-                  'Recent Pickup & Drop-off Events',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF222B45),
+                SizedBox(
+                  height: 32,
+                  width: 32,
+                  child: Image.asset(
+                    'assets/logo.png',
+                    fit: BoxFit.contain,
+                    errorBuilder:
+                        (context, error, stackTrace) => Icon(
+                          Icons.school,
+                          color: widget.primaryColor,
+                          size: 28,
+                        ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                ..._buildGroupedLogs(),
+                const SizedBox(width: 12),
+                Text(
+                  'Pickup & Drop-off Logs',
+                  style: TextStyle(
+                    color: black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: _loadConfirmationLogs,
+                  icon: Icon(
+                    Icons.refresh,
+                    color: widget.primaryColor,
+                    size: 20,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: widget.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.history,
+                    color: widget.primaryColor,
+                    size: 20,
+                  ),
+                ),
               ],
             ),
           ),
-      ],
+
+          // Summary Card
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildSummaryItem(
+                    'Total Events',
+                    '${confirmationLogs.length}',
+                    Icons.event,
+                    widget.primaryColor,
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: _buildSummaryItem(
+                    'This Month',
+                    '${confirmationLogs.where((log) => log.eventTime.month == DateTime.now().month).length}',
+                    Icons.calendar_month,
+                    Colors.blue,
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: _buildSummaryItem(
+                    'Verified',
+                    '${confirmationLogs.where((log) => log.verificationStatus?.toLowerCase() == "confirmed").length}',
+                    Icons.verified,
+                    Colors.green,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Logs List
+          if (isLoading)
+            const Padding(
+              padding: EdgeInsets.all(32),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (errorMessage != null)
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                    const SizedBox(height: 16),
+                    Text(
+                      errorMessage!,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF8F9BB3),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadConfirmationLogs,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: widget.primaryColor,
+                        foregroundColor: white,
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (confirmationLogs.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.history, size: 48, color: Colors.grey[300]),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No pickup/drop-off logs found',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF8F9BB3),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Pickup and drop-off logs will appear here once your child has transportation events.',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF8F9BB3),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Recent Pickup & Drop-off Events',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF222B45),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ..._buildGroupedLogs(),
+                  // Add bottom padding to prevent overflow
+                  const SizedBox(height: 100),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 

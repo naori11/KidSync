@@ -670,11 +670,9 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
                 Container(
                   padding: EdgeInsets.all(widget.isMobile ? 12 : 16),
                   decoration: BoxDecoration(
-                    color: greenWithOpacity,
+                    color: Colors.grey.shade50,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: widget.primaryColor.withOpacity(0.2),
-                    ),
+                    border: Border.all(color: Colors.grey.shade200),
                   ),
                   child: Column(
                     children:
@@ -706,13 +704,10 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
       margin: EdgeInsets.only(bottom: 8),
       padding: EdgeInsets.all(widget.isMobile ? 14 : 18),
       decoration: BoxDecoration(
-        color: isToday ? widget.primaryColor.withOpacity(0.08) : white,
+        color: isToday ? Colors.blue.shade50 : white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color:
-              isToday
-                  ? widget.primaryColor
-                  : widget.primaryColor.withOpacity(0.15),
+          color: isToday ? Colors.blue.shade300 : Colors.grey.shade300,
           width: isToday ? 2 : 1,
         ),
       ),
@@ -733,7 +728,7 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
                   style: TextStyle(
                     fontWeight: isToday ? FontWeight.bold : FontWeight.w600,
                     fontSize: widget.isMobile ? 15 : 17,
-                    color: isToday ? widget.primaryColor : black,
+                    color: isToday ? Colors.blue.shade700 : black,
                   ),
                 ),
                 if (isToday) ...[
@@ -741,7 +736,7 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: widget.primaryColor,
+                      color: Colors.blue.shade600,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -1208,12 +1203,52 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
   }
 
   void _showEmergencyChangeDialog() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Emergency change dialog would open here'),
-        backgroundColor: widget.primaryColor,
-      ),
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return EmergencyChangeDialog(
+          primaryColor: widget.primaryColor,
+          isMobile: widget.isMobile,
+          onSave: (Map<String, String> emergencySchedule) async {
+            await _saveEmergencyChange(emergencySchedule);
+          },
+        );
+      },
     );
+  }
+
+  Future<void> _saveEmergencyChange(
+    Map<String, String> emergencySchedule,
+  ) async {
+    if (_currentStudentId == null) return;
+
+    // Save emergency change for today only
+    final success = await _service.saveException(
+      _currentStudentId!,
+      DateTime.now(),
+      emergencySchedule,
+    );
+
+    if (success) {
+      setState(() {
+        // Refresh data
+        _loadData();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Emergency change saved successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save emergency change'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   String _capitalize(String text) {
@@ -1662,9 +1697,14 @@ class _ExceptionDialogState extends State<ExceptionDialog> {
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: white,
       child: Container(
         constraints: BoxConstraints(
           maxWidth: widget.isMobile ? double.infinity : 400,
+        ),
+        decoration: BoxDecoration(
+          color: white,
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1673,11 +1713,12 @@ class _ExceptionDialogState extends State<ExceptionDialog> {
             Container(
               padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
               decoration: BoxDecoration(
-                color: widget.primaryColor.withOpacity(0.1),
+                color: white,
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(16),
                   topRight: Radius.circular(16),
                 ),
+                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
               ),
               child: Row(
                 children: [
@@ -1689,21 +1730,22 @@ class _ExceptionDialogState extends State<ExceptionDialog> {
                       style: TextStyle(
                         fontSize: widget.isMobile ? 16 : 18,
                         fontWeight: FontWeight.bold,
-                        color: black,
+                        color: widget.primaryColor,
                       ),
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close, color: black),
+                    icon: Icon(Icons.close, color: Colors.grey[600]),
                   ),
                 ],
               ),
             ),
 
             // Content
-            Padding(
+            Container(
               padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
+              decoration: BoxDecoration(color: white),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1711,7 +1753,7 @@ class _ExceptionDialogState extends State<ExceptionDialog> {
                     'Select a specific date that differs from your weekly pattern:',
                     style: TextStyle(
                       fontSize: widget.isMobile ? 14 : 16,
-                      color: black.withOpacity(0.7),
+                      color: Colors.grey[700],
                     ),
                   ),
                   SizedBox(height: 16),
@@ -1724,6 +1766,24 @@ class _ExceptionDialogState extends State<ExceptionDialog> {
                         initialDate: DateTime.now().add(Duration(days: 1)),
                         firstDate: DateTime.now(),
                         lastDate: DateTime.now().add(Duration(days: 365)),
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: ColorScheme.light(
+                                primary: widget.primaryColor,
+                                onPrimary: Colors.white,
+                                surface: Colors.white,
+                                onSurface: Colors.black,
+                              ),
+                              textButtonTheme: TextButtonThemeData(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: widget.primaryColor,
+                                ),
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
                       );
                       if (date != null) {
                         setState(() => _selectedDate = date);
@@ -1732,9 +1792,8 @@ class _ExceptionDialogState extends State<ExceptionDialog> {
                     child: Container(
                       padding: EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        border: Border.all(
-                          color: widget.primaryColor.withOpacity(0.3),
-                        ),
+                        color: Colors.grey.shade50,
+                        border: Border.all(color: Colors.grey.shade300),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
@@ -1769,6 +1828,7 @@ class _ExceptionDialogState extends State<ExceptionDialog> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: widget.isMobile ? 14 : 16,
+                      color: widget.primaryColor,
                     ),
                   ),
                   SizedBox(height: 8),
@@ -1785,6 +1845,7 @@ class _ExceptionDialogState extends State<ExceptionDialog> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: widget.isMobile ? 14 : 16,
+                      color: widget.primaryColor,
                     ),
                   ),
                   SizedBox(height: 8),
@@ -1800,7 +1861,12 @@ class _ExceptionDialogState extends State<ExceptionDialog> {
             Container(
               padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
               decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: Colors.grey[300]!)),
+                color: white,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                ),
+                border: Border(top: BorderSide(color: Colors.grey[200]!)),
               ),
               child: Row(
                 children: [
@@ -1896,9 +1962,9 @@ class _ExceptionDialogState extends State<ExceptionDialog> {
           color:
               isSelected
                   ? widget.primaryColor.withOpacity(0.1)
-                  : Colors.grey[50],
+                  : Colors.grey.shade50,
           border: Border.all(
-            color: isSelected ? widget.primaryColor : Colors.grey[300]!,
+            color: isSelected ? widget.primaryColor : Colors.grey.shade300,
             width: isSelected ? 2 : 1,
           ),
           borderRadius: BorderRadius.circular(8),
@@ -1915,7 +1981,7 @@ class _ExceptionDialogState extends State<ExceptionDialog> {
               label,
               style: TextStyle(
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? widget.primaryColor : Colors.grey[700],
+                color: isSelected ? widget.primaryColor : Colors.grey[600],
                 fontSize: widget.isMobile ? 14 : 16,
               ),
             ),
@@ -1923,5 +1989,294 @@ class _ExceptionDialogState extends State<ExceptionDialog> {
         ),
       ),
     );
+  }
+}
+
+// Emergency Change Dialog
+class EmergencyChangeDialog extends StatefulWidget {
+  final Color primaryColor;
+  final bool isMobile;
+  final Function(Map<String, String>) onSave;
+
+  const EmergencyChangeDialog({
+    Key? key,
+    required this.primaryColor,
+    required this.isMobile,
+    required this.onSave,
+  }) : super(key: key);
+
+  @override
+  State<EmergencyChangeDialog> createState() => _EmergencyChangeDialogState();
+}
+
+class _EmergencyChangeDialogState extends State<EmergencyChangeDialog> {
+  String _dropoffPerson = 'parent';
+  String _pickupPerson = 'parent';
+  bool _isLoading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    const Color black = Color(0xFF000000);
+    const Color white = Color(0xFFFFFFFF);
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      elevation: 8,
+      backgroundColor: white,
+      child: Container(
+        width: widget.isMobile ? double.infinity : 400,
+        padding: EdgeInsets.all(widget.isMobile ? 20 : 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.warning,
+                    color: Colors.orange.shade600,
+                    size: widget.isMobile ? 20 : 24,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Emergency Change',
+                        style: TextStyle(
+                          fontSize: widget.isMobile ? 18 : 20,
+                          fontWeight: FontWeight.bold,
+                          color: black,
+                        ),
+                      ),
+                      Text(
+                        'This change applies to today only',
+                        style: TextStyle(
+                          fontSize: widget.isMobile ? 12 : 14,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: Icon(Icons.close, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+            SizedBox(height: 24),
+
+            // Drop-off Section
+            Text(
+              'Drop-off',
+              style: TextStyle(
+                fontSize: widget.isMobile ? 16 : 18,
+                fontWeight: FontWeight.w600,
+                color: black,
+              ),
+            ),
+            SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildPersonSelector(
+                    'Parent',
+                    'parent',
+                    _dropoffPerson,
+                    Icons.person,
+                    Colors.orange,
+                    (value) => setState(() => _dropoffPerson = value),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: _buildPersonSelector(
+                    'Driver',
+                    'driver',
+                    _dropoffPerson,
+                    Icons.directions_car,
+                    widget.primaryColor,
+                    (value) => setState(() => _dropoffPerson = value),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 24),
+
+            // Pick-up Section
+            Text(
+              'Pick-up',
+              style: TextStyle(
+                fontSize: widget.isMobile ? 16 : 18,
+                fontWeight: FontWeight.w600,
+                color: black,
+              ),
+            ),
+            SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildPersonSelector(
+                    'Parent',
+                    'parent',
+                    _pickupPerson,
+                    Icons.person,
+                    Colors.orange,
+                    (value) => setState(() => _pickupPerson = value),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: _buildPersonSelector(
+                    'Driver',
+                    'driver',
+                    _pickupPerson,
+                    Icons.directions_car,
+                    widget.primaryColor,
+                    (value) => setState(() => _pickupPerson = value),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 32),
+
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isLoading ? null : () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      side: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _saveEmergencyChange,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: white,
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                    child:
+                        _isLoading
+                            ? SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  white,
+                                ),
+                              ),
+                            )
+                            : Text(
+                              'Save Changes',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPersonSelector(
+    String label,
+    String value,
+    String selectedValue,
+    IconData icon,
+    Color color,
+    Function(String) onChanged,
+  ) {
+    final bool isSelected = selectedValue == value;
+
+    return InkWell(
+      onTap: () => onChanged(value),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.1) : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? color : Colors.grey[600],
+              size: widget.isMobile ? 16 : 18,
+            ),
+            SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color: isSelected ? color : Colors.grey[700],
+                fontSize: widget.isMobile ? 14 : 16,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveEmergencyChange() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final emergencySchedule = {
+        'dropoff': _dropoffPerson,
+        'pickup': _pickupPerson,
+      };
+
+      await widget.onSave(emergencySchedule);
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error saving emergency change: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 }

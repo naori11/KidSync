@@ -314,14 +314,12 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
                   },
                   itemCount: widget.navItems.length,
                   itemBuilder: (context, index) {
-                    return SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 8,
-                        ),
-                        child: _buildTabContent(index, isMobile),
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
                       ),
+                      child: _buildTabContent(index, isMobile),
                     );
                   },
                 ),

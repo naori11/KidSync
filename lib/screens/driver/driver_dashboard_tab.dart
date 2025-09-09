@@ -22,10 +22,10 @@ class DriverDashboardTab extends StatefulWidget {
 class _DriverDashboardTabState extends State<DriverDashboardTab> {
   final supabase = Supabase.instance.client;
   final DriverService _driverService = DriverService();
-  
+
   bool isDashboardLoading = true;
   Timer? _refreshTimer;
-  
+
   // Real-time data
   Map<String, dynamic> driverInfo = {};
   Map<String, dynamic> todaysTasksData = {};
@@ -101,12 +101,12 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
 
     try {
       final driverId = user.id;
-      
+
       // Refresh real-time data
       final newTodaysTasksData = await _loadTodaysTasksData(driverId);
       final newRecentActivity = await _loadRecentActivity(driverId);
       final newTaskStats = await _loadTaskStats(driverId);
-      
+
       setState(() {
         todaysTasksData = newTodaysTasksData;
         recentActivity = newRecentActivity;
@@ -119,23 +119,25 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
 
   Future<Map<String, dynamic>> _loadDriverInfo(String driverId) async {
     try {
-      final response = await supabase
-          .from('users')
-          .select('fname, lname, contact_number, profile_image_url')
-          .eq('id', driverId)
-          .eq('role', 'Driver')
-          .maybeSingle();
+      final response =
+          await supabase
+              .from('users')
+              .select('fname, lname, contact_number, profile_image_url')
+              .eq('id', driverId)
+              .eq('role', 'Driver')
+              .maybeSingle();
 
       if (response != null) {
         return {
-          'name': '${response['fname'] ?? ''} ${response['lname'] ?? ''}'.trim(),
+          'name':
+              '${response['fname'] ?? ''} ${response['lname'] ?? ''}'.trim(),
           'phone': response['contact_number'] ?? 'No phone',
           'profile_image_url': response['profile_image_url'],
           'vehicle_number': 'BB-001', // From static data for now
           'plate_number': 'ABC-1234', // Placeholder - not in database yet
         };
       }
-      
+
       // Fallback to static data
       return {
         'name': StaticDriverData.driverInfo.name,
@@ -158,7 +160,9 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
 
   Future<Map<String, dynamic>> _loadTodaysTasksData(String driverId) async {
     try {
-      final tasksData = await _driverService.getTodaysStudentsWithPatterns(driverId);
+      final tasksData = await _driverService.getTodaysStudentsWithPatterns(
+        driverId,
+      );
       return tasksData;
     } catch (e) {
       print('Error loading today\'s tasks: $e');
@@ -170,11 +174,13 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _loadRecentActivity(String driverId) async {
+  Future<List<Map<String, dynamic>>> _loadRecentActivity(
+    String driverId,
+  ) async {
     try {
       final today = DateTime.now();
       final startOfDay = DateTime(today.year, today.month, today.day);
-      
+
       final response = await supabase
           .from('pickup_dropoff_logs')
           .select('''
@@ -223,7 +229,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
 
       int completedPickups = 0;
       int completedDropoffs = 0;
-      
+
       for (final log in completedResponse) {
         if (log['event_type'] == 'pickup') completedPickups++;
         if (log['event_type'] == 'dropoff') completedDropoffs++;
@@ -233,7 +239,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
       final todaysData = todaysTasksData;
       final morningTasks = todaysData['morning_pickup'] as List? ?? [];
       final afternoonTasks = todaysData['afternoon_dropoff'] as List? ?? [];
-      
+
       final pendingPickups = morningTasks.length - completedPickups;
       final pendingDropoffs = afternoonTasks.length - completedDropoffs;
       final totalStudents = assignedStudents.length;
@@ -264,34 +270,35 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
 
     if (isDashboardLoading) {
       return Center(
-        child: CircularProgressIndicator(
-          color: widget.primaryColor,
-        ),
+        child: CircularProgressIndicator(color: widget.primaryColor),
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // 1. Driver Profile Card - TOP PRIORITY
-        _buildDriverProfileCard(widget.primaryColor, widget.isMobile),
-        SizedBox(height: widget.isMobile ? 10 : 14),
-        
-        // 2. Today's Tasks Card - REAL-TIME STATUS
-        _buildTodaysTasksCard(widget.primaryColor, widget.isMobile),
-        SizedBox(height: widget.isMobile ? 10 : 14),
-        
-        // 3. Task Status Card - PROGRESS OVERVIEW
-        _buildTaskStatusCard(widget.primaryColor, widget.isMobile),
-        SizedBox(height: widget.isMobile ? 10 : 14),
-        
-        // 4. Recent Activity Card - COMMUNICATION
-        _buildRecentActivityCard(widget.primaryColor, widget.isMobile),
-        SizedBox(height: widget.isMobile ? 10 : 14),
-        
-        // 5. Assigned Students Card - REFERENCE INFORMATION
-        _buildAssignedStudentsCard(widget.primaryColor, widget.isMobile),
-      ],
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 1. Driver Profile Card - TOP PRIORITY
+          _buildDriverProfileCard(widget.primaryColor, widget.isMobile),
+          SizedBox(height: widget.isMobile ? 10 : 14),
+
+          // 2. Today's Tasks Card - REAL-TIME STATUS
+          _buildTodaysTasksCard(widget.primaryColor, widget.isMobile),
+          SizedBox(height: widget.isMobile ? 10 : 14),
+
+          // 3. Task Status Card - PROGRESS OVERVIEW
+          _buildTaskStatusCard(widget.primaryColor, widget.isMobile),
+          SizedBox(height: widget.isMobile ? 10 : 14),
+
+          // 4. Recent Activity Card - COMMUNICATION
+          _buildRecentActivityCard(widget.primaryColor, widget.isMobile),
+          SizedBox(height: widget.isMobile ? 10 : 14),
+
+          // 5. Assigned Students Card - REFERENCE INFORMATION
+          _buildAssignedStudentsCard(widget.primaryColor, widget.isMobile),
+        ],
+      ),
     );
   }
 
@@ -299,7 +306,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
     const Color white = Color(0xFFFFFFFF);
     const Color black = Color(0xFF000000);
     const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
-    
+
     final driverName = driverInfo['name'] ?? 'Driver';
     final driverPhone = driverInfo['phone'] ?? 'No phone';
     final vehicleNumber = driverInfo['vehicle_number'] ?? 'N/A';
@@ -309,9 +316,10 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       child: Card(
+        color: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 6,
-        shadowColor: primaryColor.withOpacity(0.2),
+        elevation: 8,
+        shadowColor: Colors.black.withOpacity(0.15),
         child: Container(
           decoration: BoxDecoration(
             color: white,
@@ -379,16 +387,19 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
                       CircleAvatar(
                         backgroundColor: greenWithOpacity,
                         radius: isMobile ? 24 : 30,
-                        backgroundImage: profileImageUrl != null && profileImageUrl.isNotEmpty
-                            ? NetworkImage(profileImageUrl)
-                            : null,
-                        child: profileImageUrl == null || profileImageUrl.isEmpty
-                            ? Icon(
-                                Icons.person,
-                                color: primaryColor,
-                                size: isMobile ? 24 : 30,
-                              )
-                            : null,
+                        backgroundImage:
+                            profileImageUrl != null &&
+                                    profileImageUrl.isNotEmpty
+                                ? NetworkImage(profileImageUrl)
+                                : null,
+                        child:
+                            profileImageUrl == null || profileImageUrl.isEmpty
+                                ? Icon(
+                                  Icons.person,
+                                  color: primaryColor,
+                                  size: isMobile ? 24 : 30,
+                                )
+                                : null,
                       ),
                       SizedBox(width: 16),
                       Expanded(
@@ -483,9 +494,10 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       child: Card(
+        color: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 6,
-        shadowColor: primaryColor.withOpacity(0.2),
+        elevation: 8,
+        shadowColor: Colors.black.withOpacity(0.15),
         child: Container(
           decoration: BoxDecoration(
             color: white,
@@ -567,7 +579,8 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
                       black,
                       isMobile,
                     ),
-                    if (afternoonTasks.isNotEmpty) SizedBox(height: isMobile ? 12 : 16),
+                    if (afternoonTasks.isNotEmpty)
+                      SizedBox(height: isMobile ? 12 : 16),
                   ],
                   if (afternoonTasks.isNotEmpty)
                     _buildTaskSection(
@@ -618,7 +631,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
           final studentName = '${student['fname']} ${student['lname']}';
           final time = task['pickup_time'] ?? task['dropoff_time'] ?? 'N/A';
           final address = task['pickup_address'] ?? student['address'] ?? 'N/A';
-          
+
           return Container(
             margin: EdgeInsets.only(bottom: 8),
             padding: EdgeInsets.all(isMobile ? 10 : 12),
@@ -687,9 +700,10 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       child: Card(
+        color: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 6,
-        shadowColor: primaryColor.withOpacity(0.2),
+        elevation: 8,
+        shadowColor: Colors.black.withOpacity(0.15),
         child: Container(
           decoration: BoxDecoration(
             color: white,
@@ -848,9 +862,10 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       child: Card(
+        color: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 6,
-        shadowColor: primaryColor.withOpacity(0.2),
+        elevation: 8,
+        shadowColor: Colors.black.withOpacity(0.15),
         child: Container(
           decoration: BoxDecoration(
             color: white,
@@ -925,16 +940,19 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
                 else
                   ...recentActivity.map((activity) {
                     final eventType = activity['event_type'] ?? '';
-                    final studentName = '${activity['students']['fname']} ${activity['students']['lname']}';
-                    final time = activity['pickup_time'] ?? activity['dropoff_time'];
-                    final formattedTime = time != null 
-                        ? DateFormat('HH:mm').format(DateTime.parse(time))
-                        : 'N/A';
-                    
+                    final studentName =
+                        '${activity['students']['fname']} ${activity['students']['lname']}';
+                    final time =
+                        activity['pickup_time'] ?? activity['dropoff_time'];
+                    final formattedTime =
+                        time != null
+                            ? DateFormat('HH:mm').format(DateTime.parse(time))
+                            : 'N/A';
+
                     IconData icon;
                     Color iconColor;
                     String actionText;
-                    
+
                     if (eventType == 'pickup') {
                       icon = Icons.school;
                       iconColor = Colors.blue;
@@ -955,7 +973,11 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
                       ),
                       child: Row(
                         children: [
-                          Icon(icon, color: iconColor, size: isMobile ? 16 : 18),
+                          Icon(
+                            icon,
+                            color: iconColor,
+                            size: isMobile ? 16 : 18,
+                          ),
                           SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -1000,9 +1022,10 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       child: Card(
+        color: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 6,
-        shadowColor: primaryColor.withOpacity(0.2),
+        elevation: 8,
+        shadowColor: Colors.black.withOpacity(0.15),
         child: Container(
           decoration: BoxDecoration(
             color: white,
@@ -1078,7 +1101,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
                   ...assignedStudents.take(5).map((assignment) {
                     final student = assignment.student;
                     if (student == null) return SizedBox.shrink();
-                    
+
                     final studentName = '${student.fname} ${student.lname}';
                     final gradeLevel = student.gradeLevel ?? 'N/A';
                     final sectionName = student.section?.name ?? 'N/A';
@@ -1090,23 +1113,29 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
                       decoration: BoxDecoration(
                         color: primaryColor.withOpacity(0.05),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: primaryColor.withOpacity(0.2)),
+                        border: Border.all(
+                          color: primaryColor.withOpacity(0.2),
+                        ),
                       ),
                       child: Row(
                         children: [
                           CircleAvatar(
                             backgroundColor: greenWithOpacity,
                             radius: isMobile ? 16 : 20,
-                            backgroundImage: student.profileImageUrl != null && student.profileImageUrl!.isNotEmpty
-                                ? NetworkImage(student.profileImageUrl!)
-                                : null,
-                            child: student.profileImageUrl == null || student.profileImageUrl!.isEmpty
-                                ? Icon(
-                                    Icons.person,
-                                    color: primaryColor,
-                                    size: isMobile ? 16 : 20,
-                                  )
-                                : null,
+                            backgroundImage:
+                                student.profileImageUrl != null &&
+                                        student.profileImageUrl!.isNotEmpty
+                                    ? NetworkImage(student.profileImageUrl!)
+                                    : null,
+                            child:
+                                student.profileImageUrl == null ||
+                                        student.profileImageUrl!.isEmpty
+                                    ? Icon(
+                                      Icons.person,
+                                      color: primaryColor,
+                                      size: isMobile ? 16 : 20,
+                                    )
+                                    : null,
                           ),
                           SizedBox(width: 12),
                           Expanded(

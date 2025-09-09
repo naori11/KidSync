@@ -1257,17 +1257,12 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                   },
                   itemCount: widget.navItems.length,
                   itemBuilder: (context, index) {
-                    return SingleChildScrollView(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 8,
-                        ),
-                        child: _buildTabContent(
-                          index,
-                          widget.primaryColor,
-                          isMobile,
-                        ),
+                    return Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      child: _buildTabContent(
+                        index,
+                        widget.primaryColor,
+                        isMobile,
                       ),
                     );
                   },

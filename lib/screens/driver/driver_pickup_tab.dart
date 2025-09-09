@@ -418,7 +418,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               eventType: 'pickup',
               eventTime: pickupTime,
             );
-            
+
             _showConfirmationDialog(
               '✓ ${student.name} marked as picked up - Verification request sent to parents',
               widget.primaryColor,
@@ -509,7 +509,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               eventType: 'dropoff',
               eventTime: dropoffTime,
             );
-            
+
             _showConfirmationDialog(
               '✓ ${student.name} marked as dropped off - Verification request sent to parents',
               Colors.green,
@@ -673,8 +673,9 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
         children: [
           // Header Card
           Card(
+            color: Colors.white,
             elevation: 8,
-            shadowColor: widget.primaryColor.withOpacity(0.3),
+            shadowColor: Colors.black.withOpacity(0.15),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -852,8 +853,9 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           // Action Buttons
           if (completedCount > 0) ...[
             Card(
-              elevation: 4,
-              shadowColor: widget.primaryColor.withOpacity(0.15),
+              color: Colors.white,
+              elevation: 6,
+              shadowColor: Colors.black.withOpacity(0.15),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -1076,11 +1078,9 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
     final isAfternoonDropoff = taskType == 'afternoon_dropoff';
 
     return Card(
-      elevation: isPickedUp || isDroppedOff ? 6 : 3,
-      shadowColor:
-          isPickedUp || isDroppedOff
-              ? statusColor.withOpacity(0.2)
-              : Colors.black.withOpacity(0.1),
+      color: Colors.white,
+      elevation: isPickedUp || isDroppedOff ? 8 : 6,
+      shadowColor: Colors.black.withOpacity(0.15),
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(

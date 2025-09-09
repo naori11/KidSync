@@ -47,7 +47,9 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
       final currentUserId = currentUser.id;
 
       // Use the new service method
-      final studentsData = await _driverService.getTodaysStudentsWithPatterns(currentUserId);
+      final studentsData = await _driverService.getTodaysStudentsWithPatterns(
+        currentUserId,
+      );
 
       setState(() {
         todayStudents = studentsData['all_students'];
@@ -109,8 +111,9 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
         children: [
           // Header
           Card(
-            elevation: 6,
-            shadowColor: widget.primaryColor.withOpacity(0.2),
+            color: Colors.white,
+            elevation: 8,
+            shadowColor: Colors.black.withOpacity(0.15),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -120,6 +123,14 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,7 +199,8 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
           const SizedBox(height: 24),
 
           // Today's Tasks Summary
-          if (morningPickupStudents.isNotEmpty || afternoonDropoffStudents.isNotEmpty) ...[
+          if (morningPickupStudents.isNotEmpty ||
+              afternoonDropoffStudents.isNotEmpty) ...[
             _buildTasksSection(),
             const SizedBox(height: 24),
           ],
@@ -271,6 +283,7 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
     IconData icon,
   ) {
     return Card(
+      color: Colors.white,
       elevation: 8,
       shadowColor: Colors.black.withOpacity(0.15),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -319,9 +332,10 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
     final isMorningPickup = task['task_type'] == 'morning_pickup';
     final time = isMorningPickup ? task['pickup_time'] : task['dropoff_time'];
     final hasException = task['exception_reason'] != null;
-    final isDriverResponsible = isMorningPickup 
-        ? task['dropoff_person'] == 'driver'
-        : task['pickup_person'] == 'driver';
+    final isDriverResponsible =
+        isMorningPickup
+            ? task['dropoff_person'] == 'driver'
+            : task['pickup_person'] == 'driver';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -330,17 +344,19 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: hasException 
-              ? Colors.orange 
-              : isDriverResponsible 
+          color:
+              hasException
+                  ? Colors.orange
+                  : isDriverResponsible
                   ? color.withOpacity(0.3)
                   : Colors.grey.withOpacity(0.3),
           width: hasException ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 8,
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 12,
+            spreadRadius: 2,
             offset: const Offset(0, 4),
           ),
           BoxShadow(
@@ -369,7 +385,7 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
                 ),
               ),
               const SizedBox(width: 12),
-              
+
               // Student Details
               Expanded(
                 child: Column(
@@ -380,23 +396,21 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: isDriverResponsible 
-                            ? const Color(0xFF000000)
-                            : Colors.grey[600],
+                        color:
+                            isDriverResponsible
+                                ? const Color(0xFF000000)
+                                : Colors.grey[600],
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '${student['grade_level']}${student['sections']?['name'] != null ? ' • ${student['sections']['name']}' : ''}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                     ),
                   ],
                 ),
               ),
-              
+
               // Time Display
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -430,9 +444,9 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           // Address Row
           Container(
             width: double.infinity,
@@ -464,7 +478,7 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
               ],
             ),
           ),
-          
+
           // Exception Information
           if (hasException) ...[
             const SizedBox(height: 12),
@@ -494,7 +508,7 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
               ),
             ),
           ],
-          
+
           // Driver Responsibility Indicator
           if (!isDriverResponsible) ...[
             const SizedBox(height: 12),
@@ -530,7 +544,7 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
   // Helper method to format time
   String _formatTime(String? time) {
     if (time == null) return 'No time';
-    
+
     try {
       // Parse time string (format: HH:mm:ss or HH:mm)
       final timeParts = time.split(':');
@@ -538,16 +552,22 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
         final hour = int.parse(timeParts[0]);
         final minute = int.parse(timeParts[1]);
         final timeOfDay = TimeOfDay(hour: hour, minute: minute);
-        
+
         // Format to 12-hour format
         final now = DateTime.now();
-        final dateTime = DateTime(now.year, now.month, now.day, timeOfDay.hour, timeOfDay.minute);
+        final dateTime = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          timeOfDay.hour,
+          timeOfDay.minute,
+        );
         return DateFormat('h:mm a').format(dateTime);
       }
     } catch (e) {
       print('Error parsing time: $e');
     }
-    
+
     return time;
   }
 
@@ -559,8 +579,9 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
     Color color,
   ) {
     return Card(
-      elevation: 6,
-      shadowColor: color.withOpacity(0.2),
+      color: Colors.white,
+      elevation: 8,
+      shadowColor: Colors.black.withOpacity(0.15),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -643,8 +664,9 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
     final dropoffPerson = assignment['dropoff_person'];
 
     return Card(
-      elevation: 3,
-      shadowColor: widget.primaryColor.withOpacity(0.1),
+      color: Colors.white,
+      elevation: 8,
+      shadowColor: Colors.black.withOpacity(0.2),
       margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
@@ -772,16 +794,22 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
+          elevation: 8,
           title: Row(
             children: [
               Icon(Icons.person, color: widget.primaryColor, size: 24),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 'Student Information',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
               ),
             ],
           ),
@@ -862,6 +890,7 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
+              style: TextButton.styleFrom(foregroundColor: widget.primaryColor),
               child: const Text('Close', style: TextStyle(fontSize: 16)),
             ),
           ],
