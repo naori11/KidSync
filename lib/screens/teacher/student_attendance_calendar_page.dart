@@ -253,6 +253,7 @@ class _TeacherStudentAttendanceCalendarPageState
                 totalLate++;
                 break;
               case "Excused":
+              case "Emergency Exit":
                 totalExcused++;
                 break;
             }
@@ -318,6 +319,7 @@ class _TeacherStudentAttendanceCalendarPageState
 
     final status = scan['status'] ?? "Absent";
     if (status == "Excused") return const Color(0xFF2563EB);
+    if (status == "Emergency Exit") return const Color(0xFF6A1B9A);
     if (status == "Absent" || status == "No Data")
       return const Color(0xFFEB5757);
 
@@ -342,6 +344,7 @@ class _TeacherStudentAttendanceCalendarPageState
         _legendItem(const Color(0xFFEB5757), "Absent"),
         _legendItem(const Color(0xFFFFA726), "Late"),
         _legendItem(const Color(0xFF2563EB), "Excused"),
+        _legendItem(const Color(0xFF6A1B9A), "Emergency Exit"),
       ],
     );
   }
@@ -534,6 +537,11 @@ class _TeacherStudentAttendanceCalendarPageState
           backgroundColor = const Color(0xFFF0F4FF);
           borderColor = const Color(0xFF2563EB);
           break;
+        case "Emergency Exit":
+          statusColor = const Color(0xFF6A1B9A);
+          backgroundColor = const Color(0xFFF3E5F5);
+          borderColor = const Color(0xFF6A1B9A);
+          break;
         default:
           // If we have a record but no valid status, treat as absent for class days
           if (isClassDay) {
@@ -702,9 +710,10 @@ class _TeacherStudentAttendanceCalendarPageState
         status.length > 6 ? status.substring(0, 6) : status,
         style: TextStyle(
           fontSize: 9,
-          color:
-              status == "Absent"
-                  ? const Color(0xFFEB5757)
+          color: status == "Absent"
+              ? const Color(0xFFEB5757)
+              : status == "Emergency Exit"
+                  ? const Color(0xFF6A1B9A)
                   : const Color(0xFF8F9BB3),
           fontWeight: FontWeight.w600,
         ),
@@ -740,9 +749,10 @@ class _TeacherStudentAttendanceCalendarPageState
         status,
         style: TextStyle(
           fontSize: 10,
-          color:
-              status == "Absent"
-                  ? const Color(0xFFEB5757)
+          color: status == "Absent"
+              ? const Color(0xFFEB5757)
+              : status == "Emergency Exit"
+                  ? const Color(0xFF6A1B9A)
                   : const Color(0xFF8F9BB3),
           fontWeight: FontWeight.w600,
         ),

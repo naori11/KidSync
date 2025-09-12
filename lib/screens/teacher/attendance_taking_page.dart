@@ -1,4 +1,5 @@
 // ...existing code...
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -51,6 +52,25 @@ class _TeacherSectionAttendancePageState
   void initState() {
     super.initState();
     _loadAttendanceData();
+    // Set up periodic checking for new RFID taps
+    _setupRfidMonitoring();
+  }
+
+  Timer? _rfidTimer;
+
+  void _setupRfidMonitoring() {
+    // Check for new RFID taps every 30 seconds during active attendance
+    _rfidTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (attendanceActive || isTestingSection) {
+        _checkForNewRfidTaps();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _rfidTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadAttendanceData() async {
@@ -252,29 +272,39 @@ class _TeacherSectionAttendancePageState
     Map<int, Map<String, dynamic>> scans,
     Map<int, Map<String, dynamic>> attendance,
   ) async {
-    if (!attendanceActive && !isTestingSection) return; // Only process during active attendance or in testing sections
+    // Only process during active attendance or in testing sections
+    if (!attendanceActive && !isTestingSection) {
+      print('Auto-attendance skipped: not active and not testing section');
+      return;
+    }
 
     final user = supabase.auth.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      print('Auto-attendance skipped: no user logged in');
+      return;
+    }
 
     final today = DateTime.now();
     final todayDateStr =
         "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
 
     final List<Map<String, dynamic>> autoAttendanceRecords = [];
+    int processedCount = 0;
 
     for (final student in students) {
       final studentId = student['id'] as int;
       final scan = scans[studentId];
       final existingAttendance = attendance[studentId];
 
-      // If student has tapped RFID but no attendance record exists, auto-mark as present
+      // Only process if student has tapped RFID but no attendance record exists
       if (scan != null && existingAttendance == null) {
+        processedCount++;
         String status = "Present";
         String notes = "Auto-marked via RFID tap";
 
         // Check if it should be marked as late based on scan time and class start time
-        if (classStartTime != null) {
+        // Only apply late logic if we have a valid class start time and this is not a testing section
+        if (classStartTime != null && !isTestingSection) {
           final scanTime = DateTime.parse(scan['scan_time']);
           final lateThreshold = classStartTime!.add(
             Duration(minutes: lateThresholdMinutes),
@@ -299,8 +329,12 @@ class _TeacherSectionAttendancePageState
         
         // Update local attendance map
         attendance[studentId] = attendanceRecord;
+        
+        print('Auto-marking student $studentId as $status via RFID');
       }
     }
+
+    print('Auto-attendance processing: $processedCount students with RFID taps, ${autoAttendanceRecords.length} records to create');
 
     // Bulk insert auto-attendance records if any
     if (autoAttendanceRecords.isNotEmpty) {
@@ -312,10 +346,79 @@ class _TeacherSectionAttendancePageState
             onConflict: 'section_id, student_id, date',
           );
         }
-        print('Auto-marked ${autoAttendanceRecords.length} students as present via RFID');
+        print('Auto-marked ${autoAttendanceRecords.length} students via RFID');
       } catch (e) {
         print('Error auto-marking attendance: $e');
       }
+    }
+  }
+
+  // Check for new RFID taps and process them
+  Future<void> _checkForNewRfidTaps() async {
+    if (!attendanceActive && !isTestingSection) return;
+
+    try {
+      // Get current students list
+      final studentIds = [for (final s in students) s['id'] as int];
+      if (studentIds.isEmpty) return;
+
+      // Load today's scan_records for all students
+      final today = DateTime.now();
+      final startOfDay = DateTime(today.year, today.month, today.day, 0, 0, 0);
+      final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
+
+      final scans = await supabase
+          .from('scan_records')
+          .select('id, student_id, scan_time, action, status')
+          .inFilter('student_id', studentIds)
+          .gte('scan_time', startOfDay.toIso8601String())
+          .lte('scan_time', endOfDay.toIso8601String())
+          .eq('action', 'entry')
+          .order('scan_time', ascending: true);
+
+      // Build scan map (first entry action for each student)
+      Map<int, Map<String, dynamic>> newScanRecords = {};
+      for (final s in scans) {
+        final sid = s['student_id'] as int;
+        if (newScanRecords[sid] == null) {
+          newScanRecords[sid] = s;
+        }
+      }
+
+      // Load current attendance records
+      final todayDateStr =
+          "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+      final attendanceRows = await supabase
+          .from('section_attendance')
+          .select('*')
+          .eq('section_id', widget.sectionId)
+          .eq('date', todayDateStr);
+
+      Map<int, Map<String, dynamic>> currentAttendance = {};
+      for (final att in attendanceRows) {
+        currentAttendance[att['student_id'] as int] = att;
+      }
+
+      // Process new RFID taps for auto-attendance
+      await _processRfidAutoAttendance(newScanRecords, currentAttendance);
+
+      // Update local state if there were changes
+      bool hasChanges = false;
+      for (final studentId in newScanRecords.keys) {
+        if (todayScan[studentId] == null) {
+          hasChanges = true;
+          break;
+        }
+      }
+
+      if (hasChanges) {
+        setState(() {
+          todayScan = newScanRecords;
+          todayAttendance = currentAttendance;
+        });
+      }
+    } catch (e) {
+      print('Error checking for new RFID taps: $e');
     }
   }
 
@@ -435,11 +538,37 @@ class _TeacherSectionAttendancePageState
 
   // Add helper method to get current attendance status (including pending changes)
   String _getCurrentAttendanceStatus(int studentId) {
+    // Check pending attendance first (local changes not yet saved)
     if (pendingAttendance.containsKey(studentId)) {
       return pendingAttendance[studentId]!['status'];
     }
+    
+    // Check existing attendance records in database
     final att = todayAttendance[studentId];
-    return att != null ? att['status'] : "Absent";
+    if (att != null) {
+      return att['status'];
+    }
+    
+    // Default to Absent if no attendance record exists
+    return "Absent";
+  }
+
+  // Check if student was auto-marked via RFID
+  bool _isAutoMarked(int studentId) {
+    // Check pending attendance first
+    if (pendingAttendance.containsKey(studentId)) {
+      final notes = pendingAttendance[studentId]!['notes']?.toString() ?? '';
+      return notes.contains('Auto-marked via RFID');
+    }
+    
+    // Check existing attendance
+    final att = todayAttendance[studentId];
+    if (att != null) {
+      final notes = att['notes']?.toString() ?? '';
+      return notes.contains('Auto-marked via RFID');
+    }
+    
+    return false;
   }
 
   // Modified summary method to include pending changes
@@ -895,6 +1024,43 @@ class _TeacherSectionAttendancePageState
                           height: 44,
                           child: OutlinedButton.icon(
                             icon: const Icon(
+                              Icons.refresh,
+                              color: Color(0xFF2563EB),
+                              size: 18,
+                            ),
+                            label: const Text(
+                              "Refresh RFID",
+                              style: TextStyle(
+                                color: Color(0xFF2563EB),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            onPressed: _checkForNewRfidTaps,
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              side: const BorderSide(
+                                color: Color(0xFF2563EB),
+                                width: 1.5,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 1,
+                              shadowColor: Colors.black.withOpacity(0.05),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // Export button with student management styling
+                        SizedBox(
+                          height: 44,
+                          child: OutlinedButton.icon(
+                            icon: const Icon(
                               Icons.file_download_outlined,
                               color: Color(0xFF2ECC71),
                               size: 18,
@@ -1293,22 +1459,37 @@ class _TeacherSectionAttendancePageState
                                   width: 1,
                                 ),
                               ),
-                              child: Row(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(
-                                    Icons.wifi_tethering,
-                                    color: const Color(0xFF19AE61),
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      "RFID Auto-Attendance: Students are automatically marked Present/Late when they tap their RFID card during school hours. Use buttons below for manual overrides.",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: const Color(0xFF2E7D32),
-                                        fontWeight: FontWeight.w500,
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.wifi_tethering,
+                                        color: const Color(0xFF19AE61),
+                                        size: 20,
                                       ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          "RFID Auto-Attendance Active",
+                                          style: TextStyle(
+                                            color: const Color(0xFF19AE61),
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    "• Students are automatically marked Present/Late when they tap their RFID card\n• System checks for new taps every 30 seconds\n• Use 'Refresh RFID' button to check immediately\n• Manual buttons below override automatic attendance",
+                                    style: TextStyle(
+                                      color: const Color(0xFF2E7D32),
+                                      fontSize: 12,
+                                      height: 1.4,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ],
@@ -1527,8 +1708,46 @@ class _TeacherSectionAttendancePageState
                                                   child: Align(
                                                     alignment:
                                                         Alignment.centerLeft,
-                                                    child: _StatusBadge(
-                                                      status: status,
+                                                    child: Column(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        _StatusBadge(
+                                                          status: status,
+                                                        ),
+                                                        // Show auto-marked indicator if student was auto-marked via RFID
+                                                        if (_isAutoMarked(s['id']))
+                                                          Container(
+                                                            margin: const EdgeInsets.only(top: 2),
+                                                            padding: const EdgeInsets.symmetric(
+                                                              horizontal: 6,
+                                                              vertical: 2,
+                                                            ),
+                                                            decoration: BoxDecoration(
+                                                              color: const Color(0xFF19AE61).withOpacity(0.1),
+                                                              borderRadius: BorderRadius.circular(8),
+                                                            ),
+                                                            child: Row(
+                                                              mainAxisSize: MainAxisSize.min,
+                                                              children: [
+                                                                Icon(
+                                                                  Icons.auto_mode,
+                                                                  size: 10,
+                                                                  color: const Color(0xFF19AE61),
+                                                                ),
+                                                                const SizedBox(width: 2),
+                                                                Text(
+                                                                  "Auto",
+                                                                  style: TextStyle(
+                                                                    fontSize: 9,
+                                                                    color: const Color(0xFF19AE61),
+                                                                    fontWeight: FontWeight.w600,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                      ],
                                                     ),
                                                   ),
                                                 ),

@@ -122,7 +122,7 @@ class _TeacherSectionAttendanceSummaryPageState
           stats['absent'] = (stats['absent'] ?? 0) + 1;
         else if (status == 'late')
           stats['late'] = (stats['late'] ?? 0) + 1;
-        else if (status == 'excused')
+        else if (status == 'excused' || status == 'emergency exit')
           stats['excused'] = (stats['excused'] ?? 0) + 1;
       }
 
@@ -159,7 +159,7 @@ class _TeacherSectionAttendanceSummaryPageState
           totalAbsentToday++;
         else if (status == 'late')
           totalLateToday++;
-        else if (status == 'excused')
+        else if (status == 'excused' || status == 'emergency exit')
           totalExcusedToday++;
       }
     } catch (e) {
