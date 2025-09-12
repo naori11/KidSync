@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'student_attendance_calendar_page.dart';
 
 class TeacherSectionAttendancePage extends StatefulWidget {
   final int sectionId;
@@ -74,7 +73,7 @@ class _TeacherSectionAttendancePageState
         .eq('section_id', widget.sectionId)
         .order('assigned_at', ascending: true);
 
-    scheduleRows = List<Map<String, dynamic>>.from(schedRows ?? []);
+    scheduleRows = List<Map<String, dynamic>>.from(schedRows);
 
     DateTime now = DateTime.now();
     scheduleString = null;
@@ -188,7 +187,7 @@ class _TeacherSectionAttendancePageState
     final startOfDay = DateTime(today.year, today.month, today.day, 0, 0, 0);
     final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
 
-    final sList = List<Map<String, dynamic>>.from(studentList ?? []);
+    final sList = List<Map<String, dynamic>>.from(studentList);
     final studentIds = [for (final s in sList) s['id'] as int];
     Map<int, Map<String, dynamic>> scanRecordByStudent = {};
     if (studentIds.isNotEmpty) {
@@ -238,6 +237,9 @@ class _TeacherSectionAttendancePageState
       });
     }
 
+    // Auto-mark students as present if they tapped RFID but don't have attendance record
+    await _processRfidAutoAttendance(scanRecordByStudent, attendanceByStudent);
+
     setState(() {
       isLoading = false;
       todayScan = scanRecordByStudent;
@@ -245,8 +247,80 @@ class _TeacherSectionAttendancePageState
     });
   }
 
+  // Auto-mark students as present when they tap RFID during school hours
+  Future<void> _processRfidAutoAttendance(
+    Map<int, Map<String, dynamic>> scans,
+    Map<int, Map<String, dynamic>> attendance,
+  ) async {
+    if (!attendanceActive && !isTestingSection) return; // Only process during active attendance or in testing sections
+
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    final today = DateTime.now();
+    final todayDateStr =
+        "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+
+    final List<Map<String, dynamic>> autoAttendanceRecords = [];
+
+    for (final student in students) {
+      final studentId = student['id'] as int;
+      final scan = scans[studentId];
+      final existingAttendance = attendance[studentId];
+
+      // If student has tapped RFID but no attendance record exists, auto-mark as present
+      if (scan != null && existingAttendance == null) {
+        String status = "Present";
+        String notes = "Auto-marked via RFID tap";
+
+        // Check if it should be marked as late based on scan time and class start time
+        if (classStartTime != null) {
+          final scanTime = DateTime.parse(scan['scan_time']);
+          final lateThreshold = classStartTime!.add(
+            Duration(minutes: lateThresholdMinutes),
+          );
+          if (scanTime.isAfter(lateThreshold)) {
+            status = "Late";
+            notes = "Auto-marked as late via RFID tap";
+          }
+        }
+
+        final attendanceRecord = {
+          'section_id': widget.sectionId,
+          'student_id': studentId,
+          'date': todayDateStr,
+          'status': status,
+          'marked_by': user.id,
+          'marked_at': scan['scan_time'], // Use the scan time as marked time
+          'notes': notes,
+        };
+
+        autoAttendanceRecords.add(attendanceRecord);
+        
+        // Update local attendance map
+        attendance[studentId] = attendanceRecord;
+      }
+    }
+
+    // Bulk insert auto-attendance records if any
+    if (autoAttendanceRecords.isNotEmpty) {
+      try {
+        // Use upsert with proper conflict resolution for auto-attendance
+        for (final record in autoAttendanceRecords) {
+          await supabase.from('section_attendance').upsert(
+            record,
+            onConflict: 'section_id, student_id, date',
+          );
+        }
+        print('Auto-marked ${autoAttendanceRecords.length} students as present via RFID');
+      } catch (e) {
+        print('Error auto-marking attendance: $e');
+      }
+    }
+  }
+
   String _shortTime(String t) {
-    if (t == null || t.isEmpty) return "";
+    if (t.isEmpty) return "";
     final parts = t.split(':');
     if (parts.length >= 2) {
       final h = parts[0].padLeft(2, '0');
@@ -270,9 +344,13 @@ class _TeacherSectionAttendancePageState
     final todayDateStr =
         "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
 
+    // Get existing attendance record (if any) to preserve the ID
+    final existingAttendance = todayAttendance[studentId];
+    
     // Store in local state instead of database
     setState(() {
       pendingAttendance[studentId] = {
+        if (existingAttendance != null) 'id': existingAttendance['id'], // Preserve existing ID
         'section_id': widget.sectionId,
         'student_id': studentId,
         'date': todayDateStr,
@@ -289,7 +367,33 @@ class _TeacherSectionAttendancePageState
     if (!attendanceActive) return;
 
     setState(() {
-      pendingAttendance.remove(studentId);
+      // If there's a pending change, remove it
+      if (pendingAttendance.containsKey(studentId)) {
+        pendingAttendance.remove(studentId);
+      } else {
+        // If there's an existing attendance record, mark it for deletion by setting status to "Absent"
+        final existingAttendance = todayAttendance[studentId];
+        if (existingAttendance != null) {
+          final user = supabase.auth.currentUser;
+          if (user != null) {
+            final today = DateTime.now();
+            final todayDateStr =
+                "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+            
+            pendingAttendance[studentId] = {
+              'id': existingAttendance['id'], // Preserve existing ID
+              'section_id': widget.sectionId,
+              'student_id': studentId,
+              'date': todayDateStr,
+              'status': 'Absent',
+              'marked_by': user.id,
+              'marked_at': DateTime.now().toIso8601String(),
+              'notes': 'Undone by teacher',
+            };
+          }
+        }
+      }
+      
       // Check if there are any remaining changes
       hasUnsavedChanges = pendingAttendance.isNotEmpty;
     });
@@ -303,7 +407,7 @@ class _TeacherSectionAttendancePageState
           (ctx) => AlertDialog(
             title: const Text("Mark All as Present"),
             content: const Text(
-              "Are you sure you want to mark all students as Present (or Late if past threshold)?",
+              "Are you sure you want to mark all non-RFID tapped students as Present?",
             ),
             actions: [
               TextButton(
@@ -321,8 +425,10 @@ class _TeacherSectionAttendancePageState
 
     for (final stu in students) {
       final currentAttendance = _getCurrentAttendanceStatus(stu['id']);
-      if (currentAttendance == "Absent") {
-        await _handleMarkPresent(stu['id']);
+      final scan = todayScan[stu['id']];
+      // Only mark as present if they haven't tapped RFID and are currently absent
+      if (currentAttendance == "Absent" && scan == null) {
+        await _markAttendance(stu['id'], "Present");
       }
     }
   }
@@ -338,7 +444,7 @@ class _TeacherSectionAttendancePageState
 
   // Modified summary method to include pending changes
   Map<String, int> _getSummary() {
-    int present = 0, late = 0, absent = 0, excused = 0, total = students.length;
+    int present = 0, late = 0, absent = 0, excused = 0, emergency = 0, total = students.length;
     for (final s in students) {
       final status = _getCurrentAttendanceStatus(s['id']);
       if (status == "Present")
@@ -347,6 +453,8 @@ class _TeacherSectionAttendancePageState
         late++;
       else if (status == "Excused")
         excused++;
+      else if (status == "Emergency Exit")
+        emergency++;
       else
         absent++;
     }
@@ -355,6 +463,7 @@ class _TeacherSectionAttendancePageState
       'Late': late,
       'Absent': absent,
       'Excused': excused,
+      'Emergency Exit': emergency,
       'Total': total,
     };
   }
@@ -375,9 +484,18 @@ class _TeacherSectionAttendancePageState
     setState(() => isSubmitting = true);
 
     try {
-      // Submit all pending attendance records
+      // Submit all pending attendance records with proper upsert logic
       for (final attendance in pendingAttendance.values) {
-        await supabase.from('section_attendance').upsert(attendance);
+        try {
+          // Use upsert with onConflict to handle existing records
+          await supabase.from('section_attendance').upsert(
+            attendance,
+            onConflict: 'section_id, student_id, date',
+          );
+        } catch (individualError) {
+          print('Error updating individual attendance record: $individualError');
+          // Continue with other records even if one fails
+        }
       }
 
       // Clear pending changes and reload data
@@ -406,24 +524,10 @@ class _TeacherSectionAttendancePageState
     }
   }
 
-  // Handle mark present (determines if late based on time)
-  Future<void> _handleMarkPresent(int studentId) async {
+  // Handle mark absent
+  Future<void> _handleMarkAbsent(int studentId) async {
     if (!attendanceActive) return;
-
-    String status = "Present";
-
-    // Check if it should be marked as late
-    if (classStartTime != null) {
-      final now = DateTime.now();
-      final lateThreshold = classStartTime!.add(
-        Duration(minutes: lateThresholdMinutes),
-      );
-      if (now.isAfter(lateThreshold)) {
-        status = "Late";
-      }
-    }
-
-    await _markAttendance(studentId, status);
+    await _markAttendance(studentId, "Absent");
   }
 
   // Handle mark excused
@@ -477,6 +581,67 @@ class _TeacherSectionAttendancePageState
     }
   }
 
+  // Handle emergency exit
+  Future<void> _handleEmergencyExit(int studentId) async {
+    if (!attendanceActive) return;
+
+    final TextEditingController notesController = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.warning, color: Colors.red, size: 24),
+                SizedBox(width: 8),
+                Text("Emergency Exit"),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text("Record emergency exit for this student:"),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: notesController,
+                  decoration: const InputDecoration(
+                    hintText: "Emergency reason/details...",
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text("Record Emergency Exit"),
+              ),
+            ],
+          ),
+    );
+
+    if (result == true) {
+      await _markAttendance(
+        studentId,
+        "Emergency Exit",
+        notes:
+            notesController.text.trim().isEmpty
+                ? "Emergency exit - no details provided"
+                : notesController.text.trim(),
+      );
+    }
+  }
+
   // Export CSV function
   Future<void> _exportCSV() async {
     try {
@@ -501,8 +666,8 @@ class _TeacherSectionAttendancePageState
         ]);
       }
 
-      // Convert to CSV string
-      String csvString = csvData.map((row) => row.join(',')).join('\n');
+      // Convert to CSV string and would be used for download
+      // String csvString = csvData.map((row) => row.join(',')).join('\n');
 
       // For web, you would typically download the file
       // For now, just show a success message
@@ -600,7 +765,7 @@ class _TeacherSectionAttendancePageState
     final percent =
         summary['Total'] == 0
             ? 0
-            : ((summary['Present']! + summary['Late']! + summary['Excused']!) /
+            : ((summary['Present']! + summary['Late']! + summary['Excused']! + summary['Emergency Exit']!) /
                     summary['Total']!) *
                 100;
     final now = DateTime.now();
@@ -870,7 +1035,7 @@ class _TeacherSectionAttendancePageState
                                       ),
                                       const SizedBox(width: 4),
                                       Text(
-                                        countdown!,
+                                        countdown,
                                         style: const TextStyle(
                                           color: Color(0xFF2563EB),
                                           fontSize: 11,
@@ -1017,7 +1182,7 @@ class _TeacherSectionAttendancePageState
                                     Icons.check_circle,
                                     size: 16,
                                   ),
-                                  label: const Text("Mark All as Present"),
+                                  label: const Text("Mark All Non-RFID as Present"),
                                   onPressed:
                                       attendanceActive && summary['Absent']! > 0
                                           ? _markAllPresent
@@ -1115,6 +1280,39 @@ class _TeacherSectionAttendancePageState
                                   ],
                                 ),
                               ],
+                            ),
+                            const SizedBox(height: 12),
+                            // RFID Auto-Attendance Information
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE8F5E8),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: const Color(0xFF19AE61),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.wifi_tethering,
+                                    color: const Color(0xFF19AE61),
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      "RFID Auto-Attendance: Students are automatically marked Present/Late when they tap their RFID card during school hours. Use buttons below for manual overrides.",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: const Color(0xFF2E7D32),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -1341,21 +1539,22 @@ class _TeacherSectionAttendancePageState
                                                     mainAxisSize:
                                                         MainAxisSize.min,
                                                     children: [
+                                                      // Absent button - only show if student is currently Present/Late (to mark them absent)
                                                       if (attendanceActive &&
-                                                          (status == "Absent" ||
+                                                          (status == "Present" ||
                                                               status == "Late"))
                                                         SizedBox(
                                                           height: 28,
                                                           child: ElevatedButton(
                                                             onPressed:
                                                                 () =>
-                                                                    _handleMarkPresent(
+                                                                    _handleMarkAbsent(
                                                                       s['id'],
                                                                     ),
                                                             style: ElevatedButton.styleFrom(
                                                               backgroundColor:
                                                                   const Color(
-                                                                    0xFF19AE61,
+                                                                    0xFFEB5757,
                                                                   ),
                                                               foregroundColor:
                                                                   Colors.white,
@@ -1381,18 +1580,18 @@ class _TeacherSectionAttendancePageState
                                                                   ),
                                                             ),
                                                             child: const Text(
-                                                              "Present",
+                                                              "Absent",
                                                             ),
                                                           ),
                                                         ),
                                                       if (attendanceActive &&
-                                                          (status == "Absent" ||
-                                                              status ==
-                                                                  "Late") &&
+                                                          (status == "Present" ||
+                                                              status == "Late") &&
                                                           status != "Excused")
                                                         const SizedBox(
                                                           width: 6,
                                                         ),
+                                                      // Excused button - show for any status except Excused
                                                       if (attendanceActive &&
                                                           status != "Excused")
                                                         SizedBox(
@@ -1433,6 +1632,58 @@ class _TeacherSectionAttendancePageState
                                                             ),
                                                           ),
                                                         ),
+                                                      if (attendanceActive &&
+                                                          status != "Excused" &&
+                                                          status != "Emergency Exit")
+                                                        const SizedBox(
+                                                          width: 6,
+                                                        ),
+                                                      // Emergency Exit button - show for Present/Late students
+                                                      if (attendanceActive &&
+                                                          (status == "Present" ||
+                                                              status == "Late"))
+                                                        SizedBox(
+                                                          height: 28,
+                                                          child: ElevatedButton(
+                                                            onPressed:
+                                                                () =>
+                                                                    _handleEmergencyExit(
+                                                                      s['id'],
+                                                                    ),
+                                                            style: ElevatedButton.styleFrom(
+                                                              backgroundColor:
+                                                                  const Color(
+                                                                    0xFFF44336,
+                                                                  ),
+                                                              foregroundColor:
+                                                                  Colors.white,
+                                                              padding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        8,
+                                                                  ),
+                                                              shape: RoundedRectangleBorder(
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      6,
+                                                                    ),
+                                                              ),
+                                                              elevation: 0,
+                                                              textStyle:
+                                                                  const TextStyle(
+                                                                    fontSize:
+                                                                        11,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w500,
+                                                                  ),
+                                                            ),
+                                                            child: const Text(
+                                                              "Emergency",
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      // Undo button - show for non-absent students
                                                       if (attendanceActive &&
                                                           status != "Absent")
                                                         IconButton(
@@ -1563,6 +1814,10 @@ class _StatusBadge extends StatelessWidget {
       case "Excused":
         color = const Color(0xFFE4F0FF);
         textColor = const Color(0xFF2563EB);
+        break;
+      case "Emergency Exit":
+        color = const Color(0xFFFFEBEE);
+        textColor = const Color(0xFFF44336);
         break;
       default:
         color = const Color(0xFFFBE9E9);
