@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:excel/excel.dart' as excel_lib;
+import 'dart:html' as html;
 
 import 'student_attendance_calendar_page.dart';
 
@@ -84,7 +86,7 @@ class _TeacherSectionAttendanceSummaryPageState
           .eq('section_id', widget.sectionId)
           .order('lname', ascending: true);
 
-      students = List<Map<String, dynamic>>.from(studentRows ?? []);
+      students = List<Map<String, dynamic>>.from(studentRows);
 
       final startOfMonth = DateTime(selectedMonth.year, selectedMonth.month, 1);
       final endOfMonth = DateTime(
@@ -184,10 +186,122 @@ class _TeacherSectionAttendanceSummaryPageState
   }
 
   Future<void> _exportAttendance() async {
-    // Placeholder: replace with real export logic (CSV generation / file save / share)
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Export attendance not implemented yet')),
-    );
+    try {
+      if (students.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No students found to export'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const Dialog(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(width: 20),
+                  Text('Generating attendance report...'),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      // Fetch comprehensive attendance data
+      final attendanceData = await _fetchDetailedAttendanceData();
+
+      // Create Excel workbook
+      var excel = excel_lib.Excel.createExcel();
+
+      // Create Summary sheet
+      var summarySheet = excel['Summary'];
+      await _createAttendanceSummarySheet(summarySheet, attendanceData);
+
+      // Create Monthly Calendar sheet
+      var calendarSheet = excel['Monthly Calendar'];
+      await _createMonthlyCalendarSheet(calendarSheet, attendanceData);
+
+      // Create Detailed Attendance sheet
+      var detailedSheet = excel['Detailed Attendance'];
+      await _createDetailedAttendanceSheet(detailedSheet, attendanceData);
+
+      // Create Students Information sheet
+      var studentsSheet = excel['Students Information'];
+      await _createStudentsInfoSheet(studentsSheet, attendanceData);
+
+      // Clean up: Remove any default sheets
+      final defaultSheetNames = ['Sheet1', 'Sheet', 'Worksheet'];
+      for (String defaultName in defaultSheetNames) {
+        if (excel.tables.containsKey(defaultName)) {
+          excel.delete(defaultName);
+        }
+      }
+
+      // Set Summary as the default sheet
+      excel.setDefaultSheet('Summary');
+
+      // Generate and download file
+      List<int>? fileBytes = excel.encode();
+      if (fileBytes == null) {
+        throw Exception('Failed to generate Excel file');
+      }
+
+      final monthLabel = DateFormat('yyyy-MM').format(selectedMonth);
+      final fileName = '${widget.sectionName}_Attendance_${monthLabel}.xlsx';
+
+      // Download file
+      final blob = html.Blob([
+        fileBytes,
+      ], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor =
+          html.AnchorElement(href: url)
+            ..setAttribute('download', fileName)
+            ..click();
+
+      html.document.body?.children.add(anchor);
+      anchor.click();
+      html.document.body?.children.remove(anchor);
+      html.Url.revokeObjectUrl(url);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Attendance report exported successfully: $fileName'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if still open
+      if (mounted) Navigator.of(context).pop();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildSummaryStats() {
@@ -369,37 +483,6 @@ class _TeacherSectionAttendanceSummaryPageState
     );
   }
 
-  // compact row used in the right-side Daily panel (still available if needed elsewhere)
-  Widget _dailyStatRow(String label, int value, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 13, color: Color(0xFF222B45)),
-          ),
-        ),
-        Text(
-          '$value',
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF2E3A59),
-          ),
-        ),
-      ],
-    );
-  }
-
   void _showStudentAttendanceCalendar(int studentId, String studentName) {
     showDialog(
       context: context,
@@ -434,6 +517,452 @@ class _TeacherSectionAttendanceSummaryPageState
         );
       },
     );
+  }
+
+  // Fetch detailed attendance data for export
+  Future<Map<String, dynamic>> _fetchDetailedAttendanceData() async {
+    final startOfMonth = DateTime(selectedMonth.year, selectedMonth.month, 1);
+    final endOfMonth = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+
+    // Fetch detailed attendance records with student and user info
+    final attendanceRows = await supabase
+        .from('section_attendance')
+        .select('''
+          id, section_id, student_id, date, status, marked_at, notes,
+          students!inner(id, fname, mname, lname, address, birthday, grade_level, gender, profile_image_url),
+          users!section_attendance_marked_by_fkey(fname, mname, lname, role)
+        ''')
+        .eq('section_id', widget.sectionId)
+        .gte('date', DateFormat('yyyy-MM-dd').format(startOfMonth))
+        .lte('date', DateFormat('yyyy-MM-dd').format(endOfMonth))
+        .order('date', ascending: true)
+        .order('students(lname)', ascending: true);
+
+    // Fetch section information
+    final sectionInfo =
+        await supabase
+            .from('sections')
+            .select('id, name, grade_level, schedule, created_at')
+            .eq('id', widget.sectionId)
+            .single();
+
+    return {
+      'attendanceRecords': attendanceRows,
+      'sectionInfo': sectionInfo,
+      'students': students,
+      'monthlyStats': {
+        'totalPresent': totalPresent,
+        'totalLate': totalLate,
+        'totalAbsent': totalAbsent,
+        'totalExcused': totalExcused,
+      },
+      'studentAttendanceStats': studentAttendanceStats,
+      'selectedMonth': selectedMonth,
+    };
+  }
+
+  // Create the Summary sheet with overall statistics
+  Future<void> _createAttendanceSummarySheet(
+    excel_lib.Sheet sheet,
+    Map<String, dynamic> attendanceData,
+  ) async {
+    int rowIndex = 0;
+    final sectionInfo = attendanceData['sectionInfo'] as Map<String, dynamic>;
+    final monthlyStats = attendanceData['monthlyStats'] as Map<String, dynamic>;
+    final selectedMonth = attendanceData['selectedMonth'] as DateTime;
+
+    // Get current user info
+    final user = supabase.auth.currentUser;
+    final userName =
+        user?.userMetadata?['fname'] != null &&
+                user?.userMetadata?['lname'] != null
+            ? '${user?.userMetadata?['fname']} ${user?.userMetadata?['lname']}'
+            : user?.email ?? 'Unknown User';
+
+    // Title
+    var titleCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    titleCell.value = excel_lib.TextCellValue(
+      'ATTENDANCE REPORT - ${sectionInfo['name']}',
+    );
+    titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
+    rowIndex += 2;
+
+    // Report info
+    var reportInfos = [
+      ['Section:', sectionInfo['name']],
+      ['Grade Level:', sectionInfo['grade_level']],
+      ['Report Period:', DateFormat.yMMMM().format(selectedMonth)],
+      ['Generated On:', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())],
+      ['Generated By:', userName],
+    ];
+
+    for (var info in reportInfos) {
+      var labelCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
+      labelCell.value = excel_lib.TextCellValue(info[0]);
+      labelCell.cellStyle = excel_lib.CellStyle(bold: true);
+
+      var valueCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
+      valueCell.value = excel_lib.TextCellValue(info[1]);
+      rowIndex++;
+    }
+    rowIndex++;
+
+    // Monthly Statistics
+    var monthlyStatsHeader = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    monthlyStatsHeader.value = excel_lib.TextCellValue(
+      'MONTHLY ATTENDANCE SUMMARY',
+    );
+    monthlyStatsHeader.cellStyle = excel_lib.CellStyle(
+      bold: true,
+      fontSize: 16,
+    );
+    rowIndex += 2;
+
+    var monthlyStatsData = [
+      ['Present', monthlyStats['totalPresent']],
+      ['Late', monthlyStats['totalLate']],
+      ['Absent', monthlyStats['totalAbsent']],
+      ['Excused', monthlyStats['totalExcused']],
+      [
+        'Total Records',
+        monthlyStats['totalPresent'] +
+            monthlyStats['totalLate'] +
+            monthlyStats['totalAbsent'] +
+            monthlyStats['totalExcused'],
+      ],
+    ];
+
+    for (var stat in monthlyStatsData) {
+      var labelCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
+      labelCell.value = excel_lib.TextCellValue(stat[0]);
+      labelCell.cellStyle = excel_lib.CellStyle(bold: true);
+
+      var valueCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
+      valueCell.value = excel_lib.IntCellValue(stat[1]);
+      rowIndex++;
+    }
+
+    // Auto-resize columns based on content length
+    for (int col = 0; col < 2; col++) {
+      double maxWidth = 15.0; // Minimum width
+      // Calculate based on content - this will be handled by Excel when opened
+      sheet.setColumnWidth(col, maxWidth);
+    }
+  }
+
+  // Create the Detailed Attendance sheet with all daily records
+  Future<void> _createDetailedAttendanceSheet(
+    excel_lib.Sheet sheet,
+    Map<String, dynamic> attendanceData,
+  ) async {
+    int rowIndex = 0;
+    final attendanceRecords =
+        attendanceData['attendanceRecords'] as List<dynamic>;
+    final sectionInfo = attendanceData['sectionInfo'] as Map<String, dynamic>;
+
+    // Title
+    var titleCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    titleCell.value = excel_lib.TextCellValue(
+      'DETAILED ATTENDANCE RECORDS - ${sectionInfo['name']}',
+    );
+    titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
+    rowIndex += 2;
+
+    // Headers
+    final headers = [
+      'Date',
+      'Student ID',
+      'Student Name',
+      'Status',
+      'Marked By',
+      'Marked At',
+      'Notes',
+      'Grade Level',
+      'Gender',
+    ];
+
+    for (int i = 0; i < headers.length; i++) {
+      var headerCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: i,
+          rowIndex: rowIndex,
+        ),
+      );
+      headerCell.value = excel_lib.TextCellValue(headers[i]);
+      headerCell.cellStyle = excel_lib.CellStyle(bold: true);
+    }
+    rowIndex++;
+
+    // Data rows
+    for (final record in attendanceRecords) {
+      final student = record['students'] as Map<String, dynamic>;
+      final markedBy = record['users'] as Map<String, dynamic>?;
+      final fullName =
+          '${student['fname']} ${student['mname'] ?? ''} ${student['lname']}'
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .trim();
+      final markedByName =
+          markedBy != null
+              ? '${markedBy['fname'] ?? ''} ${markedBy['mname'] ?? ''} ${markedBy['lname'] ?? ''}'
+                  .replaceAll(RegExp(r'\s+'), ' ')
+                  .trim()
+              : 'Unknown';
+
+      final rowData = [
+        record['date'] ?? '',
+        student['id']?.toString() ?? '',
+        fullName,
+        (record['status'] ?? '').toString().toUpperCase(),
+        markedByName,
+        record['marked_at'] != null
+            ? DateFormat(
+              'yyyy-MM-dd HH:mm',
+            ).format(DateTime.parse(record['marked_at']))
+            : '',
+        record['notes'] ?? '',
+        student['grade_level'] ?? '',
+        student['gender'] ?? '',
+      ];
+
+      for (int i = 0; i < rowData.length; i++) {
+        var cell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: i,
+            rowIndex: rowIndex,
+          ),
+        );
+        cell.value = excel_lib.TextCellValue(rowData[i]);
+      }
+      rowIndex++;
+    }
+
+    // Auto-resize columns based on content
+    const double minWidth = 8.0;
+    const double maxWidth = 40.0;
+
+    // Auto-size based on approximate content width
+    for (int col = 0; col < 9; col++) {
+      double columnWidth = minWidth;
+      switch (col) {
+        case 0:
+          columnWidth = 12.0;
+          break; // Date
+        case 1:
+          columnWidth = 12.0;
+          break; // Student ID
+        case 2:
+          columnWidth = 25.0;
+          break; // Student Name
+        case 3:
+          columnWidth = 12.0;
+          break; // Status
+        case 4:
+          columnWidth = 20.0;
+          break; // Marked By
+        case 5:
+          columnWidth = 18.0;
+          break; // Marked At
+        case 6:
+          columnWidth = 30.0;
+          break; // Notes
+        case 7:
+          columnWidth = 15.0;
+          break; // Grade Level
+        case 8:
+          columnWidth = 10.0;
+          break; // Gender
+      }
+      sheet.setColumnWidth(
+        col,
+        columnWidth > maxWidth ? maxWidth : columnWidth,
+      );
+    }
+  }
+
+  // Create the Students Information sheet
+  Future<void> _createStudentsInfoSheet(
+    excel_lib.Sheet sheet,
+    Map<String, dynamic> attendanceData,
+  ) async {
+    int rowIndex = 0;
+    final studentsList =
+        attendanceData['students'] as List<Map<String, dynamic>>;
+    final studentAttendanceStats =
+        attendanceData['studentAttendanceStats'] as Map<int, Map<String, int>>;
+    final sectionInfo = attendanceData['sectionInfo'] as Map<String, dynamic>;
+
+    // Title
+    var titleCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    titleCell.value = excel_lib.TextCellValue(
+      'STUDENTS INFORMATION - ${sectionInfo['name']}',
+    );
+    titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
+    rowIndex += 2;
+
+    // Headers
+    final headers = [
+      'Student ID',
+      'Full Name',
+      'Grade Level',
+      'Gender',
+      'Birthday',
+      'Address',
+      'Present Days',
+      'Late Days',
+      'Absent Days',
+      'Excused Days',
+      'Total Days',
+      'Attendance Rate',
+    ];
+
+    for (int i = 0; i < headers.length; i++) {
+      var headerCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: i,
+          rowIndex: rowIndex,
+        ),
+      );
+      headerCell.value = excel_lib.TextCellValue(headers[i]);
+      headerCell.cellStyle = excel_lib.CellStyle(bold: true);
+    }
+    rowIndex++;
+
+    // Student data rows
+    for (final student in studentsList) {
+      final studentId = student['id'] as int;
+      final stats = studentAttendanceStats[studentId] ?? {};
+      final fullName =
+          '${student['fname']} ${student['mname'] ?? ''} ${student['lname']}'
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .trim();
+
+      final present = stats['present'] ?? 0;
+      final late = stats['late'] ?? 0;
+      final absent = stats['absent'] ?? 0;
+      final excused = stats['excused'] ?? 0;
+      final total = present + late + absent + excused;
+      final attendanceRate =
+          total > 0
+              ? ((present + late) / total * 100).toStringAsFixed(1) + '%'
+              : 'N/A';
+
+      final birthday =
+          student['birthday'] != null
+              ? DateFormat(
+                'yyyy-MM-dd',
+              ).format(DateTime.parse(student['birthday']))
+              : '';
+
+      final rowData = [
+        student['id']?.toString() ?? '',
+        fullName,
+        student['grade_level'] ?? '',
+        student['gender'] ?? '',
+        birthday,
+        student['address'] ?? '',
+        present,
+        late,
+        absent,
+        excused,
+        total,
+        attendanceRate,
+      ];
+
+      for (int i = 0; i < rowData.length; i++) {
+        var cell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: i,
+            rowIndex: rowIndex,
+          ),
+        );
+        if (i >= 6 && i <= 10) {
+          // Numeric attendance data: Present(6), Late(7), Absent(8), Excused(9), Total(10)
+          cell.value = excel_lib.IntCellValue(rowData[i] as int);
+        } else {
+          cell.value = excel_lib.TextCellValue(rowData[i].toString());
+        }
+      }
+      rowIndex++;
+    }
+
+    // Auto-resize columns based on content
+    const double minWidth = 8.0;
+    const double maxWidth = 35.0;
+
+    // Auto-size based on approximate content width
+    for (int col = 0; col < 15; col++) {
+      double columnWidth = minWidth;
+      switch (col) {
+        case 0:
+          columnWidth = 12.0;
+          break; // Student ID
+        case 4:
+          columnWidth = 25.0;
+          break; // Full Name
+        case 5:
+          columnWidth = 12.0;
+          break; // Grade Level
+        case 6:
+          columnWidth = 10.0;
+          break; // Gender
+        case 7:
+          columnWidth = 12.0;
+          break; // Birthday
+        case 8:
+          columnWidth = 30.0;
+          break; // Address
+        case 9:
+          columnWidth = 12.0;
+          break; // Present Days
+        case 10:
+          columnWidth = 12.0;
+          break; // Late Days
+        case 11:
+          columnWidth = 12.0;
+          break; // Absent Days
+        case 12:
+          columnWidth = 12.0;
+          break; // Excused Days
+        case 13:
+          columnWidth = 12.0;
+          break; // Total Days
+        case 14:
+          columnWidth = 15.0;
+          break; // Attendance Rate
+      }
+      sheet.setColumnWidth(
+        col,
+        columnWidth > maxWidth ? maxWidth : columnWidth,
+      );
+    }
   }
 
   @override
@@ -878,4 +1407,222 @@ class _TeacherSectionAttendanceSummaryPageState
       ),
     ),
   );
+
+  // Create the Monthly Calendar sheet with students as rows and days as columns
+  Future<void> _createMonthlyCalendarSheet(
+    excel_lib.Sheet sheet,
+    Map<String, dynamic> attendanceData,
+  ) async {
+    int rowIndex = 0;
+    final attendanceRecords =
+        attendanceData['attendanceRecords'] as List<dynamic>;
+    final studentsList =
+        attendanceData['students'] as List<Map<String, dynamic>>;
+    final sectionInfo = attendanceData['sectionInfo'] as Map<String, dynamic>;
+    final selectedMonth = attendanceData['selectedMonth'] as DateTime;
+
+    // Title
+    var titleCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    titleCell.value = excel_lib.TextCellValue(
+      'MONTHLY ATTENDANCE CALENDAR - ${sectionInfo['name']} (${DateFormat.yMMMM().format(selectedMonth)})',
+    );
+    titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 16);
+    rowIndex += 2;
+
+    // Create attendance lookup map for quick access
+    Map<String, String> attendanceLookup = {};
+    for (final record in attendanceRecords) {
+      final studentId = record['student_id'].toString();
+      final date = record['date'];
+      final status = record['status'] ?? 'Unknown';
+      attendanceLookup['${studentId}_${date}'] = status;
+    }
+
+    // Get all days in the month and filter out Saturdays and non-class days
+    final lastDay = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+    List<DateTime> monthDays = [];
+
+    // Parse section schedule to determine class days
+    final sectionSchedule = sectionInfo['schedule'] as String?;
+    Set<int> classDays = _parseScheduleDays(sectionSchedule);
+
+    for (int day = 1; day <= lastDay.day; day++) {
+      final date = DateTime(selectedMonth.year, selectedMonth.month, day);
+      final dayOfWeek = date.weekday; // Monday = 1, Sunday = 7
+
+      // Skip Saturdays (6) and days not in class schedule
+      if (dayOfWeek != 6 && classDays.contains(dayOfWeek)) {
+        monthDays.add(date);
+      }
+    }
+
+    // Create headers - Student Name + Day columns
+    var studentHeaderCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    studentHeaderCell.value = excel_lib.TextCellValue('Student Name');
+    studentHeaderCell.cellStyle = excel_lib.CellStyle(bold: true);
+
+    // Day headers
+    for (int i = 0; i < monthDays.length; i++) {
+      final day = monthDays[i];
+      var dayHeaderCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: i + 1,
+          rowIndex: rowIndex,
+        ),
+      );
+      dayHeaderCell.value = excel_lib.TextCellValue('${day.month}/${day.day}');
+      dayHeaderCell.cellStyle = excel_lib.CellStyle(bold: true);
+    }
+    rowIndex++;
+
+    // Add legend row
+    var legendCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    legendCell.value = excel_lib.TextCellValue('Legend:');
+    legendCell.cellStyle = excel_lib.CellStyle(bold: true);
+
+    var legendValueCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex),
+    );
+    legendValueCell.value = excel_lib.TextCellValue(
+      'P=Present, L=Late, A=Absent, E=Excused, X=Emergency Exit, -=No Record (Future)',
+    );
+    rowIndex += 2;
+
+    // Student rows
+    for (final student in studentsList) {
+      final studentId = student['id'].toString();
+      final fullName =
+          '${student['fname']} ${student['mname'] ?? ''} ${student['lname']}'
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .trim();
+
+      // Student name cell
+      var nameCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
+      nameCell.value = excel_lib.TextCellValue(fullName);
+
+      // Attendance status for each class day
+      for (int i = 0; i < monthDays.length; i++) {
+        final day = monthDays[i];
+        final dateStr = DateFormat('yyyy-MM-dd').format(day);
+        final lookupKey = '${studentId}_${dateStr}';
+        final status = attendanceLookup[lookupKey];
+
+        var dayCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: i + 1,
+            rowIndex: rowIndex,
+          ),
+        );
+
+        // Check if the day is in the future (greater than current date)
+        final today = DateTime.now();
+        final currentDate = DateTime(today.year, today.month, today.day);
+        final checkDate = DateTime(day.year, day.month, day.day);
+
+        String indicator;
+        String cellStatus;
+
+        if (checkDate.isAfter(currentDate)) {
+          // Future date - no record
+          indicator = _getStatusIndicator(status, defaultToAbsent: false);
+          cellStatus = status ?? 'no_record';
+        } else {
+          // Past or current date - default to absent if no record
+          indicator = _getStatusIndicator(status, defaultToAbsent: true);
+          cellStatus = status ?? 'absent';
+        }
+
+        dayCell.value = excel_lib.TextCellValue(indicator);
+        dayCell.cellStyle = _getStatusCellStyle(cellStatus);
+      }
+      rowIndex++;
+    }
+
+    // Auto-resize columns based on content
+    // Student name column - wider
+    sheet.setColumnWidth(0, 25.0);
+
+    // Day columns - auto-size based on Month/Day format (e.g., "9/15")
+    for (int i = 1; i <= monthDays.length; i++) {
+      sheet.setColumnWidth(i, 6.0); // Optimized for M/D format
+    }
+  }
+
+  // Helper method to parse section schedule and return class days
+  Set<int> _parseScheduleDays(String? schedule) {
+    Set<int> classDays = {};
+
+    if (schedule == null || schedule.isEmpty) {
+      // Default to Monday-Friday if no schedule specified
+      return {1, 2, 3, 4, 5}; // Monday to Friday
+    }
+
+    // Convert schedule string to day numbers
+    // Expected format: "Monday, Tuesday, Wednesday, Thursday, Friday" or similar
+    final scheduleUpper = schedule.toUpperCase();
+
+    if (scheduleUpper.contains('MONDAY') || scheduleUpper.contains('MON'))
+      classDays.add(1);
+    if (scheduleUpper.contains('TUESDAY') || scheduleUpper.contains('TUE'))
+      classDays.add(2);
+    if (scheduleUpper.contains('WEDNESDAY') || scheduleUpper.contains('WED'))
+      classDays.add(3);
+    if (scheduleUpper.contains('THURSDAY') || scheduleUpper.contains('THU'))
+      classDays.add(4);
+    if (scheduleUpper.contains('FRIDAY') || scheduleUpper.contains('FRI'))
+      classDays.add(5);
+    if (scheduleUpper.contains('SUNDAY') || scheduleUpper.contains('SUN'))
+      classDays.add(7);
+
+    // If no days were parsed, default to Monday-Friday
+    if (classDays.isEmpty) {
+      classDays = {1, 2, 3, 4, 5};
+    }
+
+    return classDays;
+  }
+
+  // Helper method to get status indicator
+  String _getStatusIndicator(String? status, {bool defaultToAbsent = false}) {
+    if (status == null) {
+      return defaultToAbsent ? 'A' : '-';
+    }
+
+    switch (status.toLowerCase()) {
+      case 'present':
+        return 'P';
+      case 'late':
+        return 'L';
+      case 'absent':
+        return 'A';
+      case 'excused':
+        return 'E';
+      case 'emergency exit':
+        return 'X';
+      default:
+        return '?';
+    }
+  }
+
+  // Helper method to get cell style based on status
+  excel_lib.CellStyle _getStatusCellStyle(String status) {
+    // Use bold styling for different statuses
+    // Colors will be represented by the indicator letters themselves
+    // Special handling for no_record (future dates) - use normal styling
+    if (status == 'no_record') {
+      return excel_lib.CellStyle(bold: false);
+    }
+    return excel_lib.CellStyle(bold: true);
+  }
 }
