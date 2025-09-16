@@ -265,8 +265,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
 
   @override
   Widget build(BuildContext context) {
-    const Color white = Color(0xFFFFFFFF);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
+    // No local colors needed at this scope
 
     if (isDashboardLoading) {
       return Center(
@@ -291,8 +290,8 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
           _buildTaskStatusCard(widget.primaryColor, widget.isMobile),
           SizedBox(height: widget.isMobile ? 10 : 14),
 
-          // 4. Recent Activity Card - COMMUNICATION
-          _buildRecentActivityCard(widget.primaryColor, widget.isMobile),
+          // 4. Recent Activity Card - moved to its own page
+          const SizedBox.shrink(),
           SizedBox(height: widget.isMobile ? 10 : 14),
 
           // 5. Assigned Students Card - REFERENCE INFORMATION
@@ -854,6 +853,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildRecentActivityCard(Color primaryColor, bool isMobile) {
     const Color white = Color(0xFFFFFFFF);
     const Color black = Color(0xFF000000);

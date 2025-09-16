@@ -90,6 +90,7 @@ class DriverHomeScreen extends StatelessWidget {
       _NavItem('Dashboard', Icons.dashboard, 'dashboard'),
       _NavItem('Pick-up/Drop-off', Icons.directions_car, 'pickup'),
       _NavItem('Students', Icons.group, 'students'),
+      _NavItem('Recent Activity', Icons.update, 'activity'),
     ];
     return _DriverHomeTabs(
       navItems: navItems,
@@ -438,6 +439,11 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
         );
       case 2:
         return DriverStudentsTab(
+          primaryColor: widget.primaryColor,
+          isMobile: isMobile,
+        );
+      case 3:
+        return DriverNotificationsTab(
           primaryColor: widget.primaryColor,
           isMobile: isMobile,
         );

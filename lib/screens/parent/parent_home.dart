@@ -434,6 +434,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     });
   }
 
+  // ignore: unused_element
   void _toggleNotifications() {
     setState(() {
       showNotifications = !showNotifications;
@@ -1027,6 +1028,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     );
   }
 
+  // ignore: unused_element
   Widget _fetcherRow(
     String name,
     String role,

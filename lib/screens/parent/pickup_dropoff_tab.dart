@@ -1433,11 +1433,13 @@ class _WeeklyPatternDialogState extends State<WeeklyPatternDialog> {
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: white,
       child: Container(
         constraints: BoxConstraints(
           maxWidth: widget.isMobile ? double.infinity : 500,
           maxHeight: MediaQuery.of(context).size.height * 0.8,
         ),
+        color: white,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1445,11 +1447,12 @@ class _WeeklyPatternDialogState extends State<WeeklyPatternDialog> {
             Container(
               padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
               decoration: BoxDecoration(
-                color: widget.primaryColor.withOpacity(0.1),
+                color: white,
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(16),
                   topRight: Radius.circular(16),
                 ),
+                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
               ),
               child: Row(
                 children: [
@@ -1612,8 +1615,16 @@ class _WeeklyPatternDialogState extends State<WeeklyPatternDialog> {
       margin: EdgeInsets.only(bottom: 16),
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: widget.primaryColor.withOpacity(0.2)),
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade200),
         borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
