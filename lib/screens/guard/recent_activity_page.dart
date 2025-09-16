@@ -27,6 +27,8 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
   bool isLoading = true;
   late Stream<List<Map<String, dynamic>>> _activityStream;
   bool showTempFetchersOnly = false;
+  bool showEarlyDismissalOnly = false;
+  bool showEmergencyExitOnly = false;
 
   @override
   void initState() {
@@ -69,13 +71,23 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
 
           bool matchesTempFilter =
               !showTempFetchersOnly || activity.isTemporaryFetcher;
+              
+          bool matchesEarlyDismissalFilter =
+              !showEarlyDismissalOnly || (activity.isEarlyDismissal || activity.isVeryEarlyDismissal);
+              
+          bool matchesEmergencyExitFilter =
+              !showEmergencyExitOnly || activity.isEmergencyExit;
 
-          return matchesSearch && matchesTempFilter;
+          return matchesSearch && matchesTempFilter && matchesEarlyDismissalFilter && matchesEmergencyExitFilter;
         }).toList();
 
-    // Count temporary fetcher activities
+    // Count different activity types
     final tempFetcherCount =
         activities.where((a) => a.isTemporaryFetcher).length;
+    final earlyDismissalCount =
+        activities.where((a) => a.isEarlyDismissal || a.isVeryEarlyDismissal).length;
+    final emergencyExitCount =
+        activities.where((a) => a.isEmergencyExit).length;
 
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -118,6 +130,10 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                   onTap: () {
                     setState(() {
                       showTempFetchersOnly = !showTempFetchersOnly;
+                      if (showTempFetchersOnly) {
+                        showEarlyDismissalOnly = false;
+                        showEmergencyExitOnly = false;
+                      }
                     });
                   },
                   child: Padding(
@@ -144,6 +160,128 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                                     : Colors.grey[700],
                             fontWeight:
                                 showTempFetchersOnly
+                                    ? FontWeight.w500
+                                    : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              
+              SizedBox(width: 8),
+
+              // Early Dismissal Filter Toggle
+              Container(
+                decoration: BoxDecoration(
+                  color:
+                      showEarlyDismissalOnly
+                          ? Colors.amber[50]
+                          : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color:
+                        showEarlyDismissalOnly
+                            ? Colors.amber
+                            : Colors.grey[300]!,
+                  ),
+                ),
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      showEarlyDismissalOnly = !showEarlyDismissalOnly;
+                      if (showEarlyDismissalOnly) {
+                        showTempFetchersOnly = false;
+                        showEmergencyExitOnly = false;
+                      }
+                    });
+                  },
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.schedule_outlined,
+                          size: 16,
+                          color:
+                              showEarlyDismissalOnly
+                                  ? Colors.amber[700]
+                                  : Colors.grey[600],
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'Early Dismissal ($earlyDismissalCount)',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color:
+                                showEarlyDismissalOnly
+                                    ? Colors.amber[700]
+                                    : Colors.grey[700],
+                            fontWeight:
+                                showEarlyDismissalOnly
+                                    ? FontWeight.w500
+                                    : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              
+              SizedBox(width: 8),
+
+              // Emergency Exit Filter Toggle
+              Container(
+                decoration: BoxDecoration(
+                  color:
+                      showEmergencyExitOnly
+                          ? Colors.red[50]
+                          : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color:
+                        showEmergencyExitOnly
+                            ? Colors.red
+                            : Colors.grey[300]!,
+                  ),
+                ),
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      showEmergencyExitOnly = !showEmergencyExitOnly;
+                      if (showEmergencyExitOnly) {
+                        showTempFetchersOnly = false;
+                        showEarlyDismissalOnly = false;
+                      }
+                    });
+                  },
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.emergency,
+                          size: 16,
+                          color:
+                              showEmergencyExitOnly
+                                  ? Colors.red[700]
+                                  : Colors.grey[600],
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'Emergency ($emergencyExitCount)',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color:
+                                showEmergencyExitOnly
+                                    ? Colors.red[700]
+                                    : Colors.grey[700],
+                            fontWeight:
+                                showEmergencyExitOnly
                                     ? FontWeight.w500
                                     : FontWeight.normal,
                           ),
@@ -252,12 +390,38 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                         flex: 2,
                       ),
                       _tableCell(
-                        Text(
-                          activity.studentName,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              activity.studentName,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Row(
+                              children: [
+                                // Show special exit type badges
+                                if (activity.isVeryEarlyDismissal) ...[
+                                  _buildExitTypeBadge('Very Early', Colors.red),
+                                  SizedBox(width: 4),
+                                ] else if (activity.isEarlyDismissal) ...[
+                                  _buildExitTypeBadge('Early Dismissal', Colors.orange),
+                                  SizedBox(width: 4),
+                                ] else if (activity.isEmergencyExit) ...[
+                                  _buildExitTypeBadge('Emergency', Colors.red[800]!),
+                                  SizedBox(width: 4),
+                                ],
+                                if (activity.isTemporaryFetcher) ...[
+                                  _buildExitTypeBadge('Temp', Colors.orange),
+                                  SizedBox(width: 4),
+                                ],
+                              ],
+                            ),
+                          ],
                         ),
                         flex: 3,
                       ),
@@ -673,6 +837,111 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                       ),
                     ],
 
+                    // Additional Information Section for Special Exit Types
+                    if (activity.isEarlyDismissal || activity.isVeryEarlyDismissal || activity.isEmergencyExit) ...[
+                      SizedBox(height: 20),
+                      _buildSectionHeader(
+                        activity.isEmergencyExit ? 'Emergency Exit Details' : 'Early Dismissal Details',
+                        activity.isEmergencyExit ? Icons.emergency : Icons.schedule_outlined,
+                      ),
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: activity.isEmergencyExit 
+                              ? Colors.red[50] 
+                              : activity.isVeryEarlyDismissal 
+                                  ? Colors.red[50]
+                                  : Colors.amber[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: activity.isEmergencyExit 
+                                ? Colors.red[200]! 
+                                : activity.isVeryEarlyDismissal 
+                                    ? Colors.red[200]!
+                                    : Colors.amber[200]!,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: activity.isEmergencyExit
+                                        ? Colors.red[100]
+                                        : activity.isVeryEarlyDismissal
+                                            ? Colors.red[100]
+                                            : Colors.amber[100],
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    activity.isEmergencyExit
+                                        ? 'EMERGENCY EXIT'
+                                        : activity.isVeryEarlyDismissal
+                                            ? 'VERY EARLY DISMISSAL'
+                                            : 'EARLY DISMISSAL',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: activity.isEmergencyExit
+                                          ? Colors.red[700]
+                                          : activity.isVeryEarlyDismissal
+                                              ? Colors.red[700]
+                                              : Colors.amber[700],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 12),
+                            if (activity.isEmergencyExit) ...[
+                              _detailRowInContainer(
+                                'Exit Type',
+                                'Emergency Exit (Teacher Approved)',
+                              ),
+                              if (activity.emergencyExitTeacher != null)
+                                _detailRowInContainer(
+                                  'Approved By',
+                                  'Teacher: ${activity.emergencyExitTeacher}',
+                                ),
+                              _detailRowInContainer(
+                                'Authorization',
+                                'Guard Override with Emergency Justification',
+                              ),
+                            ] else ...[
+                              _detailRowInContainer(
+                                'Exit Type',
+                                activity.isVeryEarlyDismissal
+                                    ? 'Very Early Dismissal (2+ hours early)'
+                                    : 'Early Dismissal',
+                              ),
+                              if (activity.dismissalReason != null)
+                                _detailRowInContainer(
+                                  'Dismissal Reason',
+                                  activity.dismissalReason!,
+                                ),
+                              _detailRowInContainer(
+                                'Authorization',
+                                activity.isVeryEarlyDismissal
+                                    ? 'Guard Override Required'
+                                    : 'Section-wide Early Dismissal or Guard Override',
+                              ),
+                            ],
+                            _detailRowInContainer(
+                              'Special Processing',
+                              'Bypass Normal Schedule Validation',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
                     // Additional Notes Section
                     if (activity.reason.isNotEmpty) ...[
                       SizedBox(height: 20),
@@ -717,9 +986,16 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                             activity.isTemporaryFetcher
                                 ? 'PIN Verification'
                                 : (activity.action == 'exit'
-                                    ? 'Guard Approval'
+                                    ? (activity.isEmergencyExit || activity.isEarlyDismissal || activity.isVeryEarlyDismissal
+                                        ? 'Guard Override Authorization'
+                                        : 'Guard Approval')
                                     : 'RFID Entry'),
                           ),
+                          if (activity.isEarlyDismissal || activity.isVeryEarlyDismissal || activity.isEmergencyExit)
+                            _detailRowInContainer(
+                              'Schedule Override',
+                              'Schedule validation bypassed - Special authorization',
+                            ),
                           _detailRowInContainer(
                             'Processing Status',
                             activity.status,
@@ -728,6 +1004,16 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                             'Timestamp',
                             '${activity.time} - ${DateTime.now().toString().split(' ')[0]}',
                           ),
+                          if (activity.isVeryEarlyDismissal)
+                            _detailRowInContainer(
+                              'Risk Level',
+                              'High - Very early dismissal requires special attention',
+                            ),
+                          if (activity.isEmergencyExit)
+                            _detailRowInContainer(
+                              'Risk Level',
+                              'Critical - Emergency exit requires immediate attention',
+                            ),
                         ],
                       ),
                     ),
@@ -933,6 +1219,25 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
       child: Text(
         label,
         style: TextStyle(fontSize: 13, color: fg, fontWeight: FontWeight.w500),
+      ),
+    );
+  }
+
+  Widget _buildExitTypeBadge(String label, Color color) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
       ),
     );
   }

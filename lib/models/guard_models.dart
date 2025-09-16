@@ -209,7 +209,6 @@ class Activity {
         : 'Unknown Student';
 
     final gradeLevel = student?['grade_level'] ?? '';
-    final sectionId = student?['section_id'];
     final gradeClass = gradeLevel.isNotEmpty ? gradeLevel : 'Unknown Class';
 
     // Format time
@@ -249,6 +248,47 @@ class Activity {
   }
 
   bool get isTemporaryFetcher => tempFetcherName != null;
+  
+  // Add detection methods for special exit types
+  bool get isEarlyDismissal {
+    return reason.contains('Early dismissal exit') || 
+           reason.contains('Early dismissal override');
+  }
+  
+  bool get isVeryEarlyDismissal {
+    return reason.contains('Very early dismissal override');
+  }
+  
+  bool get isEmergencyExit {
+    return reason.contains('Emergency exit');
+  }
+  
+  // Get the specific dismissal/exit type for display
+  String get exitType {
+    if (isVeryEarlyDismissal) return 'Very Early';
+    if (isEarlyDismissal) return 'Early Dismissal';
+    if (isEmergencyExit) return 'Emergency';
+    if (isTemporaryFetcher) return 'Temp Fetcher';
+    return 'Regular';
+  }
+  
+  // Get dismissal reason if available
+  String? get dismissalReason {
+    if (isEarlyDismissal || isVeryEarlyDismissal) {
+      final reasonMatch = RegExp(r'Reason: (.+)$', multiLine: true).firstMatch(reason);
+      return reasonMatch?.group(1)?.trim();
+    }
+    return null;
+  }
+  
+  // Get emergency exit teacher if available
+  String? get emergencyExitTeacher {
+    if (isEmergencyExit) {
+      final teacherMatch = RegExp(r'Approved by teacher: (.+)$', multiLine: true).firstMatch(reason);
+      return teacherMatch?.group(1)?.trim();
+    }
+    return null;
+  }
 }
 
 // Navigation item model

@@ -37,6 +37,11 @@ class _TeacherSectionAttendancePageState
   String filterStatus = "All";
   int lateThresholdMinutes = 10;
 
+  // Early dismissal state
+  bool hasActiveEarlyDismissal = false;
+  Map<String, dynamic>? activeEarlyDismissal;
+  bool isDismissingSection = false;
+
   // Section schedule (now supports multiple schedule rows)
   List<Map<String, dynamic>> scheduleRows = [];
   List<String> classDays = [];
@@ -260,6 +265,9 @@ class _TeacherSectionAttendancePageState
     // Auto-mark students as present if they tapped RFID but don't have attendance record
     await _processRfidAutoAttendance(scanRecordByStudent, attendanceByStudent);
 
+    // Load early dismissal status
+    await _loadEarlyDismissalStatus();
+
     setState(() {
       isLoading = false;
       todayScan = scanRecordByStudent;
@@ -431,6 +439,214 @@ class _TeacherSectionAttendancePageState
       return "$h:$m";
     }
     return t;
+  }
+
+  // Load early dismissal status for this section today
+  Future<void> _loadEarlyDismissalStatus() async {
+    try {
+      final today = DateTime.now();
+      final startOfDay = DateTime(today.year, today.month, today.day);
+      final endOfDay = startOfDay.add(Duration(days: 1));
+
+      // Check for active early dismissals for this section today
+      final dismissals = await supabase
+          .from('early_dismissals')
+          .select('*')
+          .eq('section_id', widget.sectionId)
+          .eq('status', 'active')
+          .gte('dismissed_at', startOfDay.toIso8601String())
+          .lt('dismissed_at', endOfDay.toIso8601String())
+          .order('dismissed_at', ascending: false)
+          .limit(1);
+
+      setState(() {
+        hasActiveEarlyDismissal = dismissals.isNotEmpty;
+        activeEarlyDismissal = dismissals.isNotEmpty ? dismissals[0] : null;
+      });
+    } catch (e) {
+      print('Error loading early dismissal status: $e');
+    }
+  }
+
+  // Create early dismissal for the entire section
+  Future<void> _createSectionEarlyDismissal(String reason) async {
+    if (isDismissingSection) return;
+    
+    setState(() => isDismissingSection = true);
+    
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      setState(() => isDismissingSection = false);
+      return;
+    }
+
+    try {
+      // Create early dismissal record
+      final dismissalData = {
+        'section_id': widget.sectionId,
+        'dismissed_by': user.id,
+        'dismissal_type': 'section',
+        'reason': reason,
+        'status': 'active',
+        'dismissed_at': DateTime.now().toIso8601String(),
+      };
+
+      final dismissalResult = await supabase
+          .from('early_dismissals')
+          .insert(dismissalData)
+          .select()
+          .single();
+
+      // Add all current students to the early dismissal
+      final studentsToAdd = students.map((s) => {
+        'early_dismissal_id': dismissalResult['id'],
+        'student_id': s['id'],
+        'dismissed_at': DateTime.now().toIso8601String(),
+      }).toList();
+
+      if (studentsToAdd.isNotEmpty) {
+        await supabase
+            .from('early_dismissal_students')
+            .insert(studentsToAdd);
+      }
+
+      await _loadEarlyDismissalStatus();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Section dismissed early. Students can now tap out."),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } catch (e) {
+      print('Error creating early dismissal: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error creating early dismissal: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => isDismissingSection = false);
+    }
+  }
+
+  // End early dismissal
+  Future<void> _endEarlyDismissal() async {
+    if (activeEarlyDismissal == null) return;
+
+    try {
+      await supabase
+          .from('early_dismissals')
+          .update({'status': 'completed'})
+          .eq('id', activeEarlyDismissal!['id']);
+
+      await _loadEarlyDismissalStatus();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Early dismissal ended."),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      print('Error ending early dismissal: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error ending early dismissal: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Show early dismissal dialog
+  void _showEarlyDismissalDialog() {
+    final reasons = [
+      'Emergency drill',
+      'Weather conditions',
+      'School event',
+      'Technical issues',
+      'Other',
+    ];
+    String? selectedReason = reasons[0];
+    TextEditingController customReasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange, size: 24),
+            SizedBox(width: 8),
+            Text("Early Dismissal"),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Dismiss the entire section early. Students will be allowed to tap out immediately.",
+              style: TextStyle(fontSize: 14),
+            ),
+            SizedBox(height: 16),
+            Text(
+              "Reason for early dismissal:",
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: selectedReason,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              items: reasons.map((reason) => DropdownMenuItem(
+                value: reason,
+                child: Text(reason),
+              )).toList(),
+              onChanged: (value) => selectedReason = value,
+            ),
+            if (selectedReason == 'Other') ...[
+              SizedBox(height: 12),
+              TextField(
+                controller: customReasonController,
+                decoration: InputDecoration(
+                  hintText: "Enter custom reason...",
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                maxLines: 2,
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final reason = selectedReason == 'Other' 
+                  ? customReasonController.text.trim()
+                  : selectedReason ?? 'No reason provided';
+              
+              if (reason.isNotEmpty) {
+                Navigator.of(ctx).pop();
+                _createSectionEarlyDismissal(reason);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: Text("Dismiss Section"),
+          ),
+        ],
+      ),
+    );
   }
 
   // --- Attendance marking logic ---
@@ -1370,7 +1586,63 @@ class _TeacherSectionAttendancePageState
                                     elevation: 0,
                                   ),
                                 ),
-                                const SizedBox(width: 16),
+                                const SizedBox(width: 12),
+                                // Early Dismissal Button
+                                if (attendanceActive && !hasActiveEarlyDismissal)
+                                  ElevatedButton.icon(
+                                    icon: isDismissingSection
+                                        ? SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                            ),
+                                          )
+                                        : Icon(Icons.exit_to_app, size: 16),
+                                    label: Text(isDismissingSection ? "Dismissing..." : "Early Dismissal"),
+                                    onPressed: isDismissingSection ? null : _showEarlyDismissalDialog,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.orange,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      textStyle: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                  ),
+                                // End Early Dismissal Button
+                                if (hasActiveEarlyDismissal)
+                                  ElevatedButton.icon(
+                                    icon: Icon(Icons.stop, size: 16),
+                                    label: Text("End Early Dismissal"),
+                                    onPressed: _endEarlyDismissal,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      textStyle: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                  ),
+                                const Spacer(),
                                 Row(
                                   children: [
                                     const Text(
@@ -1495,6 +1767,56 @@ class _TeacherSectionAttendancePageState
                                 ],
                               ),
                             ),
+                            // Early Dismissal Status Indicator
+                            if (hasActiveEarlyDismissal) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF3E1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.orange,
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.exit_to_app,
+                                          color: Colors.orange,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            "Early Dismissal Active",
+                                            style: TextStyle(
+                                              color: Colors.orange.shade700,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      "• Section dismissed early: ${activeEarlyDismissal?['reason'] ?? 'No reason provided'}\n• Students can now tap out at any time\n• Guard verification will show early dismissal indicator",
+                                      style: TextStyle(
+                                        color: Colors.orange.shade700,
+                                        fontSize: 12,
+                                        height: 1.4,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),

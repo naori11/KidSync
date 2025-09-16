@@ -38,6 +38,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   bool isOverrideMode = false;
   String? scheduleValidationMessage;
   TimeOfDay? lastClassEndTime;
+  Map<String, dynamic>? currentScheduleCheck; // Store the schedule check result
 
   late HtmlWebSocketChannel channel;
   final NotificationService _notificationService = NotificationService();
@@ -142,25 +143,89 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         'Checking schedule for section_id: ${student.sectionId}, day: $today',
       );
 
+      // First check for early dismissal
+      final earlyDismissalStatus = await _checkEarlyDismissal(student.sectionId);
+      if (earlyDismissalStatus['hasEarlyDismissal']) {
+        print('Early dismissal is active, allowing exit');
+        return {
+          'canExit': true,
+          'message': 'Early dismissal active: ${earlyDismissalStatus['reason']}',
+          'exitType': 'early_dismissal',
+          'earlyDismissal': earlyDismissalStatus,
+        };
+      }
+
+      // Check for emergency exit status in attendance
+      final emergencyExitStatus = await _checkEmergencyExitStatus(student.id);
+      if (emergencyExitStatus['isEmergencyExit']) {
+        print('Student marked as Emergency Exit, allowing exit');
+        return {
+          'canExit': true,
+          'message': 'Emergency Exit approved by teacher',
+          'exitType': 'emergency_exit',
+          'emergencyExit': emergencyExitStatus,
+        };
+      }
+
       // Query the section_teachers table for today's classes
       if (student.sectionId == null) {
+        print('No section ID found, allowing exit');
         return {'canExit': true, 'message': null, 'exitType': 'regular'};
       }
 
       final response = await supabase
           .from('section_teachers')
-          .select('end_time, subject, start_time')
+          .select('''
+            end_time, 
+            subject, 
+            start_time,
+            users!section_teachers_teacher_id_fkey(fname, lname)
+          ''')
           .eq('section_id', student.sectionId!)
           .contains('days', [today])
           .order('end_time', ascending: false);
 
       print('Schedule response: $response');
+      print('Checking for classes on day: $today');
 
       if (response.isNotEmpty) {
-        // Get the last class of the day
+        print('Found ${response.length} classes today');
+        
+        // Find current ongoing class (if any)
+        Map<String, dynamic>? currentClass;
+        Map<String, dynamic>? nextClass;
+        
+        for (final classInfo in response) {
+          final startTimeStr = classInfo['start_time'];
+          final endTimeStr = classInfo['end_time'];
+          
+          if (startTimeStr != null && endTimeStr != null) {
+            final startTime = _parseTimeString(startTimeStr);
+            final endTime = _parseTimeString(endTimeStr);
+            final minutesFromStart = _getMinutesDifference(startTime, currentTime);
+            final minutesUntilEnd = _getMinutesDifference(currentTime, endTime);
+            
+            // Check if current time is within this class period
+            if (minutesFromStart <= 0 && minutesUntilEnd > 0) {
+              currentClass = classInfo;
+              break;
+            }
+            
+            // If no current class, find the next class
+            if (currentClass == null && minutesUntilEnd > 0) {
+              nextClass = classInfo;
+            }
+          }
+        }
+        
+        // Get the last class of the day for overall validation
         final lastClass = response.first;
         final endTimeStr = lastClass['end_time']; // Format: "HH:MM:SS"
         final subjectName = lastClass['subject'];
+        final teacherInfo = lastClass['users'];
+        final teacherName = teacherInfo != null 
+            ? "${teacherInfo['fname'] ?? ''} ${teacherInfo['lname'] ?? ''}".trim()
+            : 'Unknown Teacher';
 
         if (endTimeStr != null) {
           final endTime = _parseTimeString(endTimeStr);
@@ -169,57 +234,181 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           print('Current time: ${_formatTime(currentTime)}');
           print('Last class ends: ${_formatTime(endTime)}');
           print('Minutes until end: $minutesUntilEnd');
+          print('Subject: $subjectName');
 
-          // Exit validation logic based on your requirements
-          if (minutesUntilEnd > 120) {
-            // Very Early Exit (2+ hours before last class)
+          // Determine what class info to show
+          String classDisplayInfo;
+          String teacherDisplayInfo;
+          
+          if (currentClass != null) {
+            classDisplayInfo = currentClass['subject'] ?? 'Unknown Subject';
+            final currentTeacher = currentClass['users'];
+            teacherDisplayInfo = currentTeacher != null 
+                ? "${currentTeacher['fname'] ?? ''} ${currentTeacher['lname'] ?? ''}".trim()
+                : 'Unknown Teacher';
+          } else if (nextClass != null) {
+            classDisplayInfo = nextClass['subject'] ?? 'Unknown Subject';
+            final nextTeacher = nextClass['users'];
+            teacherDisplayInfo = nextTeacher != null 
+                ? "${nextTeacher['fname'] ?? ''} ${nextTeacher['lname'] ?? ''}".trim()
+                : 'Unknown Teacher';
+          } else {
+            classDisplayInfo = subjectName ?? 'Unknown Subject';
+            teacherDisplayInfo = teacherName;
+          }
+
+          // Exit validation logic - all blocks now show current/next class info
+          if (minutesUntilEnd > 0) {
+            // Classes are still ongoing - block exit
             return {
               'canExit': false,
-              'message':
-                  'Very early dismissal requested. Last class ($subjectName) ends at ${_formatTime(endTime)}',
+              'message': 'Student is not allowed to exit school grounds yet',
+              'detailedMessage': 'Classes are still ongoing until ${_formatTime(endTime)}',
+              'currentClass': classDisplayInfo,
+              'currentTeacher': teacherDisplayInfo,
               'lastClassEndTime': endTime,
               'subject': subjectName,
-              'exitType': 'very_early',
-              'requiresReason': true,
+              'exitType': minutesUntilEnd > 120 ? 'very_early' : 
+                          minutesUntilEnd > 30 ? 'early' : 
+                          minutesUntilEnd > 15 ? 'near_end' : 'within_15min',
+              'requiresReason': minutesUntilEnd > 120,
             };
-          } else if (minutesUntilEnd > 30) {
-            // Early Exit (30+ minutes before last class)
-            return {
-              'canExit': false,
-              'message':
-                  'Early dismissal requested. Last class ($subjectName) ends at ${_formatTime(endTime)}',
-              'lastClassEndTime': endTime,
-              'subject': subjectName,
-              'exitType': 'early',
-              'requiresReason': false,
-            };
-          } else if (minutesUntilEnd > 15) {
-            // Near End Time (15-30 minutes before last class)
+          } else {
+            // Classes are finished (minutesUntilEnd <= 0)
+            print('Classes are finished, allowing regular exit');
             return {
               'canExit': true,
-              'message':
-                  'Approved near-end dismissal. Last class ($subjectName) ends at ${_formatTime(endTime)}',
-              'exitType': 'near_end',
-              'subject': subjectName,
-            };
-          } else if (minutesUntilEnd > 0) {
-            // Within 15 minutes of last class
-            return {
-              'canExit': true,
-              'message':
-                  'Approved dismissal. Last class ($subjectName) ends soon at ${_formatTime(endTime)}',
-              'exitType': 'within_15min',
+              'message': 'Classes finished. Last class ($subjectName) ended at ${_formatTime(endTime)}',
+              'exitType': 'regular',
               'subject': subjectName,
             };
           }
         }
+      } else {
+        print('No classes found for today ($today), allowing exit');
       }
 
       // Regular dismissal (after last class or no classes today)
+      print('Allowing regular dismissal - no restrictions');
       return {'canExit': true, 'message': null, 'exitType': 'regular'};
     } catch (e) {
       print('Error checking schedule: $e');
       return {'canExit': true, 'message': null, 'exitType': 'error'};
+    }
+  }
+
+  // Check for active early dismissal for the student's section
+  Future<Map<String, dynamic>> _checkEarlyDismissal(int? sectionId) async {
+    if (sectionId == null) {
+      return {'hasEarlyDismissal': false};
+    }
+
+    try {
+      final today = DateTime.now();
+      final startOfDay = DateTime(today.year, today.month, today.day);
+      final endOfDay = startOfDay.add(Duration(days: 1));
+
+      // Check for active early dismissals for this section today
+      final dismissals = await supabase
+          .from('early_dismissals')
+          .select('*')
+          .eq('section_id', sectionId)
+          .eq('status', 'active')
+          .gte('dismissed_at', startOfDay.toIso8601String())
+          .lt('dismissed_at', endOfDay.toIso8601String())
+          .order('dismissed_at', ascending: false)
+          .limit(1);
+
+      if (dismissals.isNotEmpty) {
+        final dismissal = dismissals[0];
+        return {
+          'hasEarlyDismissal': true,
+          'dismissalId': dismissal['id'],
+          'reason': dismissal['reason'] ?? 'No reason provided',
+          'dismissedAt': dismissal['dismissed_at'],
+          'dismissedBy': dismissal['dismissed_by'],
+          'dismissalType': dismissal['dismissal_type'],
+        };
+      }
+
+      return {'hasEarlyDismissal': false};
+    } catch (e) {
+      print('Error checking early dismissal: $e');
+      return {'hasEarlyDismissal': false};
+    }
+  }
+
+  // Check for emergency exit status in today's attendance
+  Future<Map<String, dynamic>> _checkEmergencyExitStatus(int studentId) async {
+    try {
+      final today = DateTime.now();
+      final todayDateStr = "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+
+      // Check section_attendance for Emergency Exit status today
+      final attendanceResponse = await supabase
+          .from('section_attendance')
+          .select('''
+            *,
+            sections!inner(name),
+            users!section_attendance_marked_by_fkey(fname, lname)
+          ''')
+          .eq('student_id', studentId)
+          .eq('date', todayDateStr)
+          .eq('status', 'Emergency Exit')
+          .maybeSingle();
+
+      if (attendanceResponse != null) {
+        return {
+          'isEmergencyExit': true,
+          'attendanceId': attendanceResponse['id'],
+          'markedAt': attendanceResponse['marked_at'],
+          'markedBy': attendanceResponse['users'],
+          'notes': attendanceResponse['notes'],
+          'sectionName': attendanceResponse['sections']['name'],
+        };
+      }
+
+      return {'isEmergencyExit': false};
+    } catch (e) {
+      print('Error checking emergency exit status: $e');
+      return {'isEmergencyExit': false};
+    }
+  }
+
+  // Log early dismissal exit when student actually leaves
+  Future<void> _logEarlyDismissalExit(int studentId, Map<String, dynamic> earlyDismissalInfo) async {
+    try {
+      // Update the early_dismissal_students table to mark when student actually exited
+      await supabase
+          .from('early_dismissal_students')
+          .update({'exited_at': DateTime.now().toIso8601String()})
+          .eq('early_dismissal_id', earlyDismissalInfo['dismissalId'])
+          .eq('student_id', studentId);
+
+      print('Logged early dismissal exit for student $studentId');
+    } catch (e) {
+      print('Error logging early dismissal exit: $e');
+    }
+  }
+
+  // Log emergency exit completion
+  Future<void> _logEmergencyExitCompletion(int studentId, Map<String, dynamic> emergencyExitInfo) async {
+    try {
+      // Update the section_attendance record to add exit timestamp in notes
+      final currentNotes = emergencyExitInfo['notes'] ?? '';
+      final exitTimestamp = DateTime.now().toIso8601String();
+      final updatedNotes = currentNotes.isEmpty 
+          ? 'Emergency exit completed at $exitTimestamp'
+          : '$currentNotes - Exit completed at $exitTimestamp';
+
+      await supabase
+          .from('section_attendance')
+          .update({'notes': updatedNotes})
+          .eq('id', emergencyExitInfo['attendanceId']);
+
+      print('Logged emergency exit completion for student $studentId');
+    } catch (e) {
+      print('Error logging emergency exit completion: $e');
     }
   }
 
@@ -247,13 +436,13 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   String _getCurrentDayName() {
     final now = DateTime.now();
     final dayNames = [
-      'Sunday',
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
+      'Sun',    // Sunday = 0
+      'Mon',    // Monday = 1  
+      'Tue',    // Tuesday = 2
+      'Wed',    // Wednesday = 3
+      'Thu',    // Thursday = 4
+      'Fri',    // Friday = 5
+      'Sat',    // Saturday = 6
     ];
     return dayNames[now.weekday % 7];
   }
@@ -323,6 +512,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           // Exit: Apply schedule validation
           if (isScheduleValidationEnabled && !isOverrideMode) {
             final scheduleCheck = await _checkClassSchedule(student);
+            currentScheduleCheck = scheduleCheck; // Store the result
 
             if (!scheduleCheck['canExit']) {
               setState(() {
@@ -330,17 +520,12 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                 lastClassEndTime = scheduleCheck['lastClassEndTime'];
               });
 
-              // Show different UI based on exit type
-              final exitType = scheduleCheck['exitType'];
-              if (exitType == 'very_early') {
-                // Very early exit requires reason selection
-                _showVeryEarlyExitDialog(scheduleCheck);
-              } else {
-                // Regular early exit just needs override confirmation
-                return; // This will show the schedule blocked layout
-              }
-              return;
+              // Show blocked layout for all schedule blocks - no automatic popups
+              return; // This will show the schedule blocked layout
             }
+          } else {
+            // If override mode or validation disabled, still check for early dismissal info
+            currentScheduleCheck = await _checkClassSchedule(student);
           }
           await _processExit(student);
         }
@@ -850,343 +1035,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     }
   }
 
-  // Show override dialog for early dismissal
-  void _showOverrideDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder:
-          (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Row(
-              children: [
-                Icon(Icons.warning, color: Colors.orange, size: 28),
-                SizedBox(width: 12),
-                Text(
-                  'Early Dismissal Override',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.orange[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.orange[200]!),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.schedule,
-                            color: Colors.orange[700],
-                            size: 20,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Schedule Conflict',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.orange[700],
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        scheduleValidationMessage ??
-                            'Classes are still in session.',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 16),
-                Text(
-                  'Student Information:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                SizedBox(height: 8),
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 25,
-                      backgroundImage: NetworkImage(scannedStudent!.imageUrl),
-                      onBackgroundImageError: (_, __) {},
-                      child:
-                          scannedStudent!.imageUrl.isEmpty
-                              ? Icon(Icons.person)
-                              : null,
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            scannedStudent!.fullName,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            scannedStudent!.classSection,
-                            style: TextStyle(color: Colors.grey[600]),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 16),
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red[200]!),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info, color: Colors.red[700], size: 20),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'This will log an early dismissal override in the system.',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.red[700],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  clearScan();
-                },
-                child: Text('Cancel'),
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  setState(() {
-                    isOverrideMode = true;
-                  });
-                  _processExit(scannedStudent!);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text('Allow Early Exit'),
-              ),
-            ],
-          ),
-    );
-  }
-
-  // New dialog for very early exits that require a reason
-  void _showVeryEarlyExitDialog(Map<String, dynamic> scheduleCheck) {
-    final reasons = [
-      'Medical appointment',
-      'Family emergency',
-      'Early pickup requested by parent',
-      'Student illness',
-      'Other',
-    ];
-    String? selectedReason;
-    TextEditingController customReasonController = TextEditingController();
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder:
-          (context) => StatefulBuilder(
-            builder:
-                (context, setState) => AlertDialog(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  title: Row(
-                    children: [
-                      Icon(Icons.warning, color: Colors.red, size: 28),
-                      SizedBox(width: 12),
-                      Text(
-                        'Very Early Dismissal',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.red[50],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.red[200]!),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.schedule,
-                                  color: Colors.red[700],
-                                  size: 20,
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Schedule Alert',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red[700],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              scheduleValidationMessage ??
-                                  'Very early dismissal (2+ hours before last class)',
-                              style: TextStyle(fontSize: 16),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 16),
-
-                      Text(
-                        'Reason for Early Dismissal:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-
-                      DropdownButtonFormField<String>(
-                        value: selectedReason,
-                        hint: Text('Select a reason'),
-                        items:
-                            reasons.map((reason) {
-                              return DropdownMenuItem(
-                                value: reason,
-                                child: Text(reason),
-                              );
-                            }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            selectedReason = value;
-                            if (value != 'Other') {
-                              customReasonController.text = '';
-                            }
-                          });
-                        },
-                        decoration: InputDecoration(
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-
-                      if (selectedReason == 'Other') ...[
-                        SizedBox(height: 16),
-                        TextField(
-                          controller: customReasonController,
-                          decoration: InputDecoration(
-                            labelText: 'Please specify reason',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                          ),
-                          minLines: 2,
-                          maxLines: 3,
-                        ),
-                      ],
-                    ],
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        clearScan();
-                      },
-                      child: Text('Cancel'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        String reasonToSave = '';
-                        if (selectedReason == null) {
-                          // Show error
-                          return;
-                        } else if (selectedReason == 'Other') {
-                          if (customReasonController.text.trim().isEmpty) {
-                            // Show error
-                            return;
-                          }
-                          reasonToSave = customReasonController.text.trim();
-                        } else {
-                          reasonToSave = selectedReason!;
-                        }
-
-                        Navigator.pop(context);
-                        setState(() {
-                          isOverrideMode = true;
-                          scheduleValidationMessage =
-                              reasonToSave; // Store the reason
-                        });
-                        _processExit(scannedStudent!);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: Text('Allow Very Early Exit'),
-                    ),
-                  ],
-                ),
-          ),
-    );
-  }
-
   // Modified save pickup record to include override information
   Future<void> _savePickupRecord(bool approved, {String? denyReason}) async {
     if (scannedStudent == null) return;
@@ -1201,6 +1049,16 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       String notes = "";
       if (!approved) {
         notes = denyReason ?? "Denied by guard";
+      } else if (currentScheduleCheck != null && currentScheduleCheck!['exitType'] == 'early_dismissal') {
+        // Early dismissal exit
+        final dismissalInfo = currentScheduleCheck!['earlyDismissal'];
+        notes = "Early dismissal exit - Reason: ${dismissalInfo['reason']}";
+      } else if (currentScheduleCheck != null && currentScheduleCheck!['exitType'] == 'emergency_exit') {
+        // Emergency exit
+        final emergencyInfo = currentScheduleCheck!['emergencyExit'];
+        final markedBy = emergencyInfo['markedBy'];
+        final teacherName = "${markedBy['fname'] ?? ''} ${markedBy['lname'] ?? ''}".trim();
+        notes = "Emergency exit - Approved by teacher: $teacherName";
       } else if (isOverrideMode) {
         // Check what type of override this was
         if (scheduleValidationMessage != null) {
@@ -1230,6 +1088,20 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
       // Send RFID exit notification to parents only if approved
       if (approved) {
+        // Log early dismissal exit if applicable
+        if (currentScheduleCheck != null && 
+            currentScheduleCheck!['exitType'] == 'early_dismissal' &&
+            currentScheduleCheck!['earlyDismissal'] != null) {
+          await _logEarlyDismissalExit(scannedStudent!.id, currentScheduleCheck!['earlyDismissal']);
+        }
+
+        // Log emergency exit completion if applicable
+        if (currentScheduleCheck != null && 
+            currentScheduleCheck!['exitType'] == 'emergency_exit' &&
+            currentScheduleCheck!['emergencyExit'] != null) {
+          await _logEmergencyExitCompletion(scannedStudent!.id, currentScheduleCheck!['emergencyExit']);
+        }
+
         print(
           'DEBUG: About to send RFID exit notification for student ${scannedStudent!.id} (regular pickup)',
         );
@@ -1888,242 +1760,434 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     );
   }
 
-  // New layout for schedule-blocked exits
+  // New layout for schedule-blocked exits - uniform design with entry/exit modes
   Widget _buildScheduleBlockedLayout() {
-    return Center(
-      child: Container(
-        constraints: BoxConstraints(maxWidth: 700),
-        padding: EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.orange[200]!),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-              offset: Offset(0, 4),
+    final currentClass = currentScheduleCheck?['currentClass'];
+    final currentTeacher = currentScheduleCheck?['currentTeacher'];
+    final lastClassEndTime = currentScheduleCheck?['lastClassEndTime'];
+    final subject = currentScheduleCheck?['subject'];
+    
+    // Auto-clear timer similar to entry mode (8 seconds)
+    Future.delayed(Duration(seconds: 8), () {
+      if (mounted && activeScanToken != null) {
+        // Only clear if the active token hasn't changed (i.e. no newer scan)
+        final currentToken = activeScanToken;
+        if (currentToken != null && currentToken == activeScanToken) {
+          clearScan();
+        }
+      }
+    });
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Main Student Information Card - similar to entry/exit mode
+        Expanded(
+          flex: 7,
+          child: Container(
+            padding: EdgeInsets.all(40),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.red[50]!, Colors.orange[50]!],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.red[200]!, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 20,
+                  offset: Offset(0, 8),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            Container(
-              padding: EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.orange[50],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.schedule, size: 40, color: Colors.orange[600]),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Early Dismissal Required',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange[800],
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Classes are still in session',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.orange[700],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 24),
-
-            // Schedule info
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[200]!),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Left Side - Student Photo and Status (Significantly Enlarged)
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.info, color: Colors.blue[600], size: 20),
-                      SizedBox(width: 8),
+                      // Blocked Status Badge
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(30),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.block,
+                              size: 28,
+                              color: Colors.white,
+                            ),
+                            SizedBox(width: 12),
+                            Text(
+                              'EXIT BLOCKED',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: 32),
+
+                      // Enlarged Student Photo
+                      Container(
+                        width: 300,
+                        height: 300,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white, width: 6),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 20,
+                              offset: Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: _buildImageContent(scannedStudent!.imageUrl),
+                        ),
+                      ),
+
+                      SizedBox(height: 24),
+
+                      // Status Badge
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange,
+                          borderRadius: BorderRadius.circular(25),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.orange.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              size: 24,
+                              color: Colors.white,
+                            ),
+                            SizedBox(width: 10),
+                            Text(
+                              'CLASSES IN SESSION',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: 16),
+
+                      // Current Time
                       Text(
-                        'Schedule Information',
+                        'Current Time: ${_formatCurrentTime()}',
                         style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Colors.blue[600],
+                          fontSize: 20,
+                          color: Colors.red[700],
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    scheduleValidationMessage ??
-                        'Classes are still in session.',
-                    style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-                  ),
-                ],
-              ),
-            ),
+                ),
 
-            SizedBox(height: 24),
+                SizedBox(width: 48),
 
-            // Student info
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[300]!),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 80,
-                    height: 80,
+                // Right Side - Student Information and Class Details (Significantly Enlarged)
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    padding: EdgeInsets.all(36),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey[300]!),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(11),
-                      child: Image.network(
-                        scannedStudent!.imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: Colors.grey[200],
-                            child: Icon(
-                              Icons.person,
-                              size: 40,
-                              color: Colors.grey[500],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          scannedStudent!.fullName,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          scannedStudent!.classSection,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.orange[50],
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.orange[200]!),
-                          ),
-                          child: Text(
-                            'Requesting Early Exit',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.orange[700],
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey[200]!, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 15,
+                          offset: Offset(0, 5),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-            ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Student Name (Massively Enlarged)
+                        Text(
+                          scannedStudent!.fullName,
+                          style: TextStyle(
+                            fontSize: 42,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                            height: 1.2,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
 
-            SizedBox(height: 32),
+                        SizedBox(height: 16),
 
-            // Action buttons
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: clearScan,
-                    icon: Icon(Icons.cancel),
-                    label: Text(
-                      'Cancel',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[600],
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _showOverrideDialog,
-                    icon: Icon(Icons.exit_to_app),
-                    label: Text(
-                      'Allow Early Exit',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                        // Class Section (Enlarged)
+                        Text(
+                          scannedStudent!.classSection,
+                          style: TextStyle(
+                            fontSize: 28,
+                            color: Colors.blue[600],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+
+                        SizedBox(height: 32),
+
+                        // Student ID Section
+                        Container(
+                          padding: EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(color: Colors.blue[200]!),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  Icons.badge,
+                                  size: 28,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Student ID',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: Colors.blue[700],
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    scannedStudent!.studentId,
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      color: Colors.black87,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Current Class Information
+                        if (currentClass != null || subject != null) ...[
+                          SizedBox(height: 24),
+                          Container(
+                            padding: EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.orange[50],
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(color: Colors.orange[200]!),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    Icons.school,
+                                    size: 28,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Current Class',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          color: Colors.orange[700],
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      SizedBox(height: 6),
+                                      Text(
+                                        currentClass ?? subject ?? 'In Session',
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          color: Colors.black87,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      if (currentTeacher != null) ...[
+                                        SizedBox(height: 6),
+                                        Text(
+                                          'Teacher: $currentTeacher',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            color: Colors.orange[600],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        // Class End Time
+                        if (lastClassEndTime != null) ...[
+                          SizedBox(height: 24),
+                          Container(
+                            padding: EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.green[50],
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(color: Colors.green[200]!),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    Icons.schedule,
+                                    size: 28,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 16),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Classes End',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        color: Colors.green[700],
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      _formatTime(lastClassEndTime),
+                                      style: TextStyle(
+                                        fontSize: 24,
+                                        color: Colors.black87,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        SizedBox(height: 24),
+
+                        // Informational Message
+                        Container(
+                          padding: EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                size: 24,
+                                color: Colors.grey[600],
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  scheduleValidationMessage ?? 'Student cannot exit during class hours. Please wait until classes end.',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey[700],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ],
             ),
-          ],
+          ),
         ),
-      ),
+
+        SizedBox(height: 24),
+      ],
     );
   }
 
@@ -2942,6 +3006,110 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                     ],
                                   ),
                                 ),
+
+                                // Early Dismissal Indicator
+                                if (currentScheduleCheck != null && 
+                                    currentScheduleCheck!['exitType'] == 'early_dismissal') ...[
+                                  SizedBox(height: 16),
+                                  Container(
+                                    padding: EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green[50],
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.green[200]!,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.check_circle,
+                                          size: 24,
+                                          color: Colors.green,
+                                        ),
+                                        SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Early Dismissal Approved',
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  color: Colors.green[700],
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              Text(
+                                                currentScheduleCheck!['earlyDismissal']['reason'] ?? 'No reason provided',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: Colors.black87,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+
+                                // Emergency Exit Indicator
+                                if (currentScheduleCheck != null && 
+                                    currentScheduleCheck!['exitType'] == 'emergency_exit') ...[
+                                  SizedBox(height: 16),
+                                  Container(
+                                    padding: EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red[50],
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.red[200]!,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.emergency,
+                                          size: 24,
+                                          color: Colors.red[600],
+                                        ),
+                                        SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Emergency Exit Approved',
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  color: Colors.red[700],
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              Text(
+                                                'Approved by teacher: ${currentScheduleCheck!['emergencyExit']['markedBy']['fname'] ?? ''} ${currentScheduleCheck!['emergencyExit']['markedBy']['lname'] ?? ''}'.trim(),
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: Colors.black87,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
