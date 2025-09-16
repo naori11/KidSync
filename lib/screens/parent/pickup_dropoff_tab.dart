@@ -59,6 +59,83 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
     }
   }
 
+  void _showSuccessDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+          scrollable: true,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withOpacity(0.35),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.check, color: Colors.white, size: 32),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                    height: 1.35,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  height: 40,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      elevation: 3,
+                      shadowColor: Colors.green.withOpacity(0.35),
+                      padding: const EdgeInsets.symmetric(horizontal: 28),
+                      shape: const StadiumBorder(),
+                    ),
+                    child: const Text(
+                      'OK',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   String _getMonthName(int month) {
     const months = [
       'Jan',
@@ -279,10 +356,6 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const Color black = Color(0xFF000000);
-    const Color white = Color(0xFFFFFFFF);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
-
     // Show loading or no student selected state
     if (_isLoading) {
       return Center(
@@ -1018,7 +1091,6 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
   Widget _buildExceptionsCard() {
     const Color black = Color(0xFF000000);
     const Color white = Color(0xFFFFFFFF);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -1235,12 +1307,7 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
         _loadData();
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Emergency change saved successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      _showSuccessDialog('Emergency change saved successfully');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1275,9 +1342,7 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
       setState(() {
         _weeklyPattern = newPattern;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Weekly pattern saved successfully')),
-      );
+      _showSuccessDialog('Weekly pattern saved successfully');
     } else {
       ScaffoldMessenger.of(
         context,
@@ -1301,9 +1366,7 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
       setState(() {
         _exceptions[dateKey] = schedule;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Exception saved successfully')));
+      _showSuccessDialog('Exception saved successfully');
     } else {
       ScaffoldMessenger.of(
         context,

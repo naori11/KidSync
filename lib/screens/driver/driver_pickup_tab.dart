@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/driver_models.dart';
-import '../../models/pickup_status.dart';
 import '../../services/driver_service.dart';
 import '../../services/verification_service.dart';
 
@@ -189,9 +188,12 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       barrierDismissible: true,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+          scrollable: true,
           title: Row(
             children: [
               Icon(Icons.directions_car, color: widget.primaryColor, size: 24),
@@ -280,9 +282,12 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       barrierDismissible: true,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+          scrollable: true,
           title: Row(
             children: [
               Icon(Icons.home, color: Colors.green, size: 24),
@@ -1490,62 +1495,71 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       context: context,
       barrierDismissible: true,
       builder: (BuildContext context) {
-        return Center(
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 40),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+          scrollable: true,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.35),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.check,
-                      color: Colors.white,
-                      size: 32,
-                    ),
+                  child: const Center(
+                    child: Icon(Icons.check, color: Colors.white, size: 32),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    message,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87,
-                    ),
-                    textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87,
+                    height: 1.35,
                   ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  height: 40,
+                  child: ElevatedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: color,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      elevation: 3,
+                      shadowColor: color.withOpacity(0.35),
+                      padding: const EdgeInsets.symmetric(horizontal: 28),
+                      shape: const StadiumBorder(),
+                    ),
+                    child: const Text(
+                      'OK',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    child: const Text('OK'),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
@@ -1601,16 +1615,19 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       builder: (BuildContext context) {
         return Center(
           child: AlertDialog(
+            backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+            scrollable: true,
             title: Row(
               children: [
                 Icon(Icons.person, color: widget.primaryColor, size: 24),
                 const SizedBox(width: 8),
                 const Text(
                   'Student Information',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -1650,7 +1667,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                             Text(
                               'Parent/Guardian Information',
                               style: TextStyle(
-                                fontSize: 16,
+                                fontSize: 17,
                                 fontWeight: FontWeight.bold,
                                 color: widget.primaryColor,
                               ),
@@ -1807,7 +1824,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             child: Text(
               '$label:',
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: Colors.grey,
               ),
@@ -1816,7 +1833,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
             ),
           ),
         ],
