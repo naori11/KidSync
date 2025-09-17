@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'class_list_page.dart';
+import '../../services/attendance_monitoring_service.dart';
 
 // Sample avatars for mock/student images
 const _avatarImages = [
@@ -22,6 +23,7 @@ class TeacherDashboardPage extends StatefulWidget {
 
 class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   final supabase = Supabase.instance.client;
+  final AttendanceMonitoringService _attendanceService = AttendanceMonitoringService();
   String? teacherId;
   String? teacherName;
   String? profileImageUrl;
@@ -29,6 +31,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   Map<int, List<Map<String, dynamic>>> sectionStudents = {};
   Map<int, Map<String, int>> sectionAttendanceStats = {};
   Map<int, Map<int, String>> sectionStudentStatus = {};
+  List<Map<String, dynamic>> studentsWithAttendanceIssues = [];
   bool isLoading = true;
 
   int totalClassesToday = 0;
@@ -274,6 +277,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     totalPresentToday = totalPresent;
     totalAbsentToday = totalStudentsToday - totalPresentToday;
     lateArrivals = allLateArrivals;
+
+    // Load students with attendance issues
+    studentsWithAttendanceIssues = await _attendanceService.getStudentsWithAttendanceIssues(
+      teacherId: teacherId!,
+    );
 
     setState(() => isLoading = false);
   }
@@ -538,6 +546,309 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
+  Widget _buildAttendanceIssues() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
+            ),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.warning_amber_outlined,
+                  color: Color(0xFFEF4444),
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  "Students Requiring Attention",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 18,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (studentsWithAttendanceIssues.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFF10B981).withOpacity(0.2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle_outline,
+                      color: Color(0xFF10B981),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        "All students have good attendance!",
+                        style: TextStyle(
+                          color: Color(0xFF10B981),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Column(
+                children: [
+                  for (int i = 0; i < studentsWithAttendanceIssues.length && i < 5; i++)
+                    _buildAttendanceIssueItem(studentsWithAttendanceIssues[i]),
+                  if (studentsWithAttendanceIssues.length > 5)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: TextButton(
+                        onPressed: () {
+                          // TODO: Navigate to full attendance issues page
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Full attendance monitoring page coming soon"),
+                              backgroundColor: Color(0xFF2563EB),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          "View ${studentsWithAttendanceIssues.length - 5} more students with attendance issues",
+                          style: const TextStyle(
+                            color: Color(0xFF2563EB),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttendanceIssueItem(Map<String, dynamic> studentData) {
+    final student = studentData['student'];
+    final section = studentData['section'];
+    final stats = studentData['stats'] as Map<String, dynamic>;
+    
+    final studentName = '${student['fname']} ${student['lname']}';
+    final absentDays = stats['absentDays'] as int;
+    final consecutiveAbsences = stats['consecutiveAbsences'] as int;
+    final needsAdminEscalation = stats['needsAdminEscalation'] as bool;
+    final needsParentNotification = stats['needsParentNotification'] as bool;
+
+    Color priorityColor = needsAdminEscalation 
+        ? const Color(0xFFDC2626) 
+        : needsParentNotification 
+            ? const Color(0xFFEF4444) 
+            : const Color(0xFFF59E0B);
+    
+    String priorityText = needsAdminEscalation 
+        ? "URGENT" 
+        : needsParentNotification 
+            ? "HIGH" 
+            : "MEDIUM";
+
+    IconData priorityIcon = needsAdminEscalation 
+        ? Icons.priority_high 
+        : needsParentNotification 
+            ? Icons.warning 
+            : Icons.info_outline;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: priorityColor.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: priorityColor.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: const Color(0xFFE5E7EB),
+            backgroundImage: student['profile_image_url'] != null 
+                ? NetworkImage(student['profile_image_url'])
+                : null,
+            child: student['profile_image_url'] == null
+                ? Text(
+                    studentName[0].toUpperCase(),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF374151),
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        studentName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                          color: Color(0xFF1F2937),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: priorityColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            priorityIcon,
+                            size: 12,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            priorityText,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  section['name'],
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Text(
+                      "$absentDays total absences",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: priorityColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (consecutiveAbsences > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDC2626).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          "$consecutiveAbsences consecutive",
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Color(0xFFDC2626),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            children: [
+              IconButton(
+                onPressed: () async {
+                  final success = await _attendanceService.sendParentAbsenceNotification(
+                    studentId: student['id'],
+                    studentName: studentName,
+                    absentCount: absentDays,
+                    consecutiveAbsences: consecutiveAbsences,
+                    teacherName: teacherName ?? 'Teacher',
+                    sectionName: section['name'],
+                    teacherId: teacherId,
+                  );
+                  
+                  if (success) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text("Notification sent to $studentName's parents"),
+                        backgroundColor: const Color(0xFF10B981),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Failed to send notification"),
+                        backgroundColor: Color(0xFFEF4444),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.mail_outline),
+                iconSize: 18,
+                color: const Color(0xFF2563EB),
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB).withOpacity(0.1),
+                  padding: const EdgeInsets.all(8),
+                ),
+                tooltip: "Notify Parents",
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildViewAllClassesButton() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
@@ -668,6 +979,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                       _buildScheduleList(),
                       const SizedBox(height: 24),
                       _buildAlerts(),
+                      const SizedBox(height: 24),
+                      _buildAttendanceIssues(),
                       _buildViewAllClassesButton(),
                       const SizedBox(height: 32),
                     ],

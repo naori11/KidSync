@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // Import your summary page (make sure to adjust the import path as needed)
 import 'section_attendance_summary_page.dart';
 import 'student_attendance_calendar_page.dart'; // for drilldown, if you want to navigate to student calendar
+import '../../services/attendance_monitoring_service.dart';
 
 class TeacherClassListPage extends StatefulWidget {
   final void Function(int sectionId, String sectionName)? onViewAttendance;
@@ -19,10 +20,12 @@ class TeacherClassListPage extends StatefulWidget {
 
 class _TeacherClassListPageState extends State<TeacherClassListPage> {
   final supabase = Supabase.instance.client;
+  final AttendanceMonitoringService _attendanceService = AttendanceMonitoringService();
   String? teacherId;
   // assignedSections now holds one entry per section (aggregated)
   List<Map<String, dynamic>> assignedSections = [];
   Map<int, List<Map<String, dynamic>>> sectionStudents = {};
+  Map<int, Map<String, dynamic>> studentAttendanceFlags = {}; // Track attendance issues
   bool isLoading = true;
 
   @override
@@ -207,6 +210,8 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
 
       // Load students for each section
       sectionStudents.clear();
+      studentAttendanceFlags.clear();
+      
       for (final assignment in assignedSections) {
         final section = assignment['sections'];
         if (section == null) continue;
@@ -214,19 +219,65 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
             .from('students')
             .select('id, fname, lname, rfid_uid')
             .eq('section_id', section['id']);
-        if (students == null) {
+        if (students.isEmpty) {
           sectionStudents[section['id']] = [];
           continue;
         }
         sectionStudents[section['id']] = List<Map<String, dynamic>>.from(
           students,
         );
+        
+        // Load attendance flags for each student
+        for (final student in students) {
+          final stats = await _attendanceService.getStudentAttendanceStats(
+            studentId: student['id'],
+            sectionId: section['id'],
+          );
+          
+          // Store attendance flags
+          studentAttendanceFlags[student['id']] = {
+            'absentDays': stats['absentDays'],
+            'consecutiveAbsences': stats['consecutiveAbsences'],
+            'attendanceRate': stats['attendanceRate'],
+            'needsTeacherAlert': stats['needsTeacherAlert'],
+            'needsParentNotification': stats['needsParentNotification'],
+            'needsAdminEscalation': stats['needsAdminEscalation'],
+          };
+        }
       }
     } catch (e) {
       print("Supabase error: $e");
     }
 
     setState(() => isLoading = false);
+  }
+
+  Map<String, int> _getAttendanceIssuesForSection(int sectionId) {
+    final students = sectionStudents[sectionId] ?? [];
+    int totalIssues = 0;
+    int urgentIssues = 0;
+    int highPriorityIssues = 0;
+    
+    for (final student in students) {
+      final flags = studentAttendanceFlags[student['id']];
+      if (flags != null) {
+        if (flags['needsAdminEscalation'] == true) {
+          urgentIssues++;
+          totalIssues++;
+        } else if (flags['needsParentNotification'] == true) {
+          highPriorityIssues++;
+          totalIssues++;
+        } else if (flags['needsTeacherAlert'] == true) {
+          totalIssues++;
+        }
+      }
+    }
+    
+    return {
+      'total': totalIssues,
+      'urgent': urgentIssues,
+      'high': highPriorityIssues,
+    };
   }
 
   void _openSummary(int sectionId, String sectionName) {
@@ -302,6 +353,7 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
                                       sectionStudents[assignment['sections']['id']]
                                           ?.length ??
                                       0,
+                                  attendanceIssues: _getAttendanceIssuesForSection(assignment['sections']['id']),
                                   gradeLevel:
                                       assignment['sections']['grade_level']
                                           ?.toString() ??
@@ -337,6 +389,7 @@ class _SectionListCard extends StatelessWidget {
   final String subject;
   final String time;
   final int students;
+  final Map<String, int> attendanceIssues;
   final String status;
   final String gradeLevel;
   final VoidCallback onViewAttendance;
@@ -346,6 +399,7 @@ class _SectionListCard extends StatelessWidget {
     required this.subject,
     required this.time,
     required this.students,
+    required this.attendanceIssues,
     required this.gradeLevel,
     required this.status,
     required this.onViewAttendance,
@@ -480,6 +534,10 @@ class _SectionListCard extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                if (attendanceIssues['total']! > 0) ...[
+                  const SizedBox(height: 4),
+                  _buildAttendanceIssuesBadge(),
+                ],
               ],
             ),
           ),
@@ -574,6 +632,63 @@ class _SectionListCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttendanceIssuesBadge() {
+    final total = attendanceIssues['total']!;
+    final urgent = attendanceIssues['urgent']!;
+    final high = attendanceIssues['high']!;
+    
+    if (total == 0) return const SizedBox.shrink();
+    
+    Color badgeColor;
+    IconData icon;
+    String text;
+    
+    if (urgent > 0) {
+      badgeColor = const Color(0xFFDC2626);
+      icon = Icons.priority_high;
+      text = urgent == 1 ? "$urgent urgent issue" : "$urgent urgent issues";
+    } else if (high > 0) {
+      badgeColor = const Color(0xFFEF4444);
+      icon = Icons.warning;
+      text = high == 1 ? "$high attendance issue" : "$high attendance issues";
+    } else {
+      badgeColor = const Color(0xFFF59E0B);
+      icon = Icons.info_outline;
+      text = total == 1 ? "$total attention needed" : "$total need attention";
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: badgeColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: badgeColor.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 14,
+            color: badgeColor,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              color: badgeColor,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),

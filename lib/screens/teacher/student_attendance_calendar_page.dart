@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/attendance_monitoring_service.dart';
 
 class TeacherStudentAttendanceCalendarPage extends StatefulWidget {
   final int studentId;
@@ -26,6 +27,7 @@ class TeacherStudentAttendanceCalendarPage extends StatefulWidget {
 class _TeacherStudentAttendanceCalendarPageState
     extends State<TeacherStudentAttendanceCalendarPage> {
   final supabase = Supabase.instance.client;
+  final AttendanceMonitoringService _attendanceService = AttendanceMonitoringService();
   Map<DateTime, List<Map<String, dynamic>>> scanRecordsByDate = {};
   bool isLoading = true;
   String? errorMessage;
@@ -952,6 +954,8 @@ class _TeacherStudentAttendanceCalendarPageState
                           ),
                         ),
                         _compactAttendanceStats(),
+                        const SizedBox(width: 12),
+                        _buildNotificationButton(),
                       ],
                     ),
                   ),
@@ -1086,5 +1090,302 @@ class _TeacherStudentAttendanceCalendarPageState
         ],
       ),
     );
+  }
+
+  Widget _buildNotificationButton() {
+    return Column(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF2563EB),
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2563EB).withOpacity(0.2),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: IconButton(
+            onPressed: () => _showNotificationDialog(),
+            icon: const Icon(
+              Icons.mail_outline,
+              color: Colors.white,
+              size: 20,
+            ),
+            tooltip: "Notify Parents",
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              padding: const EdgeInsets.all(12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          "Notify\nParents",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 10,
+            color: Color(0xFF6B7280),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showNotificationDialog() async {
+    // First get attendance stats
+    final stats = await _attendanceService.getStudentAttendanceStats(
+      studentId: widget.studentId,
+      sectionId: widget.sectionId,
+    );
+
+    final absentDays = stats['absentDays'] as int;
+    final consecutiveAbsences = stats['consecutiveAbsences'] as int;
+    final attendanceRate = stats['attendanceRate'] as int;
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          contentPadding: const EdgeInsets.all(24),
+          content: SizedBox(
+            width: 400,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.mail_outline,
+                        color: Color(0xFF2563EB),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Notify Parents",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1F2937),
+                            ),
+                          ),
+                          Text(
+                            widget.studentName,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: const Color(0xFFE5E7EB),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Attendance Summary",
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF374151),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildStatItem("Total Absences", absentDays.toString(), 
+                              absentDays >= 5 ? const Color(0xFFEF4444) : const Color(0xFF6B7280)),
+                          _buildStatItem("Consecutive", consecutiveAbsences.toString(), 
+                              consecutiveAbsences >= 3 ? const Color(0xFFEF4444) : const Color(0xFF6B7280)),
+                          _buildStatItem("Attendance Rate", "$attendanceRate%", 
+                              attendanceRate < 80 ? const Color(0xFFEF4444) : const Color(0xFF10B981)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (absentDays >= 5)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFFEF4444).withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.warning,
+                          color: Color(0xFFEF4444),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            "This student has ${absentDays} absences and may require parental attention.",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFFEF4444),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (absentDays >= 5) const SizedBox(height: 16),
+                const Text(
+                  "This will send a notification to all parents/guardians about the student's attendance record.",
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text(
+                "Cancel",
+                style: TextStyle(
+                  color: Color(0xFF6B7280),
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await _sendNotificationToParents(stats);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text("Send Notification"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStatItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Color(0xFF6B7280),
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Future<void> _sendNotificationToParents(Map<String, dynamic> stats) async {
+    try {
+      // Get current user (teacher) info
+      final user = supabase.auth.currentUser;
+      final teacherData = await supabase
+          .from('users')
+          .select('fname, lname')
+          .eq('id', user?.id ?? '')
+          .maybeSingle();
+
+      final teacherName = teacherData != null 
+          ? '${teacherData['fname'] ?? ''} ${teacherData['lname'] ?? ''}'.trim()
+          : 'Teacher';
+
+      final success = await _attendanceService.sendParentAbsenceNotification(
+        studentId: widget.studentId,
+        studentName: widget.studentName,
+        absentCount: stats['absentDays'],
+        consecutiveAbsences: stats['consecutiveAbsences'],
+        teacherName: teacherName,
+        sectionName: widget.sectionName,
+        teacherId: user?.id,
+      );
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Notification sent to ${widget.studentName}'s parents"),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Failed to send notification. Please try again."),
+            backgroundColor: Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error: $e"),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 }
