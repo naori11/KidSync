@@ -29,6 +29,74 @@ class AttendanceMonitoringService {
       final startDateStr = "${defaultStartDate.year.toString().padLeft(4, '0')}-${defaultStartDate.month.toString().padLeft(2, '0')}-${defaultStartDate.day.toString().padLeft(2, '0')}";
       final endDateStr = "${defaultEndDate.year.toString().padLeft(4, '0')}-${defaultEndDate.month.toString().padLeft(2, '0')}-${defaultEndDate.day.toString().padLeft(2, '0')}";
 
+      // Load class schedule information from section_teachers table
+      final assignmentRows = await supabase
+          .from('section_teachers')
+          .select('days, start_time, end_time, assigned_at, subject')
+          .eq('section_id', sectionId)
+          .order('assigned_at', ascending: true);
+
+      // Parse class schedule
+      List<String> classDays = [];
+      String? classEndTime;
+      
+      if (assignmentRows.isNotEmpty) {
+        final Set<String> unionDays = {};
+        final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        final todayAbbrev = weekDays[now.weekday - 1];
+
+        // Collect union of days across all assignment rows
+        for (final a in assignmentRows) {
+          final daysList =
+              a['days'] is List
+                  ? (a['days'] as List).cast<String>()
+                  : (a['days']?.toString() ?? '')
+                      .split(',')
+                      .map((e) => e.trim())
+                      .where((e) => e.isNotEmpty)
+                      .toList();
+          unionDays.addAll(daysList);
+        }
+        classDays = unionDays.toList();
+
+        // Prefer rows that include today; if none, consider all rows
+        final todays = assignmentRows.where((a) {
+          final daysList =
+              a['days'] is List
+                  ? (a['days'] as List).cast<String>()
+                  : (a['days']?.toString() ?? '')
+                      .split(',')
+                      .map((e) => e.trim())
+                      .where((e) => e.isNotEmpty)
+                      .toList();
+          return daysList.contains(todayAbbrev);
+        }).toList();
+
+        final rowsToConsider = todays.isNotEmpty ? todays : assignmentRows;
+
+        // Determine latest end_time among considered rows
+        DateTime? latest;
+        String? latestStr;
+        for (final r in rowsToConsider) {
+          final endStr = r['end_time']?.toString();
+          if (endStr != null && endStr.isNotEmpty) {
+            final parts = endStr.split(':');
+            if (parts.length >= 2) {
+              final hour = int.tryParse(parts[0]);
+              final minute = int.tryParse(parts[1]);
+              if (hour != null && minute != null) {
+                final time = DateTime(2000, 1, 1, hour, minute);
+                if (latest == null || time.isAfter(latest)) {
+                  latest = time;
+                  latestStr = endStr;
+                }
+              }
+            }
+          }
+        }
+        classEndTime = latestStr;
+      }
+
       final records = await supabase
           .from('section_attendance')
           .select('date, status, notes, marked_at')
@@ -38,6 +106,13 @@ class AttendanceMonitoringService {
           .lte('date', endDateStr)
           .order('date', ascending: false);
 
+      // Create a map of existing attendance records for quick lookup
+      Map<String, Map<String, dynamic>> attendanceMap = {};
+      for (final record in records) {
+        final date = record['date'] as String;
+        attendanceMap[date] = record;
+      }
+
       int totalDays = 0;
       int presentDays = 0;
       int absentDays = 0;
@@ -45,34 +120,121 @@ class AttendanceMonitoringService {
       int excusedDays = 0;
       List<Map<String, dynamic>> recentAbsences = [];
 
-      // Count consecutive absences
-      int consecutiveAbsences = 0;
-      final sortedRecords = List<Map<String, dynamic>>.from(records)
-        ..sort((a, b) => b['date'].compareTo(a['date'])); // Most recent first
+      // Helper function to check if a date is a class day
+      bool isClassDay(DateTime date) {
+        final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        final abbrev = weekDays[date.weekday - 1];
+        return classDays.contains(abbrev);
+      }
 
-      for (final record in sortedRecords) {
-        totalDays++;
-        final status = record['status'] ?? 'Absent';
-        
-        switch (status) {
-          case 'Present':
-            presentDays++;
-            if (consecutiveAbsences == 0) consecutiveAbsences = 0; // Reset if we haven't started counting
-            break;
-          case 'Late':
-            lateDays++;
-            if (consecutiveAbsences == 0) consecutiveAbsences = 0; // Reset if we haven't started counting
-            break;
-          case 'Absent':
-            absentDays++;
-            recentAbsences.add(record);
-            if (consecutiveAbsences >= 0) consecutiveAbsences++; // Count consecutive absences from most recent
-            break;
-          case 'Excused':
-            excusedDays++;
-            if (consecutiveAbsences == 0) consecutiveAbsences = 0; // Reset if we haven't started counting
-            break;
+      // Process each day in the date range
+      DateTime currentDate = defaultStartDate;
+      while (currentDate.isBefore(defaultEndDate.add(const Duration(days: 1)))) {
+        if (isClassDay(currentDate)) {
+          final dateStr = "${currentDate.year.toString().padLeft(4, '0')}-${currentDate.month.toString().padLeft(2, '0')}-${currentDate.day.toString().padLeft(2, '0')}";
+          
+          if (attendanceMap.containsKey(dateStr)) {
+            // Process existing attendance record
+            final record = attendanceMap[dateStr]!;
+            totalDays++;
+            final status = record['status'] ?? 'Absent';
+            
+            switch (status) {
+              case 'Present':
+                presentDays++;
+                break;
+              case 'Late':
+                lateDays++;
+                break;
+              case 'Absent':
+                absentDays++;
+                recentAbsences.add(record);
+                break;
+              case 'Excused':
+              case 'Emergency Exit':
+                excusedDays++;
+                break;
+            }
+          } else {
+            // No attendance record - check if this should count as absent
+            final isToday = currentDate.year == now.year && 
+                          currentDate.month == now.month && 
+                          currentDate.day == now.day;
+            final isPastDate = currentDate.isBefore(now);
+            
+            // Count as absent if it's a past date or today after class time
+            bool shouldMarkAbsent = false;
+            if (isPastDate) {
+              shouldMarkAbsent = true;
+            } else if (isToday && classEndTime != null) {
+              // Check if current time is after class end time
+              final parts = classEndTime.split(':');
+              if (parts.length >= 2) {
+                final hour = int.tryParse(parts[0]);
+                final minute = int.tryParse(parts[1]);
+                if (hour != null && minute != null) {
+                  final classEnd = DateTime(now.year, now.month, now.day, hour, minute);
+                  shouldMarkAbsent = now.isAfter(classEnd);
+                }
+              }
+            }
+            
+            if (shouldMarkAbsent) {
+              totalDays++;
+              absentDays++;
+              // Create a mock record for recent absences tracking
+              recentAbsences.add({
+                'date': dateStr,
+                'status': 'Absent',
+                'notes': 'Auto-marked absent (no attendance record)',
+                'marked_at': dateStr,
+              });
+            }
+          }
         }
+        currentDate = currentDate.add(const Duration(days: 1));
+      }
+
+      // Count consecutive absences (from most recent date)
+      int consecutiveAbsences = 0;
+      DateTime checkDate = now;
+      while (checkDate.isAfter(defaultStartDate.subtract(const Duration(days: 1)))) {
+        if (isClassDay(checkDate)) {
+          final dateStr = "${checkDate.year.toString().padLeft(4, '0')}-${checkDate.month.toString().padLeft(2, '0')}-${checkDate.day.toString().padLeft(2, '0')}";
+          
+          bool isAbsent = false;
+          if (attendanceMap.containsKey(dateStr)) {
+            final status = attendanceMap[dateStr]!['status'] ?? 'Absent';
+            isAbsent = (status == 'Absent');
+          } else {
+            // Check if this missing record should count as absent
+            final isToday = checkDate.year == now.year && 
+                          checkDate.month == now.month && 
+                          checkDate.day == now.day;
+            final isPastDate = checkDate.isBefore(now);
+            
+            if (isPastDate) {
+              isAbsent = true;
+            } else if (isToday && classEndTime != null) {
+              final parts = classEndTime.split(':');
+              if (parts.length >= 2) {
+                final hour = int.tryParse(parts[0]);
+                final minute = int.tryParse(parts[1]);
+                if (hour != null && minute != null) {
+                  final classEnd = DateTime(now.year, now.month, now.day, hour, minute);
+                  isAbsent = now.isAfter(classEnd);
+                }
+              }
+            }
+          }
+          
+          if (isAbsent) {
+            consecutiveAbsences++;
+          } else {
+            break; // Stop counting when we find a non-absent day
+          }
+        }
+        checkDate = checkDate.subtract(const Duration(days: 1));
       }
 
       return {
