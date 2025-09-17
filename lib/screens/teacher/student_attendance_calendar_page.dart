@@ -87,7 +87,7 @@ class _TeacherStudentAttendanceCalendarPageState
           .order('assigned_at', ascending: true);
 
       final List<Map<String, dynamic>> assignments =
-          List<Map<String, dynamic>>.from(assignmentRows ?? []);
+          List<Map<String, dynamic>>.from(assignmentRows);
 
       // Reset schedule info
       classDays = [];
@@ -232,12 +232,28 @@ class _TeacherStudentAttendanceCalendarPageState
             dayStatus = records.first['status'];
           } else {
             // No attendance record for this class day
-            // Mark as absent if it's a past date or today
-            if (date.isBefore(now.subtract(const Duration(days: 1))) ||
-                (date.year == now.year &&
-                    date.month == now.month &&
-                    date.day == now.day)) {
+            // Mark as absent if it's a past date
+            if (date.isBefore(now.subtract(const Duration(days: 1)))) {
               dayStatus = "Absent";
+            } else if (date.year == now.year &&
+                date.month == now.month &&
+                date.day == now.day) {
+              // For today, only mark as absent if class time has ended
+              if (classEndTime != null) {
+                final parts = classEndTime!.split(':');
+                if (parts.length >= 2) {
+                  final hour = int.tryParse(parts[0]);
+                  final minute = int.tryParse(parts[1]);
+                  if (hour != null && minute != null) {
+                    final classEnd = DateTime(now.year, now.month, now.day, hour, minute);
+                    if (now.isAfter(classEnd)) {
+                      dayStatus = "Absent";
+                    }
+                    // If class time hasn't ended, don't count in statistics yet
+                  }
+                }
+              }
+              // If no class end time is available, don't mark as absent for today
             }
             // Future dates are not counted in statistics
           }
@@ -347,6 +363,7 @@ class _TeacherStudentAttendanceCalendarPageState
         _legendItem(const Color(0xFFFFA726), "Late"),
         _legendItem(const Color(0xFF2563EB), "Excused"),
         _legendItem(const Color(0xFF6A1B9A), "Emergency Exit"),
+        _legendItem(const Color(0xFFFFA726), "Pending"),
       ],
     );
   }
@@ -555,12 +572,40 @@ class _TeacherStudentAttendanceCalendarPageState
       }
     } else if (isClassDay) {
       // Class day with no attendance record
-      if (isPastDate || isToday) {
-        // Past class days or today without records = Absent
+      if (isPastDate) {
+        // Past class days without records = Absent
         dayStatus = "Absent";
         statusColor = const Color(0xFFEB5757);
         backgroundColor = const Color(0xFFFEF2F2);
         borderColor = const Color(0xFFEB5757);
+      } else if (isToday) {
+        // For today, only mark as absent if class time has ended
+        bool shouldMarkAbsent = false;
+        if (classEndTime != null) {
+          final parts = classEndTime!.split(':');
+          if (parts.length >= 2) {
+            final hour = int.tryParse(parts[0]);
+            final minute = int.tryParse(parts[1]);
+            if (hour != null && minute != null) {
+              final now = DateTime.now();
+              final classEnd = DateTime(now.year, now.month, now.day, hour, minute);
+              shouldMarkAbsent = now.isAfter(classEnd);
+            }
+          }
+        }
+        
+        if (shouldMarkAbsent) {
+          dayStatus = "Absent";
+          statusColor = const Color(0xFFEB5757);
+          backgroundColor = const Color(0xFFFEF2F2);
+          borderColor = const Color(0xFFEB5757);
+        } else {
+          // Class time hasn't ended yet - show as pending
+          backgroundColor = const Color(0xFFFFF8E1);
+          borderColor = const Color(0xFFFFA726);
+          dayStatus = "Pending";
+          statusColor = const Color(0xFFFFA726);
+        }
       } else {
         // Future class days = neutral styling (no status yet)
         backgroundColor = const Color(0xFFF8F9FA);
@@ -716,6 +761,8 @@ class _TeacherStudentAttendanceCalendarPageState
               ? const Color(0xFFEB5757)
               : status == "Emergency Exit"
                   ? const Color(0xFF6A1B9A)
+              : status == "Pending"
+                  ? const Color(0xFFFFA726)
                   : const Color(0xFF8F9BB3),
           fontWeight: FontWeight.w600,
         ),

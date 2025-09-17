@@ -48,6 +48,11 @@ class _TeacherSectionAttendanceSummaryPageState
   int totalAbsentToday = 0;
   int totalExcusedToday = 0;
 
+  // Class schedule information
+  List<String> classDays = [];
+  String? classStartTime;
+  String? classEndTime;
+
   // Shared styles to ensure consistent font family/weight across monthly/daily
   final TextStyle _statLabelStyle = const TextStyle(
     fontSize: 13,
@@ -88,6 +93,98 @@ class _TeacherSectionAttendanceSummaryPageState
 
       students = List<Map<String, dynamic>>.from(studentRows);
 
+      // Load class schedule information from section_teachers table
+      final assignmentRows = await supabase
+          .from('section_teachers')
+          .select('days, start_time, end_time, assigned_at, subject')
+          .eq('section_id', widget.sectionId)
+          .order('assigned_at', ascending: true);
+
+      final List<Map<String, dynamic>> assignments =
+          List<Map<String, dynamic>>.from(assignmentRows);
+
+      // Reset schedule info
+      classDays = [];
+      classStartTime = null;
+      classEndTime = null;
+
+      if (assignments.isNotEmpty) {
+        final Set<String> unionDays = {};
+        final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        final now = DateTime.now();
+        final todayAbbrev = weekDays[now.weekday - 1];
+
+        // Collect union of days across all assignment rows
+        for (final a in assignments) {
+          final daysList =
+              a['days'] is List
+                  ? (a['days'] as List).cast<String>()
+                  : (a['days']?.toString() ?? '')
+                      .split(',')
+                      .map((e) => e.trim())
+                      .where((e) => e.isNotEmpty)
+                      .toList();
+          unionDays.addAll(daysList);
+        }
+        classDays = unionDays.toList();
+
+        // Prefer rows that include today; if none, consider all rows
+        final todays =
+            assignments.where((a) {
+              final daysList =
+                  a['days'] is List
+                      ? (a['days'] as List).cast<String>()
+                      : (a['days']?.toString() ?? '')
+                          .split(',')
+                          .map((e) => e.trim())
+                          .where((e) => e.isNotEmpty)
+                          .toList();
+              return daysList.contains(todayAbbrev);
+            }).toList();
+
+        final rowsToConsider = todays.isNotEmpty ? todays : assignments;
+
+        // Determine earliest start_time and latest end_time among considered rows
+        DateTime? earliest;
+        DateTime? latest;
+        String? earliestStr;
+        String? latestStr;
+        for (final r in rowsToConsider) {
+          final startStr = r['start_time']?.toString();
+          final endStr = r['end_time']?.toString();
+          if (startStr != null && startStr.isNotEmpty) {
+            final parts = startStr.split(':');
+            if (parts.length >= 2) {
+              final hour = int.tryParse(parts[0]);
+              final minute = int.tryParse(parts[1]);
+              if (hour != null && minute != null) {
+                final time = DateTime(2000, 1, 1, hour, minute);
+                if (earliest == null || time.isBefore(earliest)) {
+                  earliest = time;
+                  earliestStr = startStr;
+                }
+              }
+            }
+          }
+          if (endStr != null && endStr.isNotEmpty) {
+            final parts = endStr.split(':');
+            if (parts.length >= 2) {
+              final hour = int.tryParse(parts[0]);
+              final minute = int.tryParse(parts[1]);
+              if (hour != null && minute != null) {
+                final time = DateTime(2000, 1, 1, hour, minute);
+                if (latest == null || time.isAfter(latest)) {
+                  latest = time;
+                  latestStr = endStr;
+                }
+              }
+            }
+          }
+        }
+        classStartTime = earliestStr;
+        classEndTime = latestStr;
+      }
+
       final startOfMonth = DateTime(selectedMonth.year, selectedMonth.month, 1);
       final endOfMonth = DateTime(
         selectedMonth.year,
@@ -97,7 +194,7 @@ class _TeacherSectionAttendanceSummaryPageState
 
       final attendanceRows = await supabase
           .from('section_attendance')
-          .select('student_id, status')
+          .select('student_id, status, date')
           .eq('section_id', widget.sectionId)
           .gte('date', DateFormat('yyyy-MM-dd').format(startOfMonth))
           .lte('date', DateFormat('yyyy-MM-dd').format(endOfMonth));
@@ -112,20 +209,76 @@ class _TeacherSectionAttendanceSummaryPageState
           'total': 0,
         };
       }
+
+      // Create a map of existing attendance records for quick lookup
+      Map<String, Map<String, dynamic>> attendanceMap = {};
       for (final row in attendanceRows) {
-        final int sid = row['student_id'];
-        final String status = (row['status'] ?? '').toString().toLowerCase();
-        final stats = studentAttendanceStats[sid];
-        if (stats == null) continue;
-        stats['total'] = (stats['total'] ?? 0) + 1;
-        if (status == 'present')
-          stats['present'] = (stats['present'] ?? 0) + 1;
-        else if (status == 'absent')
-          stats['absent'] = (stats['absent'] ?? 0) + 1;
-        else if (status == 'late')
-          stats['late'] = (stats['late'] ?? 0) + 1;
-        else if (status == 'excused' || status == 'emergency exit')
-          stats['excused'] = (stats['excused'] ?? 0) + 1;
+        final studentId = row['student_id'].toString();
+        final date = row['date'] as String;
+        final key = '${studentId}_$date';
+        attendanceMap[key] = row;
+      }
+
+      // Process attendance for each student and each class day in the month
+      final now = DateTime.now();
+      for (final student in students) {
+        final studentId = student['id'] as int;
+        final stats = studentAttendanceStats[studentId]!;
+        
+        for (int day = 1; day <= endOfMonth.day; day++) {
+          final date = DateTime(selectedMonth.year, selectedMonth.month, day);
+          
+          // Check if this is a class day
+          if (_isClassDay(date)) {
+            final dateStr = DateFormat('yyyy-MM-dd').format(date);
+            final key = '${studentId}_$dateStr';
+            
+            // Check if there's an attendance record for this day
+            if (attendanceMap.containsKey(key)) {
+              // Process existing attendance record
+              final record = attendanceMap[key]!;
+              final status = (record['status'] ?? '').toString().toLowerCase();
+              stats['total'] = (stats['total'] ?? 0) + 1;
+              
+              if (status == 'present')
+                stats['present'] = (stats['present'] ?? 0) + 1;
+              else if (status == 'absent')
+                stats['absent'] = (stats['absent'] ?? 0) + 1;
+              else if (status == 'late')
+                stats['late'] = (stats['late'] ?? 0) + 1;
+              else if (status == 'excused' || status == 'emergency exit')
+                stats['excused'] = (stats['excused'] ?? 0) + 1;
+            } else {
+              // No attendance record - check if this should count as absent
+              final isToday = date.year == now.year && 
+                            date.month == now.month && 
+                            date.day == now.day;
+              final isPastDate = date.isBefore(now);
+              
+              // Count as absent if it's a past date or today after class time
+              bool shouldMarkAbsent = false;
+              if (isPastDate) {
+                shouldMarkAbsent = true;
+              } else if (isToday && classEndTime != null) {
+                // Check if current time is after class end time
+                final parts = classEndTime!.split(':');
+                if (parts.length >= 2) {
+                  final hour = int.tryParse(parts[0]);
+                  final minute = int.tryParse(parts[1]);
+                  if (hour != null && minute != null) {
+                    final classEnd = DateTime(now.year, now.month, now.day, hour, minute);
+                    shouldMarkAbsent = now.isAfter(classEnd);
+                  }
+                }
+              }
+              
+              if (shouldMarkAbsent) {
+                stats['total'] = (stats['total'] ?? 0) + 1;
+                stats['absent'] = (stats['absent'] ?? 0) + 1;
+              }
+            }
+          }
+        }
       }
 
       totalPresent = studentAttendanceStats.values.fold(
@@ -1378,6 +1531,13 @@ class _TeacherSectionAttendanceSummaryPageState
         ),
       ),
     );
+  }
+
+  // Helper method to check if a date is a class day
+  bool _isClassDay(DateTime date) {
+    final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final abbrev = weekDays[date.weekday - 1];
+    return classDays.contains(abbrev);
   }
 
   Widget _th(String label, {int flex = 1}) => Expanded(

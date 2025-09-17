@@ -765,8 +765,27 @@ class _TeacherSectionAttendancePageState
       return att['status'];
     }
     
-    // Default to Absent if no attendance record exists
-    return "Absent";
+    // Default logic for students without attendance records
+    // Only mark as absent if class time has ended or if it's not a class day
+    final now = DateTime.now();
+    
+    // For testing sections, always default to "Absent" (existing behavior)
+    if (isTestingSection) {
+      return "Absent";
+    }
+    
+    // If attendance is not active (not a class day/time), don't mark as absent yet
+    if (!attendanceActive) {
+      return "Not Marked";
+    }
+    
+    // If class time has ended, mark as absent
+    if (classEndTime != null && now.isAfter(classEndTime!)) {
+      return "Absent";
+    }
+    
+    // During active class time, don't mark as absent yet
+    return "Not Marked";
   }
 
   // Check if student was auto-marked via RFID
@@ -789,7 +808,7 @@ class _TeacherSectionAttendancePageState
 
   // Modified summary method to include pending changes
   Map<String, int> _getSummary() {
-    int present = 0, late = 0, absent = 0, excused = 0, emergency = 0, total = students.length;
+    int present = 0, late = 0, absent = 0, excused = 0, emergency = 0, notMarked = 0, total = students.length;
     for (final s in students) {
       final status = _getCurrentAttendanceStatus(s['id']);
       if (status == "Present")
@@ -800,6 +819,8 @@ class _TeacherSectionAttendancePageState
         excused++;
       else if (status == "Emergency Exit")
         emergency++;
+      else if (status == "Not Marked")
+        notMarked++;
       else
         absent++;
     }
@@ -809,6 +830,7 @@ class _TeacherSectionAttendancePageState
       'Absent': absent,
       'Excused': excused,
       'Emergency Exit': emergency,
+      'Not Marked': notMarked,
       'Total': total,
     };
   }
@@ -1480,6 +1502,12 @@ class _TeacherSectionAttendancePageState
                                   summary['Excused']!,
                                   const Color(0xFF2563EB),
                                 ),
+                                const SizedBox(width: 8),
+                                _buildStatChip(
+                                  "Not Marked",
+                                  summary['Not Marked']!,
+                                  const Color(0xFF757575),
+                                ),
                                 const SizedBox(width: 12),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
@@ -1526,6 +1554,7 @@ class _TeacherSectionAttendancePageState
                                               "Late",
                                               "Absent",
                                               "Excused",
+                                              "Not Marked",
                                             ]
                                             .map(
                                               (s) => DropdownMenuItem(
@@ -2359,6 +2388,10 @@ class _StatusBadge extends StatelessWidget {
       case "Emergency Exit":
         color = const Color(0xFFFFEBEE);
         textColor = const Color(0xFFF44336);
+        break;
+      case "Not Marked":
+        color = const Color(0xFFF5F5F5);
+        textColor = const Color(0xFF757575);
         break;
       default:
         color = const Color(0xFFFBE9E9);
