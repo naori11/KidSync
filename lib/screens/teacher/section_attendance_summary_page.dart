@@ -5,6 +5,9 @@ import 'package:excel/excel.dart' as excel_lib;
 import 'dart:html' as html;
 
 import 'student_attendance_calendar_page.dart';
+import '../../services/attendance_monitoring_service.dart';
+import '../../widgets/attendance_status_badge.dart';
+import '../../widgets/attendance_insights_card.dart';
 
 class TeacherSectionAttendanceSummaryPage extends StatefulWidget {
   final int sectionId;
@@ -28,6 +31,7 @@ class TeacherSectionAttendanceSummaryPage extends StatefulWidget {
 class _TeacherSectionAttendanceSummaryPageState
     extends State<TeacherSectionAttendanceSummaryPage> {
   final supabase = Supabase.instance.client;
+  final AttendanceMonitoringService _attendanceService = AttendanceMonitoringService();
   DateTime selectedMonth = DateTime(
     DateTime.now().year,
     DateTime.now().month,
@@ -37,6 +41,8 @@ class _TeacherSectionAttendanceSummaryPageState
   String? errorMessage;
   List<Map<String, dynamic>> students = [];
   Map<int, Map<String, int>> studentAttendanceStats = {};
+  Map<int, Map<String, dynamic>> studentUrgentStatus = {};
+  Map<int, Map<String, dynamic>> studentBadgeStatus = {};
 
   int totalPresent = 0;
   int totalLate = 0;
@@ -297,6 +303,40 @@ class _TeacherSectionAttendanceSummaryPageState
         0,
         (sum, stat) => sum + (stat['excused'] ?? 0),
       );
+
+      // Calculate urgent status for each student
+      studentUrgentStatus.clear();
+      for (final student in students) {
+        final studentId = student['id'] as int;
+        try {
+          final attendanceStats = await _attendanceService.getStudentAttendanceStats(
+            studentId: studentId,
+            sectionId: widget.sectionId,
+            startDate: selectedMonth,
+            endDate: DateTime(selectedMonth.year, selectedMonth.month + 1, 0),
+          );
+          
+          studentUrgentStatus[studentId] = {
+            'isUrgentIssue': attendanceStats['isUrgentIssue'] ?? false,
+            'hasParentNotificationSent': attendanceStats['hasParentNotificationSent'] ?? false,
+            'lastNotificationDate': attendanceStats['lastNotificationDate'],
+          };
+
+          // Get badge status for this student
+          final badgeStatus = await _attendanceService.getStudentBadgeStatus(
+            studentId: studentId,
+            sectionId: widget.sectionId,
+          );
+          studentBadgeStatus[studentId] = badgeStatus;
+        } catch (e) {
+          print('Error getting urgent status for student $studentId: $e');
+          studentUrgentStatus[studentId] = {
+            'isUrgentIssue': false,
+            'hasParentNotificationSent': false,
+            'lastNotificationDate': null,
+          };
+        }
+      }
 
       final today = DateTime.now();
       final todayStr = DateFormat('yyyy-MM-dd').format(today);
@@ -633,6 +673,42 @@ class _TeacherSectionAttendanceSummaryPageState
         const SizedBox(height: 4),
         Text(label, style: _statLabelStyle.copyWith(fontSize: 12)),
       ],
+    );
+  }
+
+  Widget _buildAttendanceQuickStats() {
+    // Calculate attendance issue stats
+    int studentsWithIssues = 0;
+    int urgentCases = 0;
+    int notificationsSent = 0;
+    
+    for (final student in students) {
+      final studentId = student['id'] as int;
+      final badgeStatus = studentBadgeStatus[studentId];
+      if (badgeStatus != null) {
+        final badgeType = badgeStatus['badgeType'] as String? ?? 'none';
+        if (badgeType != 'none') {
+          studentsWithIssues++;
+          
+          if (badgeType == 'urgent' || badgeType == 'critical') {
+            urgentCases++;
+          }
+          
+          if (badgeType == 'monitoring' || badgeType == 'escalate') {
+            notificationsSent++;
+          }
+        }
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 0),
+      child: AttendanceQuickStats(
+        totalStudents: students.length,
+        studentsWithIssues: studentsWithIssues,
+        urgentCases: urgentCases,
+        notificationsSent: notificationsSent,
+      ),
     );
   }
 
@@ -1245,6 +1321,13 @@ class _TeacherSectionAttendanceSummaryPageState
 
               // Attendance stats summary row
               _buildSummaryStats(),
+              
+              const SizedBox(height: 16),
+              
+              // Quick attendance insights
+              _buildAttendanceQuickStats(),
+
+              const SizedBox(height: 20),
 
               // Table Card
               Container(
@@ -1446,21 +1529,37 @@ class _TeacherSectionAttendanceSummaryPageState
                                                             CrossAxisAlignment
                                                                 .start,
                                                         children: [
-                                                          Text(
-                                                            "${s['fname']} ${s['lname']}",
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                            style:
-                                                                const TextStyle(
-                                                                  color: Color(
-                                                                    0xFF222B45,
-                                                                  ),
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                  fontSize: 14,
+                                                          Row(
+                                                            children: [
+                                                              Expanded(
+                                                                child: Text(
+                                                                  "${s['fname']} ${s['lname']}",
+                                                                  overflow:
+                                                                      TextOverflow
+                                                                          .ellipsis,
+                                                                  style:
+                                                                      const TextStyle(
+                                                                        color: Color(
+                                                                          0xFF222B45,
+                                                                        ),
+                                                                        fontWeight:
+                                                                            FontWeight
+                                                                                .w600,
+                                                                        fontSize: 14,
+                                                                      ),
                                                                 ),
+                                                              ),
+                                                              // Attendance status badge
+                                                              if (studentBadgeStatus.containsKey(s['id']))
+                                                                Padding(
+                                                                  padding: const EdgeInsets.only(left: 8),
+                                                                  child: AttendanceStatusBadgeFromService(
+                                                                    badgeStatus: studentBadgeStatus[s['id']]!,
+                                                                    fontSize: 8,
+                                                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                                  ),
+                                                                ),
+                                                            ],
                                                           ),
                                                           const SizedBox(
                                                             height: 2,

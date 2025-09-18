@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'class_list_page.dart';
 import '../../services/attendance_monitoring_service.dart';
+import '../../services/attendance_ticketing_service.dart';
+import '../../widgets/attendance_status_badge.dart';
+import '../../widgets/smart_attendance_button.dart';
+import '../../widgets/attendance_insights_card.dart';
 
 // Sample avatars for mock/student images
 const _avatarImages = [
@@ -24,6 +28,7 @@ class TeacherDashboardPage extends StatefulWidget {
 class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   final supabase = Supabase.instance.client;
   final AttendanceMonitoringService _attendanceService = AttendanceMonitoringService();
+  final AttendanceTicketingService _ticketingService = AttendanceTicketingService();
   String? teacherId;
   String? teacherName;
   String? profileImageUrl;
@@ -32,6 +37,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   Map<int, Map<String, int>> sectionAttendanceStats = {};
   Map<int, Map<int, String>> sectionStudentStatus = {};
   List<Map<String, dynamic>> studentsWithAttendanceIssues = [];
+  Map<String, dynamic> attendanceInsights = {};
   bool isLoading = true;
 
   int totalClassesToday = 0;
@@ -212,12 +218,10 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
 
       final Set<int> presentIds = {};
       Map<int, DateTime> entryTimes = {};
-      if (scanRecords is List) {
-        for (final record in scanRecords) {
-          final int sid = record['student_id'];
-          presentIds.add(sid);
-          entryTimes[sid] = DateTime.parse(record['scan_time']);
-        }
+      for (final record in scanRecords) {
+        final int sid = record['student_id'];
+        presentIds.add(sid);
+        entryTimes[sid] = DateTime.parse(record['scan_time']);
       }
 
       int presentCount = 0;
@@ -278,8 +282,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     totalAbsentToday = totalStudentsToday - totalPresentToday;
     lateArrivals = allLateArrivals;
 
-    // Load students with attendance issues
-    studentsWithAttendanceIssues = await _attendanceService.getStudentsWithAttendanceIssues(
+    // Load students with attendance issues using ticketing service
+    studentsWithAttendanceIssues = await _ticketingService.getStudentsRequiringAttention(
+      teacherId: teacherId!,
+    );
+
+    // Load attendance insights
+    attendanceInsights = await _attendanceService.getAttendanceInsights(
       teacherId: teacherId!,
     );
 
@@ -659,31 +668,45 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   Widget _buildAttendanceIssueItem(Map<String, dynamic> studentData) {
     final student = studentData['student'];
     final section = studentData['section'];
-    final stats = studentData['stats'] as Map<String, dynamic>;
+    final consecutiveAbsences = studentData['consecutiveAbsences'] as int;
+    final ticketStatus = studentData['ticketStatus'] as Map<String, dynamic>;
     
     final studentName = '${student['fname']} ${student['lname']}';
-    final absentDays = stats['absentDays'] as int;
-    final consecutiveAbsences = stats['consecutiveAbsences'] as int;
-    final needsAdminEscalation = stats['needsAdminEscalation'] as bool;
-    final needsParentNotification = stats['needsParentNotification'] as bool;
+    final hasTicket = ticketStatus['hasTicket'] as bool;
+    final isResolved = ticketStatus['isResolved'] as bool;
 
-    Color priorityColor = needsAdminEscalation 
-        ? const Color(0xFFDC2626) 
-        : needsParentNotification 
-            ? const Color(0xFFEF4444) 
-            : const Color(0xFFF59E0B);
-    
-    String priorityText = needsAdminEscalation 
-        ? "URGENT" 
-        : needsParentNotification 
-            ? "HIGH" 
-            : "MEDIUM";
+    // Determine badges to show based on consecutive absences and ticket status
+    List<Widget> badgeWidgets = [];
 
-    IconData priorityIcon = needsAdminEscalation 
-        ? Icons.priority_high 
-        : needsParentNotification 
-            ? Icons.warning 
-            : Icons.info_outline;
+    if (hasTicket && !isResolved) {
+      badgeWidgets.add(const AttendanceStatusBadge(
+        type: AttendanceBadgeType.monitoring,
+      ));
+    } else if (consecutiveAbsences >= 5) {
+      badgeWidgets.add(const AttendanceStatusBadge(
+        type: AttendanceBadgeType.critical,
+      ));
+    } else if (consecutiveAbsences >= 4) {
+      badgeWidgets.add(const AttendanceStatusBadge(
+        type: AttendanceBadgeType.urgent,
+      ));
+    } else if (consecutiveAbsences >= 3) {
+      badgeWidgets.add(const AttendanceStatusBadge(
+        type: AttendanceBadgeType.attention,
+      ));
+    }
+
+    // Determine priority color for container styling
+    Color priorityColor;
+    if (consecutiveAbsences >= 5) {
+      priorityColor = const Color(0xFF8B0000);
+    } else if (consecutiveAbsences >= 4) {
+      priorityColor = const Color(0xFFDC2626);
+    } else if (hasTicket && !isResolved) {
+      priorityColor = const Color(0xFF3B82F6);
+    } else {
+      priorityColor = const Color(0xFFF59E0B);
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -731,32 +754,10 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                         ),
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: priorityColor,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            priorityIcon,
-                            size: 12,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            priorityText,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    ...badgeWidgets.map((badge) => Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: badge,
+                    )),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -772,26 +773,26 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                 Row(
                   children: [
                     Text(
-                      "$absentDays total absences",
+                      "$consecutiveAbsences consecutive absences",
                       style: TextStyle(
                         fontSize: 12,
                         color: priorityColor,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    if (consecutiveAbsences > 0) ...[
+                    if (hasTicket && !isResolved) ...[
                       const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFDC2626).withOpacity(0.1),
+                          color: const Color(0xFF3B82F6).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(
-                          "$consecutiveAbsences consecutive",
-                          style: const TextStyle(
+                        child: const Text(
+                          "notification sent",
+                          style: TextStyle(
                             fontSize: 10,
-                            color: Color(0xFFDC2626),
+                            color: Color(0xFF3B82F6),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -803,46 +804,14 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             ),
           ),
           const SizedBox(width: 8),
-          Column(
-            children: [
-              IconButton(
-                onPressed: () async {
-                  final success = await _attendanceService.sendParentAbsenceNotification(
-                    studentId: student['id'],
-                    studentName: studentName,
-                    absentCount: absentDays,
-                    consecutiveAbsences: consecutiveAbsences,
-                    teacherName: teacherName ?? 'Teacher',
-                    sectionName: section['name'],
-                    teacherId: teacherId,
-                  );
-                  
-                  if (success) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text("Notification sent to $studentName's parents"),
-                        backgroundColor: const Color(0xFF10B981),
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Failed to send notification"),
-                        backgroundColor: Color(0xFFEF4444),
-                      ),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.mail_outline),
-                iconSize: 18,
-                color: const Color(0xFF2563EB),
-                style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB).withOpacity(0.1),
-                  padding: const EdgeInsets.all(8),
-                ),
-                tooltip: "Notify Parents",
-              ),
-            ],
+          SmartAttendanceButton(
+            studentId: student['id'],
+            sectionId: section['id'],
+            studentName: '${student['fname']} ${student['lname']}',
+            teacherName: teacherName ?? 'Teacher',
+            sectionName: section['name'],
+            teacherId: teacherId,
+            onActionComplete: () => _loadDashboard(),
           ),
         ],
       ),
@@ -975,6 +944,14 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                       ),
                       const SizedBox(height: 24),
                       _buildSummaryCards(),
+                      const SizedBox(height: 24),
+                      // Add attendance insights card
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: AttendanceInsightsCard(
+                          insights: attendanceInsights,
+                        ),
+                      ),
                       const SizedBox(height: 24),
                       _buildScheduleList(),
                       const SizedBox(height: 24),
