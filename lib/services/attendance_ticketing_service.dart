@@ -14,30 +14,35 @@ class AttendanceTicketingService {
     required int sectionId,
   }) async {
     try {
-      // Check for the most recent notification ticket for this student
-      print('Querying tickets for student_id: $studentId (type: ${studentId.runtimeType})');
+      // Use RPC function to bypass RLS and get ticket status
+      final rpcResult = await supabase.rpc('get_attendance_ticket_status', params: {
+        'p_student_id': studentId,
+      });
       
-      // First, let's check all notifications for this student
-      final allNotifications = await supabase
-          .from('notifications')
-          .select('id, type, created_at, is_read, title, message, student_id')
-          .eq('student_id', studentId);
-      
-      print('All notifications for student $studentId: ${allNotifications.length} found');
-      for (final notif in allNotifications) {
-        print('  - ID: ${notif['id']}, Type: ${notif['type']}, Created: ${notif['created_at']}');
+      if (rpcResult != null) {
+        // Convert the JSON result to a Map
+        final Map<String, dynamic> status = Map<String, dynamic>.from(rpcResult);
+        return status;
+      } else {
+        return _getFallbackTicketStatus(studentId);
       }
-      
-      // Use a more explicit query approach - exclude system log entries
+    } catch (e) {
+      print('Error getting ticket status via RPC: $e');
+      return _getFallbackTicketStatus(studentId);
+    }
+  }
+
+  /// Fallback method for getting ticket status (direct query)
+  Future<Map<String, dynamic>> _getFallbackTicketStatus(int studentId) async {
+    try {
+      // Query for attendance notifications for this student
       final tickets = await supabase
           .from('notifications')
-          .select('id, type, created_at, is_read, title, message')
+          .select('id, type, created_at, is_read, title, message, student_id, recipient_id')
           .eq('student_id', studentId)
           .or('type.eq.attendance_ticket,type.eq.attendance_resolved')
           .order('created_at', ascending: false)
           .limit(1);
-
-      print('Filtered tickets: ${tickets.length} found: $tickets');
 
       if (tickets.isEmpty) {
         return {
@@ -92,7 +97,6 @@ class AttendanceTicketingService {
       }
 
       // Get all parents for this student
-      print('Querying parents for student $studentId...');
       final parentStudentResponse = await supabase
           .from('parent_student')
           .select('''
@@ -104,8 +108,6 @@ class AttendanceTicketingService {
             )
           ''')
           .eq('student_id', studentId);
-
-      print('Found ${parentStudentResponse.length} parent relationships: $parentStudentResponse');
 
       if (parentStudentResponse.isEmpty) {
         throw Exception('No parents found for student $studentId');
@@ -136,21 +138,11 @@ class AttendanceTicketingService {
       }
 
       if (notifications.isNotEmpty) {
-        print('About to insert ${notifications.length} notifications:');
-        print('Current user: ${supabase.auth.currentUser?.id}');
-        print('Current user email: ${supabase.auth.currentUser?.email}');
-        print('Current user email: ${supabase.auth.currentUser?.email}');
-        for (int i = 0; i < notifications.length; i++) {
-          print('  Notification $i: ${notifications[i]}');
-        }
-        
         try {
           // Use RPC function instead of direct insert to bypass RLS issues
           List<Map<String, dynamic>> insertResults = [];
           
           for (var notification in notifications) {
-            print('🔍 Calling RPC for notification: ${notification['title']}');
-            
             final rpcResult = await supabase.rpc('create_teacher_notification', params: {
               'p_recipient_id': notification['recipient_id'],
               'p_title': notification['title'],
@@ -161,25 +153,13 @@ class AttendanceTicketingService {
             
             if (rpcResult != null) {
               insertResults.add(rpcResult);
-              print('✅ RPC success: ${rpcResult['id']}');
             }
           }
           
           if (insertResults.isEmpty) {
             throw Exception('No notifications were created');
           }
-          
-          print('✅ Successfully sent ${insertResults.length} notification(s) via RPC');
         } catch (insertError) {
-          print('❌ Failed to insert notifications: $insertError');
-          print('Error details:');
-          print('   - Error type: ${insertError.runtimeType}');
-          if (insertError is PostgrestException) {
-            print('   - Code: ${insertError.code}');
-            print('   - Message: ${insertError.message}');
-            print('   - Details: ${insertError.details}');
-            print('   - Hint: ${insertError.hint}');
-          }
           
           if (insertError.toString().contains('Only teachers can create')) {
             throw Exception('Permission denied: Only teachers can send attendance notifications.');
@@ -201,7 +181,6 @@ class AttendanceTicketingService {
           performedBy: teacherId,
         );
         
-        print('Notification ticket sent for student $studentId');
         return true;
       }
 

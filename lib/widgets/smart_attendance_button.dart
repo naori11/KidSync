@@ -63,13 +63,6 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
           _canSendNotification = ticketStatus['canSendNotification'];
           _canMarkResolved = ticketStatus['canMarkResolved'];
         });
-        
-        // Debug output
-        print('Ticket Status for ${widget.studentName}:');
-        print('  hasTicket: $_hasTicket');
-        print('  isResolved: $_isResolved');
-        print('  canSendNotification: $_canSendNotification');
-        print('  canMarkResolved: $_canMarkResolved');
       }
     } catch (e) {
       print('Error loading ticket status: $e');
@@ -102,7 +95,7 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
           );
           
           // Reload ticket status after sending notification (with small delay to ensure DB commit)
-          await Future.delayed(const Duration(milliseconds: 500));
+          await Future.delayed(const Duration(milliseconds: 1000));
           await _loadTicketStatus();
           widget.onActionComplete?.call();
           
