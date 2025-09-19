@@ -884,6 +884,28 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
     setState(() {});
   }
 
+  // Helpers for sorting
+  int _gradeRank(String? grade) {
+    if (grade == null) return 0;
+    final match = RegExp(r'(\d+)').firstMatch(grade);
+    if (match != null) {
+      return int.tryParse(match.group(1)!) ?? 0;
+    }
+    // Handle non-numeric grades like Kinder/Preschool if needed
+    final lower = grade.toLowerCase();
+    if (lower.contains('kinder') || lower.contains('preschool')) return -1;
+    return 0;
+  }
+
+  DateTime? _toDateTime(dynamic v) {
+    try {
+      if (v == null) return null;
+      return DateTime.parse(v.toString());
+    } catch (_) {
+      return null;
+    }
+  }
+
   Widget _buildContent() {
     switch (_selectedView) {
       case 'students':
@@ -1823,6 +1845,45 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
             return assignment['status']?.toLowerCase() ==
                 _selectedStatusFilter.toLowerCase();
           }).toList();
+    }
+
+    // Apply sorting based on selected option
+    switch (_sortOption) {
+      case 'Student Name (A-Z)':
+        filtered.sort((a, b) {
+          final sa = a['students'];
+          final sb = b['students'];
+          final nameA = '${sa['fname']} ${sa['lname']}'.toString().toLowerCase();
+          final nameB = '${sb['fname']} ${sb['lname']}'.toString().toLowerCase();
+          return nameA.compareTo(nameB);
+        });
+        break;
+      case 'Student Name (Z-A)':
+        filtered.sort((a, b) {
+          final sa = a['students'];
+          final sb = b['students'];
+          final nameA = '${sa['fname']} ${sa['lname']}'.toString().toLowerCase();
+          final nameB = '${sb['fname']} ${sb['lname']}'.toString().toLowerCase();
+          return nameB.compareTo(nameA);
+        });
+        break;
+      case 'Grade Level':
+        filtered.sort((a, b) {
+          final ga = _gradeRank(a['students']?['grade_level']?.toString());
+          final gb = _gradeRank(b['students']?['grade_level']?.toString());
+          return ga.compareTo(gb);
+        });
+        break;
+      case 'Date Created':
+        filtered.sort((a, b) {
+          final da = _toDateTime(a['created_at']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final db = _toDateTime(b['created_at']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+          // Newest first
+          return db.compareTo(da);
+        });
+        break;
+      default:
+        break;
     }
 
     return filtered;
