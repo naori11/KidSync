@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kidsync/widgets/role_protection.dart';
+import 'package:kidsync/services/audit_log_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:excel/excel.dart' as excel_lib;
 import 'dart:html' as html;
@@ -28,6 +29,7 @@ class UserManagementPage extends StatefulWidget {
 
 class _UserManagementPageState extends State<UserManagementPage> {
   final supabase = Supabase.instance.client;
+  final auditLogService = AuditLogService();
   List<Map<String, dynamic>> users = [];
   bool isLoading = false;
   String _searchQuery = '';
@@ -162,6 +164,18 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
       // Close loading dialog
       if (mounted) Navigator.of(context).pop();
+
+      // Log audit event for export
+      try {
+        await auditLogService.logExportOperation(
+          exportType: 'Users',
+          fileName: fileName,
+          recordCount: usersToExport.length,
+          filters: _roleFilter != 'All Roles' || _searchQuery.isNotEmpty ? '$_roleFilter, $_searchQuery' : 'No filters',
+        );
+      } catch (auditError) {
+        print('Failed to log audit event: $auditError');
+      }
 
       // Show success message
       if (mounted) {
@@ -1438,7 +1452,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       try {
                         String? imageUrl =
                             _currentImageUrl ?? user?['profile_image_url'];
-
+                        
                         // helper to set field errors and refresh validators in dialog
                         void _setFieldErrors(Map<String, String?> errs) {
                           setDialogState(() {
@@ -1568,6 +1582,39 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               _setFieldErrors(errs);
                               return;
                             }
+
+                            // Log user update immediately after successful edit (with image path)
+                            try {
+                              final userName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                              await auditLogService.logUserManagement(
+                                action: 'update',
+                                targetUserId: user['id'].toString(),
+                                targetUserName: userName,
+                                role: selectedRole,
+                                oldValues: {
+                                  'email': user['email'],
+                                  'fname': user['fname'],
+                                  'lname': user['lname'],
+                                  'mname': user['mname'],
+                                  'role': user['role'],
+                                  'position': user['position'],
+                                  'contact_number': user['contact_number'],
+                                  'profile_image_url': user['profile_image_url'],
+                                },
+                                newValues: {
+                                  'email': emailController.text.trim(),
+                                  'fname': fnameController.text.trim(),
+                                  'lname': lnameController.text.trim(),
+                                  'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                  'role': selectedRole,
+                                  'position': positionController.text.trim().isEmpty ? null : positionController.text.trim(),
+                                  'contact_number': contactController.text.trim().isEmpty ? null : contactController.text.trim(),
+                                  'profile_image_url': imageUrl,
+                                },
+                              );
+                            } catch (e) {
+                              print('Error logging user update audit event: $e');
+                            }
                           }
                         } else {
                           // No image selected
@@ -1603,6 +1650,34 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               _setFieldErrors(errs);
                               return;
                             }
+
+                            // Fetch the created user ID for audit logging
+                            final createdUser = await supabase
+                                .from('users')
+                                .select('id')
+                                .eq('email', emailController.text.trim())
+                                .single();
+
+                            // Log user creation immediately after successful creation
+                            try {
+                              final userName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                              await auditLogService.logAccountCreation(
+                                targetUserId: createdUser['id'].toString(),
+                                targetUserName: userName,
+                                role: selectedRole!,
+                                userData: {
+                                  'email': emailController.text.trim(),
+                                  'role': selectedRole,
+                                  'fname': fnameController.text.trim(),
+                                  'lname': lnameController.text.trim(),
+                                  'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                  'position': positionController.text.trim().isEmpty ? null : positionController.text.trim(),
+                                  'contact_number': contactController.text.trim().isEmpty ? null : contactController.text.trim(),
+                                },
+                              );
+                            } catch (e) {
+                              print('Error logging user creation audit event: $e');
+                            }
                           } else {
                             final editRes = await editUserViaEdgeFunction(
                               id: user['id'].toString(),
@@ -1633,6 +1708,37 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               final errs = _extractFieldErrors(editRes['data']);
                               _setFieldErrors(errs);
                               return;
+                            }
+
+                            // Log user update immediately after successful edit (no image path)
+                            try {
+                              final userName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                              await auditLogService.logUserManagement(
+                                action: 'update',
+                                targetUserId: user['id'].toString(),
+                                targetUserName: userName,
+                                role: selectedRole,
+                                oldValues: {
+                                  'email': user['email'],
+                                  'fname': user['fname'],
+                                  'lname': user['lname'],
+                                  'mname': user['mname'],
+                                  'role': user['role'],
+                                  'position': user['position'],
+                                  'contact_number': user['contact_number'],
+                                },
+                                newValues: {
+                                  'email': emailController.text.trim(),
+                                  'fname': fnameController.text.trim(),
+                                  'lname': lnameController.text.trim(),
+                                  'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                  'role': selectedRole,
+                                  'position': positionController.text.trim().isEmpty ? null : positionController.text.trim(),
+                                  'contact_number': contactController.text.trim().isEmpty ? null : contactController.text.trim(),
+                                },
+                              );
+                            } catch (e) {
+                              print('Error logging user update audit event: $e');
                             }
                           }
                         }
@@ -2795,6 +2901,18 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                                             .toString(),
                                                                       );
                                                                       await _fetchUsers();
+                                                                      
+                                                                      // Log audit event for user deletion
+                                                                      try {
+                                                                        await auditLogService.logAccountDeletion(
+                                                                          targetUserId: u['id'].toString(),
+                                                                          targetUserName: '${u['fname'] ?? ''} ${u['lname'] ?? ''}'.trim(),
+                                                                          role: u['role']?.toString() ?? 'Unknown',
+                                                                        );
+                                                                      } catch (auditError) {
+                                                                        print('Failed to log audit event: $auditError');
+                                                                      }
+                                                                      
                                                                       if (mounted) {
                                                                         ScaffoldMessenger.of(
                                                                           context,

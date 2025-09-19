@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:kidsync/services/audit_log_service.dart';
 import 'package:intl/intl.dart';
 
 class AuditLogsPage extends StatefulWidget {
@@ -12,6 +13,7 @@ class AuditLogsPage extends StatefulWidget {
 
 class _AuditLogsPageState extends State<AuditLogsPage> {
   final supabase = Supabase.instance.client;
+  final auditLogService = AuditLogService();
   bool isLoading = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -23,222 +25,8 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   DateTime? _endDate;
   bool _isFilterSidebarOpen = false;
 
-  // Enhanced mock data with comprehensive user actions across all roles
-  final List<Map<String, dynamic>> _logEntries = [
-    // Admin Actions
-    {
-      'timestamp': DateTime(2024, 1, 20, 10, 15),
-      'user': {'name': 'Mary Johnson', 'role': 'Admin', 'id': 'A001'},
-      'action': 'Created new class',
-      'actionType': 'Create',
-      'module': 'Class Management',
-      'status': 'success',
-      'details': 'Created Class 5B for Academic Year 2024',
-      'ipAddress': '192.168.1.45',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 20, 13, 20),
-      'user': {'name': 'Mary Johnson', 'role': 'Admin', 'id': 'A001'},
-      'action': 'Deleted user account',
-      'actionType': 'Delete',
-      'module': 'User Management',
-      'status': 'success',
-      'details': 'Removed inactive user account ID: U9012',
-      'ipAddress': '192.168.1.45',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 19, 9, 30),
-      'user': {'name': 'Emma Wilson', 'role': 'Admin', 'id': 'A002'},
-      'action': 'Updated system settings',
-      'actionType': 'Update',
-      'module': 'System',
-      'status': 'success',
-      'details': 'Changed notification settings and email templates',
-      'ipAddress': '192.168.1.33',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 18, 14, 45),
-      'user': {'name': 'Emma Wilson', 'role': 'Admin', 'id': 'A002'},
-      'action': 'Generated audit report',
-      'actionType': 'Export',
-      'module': 'Reports',
-      'status': 'success',
-      'details': 'Exported system audit logs for date range: Jan 1-18, 2024',
-      'ipAddress': '192.168.1.33',
-    },
-
-    // Guard Actions
-    {
-      'timestamp': DateTime(2024, 1, 20, 11, 00),
-      'user': {'name': 'Robert Wilson', 'role': 'Guard', 'id': 'G001'},
-      'action': 'Checked student attendance',
-      'actionType': 'View',
-      'module': 'Attendance Monitoring',
-      'status': 'success',
-      'details': 'Accessed attendance history for Student ID: S5878',
-      'ipAddress': '192.168.1.50',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 20, 7, 30),
-      'user': {'name': 'Robert Wilson', 'role': 'Guard', 'id': 'G001'},
-      'action': 'Updated gate status',
-      'actionType': 'Update',
-      'module': 'Gate Management',
-      'status': 'success',
-      'details': 'Opened main gate for morning arrival',
-      'ipAddress': '192.168.1.50',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 19, 15, 45),
-      'user': {'name': 'Mike Santos', 'role': 'Guard', 'id': 'G002'},
-      'action': 'Denied pickup request',
-      'actionType': 'Security',
-      'module': 'Pickup Management',
-      'status': 'warning',
-      'details': 'Denied pickup request for Student S3421 - unauthorized person',
-      'ipAddress': '192.168.1.51',
-    },
-
-    // Teacher Actions
-    {
-      'timestamp': DateTime(2024, 1, 20, 11, 45),
-      'user': {'name': 'Sarah Davis', 'role': 'Teacher', 'id': 'T001'},
-      'action': 'Marked attendance',
-      'actionType': 'Update',
-      'module': 'Attendance',
-      'status': 'success',
-      'details': 'Marked attendance for Class 3A - 25 students present',
-      'ipAddress': '192.168.1.75',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 20, 9, 15),
-      'user': {'name': 'Jennifer Lopez', 'role': 'Teacher', 'id': 'T002'},
-      'action': 'Updated class schedule',
-      'actionType': 'Update',
-      'module': 'Class Management',
-      'status': 'success',
-      'details': 'Modified schedule for Grade 4B - Mathematics class moved to 10:00 AM',
-      'ipAddress': '192.168.1.76',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 19, 16, 30),
-      'user': {'name': 'Sarah Davis', 'role': 'Teacher', 'id': 'T001'},
-      'action': 'Generated class report',
-      'actionType': 'Export',
-      'module': 'Reports',
-      'status': 'success',
-      'details': 'Exported weekly attendance report for Class 3A',
-      'ipAddress': '192.168.1.75',
-    },
-
-    // Driver Actions
-    {
-      'timestamp': DateTime(2024, 1, 20, 6, 45),
-      'user': {'name': 'Carlos Rodriguez', 'role': 'Driver', 'id': 'D001'},
-      'action': 'Started route',
-      'actionType': 'Update',
-      'module': 'Transportation',
-      'status': 'success',
-      'details': 'Started morning route - Bus 001, Route A',
-      'ipAddress': '192.168.1.90',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 20, 15, 30),
-      'user': {'name': 'Maria Santos', 'role': 'Driver', 'id': 'D002'},
-      'action': 'Completed pickup',
-      'actionType': 'Update',
-      'module': 'Transportation',
-      'status': 'success',
-      'details': 'Completed afternoon pickup - Bus 002, 18 students picked up',
-      'ipAddress': '192.168.1.91',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 19, 14, 00),
-      'user': {'name': 'Carlos Rodriguez', 'role': 'Driver', 'id': 'D001'},
-      'action': 'Reported bus issue',
-      'actionType': 'Alert',
-      'module': 'Transportation',
-      'status': 'warning',
-      'details': 'Reported minor mechanical issue with Bus 001 - tire pressure low',
-      'ipAddress': '192.168.1.90',
-    },
-
-    // Parent Actions
-    {
-      'timestamp': DateTime(2024, 1, 20, 8, 20),
-      'user': {'name': 'Patricia Brown', 'role': 'Parent', 'id': 'P001'},
-      'action': 'Submitted absence request',
-      'actionType': 'Create',
-      'module': 'Student Management',
-      'status': 'success',
-      'details': 'Submitted absence request for child Emma Brown (S1234) - medical appointment',
-      'ipAddress': '192.168.1.120',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 19, 19, 15),
-      'user': {'name': 'John Smith', 'role': 'Parent', 'id': 'P002'},
-      'action': 'Updated emergency contact',
-      'actionType': 'Update',
-      'module': 'Profile Management',
-      'status': 'success',
-      'details': 'Updated emergency contact information for child Alex Smith (S2345)',
-      'ipAddress': '192.168.1.121',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 19, 17, 45),
-      'user': {'name': 'Lisa Garcia', 'role': 'Parent', 'id': 'P003'},
-      'action': 'Requested early pickup',
-      'actionType': 'Create',
-      'module': 'Pickup Management',
-      'status': 'success',
-      'details': 'Requested early pickup for Sofia Garcia (S3456) at 2:00 PM',
-      'ipAddress': '192.168.1.122',
-    },
-
-    // System Events
-    {
-      'timestamp': DateTime(2024, 1, 20, 5, 00),
-      'user': {'name': 'System', 'role': 'System', 'id': 'SYS'},
-      'action': 'Automated backup',
-      'actionType': 'System',
-      'module': 'System',
-      'status': 'success',
-      'details': 'Daily database backup completed successfully',
-      'ipAddress': 'localhost',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 19, 23, 30),
-      'user': {'name': 'System', 'role': 'System', 'id': 'SYS'},
-      'action': 'Security scan',
-      'actionType': 'System',
-      'module': 'Security',
-      'status': 'success',
-      'details': 'Automated security scan completed - no threats detected',
-      'ipAddress': 'localhost',
-    },
-
-    // Error/Warning Events
-    {
-      'timestamp': DateTime(2024, 1, 20, 12, 30),
-      'user': {'name': 'David Kim', 'role': 'Teacher', 'id': 'T003'},
-      'action': 'Failed login attempt',
-      'actionType': 'Security',
-      'module': 'Authentication',
-      'status': 'error',
-      'details': 'Multiple failed login attempts detected - account temporarily locked',
-      'ipAddress': '192.168.1.77',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 19, 10, 15),
-      'user': {'name': 'Anna Taylor', 'role': 'Parent', 'id': 'P004'},
-      'action': 'Profile update failed',
-      'actionType': 'Update',
-      'module': 'Profile Management',
-      'status': 'error',
-      'details': 'Failed to update profile information - invalid phone number format',
-      'ipAddress': '192.168.1.123',
-    },
-  ];
+  // Real audit log entries from database
+  List<Map<String, dynamic>> _logEntries = [];
 
   @override
   void initState() {
@@ -255,19 +43,110 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   Future<void> _fetchAuditLogs() async {
     setState(() => isLoading = true);
 
-    // In a real app, fetch from Supabase
-    // For now, we'll use mock data defined above
+    try {
+      // Fetch audit logs from database using the service
+      final logs = await auditLogService.getAuditLogs(
+        limit: 100,
+        offset: 0,
+      );
 
-    // Simulate network delay
-    await Future.delayed(const Duration(milliseconds: 500));
+      // Transform the database records to match the expected UI format
+      final transformedLogs = logs.map((log) {
+        return {
+          'timestamp': DateTime.parse(log['created_at']),
+          'user': {
+            'name': log['user_name'],
+            'role': log['user_role'],
+            'id': log['user_id'],
+          },
+          'action': log['action_description'],
+          'actionType': log['action_type'],
+          'module': log['module'],
+          'status': log['status'],
+          'details': log['action_description'],
+          'ipAddress': log['ip_address']?.toString() ?? 'Unknown',
+          'target_type': log['target_type'],
+          'target_id': log['target_id'],
+          'target_name': log['target_name'],
+        };
+      }).toList();
 
-    setState(() => isLoading = false);
+      setState(() {
+        _logEntries = transformedLogs;
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Error fetching audit logs: $e');
+      // Keep empty list if error occurs
+      setState(() {
+        _logEntries = [];
+        isLoading = false;
+      });
+      
+      // Show error message to user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load audit logs: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   void _onSearchChanged(String query) {
     setState(() {
       _searchQuery = query.toLowerCase();
     });
+    // Optionally refetch data with new filters
+    _applyFiltersAndRefresh();
+  }
+
+  /// Apply current filters and refresh data from database
+  Future<void> _applyFiltersAndRefresh() async {
+    setState(() => isLoading = true);
+
+    try {
+      final logs = await auditLogService.getAuditLogs(
+        limit: 200,
+        offset: 0,
+        actionType: _actionTypeFilter != 'All Actions' ? _actionTypeFilter : null,
+        status: _statusFilter != 'All Status' ? _statusFilter : null,
+        startDate: _startDate,
+        endDate: _endDate,
+        searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
+      );
+
+      final transformedLogs = logs.map((log) {
+        return {
+          'timestamp': DateTime.parse(log['created_at']),
+          'user': {
+            'name': log['user_name'],
+            'role': log['user_role'],
+            'id': log['user_id'],
+          },
+          'action': log['action_description'],
+          'actionType': log['action_type'],
+          'module': log['module'],
+          'status': log['status'],
+          'details': log['action_description'],
+          'ipAddress': log['ip_address']?.toString() ?? 'Unknown',
+          'target_type': log['target_type'],
+          'target_id': log['target_id'],
+          'target_name': log['target_name'],
+        };
+      }).toList();
+
+      setState(() {
+        _logEntries = transformedLogs;
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Error fetching filtered audit logs: $e');
+      setState(() => isLoading = false);
+    }
   }
 
   @override

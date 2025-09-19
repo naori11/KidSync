@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kidsync/widgets/role_protection.dart';
+import 'package:kidsync/services/audit_log_service.dart';
 import 'package:intl/intl.dart';
 import 'package:web_socket_channel/html.dart';
 import 'dart:convert';
@@ -30,6 +31,7 @@ class StudentManagementPage extends StatefulWidget {
 
 class _StudentManagementPageState extends State<StudentManagementPage> {
   final supabase = Supabase.instance.client;
+  final auditLogService = AuditLogService();
   List<Map<String, dynamic>> students = [];
   List<Map<String, dynamic>> sections = [];
   bool isLoading = false;
@@ -1594,9 +1596,52 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                 .from('students')
                                 .update(payload)
                                 .eq('id', response['id']);
+
+                            // Log student creation with actual ID
+                            try {
+                              final studentName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                              await auditLogService.logStudentCreation(
+                                studentId: response['id'].toString(),
+                                studentName: studentName,
+                                studentData: {
+                                  'fname': fnameController.text.trim(),
+                                  'lname': lnameController.text.trim(),
+                                  'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                  'address': addressController.text.trim(),
+                                  'gender': selectedGender,
+                                  'grade_level': selectedGradeLevel,
+                                  'section_id': selectedSectionId,
+                                  'birthday': birthdayController.text.trim().isEmpty ? null : birthdayController.text.trim(),
+                                  'profile_image_url': imageUrl,
+                                },
+                              );
+                            } catch (e) {
+                              print('Error logging student creation audit event: $e');
+                            }
                           } else {
                             // No image, just insert normally
-                            await supabase.from('students').insert(payload);
+                            final response = await supabase.from('students').insert(payload).select('id').single();
+
+                            // Log student creation with actual ID
+                            try {
+                              final studentName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                              await auditLogService.logStudentCreation(
+                                studentId: response['id'].toString(),
+                                studentName: studentName,
+                                studentData: {
+                                  'fname': fnameController.text.trim(),
+                                  'lname': lnameController.text.trim(),
+                                  'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                  'address': addressController.text.trim(),
+                                  'gender': selectedGender,
+                                  'grade_level': selectedGradeLevel,
+                                  'section_id': selectedSectionId,
+                                  'birthday': birthdayController.text.trim().isEmpty ? null : birthdayController.text.trim(),
+                                },
+                              );
+                            } catch (e) {
+                              print('Error logging student creation audit event: $e');
+                            }
                           }
                         } else {
                           // Update existing student
@@ -1604,6 +1649,39 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                               .from('students')
                               .update(payload)
                               .eq('id', student['id']);
+
+                          // Log student update
+                          try {
+                            final studentName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                            await auditLogService.logStudentUpdate(
+                              studentId: student['id'].toString(),
+                              studentName: studentName,
+                              oldValues: {
+                                'fname': student['fname'],
+                                'lname': student['lname'],
+                                'mname': student['mname'],
+                                'address': student['address'],
+                                'gender': student['gender'],
+                                'grade_level': student['grade_level'],
+                                'section_id': student['section_id'],
+                                'birthday': student['birthday'],
+                                'profile_image_url': student['profile_image_url'],
+                              },
+                              newValues: {
+                                'fname': fnameController.text.trim(),
+                                'lname': lnameController.text.trim(),
+                                'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                'address': addressController.text.trim(),
+                                'gender': selectedGender,
+                                'grade_level': selectedGradeLevel,
+                                'section_id': selectedSectionId,
+                                'birthday': birthdayController.text.trim().isEmpty ? null : birthdayController.text.trim(),
+                                'profile_image_url': imageUrl,
+                              },
+                            );
+                          } catch (e) {
+                            print('Error logging student update audit event: $e');
+                          }
                         }
 
                         // Reset state variables
@@ -2057,10 +2135,23 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     );
   }
 
-  Future<void> _deleteStudent(int id) async {
+  Future<void> _deleteStudent(int id, {Map<String, dynamic>? studentData}) async {
     try {
       await supabase.from('students').delete().eq('id', id);
       _fetchStudents();
+
+      // Log audit event for student deletion
+      try {
+        if (studentData != null) {
+          final studentName = '${studentData['fname'] ?? ''} ${studentData['lname'] ?? ''}'.trim();
+          await auditLogService.logStudentDeletion(
+            studentId: id.toString(),
+            studentName: studentName,
+          );
+        }
+      } catch (auditError) {
+        print('Failed to log audit event: $auditError');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -4396,7 +4487,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   student['fname'],
                                 );
                                 if (confirm) {
-                                  await _deleteStudent(student['id']);
+                                  await _deleteStudent(student['id'], studentData: student);
                                 }
                               },
                             ),
@@ -4860,7 +4951,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                             student['fname'],
                           );
                           if (confirm) {
-                            await _deleteStudent(student['id']);
+                            await _deleteStudent(student['id'], studentData: student);
                           }
                         }
                       },
