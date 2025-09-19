@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
@@ -14,48 +15,228 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   bool isLoading = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String _roleFilter = 'All Roles';
+  String _userFilter = 'All Users';
+  String _actionTypeFilter = 'All Actions';
+  String _statusFilter = 'All Status';
+  DateTime? _startDate;
+  DateTime? _endDate;
+  bool _isFilterSidebarOpen = false;
 
-  // Mock data for demonstration
+  // Enhanced mock data with comprehensive user actions across all roles
   final List<Map<String, dynamic>> _logEntries = [
+    // Admin Actions
     {
       'timestamp': DateTime(2024, 1, 20, 10, 15),
-      'user': {'name': 'Mary Johnson', 'role': 'Admin'},
+      'user': {'name': 'Mary Johnson', 'role': 'Admin', 'id': 'A001'},
       'action': 'Created new class',
+      'actionType': 'Create',
       'module': 'Class Management',
       'status': 'success',
       'details': 'Created Class 5B for Academic Year 2024',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 20, 11, 00),
-      'user': {'name': 'Robert Wilson', 'role': 'Guard'},
-      'action': 'dadadwdawdawd',
-      'module': 'dadadaw',
-      'status': 'success',
-      'details': 'Accessed attendance history for Student ID: 5878',
-    },
-    {
-      'timestamp': DateTime(2024, 1, 20, 11, 45),
-      'user': {'name': 'Sarah Davis', 'role': 'Teacher'},
-      'action': 'Marked attendance',
-      'module': 'Attendance',
-      'status': 'success',
-      'details': 'Marked attendance for Class 3A',
+      'ipAddress': '192.168.1.45',
     },
     {
       'timestamp': DateTime(2024, 1, 20, 13, 20),
-      'user': {'name': 'James Brown', 'role': 'Admin'},
+      'user': {'name': 'Mary Johnson', 'role': 'Admin', 'id': 'A001'},
       'action': 'Deleted user account',
+      'actionType': 'Delete',
       'module': 'User Management',
-      'status': 'error',
-      'details': 'Removed inactive user account ID: 9012',
+      'status': 'success',
+      'details': 'Removed inactive user account ID: U9012',
+      'ipAddress': '192.168.1.45',
     },
     {
       'timestamp': DateTime(2024, 1, 19, 9, 30),
-      'user': {'name': 'Emma Wilson', 'role': 'Admin'},
+      'user': {'name': 'Emma Wilson', 'role': 'Admin', 'id': 'A002'},
       'action': 'Updated system settings',
+      'actionType': 'Update',
       'module': 'System',
       'status': 'success',
-      'details': 'Changed notification settings',
+      'details': 'Changed notification settings and email templates',
+      'ipAddress': '192.168.1.33',
+    },
+    {
+      'timestamp': DateTime(2024, 1, 18, 14, 45),
+      'user': {'name': 'Emma Wilson', 'role': 'Admin', 'id': 'A002'},
+      'action': 'Generated audit report',
+      'actionType': 'Export',
+      'module': 'Reports',
+      'status': 'success',
+      'details': 'Exported system audit logs for date range: Jan 1-18, 2024',
+      'ipAddress': '192.168.1.33',
+    },
+
+    // Guard Actions
+    {
+      'timestamp': DateTime(2024, 1, 20, 11, 00),
+      'user': {'name': 'Robert Wilson', 'role': 'Guard', 'id': 'G001'},
+      'action': 'Checked student attendance',
+      'actionType': 'View',
+      'module': 'Attendance Monitoring',
+      'status': 'success',
+      'details': 'Accessed attendance history for Student ID: S5878',
+      'ipAddress': '192.168.1.50',
+    },
+    {
+      'timestamp': DateTime(2024, 1, 20, 7, 30),
+      'user': {'name': 'Robert Wilson', 'role': 'Guard', 'id': 'G001'},
+      'action': 'Updated gate status',
+      'actionType': 'Update',
+      'module': 'Gate Management',
+      'status': 'success',
+      'details': 'Opened main gate for morning arrival',
+      'ipAddress': '192.168.1.50',
+    },
+    {
+      'timestamp': DateTime(2024, 1, 19, 15, 45),
+      'user': {'name': 'Mike Santos', 'role': 'Guard', 'id': 'G002'},
+      'action': 'Denied pickup request',
+      'actionType': 'Security',
+      'module': 'Pickup Management',
+      'status': 'warning',
+      'details': 'Denied pickup request for Student S3421 - unauthorized person',
+      'ipAddress': '192.168.1.51',
+    },
+
+    // Teacher Actions
+    {
+      'timestamp': DateTime(2024, 1, 20, 11, 45),
+      'user': {'name': 'Sarah Davis', 'role': 'Teacher', 'id': 'T001'},
+      'action': 'Marked attendance',
+      'actionType': 'Update',
+      'module': 'Attendance',
+      'status': 'success',
+      'details': 'Marked attendance for Class 3A - 25 students present',
+      'ipAddress': '192.168.1.75',
+    },
+    {
+      'timestamp': DateTime(2024, 1, 20, 9, 15),
+      'user': {'name': 'Jennifer Lopez', 'role': 'Teacher', 'id': 'T002'},
+      'action': 'Updated class schedule',
+      'actionType': 'Update',
+      'module': 'Class Management',
+      'status': 'success',
+      'details': 'Modified schedule for Grade 4B - Mathematics class moved to 10:00 AM',
+      'ipAddress': '192.168.1.76',
+    },
+    {
+      'timestamp': DateTime(2024, 1, 19, 16, 30),
+      'user': {'name': 'Sarah Davis', 'role': 'Teacher', 'id': 'T001'},
+      'action': 'Generated class report',
+      'actionType': 'Export',
+      'module': 'Reports',
+      'status': 'success',
+      'details': 'Exported weekly attendance report for Class 3A',
+      'ipAddress': '192.168.1.75',
+    },
+
+    // Driver Actions
+    {
+      'timestamp': DateTime(2024, 1, 20, 6, 45),
+      'user': {'name': 'Carlos Rodriguez', 'role': 'Driver', 'id': 'D001'},
+      'action': 'Started route',
+      'actionType': 'Update',
+      'module': 'Transportation',
+      'status': 'success',
+      'details': 'Started morning route - Bus 001, Route A',
+      'ipAddress': '192.168.1.90',
+    },
+    {
+      'timestamp': DateTime(2024, 1, 20, 15, 30),
+      'user': {'name': 'Maria Santos', 'role': 'Driver', 'id': 'D002'},
+      'action': 'Completed pickup',
+      'actionType': 'Update',
+      'module': 'Transportation',
+      'status': 'success',
+      'details': 'Completed afternoon pickup - Bus 002, 18 students picked up',
+      'ipAddress': '192.168.1.91',
+    },
+    {
+      'timestamp': DateTime(2024, 1, 19, 14, 00),
+      'user': {'name': 'Carlos Rodriguez', 'role': 'Driver', 'id': 'D001'},
+      'action': 'Reported bus issue',
+      'actionType': 'Alert',
+      'module': 'Transportation',
+      'status': 'warning',
+      'details': 'Reported minor mechanical issue with Bus 001 - tire pressure low',
+      'ipAddress': '192.168.1.90',
+    },
+
+    // Parent Actions
+    {
+      'timestamp': DateTime(2024, 1, 20, 8, 20),
+      'user': {'name': 'Patricia Brown', 'role': 'Parent', 'id': 'P001'},
+      'action': 'Submitted absence request',
+      'actionType': 'Create',
+      'module': 'Student Management',
+      'status': 'success',
+      'details': 'Submitted absence request for child Emma Brown (S1234) - medical appointment',
+      'ipAddress': '192.168.1.120',
+    },
+    {
+      'timestamp': DateTime(2024, 1, 19, 19, 15),
+      'user': {'name': 'John Smith', 'role': 'Parent', 'id': 'P002'},
+      'action': 'Updated emergency contact',
+      'actionType': 'Update',
+      'module': 'Profile Management',
+      'status': 'success',
+      'details': 'Updated emergency contact information for child Alex Smith (S2345)',
+      'ipAddress': '192.168.1.121',
+    },
+    {
+      'timestamp': DateTime(2024, 1, 19, 17, 45),
+      'user': {'name': 'Lisa Garcia', 'role': 'Parent', 'id': 'P003'},
+      'action': 'Requested early pickup',
+      'actionType': 'Create',
+      'module': 'Pickup Management',
+      'status': 'success',
+      'details': 'Requested early pickup for Sofia Garcia (S3456) at 2:00 PM',
+      'ipAddress': '192.168.1.122',
+    },
+
+    // System Events
+    {
+      'timestamp': DateTime(2024, 1, 20, 5, 00),
+      'user': {'name': 'System', 'role': 'System', 'id': 'SYS'},
+      'action': 'Automated backup',
+      'actionType': 'System',
+      'module': 'System',
+      'status': 'success',
+      'details': 'Daily database backup completed successfully',
+      'ipAddress': 'localhost',
+    },
+    {
+      'timestamp': DateTime(2024, 1, 19, 23, 30),
+      'user': {'name': 'System', 'role': 'System', 'id': 'SYS'},
+      'action': 'Security scan',
+      'actionType': 'System',
+      'module': 'Security',
+      'status': 'success',
+      'details': 'Automated security scan completed - no threats detected',
+      'ipAddress': 'localhost',
+    },
+
+    // Error/Warning Events
+    {
+      'timestamp': DateTime(2024, 1, 20, 12, 30),
+      'user': {'name': 'David Kim', 'role': 'Teacher', 'id': 'T003'},
+      'action': 'Failed login attempt',
+      'actionType': 'Security',
+      'module': 'Authentication',
+      'status': 'error',
+      'details': 'Multiple failed login attempts detected - account temporarily locked',
+      'ipAddress': '192.168.1.77',
+    },
+    {
+      'timestamp': DateTime(2024, 1, 19, 10, 15),
+      'user': {'name': 'Anna Taylor', 'role': 'Parent', 'id': 'P004'},
+      'action': 'Profile update failed',
+      'actionType': 'Update',
+      'module': 'Profile Management',
+      'status': 'error',
+      'details': 'Failed to update profile information - invalid phone number format',
+      'ipAddress': '192.168.1.123',
     },
   ];
 
@@ -93,34 +274,57 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Search and filter header
-            _buildHeader(),
+      body: Stack(
+        children: [
+          // Main content
+          Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Search and filter header
+                _buildHeader(),
 
-            const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-            // Table header
-            _buildTableHeader(),
+                // Table header
+                _buildTableHeader(),
 
-            const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-            // Table content
-            Expanded(
-              child:
-                  isLoading
+                // Table content
+                Expanded(
+                  child: isLoading
                       ? const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF2ECC71),
-                        ),
-                      )
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF2ECC71),
+                          ),
+                        )
                       : _buildLogsList(),
+                ),
+              ],
             ),
+          ),
+          
+          // Filter Sidebar Overlay
+          if (_isFilterSidebarOpen) ...[
+            // Dark overlay with animation
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              color: Colors.black.withOpacity(_isFilterSidebarOpen ? 0.5 : 0.0),
+              width: double.infinity,
+              height: double.infinity,
+              child: GestureDetector(
+                onTap: () => setState(() => _isFilterSidebarOpen = false),
+                child: Container(
+                  color: Colors.transparent,
+                ),
+              ),
+            ),
+            // Sidebar
+            _buildFilterSidebar(),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -142,6 +346,73 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
               ),
             ),
             const Spacer(),
+            // Filter Toggle Button
+            Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: _hasActiveFilters() ? const Color(0xFF2ECC71) : Colors.white,
+                border: Border.all(
+                  color: const Color(0xFF2ECC71),
+                  width: 1.5,
+                ),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => setState(() => _isFilterSidebarOpen = true),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.filter_list,
+                          color: _hasActiveFilters() ? Colors.white : const Color(0xFF2ECC71),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Filters',
+                          style: TextStyle(
+                            color: _hasActiveFilters() ? Colors.white : const Color(0xFF2ECC71),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if (_hasActiveFilters()) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${_getActiveFilterCount()}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
             // Standardized Search bar
             Container(
               width: 260,
@@ -231,76 +502,456 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
             style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
           ),
         ),
+
+        // Active filter summary (when filters are applied)
+        if (_hasActiveFilters()) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2ECC71).withOpacity(0.05),
+              border: Border.all(
+                color: const Color(0xFF2ECC71).withOpacity(0.2),
+                width: 1,
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.filter_alt,
+                  size: 16,
+                  color: const Color(0xFF2ECC71).withOpacity(0.8),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Active filters:',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: _getActiveFilterBadges(),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _roleFilter = 'All Roles';
+                      _userFilter = 'All Users';
+                      _actionTypeFilter = 'All Actions';
+                      _statusFilter = 'All Status';
+                      _startDate = null;
+                      _endDate = null;
+                      _searchController.clear();
+                      _searchQuery = '';
+                    });
+                  },
+                  icon: const Icon(
+                    Icons.clear,
+                    size: 14,
+                    color: Color(0xFF666666),
+                  ),
+                  label: const Text(
+                    'Clear All',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF666666),
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+
+  // Helper method to build consistent filter dropdowns
+  Widget _buildFilterDropdown(
+    String label,
+    String value,
+    List<String> options,
+    IconData icon,
+    void Function(String?) onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF666666),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          height: 40,
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFE0E0E0)),
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.white,
+          ),
+          child: DropdownButtonFormField<String>(
+            value: value,
+            decoration: InputDecoration(
+              prefixIcon: Icon(
+                icon,
+                size: 16,
+                color: const Color(0xFF2ECC71),
+              ),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 8,
+                horizontal: 12,
+              ),
+            ),
+            style: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF1A1A1A),
+            ),
+            items: options.map((String option) {
+              return DropdownMenuItem<String>(
+                value: option,
+                child: Text(
+                  option,
+                  style: const TextStyle(fontSize: 14),
+                ),
+              );
+            }).toList(),
+            onChanged: onChanged,
+            isExpanded: true,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Get user filter options from log entries
+  List<String> _getUserFilterOptions() {
+    final users = <String>{'All Users'};
+    for (var log in _logEntries) {
+      final userName = log['user']['name'] as String;
+      users.add(userName);
+    }
+    return users.toList()..sort();
+  }
+
+  // Build date range picker
+  Widget _buildDateRangePicker() {
+    final dateFormat = DateFormat('MMM d, yyyy');
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Date Range',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF666666),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  border: Border.all(color: const Color(0xFFE0E0E0)),
+                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.white,
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _startDate ?? DateTime.now().subtract(const Duration(days: 30)),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: const ColorScheme.light(
+                                primary: Color(0xFF2ECC71),
+                                onPrimary: Colors.white,
+                                surface: Colors.white,
+                                onSurface: Colors.black,
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          _startDate = picked;
+                        });
+                      }
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.calendar_today,
+                            size: 16,
+                            color: Color(0xFF2ECC71),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _startDate != null ? dateFormat.format(_startDate!) : 'Start Date',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: _startDate != null ? const Color(0xFF1A1A1A) : const Color(0xFF9E9E9E),
+                              ),
+                            ),
+                          ),
+                          if (_startDate != null)
+                            GestureDetector(
+                              onTap: () => setState(() => _startDate = null),
+                              child: const Icon(
+                                Icons.clear,
+                                size: 16,
+                                color: Color(0xFF666666),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'to',
+              style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF666666),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  border: Border.all(color: const Color(0xFFE0E0E0)),
+                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.white,
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _endDate ?? DateTime.now(),
+                        firstDate: _startDate ?? DateTime(2020),
+                        lastDate: DateTime.now(),
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: const ColorScheme.light(
+                                primary: Color(0xFF2ECC71),
+                                onPrimary: Colors.white,
+                                surface: Colors.white,
+                                onSurface: Colors.black,
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          _endDate = picked;
+                        });
+                      }
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.calendar_today,
+                            size: 16,
+                            color: Color(0xFF2ECC71),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _endDate != null ? dateFormat.format(_endDate!) : 'End Date',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: _endDate != null ? const Color(0xFF1A1A1A) : const Color(0xFF9E9E9E),
+                              ),
+                            ),
+                          ),
+                          if (_endDate != null)
+                            GestureDetector(
+                              onTap: () => setState(() => _endDate = null),
+                              child: const Icon(
+                                Icons.clear,
+                                size: 16,
+                                color: Color(0xFF666666),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Quick filter shortcuts
+        Row(
+          children: [
+            const Text(
+              'Quick Filters:',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF666666),
+              ),
+            ),
+            const SizedBox(width: 12),
+            _buildQuickFilterChip('Today', () {
+              final today = DateTime.now();
+              setState(() {
+                _startDate = DateTime(today.year, today.month, today.day);
+                _endDate = DateTime(today.year, today.month, today.day);
+              });
+            }),
+            const SizedBox(width: 8),
+            _buildQuickFilterChip('Last 7 Days', () {
+              final today = DateTime.now();
+              setState(() {
+                _startDate = today.subtract(const Duration(days: 7));
+                _endDate = today;
+              });
+            }),
+            const SizedBox(width: 8),
+            _buildQuickFilterChip('Errors Only', () {
+              setState(() {
+                _statusFilter = 'error';
+              });
+            }),
+            const SizedBox(width: 8),
+            _buildQuickFilterChip('Admin Actions', () {
+              setState(() {
+                _roleFilter = 'Admin';
+              });
+            }),
+          ],
+        ),
       ],
     );
   }
 
   Widget _buildTableHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        color: const Color(0xFFF8F9FA),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(12),
+          topRight: Radius.circular(12),
+        ),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
       ),
       child: Row(
         children: [
           // Timestamp column
           SizedBox(
-            width: 120,
+            width: 140,
             child: Text(
-              'Timestamp',
+              'Date & Time',
               style: TextStyle(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
                 color: Colors.grey.shade800,
+                letterSpacing: 0.3,
               ),
             ),
           ),
 
           // User column
           SizedBox(
-            width: 150,
+            width: 180,
             child: Text(
-              'User',
+              'User & Role',
               style: TextStyle(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
                 color: Colors.grey.shade800,
+                letterSpacing: 0.3,
               ),
             ),
           ),
 
-          // Action column
+          // Action & Type column
           SizedBox(
-            width: 150,
+            width: 160,
             child: Text(
-              'Action',
+              'Action & Type',
               style: TextStyle(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
                 color: Colors.grey.shade800,
+                letterSpacing: 0.3,
               ),
             ),
           ),
 
           // Module column
           SizedBox(
-            width: 150,
+            width: 140,
             child: Text(
               'Module',
               style: TextStyle(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
                 color: Colors.grey.shade800,
+                letterSpacing: 0.3,
               ),
             ),
           ),
 
           // Status column
           SizedBox(
-            width: 80,
+            width: 90,
             child: Text(
               'Status',
               style: TextStyle(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
                 color: Colors.grey.shade800,
+                letterSpacing: 0.3,
               ),
             ),
           ),
@@ -310,8 +961,24 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
             child: Text(
               'Details',
               style: TextStyle(
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
                 color: Colors.grey.shade800,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+
+          // Actions column
+          SizedBox(
+            width: 60,
+            child: Text(
+              'Actions',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                color: Colors.grey.shade800,
+                letterSpacing: 0.3,
               ),
             ),
           ),
@@ -321,24 +988,564 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   }
 
   Widget _buildLogsList() {
-    // Filter log entries based on search query
-    final filteredLogs =
-        _logEntries.where((log) {
-          if (_searchQuery.isEmpty) return true;
+    // Apply all filters to log entries
+    final filteredLogs = _logEntries.where((log) {
+      final logDate = log['timestamp'] as DateTime;
+      
+      // Date range filter
+      if (_startDate != null) {
+        final startOfDay = DateTime(_startDate!.year, _startDate!.month, _startDate!.day);
+        if (logDate.isBefore(startOfDay)) return false;
+      }
+      if (_endDate != null) {
+        final endOfDay = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
+        if (logDate.isAfter(endOfDay)) return false;
+      }
 
-          final String searchableContent =
-              '${log['user']['name']} ${log['action']} ${log['module']} ${log['details']}'
-                  .toLowerCase();
+      // Search query filter
+      if (_searchQuery.isNotEmpty) {
+        final String searchableContent =
+            '${log['user']['name']} ${log['action']} ${log['module']} ${log['details']}'
+                .toLowerCase();
+        if (!searchableContent.contains(_searchQuery)) return false;
+      }
 
-          return searchableContent.contains(_searchQuery);
-        }).toList();
+      // Role filter
+      if (_roleFilter != 'All Roles' && log['user']['role'] != _roleFilter) {
+        return false;
+      }
 
-    return ListView.builder(
-      itemCount: filteredLogs.length,
-      itemBuilder: (context, index) {
-        final log = filteredLogs[index];
-        return _buildLogEntry(log, index % 2 == 0);
-      },
+      // User filter
+      if (_userFilter != 'All Users' && log['user']['name'] != _userFilter) {
+        return false;
+      }
+
+      // Action type filter
+      if (_actionTypeFilter != 'All Actions' && log['actionType'] != _actionTypeFilter) {
+        return false;
+      }
+
+      // Status filter
+      if (_statusFilter != 'All Status' && log['status'] != _statusFilter) {
+        return false;
+      }
+
+      return true;
+    }).toList();
+
+    // Sort by timestamp (newest first)
+    filteredLogs.sort((a, b) => (b['timestamp'] as DateTime).compareTo(a['timestamp'] as DateTime));
+
+    if (filteredLogs.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search_off,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No audit logs found',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try adjusting your filters or search criteria',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(12),
+          bottomRight: Radius.circular(12),
+        ),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Results count
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Color(0xFFE0E0E0)),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: Colors.grey[600],
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Showing ${filteredLogs.length} log ${filteredLogs.length == 1 ? 'entry' : 'entries'}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+                // Quick filter badges
+                if (_hasActiveFilters()) ...[
+                  const Text(
+                    'Active filters: ',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF666666),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Wrap(
+                    spacing: 4,
+                    children: _getActiveFilterBadges(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          // Log entries
+          Expanded(
+            child: ListView.builder(
+              itemCount: filteredLogs.length,
+              itemBuilder: (context, index) {
+                final log = filteredLogs[index];
+                return _buildLogEntry(log, index % 2 == 0);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Check if any filters are active
+  bool _hasActiveFilters() {
+    return _roleFilter != 'All Roles' ||
+           _userFilter != 'All Users' ||
+           _actionTypeFilter != 'All Actions' ||
+           _statusFilter != 'All Status' ||
+           _startDate != null ||
+           _endDate != null ||
+           _searchQuery.isNotEmpty;
+  }
+
+  // Get active filter badges
+  List<Widget> _getActiveFilterBadges() {
+    final badges = <Widget>[];
+    
+    if (_roleFilter != 'All Roles') {
+      badges.add(_buildFilterBadge(_roleFilter));
+    }
+    if (_userFilter != 'All Users') {
+      badges.add(_buildFilterBadge(_userFilter));
+    }
+    if (_actionTypeFilter != 'All Actions') {
+      badges.add(_buildFilterBadge(_actionTypeFilter));
+    }
+    if (_statusFilter != 'All Status') {
+      badges.add(_buildFilterBadge(_statusFilter));
+    }
+    if (_startDate != null || _endDate != null) {
+      badges.add(_buildFilterBadge('Date Range'));
+    }
+    if (_searchQuery.isNotEmpty) {
+      badges.add(_buildFilterBadge('Search'));
+    }
+    
+    return badges;
+  }
+
+  // Get count of active filters
+  int _getActiveFilterCount() {
+    int count = 0;
+    if (_roleFilter != 'All Roles') count++;
+    if (_userFilter != 'All Users') count++;
+    if (_actionTypeFilter != 'All Actions') count++;
+    if (_statusFilter != 'All Status') count++;
+    if (_startDate != null || _endDate != null) count++;
+    if (_searchQuery.isNotEmpty) count++;
+    return count;
+  }
+
+  // Build the floating filter sidebar
+  Widget _buildFilterSidebar() {
+    return Positioned(
+      right: 0,
+      top: 0,
+      bottom: 0,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        width: 400,
+        transform: Matrix4.translationValues(
+          _isFilterSidebarOpen ? 0 : 400,
+          0,
+          0,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 20,
+              offset: const Offset(-5, 0),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            // Sidebar Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: Color(0xFF2ECC71),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(0),
+                  topRight: Radius.circular(0),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.filter_list,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Filter Options',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => setState(() => _isFilterSidebarOpen = false),
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Sidebar Content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Clear all filters button
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _roleFilter = 'All Roles';
+                            _userFilter = 'All Users';
+                            _actionTypeFilter = 'All Actions';
+                            _statusFilter = 'All Status';
+                            _startDate = null;
+                            _endDate = null;
+                            _searchController.clear();
+                            _searchQuery = '';
+                          });
+                        },
+                        icon: const Icon(
+                          Icons.clear_all,
+                          size: 18,
+                          color: Color(0xFF666666),
+                        ),
+                        label: const Text(
+                          'Clear All Filters',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF666666),
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFFE0E0E0)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Role Filter
+                    _buildSidebarFilterSection(
+                      'User Role',
+                      Icons.admin_panel_settings,
+                      _buildFilterDropdown(
+                        'Role',
+                        _roleFilter,
+                        ['All Roles', 'Admin', 'Teacher', 'Guard', 'Driver', 'Parent', 'System'],
+                        Icons.admin_panel_settings,
+                        (value) => setState(() => _roleFilter = value!),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // User Filter
+                    _buildSidebarFilterSection(
+                      'Specific User',
+                      Icons.person,
+                      _buildFilterDropdown(
+                        'User',
+                        _userFilter,
+                        _getUserFilterOptions(),
+                        Icons.person,
+                        (value) => setState(() => _userFilter = value!),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Action Type Filter
+                    _buildSidebarFilterSection(
+                      'Action Type',
+                      Icons.assignment,
+                      _buildFilterDropdown(
+                        'Action Type',
+                        _actionTypeFilter,
+                        ['All Actions', 'Create', 'Update', 'Delete', 'View', 'Export', 'Security', 'Alert', 'System'],
+                        Icons.assignment,
+                        (value) => setState(() => _actionTypeFilter = value!),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Status Filter
+                    _buildSidebarFilterSection(
+                      'Status',
+                      Icons.info_outline,
+                      _buildFilterDropdown(
+                        'Status',
+                        _statusFilter,
+                        ['All Status', 'success', 'warning', 'error'],
+                        Icons.info_outline,
+                        (value) => setState(() => _statusFilter = value!),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Date Range Filter
+                    _buildSidebarFilterSection(
+                      'Date Range',
+                      Icons.calendar_today,
+                      _buildDateRangePicker(),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Quick filter shortcuts
+                    _buildSidebarFilterSection(
+                      'Quick Filters',
+                      Icons.speed,
+                      Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildQuickFilterButton('Today', () {
+                                  final today = DateTime.now();
+                                  setState(() {
+                                    _startDate = DateTime(today.year, today.month, today.day);
+                                    _endDate = DateTime(today.year, today.month, today.day);
+                                  });
+                                }),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _buildQuickFilterButton('Last 7 Days', () {
+                                  final today = DateTime.now();
+                                  setState(() {
+                                    _startDate = today.subtract(const Duration(days: 7));
+                                    _endDate = today;
+                                  });
+                                }),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildQuickFilterButton('Errors Only', () {
+                                  setState(() {
+                                    _statusFilter = 'error';
+                                  });
+                                }),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _buildQuickFilterButton('Admin Actions', () {
+                                  setState(() {
+                                    _roleFilter = 'Admin';
+                                  });
+                                }),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Sidebar Footer
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                border: const Border(
+                  top: BorderSide(color: Color(0xFFE0E0E0)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: Colors.grey[600],
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${_getActiveFilterCount()} filter${_getActiveFilterCount() == 1 ? '' : 's'} active',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => setState(() => _isFilterSidebarOpen = false),
+                    child: const Text(
+                      'Apply Filters',
+                      style: TextStyle(
+                        color: Color(0xFF2ECC71),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Build sidebar filter section
+  Widget _buildSidebarFilterSection(String title, IconData icon, Widget child) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: const Color(0xFF2ECC71),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A1A1A),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        child,
+      ],
+    );
+  }
+
+  // Build quick filter button for sidebar
+  Widget _buildQuickFilterButton(String label, VoidCallback onTap) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: Colors.white,
+          side: const BorderSide(color: Color(0xFF2ECC71)),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF2ECC71),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Build individual filter badge
+  Widget _buildFilterBadge(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2ECC71).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: const Color(0xFF2ECC71).withOpacity(0.3),
+          width: 0.5,
+        ),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w500,
+          color: Color(0xFF2ECC71),
+        ),
+      ),
     );
   }
 
@@ -346,124 +1553,474 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
     final timestamp = log['timestamp'] as DateTime;
     final dateFormatter = DateFormat('MMM d, yyyy');
     final timeFormatter = DateFormat('HH:mm');
+    final status = log['status'] as String;
+    final role = log['user']['role'] as String;
+
+    // Define role colors
+    Color getRoleColor(String role) {
+      switch (role) {
+        case 'Admin':
+          return const Color(0xFF9C27B0);
+        case 'Teacher':
+          return const Color(0xFF2196F3);
+        case 'Guard':
+          return const Color(0xFFFF9800);
+        case 'Driver':
+          return const Color(0xFF4CAF50);
+        case 'Parent':
+          return const Color(0xFFE91E63);
+        case 'System':
+          return const Color(0xFF607D8B);
+        default:
+          return const Color(0xFF757575);
+      }
+    }
+
+    // Define status colors and icons
+    Widget getStatusIndicator(String status) {
+      switch (status) {
+        case 'success':
+          return Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFF2ECC71),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Success',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF2ECC71),
+                ),
+              ),
+            ],
+          );
+        case 'warning':
+          return Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFFF39C12),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Warning',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFFF39C12),
+                ),
+              ),
+            ],
+          );
+        case 'error':
+          return Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFFE74C3C),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Error',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFFE74C3C),
+                ),
+              ),
+            ],
+          );
+        default:
+          return Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.grey[400],
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Unknown',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          );
+      }
+    }
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
       decoration: BoxDecoration(
-        color: isEvenRow ? Colors.white : const Color(0xFFF9F9F9),
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+        color: isEvenRow ? Colors.white : const Color(0xFFFAFBFC),
+        border: const Border(
+          bottom: BorderSide(color: Color(0xFFE0E0E0), width: 0.5),
+        ),
       ),
       child: Row(
         children: [
           // Timestamp column
           SizedBox(
-            width: 120,
+            width: 140,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   dateFormatter.format(timestamp),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
                     fontSize: 13,
-                    color: Colors.grey.shade800,
+                    color: Color(0xFF1A1A1A),
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   timeFormatter.format(timestamp),
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ],
             ),
           ),
 
-          // User column
+          // User & Role column
           SizedBox(
-            width: 150,
+            width: 180,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   log['user']['name'],
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
                     fontSize: 13,
-                    color: Colors.grey.shade800,
+                    color: Color(0xFF1A1A1A),
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  log['user']['role'],
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: getRoleColor(role).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: getRoleColor(role).withOpacity(0.3),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Text(
+                    role,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: getRoleColor(role),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
 
-          // Action column
+          // Action & Type column
           SizedBox(
-            width: 150,
-            child: Text(
-              log['action'],
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
-              overflow: TextOverflow.ellipsis,
+            width: 160,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  log['action'],
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2ECC71).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    log['actionType'],
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF2ECC71),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
           // Module column
           SizedBox(
-            width: 150,
+            width: 140,
             child: Text(
               log['module'],
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF1A1A1A),
+                fontWeight: FontWeight.w400,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
 
           // Status column
           SizedBox(
-            width: 80,
-            child: Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color:
-                        log['status'] == 'success'
-                            ? const Color(0xFF2ECC71)
-                            : Colors.red,
-                  ),
-                ),
-              ],
-            ),
+            width: 90,
+            child: getStatusIndicator(status),
           ),
 
           // Details column
           Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  child: Text(
-                    log['details'],
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
-                    overflow: TextOverflow.ellipsis,
+            child: Text(
+              log['details'],
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade700,
+                height: 1.3,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
+          ),
+
+          // Actions column
+          SizedBox(
+            width: 60,
+            child: PopupMenuButton<String>(
+              icon: Icon(
+                Icons.more_vert,
+                color: Colors.grey.shade600,
+                size: 18,
+              ),
+              onSelected: (value) {
+                switch (value) {
+                  case 'view':
+                    _showLogDetails(log);
+                    break;
+                  case 'copy':
+                    _copyLogDetails(log);
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'view',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.visibility,
+                        size: 16,
+                        color: Colors.grey[600],
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('View Details'),
+                    ],
                   ),
                 ),
-
-                // Actions menu
-                IconButton(
-                  icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
-                  onPressed: () {
-                    // Show actions menu
-                  },
+                PopupMenuItem(
+                  value: 'copy',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.copy,
+                        size: 16,
+                        color: Colors.grey[600],
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('Copy Info'),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // Show detailed log information in a dialog
+  void _showLogDetails(Map<String, dynamic> log) {
+    final timestamp = log['timestamp'] as DateTime;
+    final dateTimeFormatter = DateFormat('MMM d, yyyy \'at\' HH:mm:ss');
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(
+              Icons.info_outline,
+              color: Color(0xFF2ECC71),
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Log Details',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Container(
+          width: 500,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDetailRow('Timestamp', dateTimeFormatter.format(timestamp)),
+              _buildDetailRow('User', log['user']['name']),
+              _buildDetailRow('Role', log['user']['role']),
+              _buildDetailRow('User ID', log['user']['id']),
+              _buildDetailRow('Action', log['action']),
+              _buildDetailRow('Action Type', log['actionType']),
+              _buildDetailRow('Module', log['module']),
+              _buildDetailRow('Status', log['status']),
+              _buildDetailRow('IP Address', log['ipAddress'] ?? 'N/A'),
+              const SizedBox(height: 8),
+              const Text(
+                'Details:',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Text(
+                  log['details'],
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Copy log details to clipboard
+  void _copyLogDetails(Map<String, dynamic> log) {
+    final timestamp = log['timestamp'] as DateTime;
+    final dateTimeFormatter = DateFormat('MMM d, yyyy \'at\' HH:mm:ss');
+    
+    final logText = '''
+Log Entry Details:
+Timestamp: ${dateTimeFormatter.format(timestamp)}
+User: ${log['user']['name']}
+Role: ${log['user']['role']}
+User ID: ${log['user']['id']}
+Action: ${log['action']}
+Action Type: ${log['actionType']}
+Module: ${log['module']}
+Status: ${log['status']}
+IP Address: ${log['ipAddress'] ?? 'N/A'}
+Details: ${log['details']}
+''';
+
+    Clipboard.setData(ClipboardData(text: logText));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Log details copied to clipboard'),
+        backgroundColor: Color(0xFF2ECC71),
+      ),
+    );
+  }
+
+  // Build quick filter chip
+  Widget _buildQuickFilterChip(String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFF2ECC71)),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF2ECC71),
+          ),
+        ),
       ),
     );
   }
