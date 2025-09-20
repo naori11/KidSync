@@ -3,6 +3,7 @@ import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:excel/excel.dart' as excel_lib;
+import '../../services/audit_log_service.dart';
 
 class BulkImportPage extends StatefulWidget {
   const BulkImportPage({super.key});
@@ -13,6 +14,7 @@ class BulkImportPage extends StatefulWidget {
 
 class _BulkImportPageState extends State<BulkImportPage> {
   final supabase = Supabase.instance.client;
+  final auditLogService = AuditLogService();
 
   bool isLoading = false;
   bool isValidating = false;
@@ -1095,11 +1097,31 @@ class _BulkImportPageState extends State<BulkImportPage> {
         isImporting = false;
       });
 
+      // Log bulk import operation for audit trail
+      await auditLogService.logBulkImportOperation(
+        importType: 'Student and Parent Data',
+        fileName: 'Excel Import', // You might want to capture actual filename
+        totalRecords: importStats['total'] ?? 0,
+        successCount: importStats['successful'] ?? 0,
+        errorCount: importStats['failed'] ?? 0,
+      );
+
       _showImportResults();
     } catch (e) {
       setState(() {
         isImporting = false;
       });
+
+      // Log failed import operation for audit trail
+      await auditLogService.logBulkImportOperation(
+        importType: 'Student and Parent Data',
+        fileName: 'Excel Import',
+        totalRecords: importStats['total'] ?? 0,
+        successCount: importStats['successful'] ?? 0,
+        errorCount: (importStats['failed'] ?? 0) + 1, // +1 for current failure
+        errors: [e.toString()],
+      );
+
       _showErrorSnackBar('Import failed: $e');
     }
   }

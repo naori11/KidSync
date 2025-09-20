@@ -524,10 +524,25 @@ class AuditLogService {
     required String driverName,
     Map<String, dynamic>? scheduleDetails,
   }) async {
+    String actionVerb;
+    switch (action.toLowerCase()) {
+      case 'assign':
+        actionVerb = 'Assigned';
+        break;
+      case 'unassign':
+        actionVerb = 'Unassigned';
+        break;
+      case 'update':
+        actionVerb = 'Updated';
+        break;
+      default:
+        actionVerb = action.capitalizeFirst();
+    }
+
     return await logEvent(
       actionType: action == 'unassign' ? 'Delete' : 'Update',
       actionCategory: 'Driver Assignment',
-      description: '${action.capitalizeFirst()}ed driver $driverName ${action == 'unassign' ? 'from' : 'to'} student $studentName',
+      description: '$actionVerb driver $driverName ${action == 'unassign' ? 'from' : 'to'} student $studentName',
       targetType: 'driver_assignment',
       targetId: '${studentId}_$driverId',
       targetName: '$studentName - $driverName',

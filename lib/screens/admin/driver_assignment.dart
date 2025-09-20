@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:excel/excel.dart' as excel_lib;
 import 'dart:html' as html;
 import 'dart:math' as math;
+import '../../services/audit_log_service.dart';
 
 class DriverAssignmentPage extends StatefulWidget {
   const DriverAssignmentPage({Key? key}) : super(key: key);
@@ -13,6 +14,7 @@ class DriverAssignmentPage extends StatefulWidget {
 
 class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
   final supabase = Supabase.instance.client;
+  final auditLogService = AuditLogService();
   String _selectedView = 'assignments';
   String _searchQuery = '';
   String _selectedGradeFilter = 'All Grades';
@@ -2086,6 +2088,33 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
         'notes': assignmentData['notes'],
       });
 
+      // Get student and driver names for audit logging
+      final student = students.firstWhere(
+        (s) => s['id'].toString() == assignmentData['student_id'],
+        orElse: () => {'fname': 'Unknown', 'lname': 'Student'},
+      );
+      final driver = drivers.firstWhere(
+        (d) => d['id'].toString() == assignmentData['driver_id'],
+        orElse: () => {'fname': 'Unknown', 'lname': 'Driver'},
+      );
+
+      // Log assignment creation for audit trail
+      await auditLogService.logDriverAssignment(
+        action: 'assign',
+        studentId: assignmentData['student_id'],
+        studentName: '${student['fname']} ${student['lname']}',
+        driverId: assignmentData['driver_id'],
+        driverName: '${driver['fname']} ${driver['lname']}',
+        scheduleDetails: {
+          'pickup_time': assignmentData['pickup_time'],
+          'dropoff_time': assignmentData['dropoff_time'],
+          'pickup_address': assignmentData['pickup_address'],
+          'schedule_days': assignmentData['schedule_days'],
+          'status': assignmentData['status'],
+          'notes': assignmentData['notes'],
+        },
+      );
+
       _showSuccessSnackBar('Assignment created successfully');
       await _loadAllData();
     } catch (e) {
@@ -2116,6 +2145,33 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
           })
           .eq('id', assignmentId);
 
+      // Get student and driver names for audit logging
+      final student = students.firstWhere(
+        (s) => s['id'].toString() == assignmentData['student_id'],
+        orElse: () => {'fname': 'Unknown', 'lname': 'Student'},
+      );
+      final driver = drivers.firstWhere(
+        (d) => d['id'].toString() == assignmentData['driver_id'],
+        orElse: () => {'fname': 'Unknown', 'lname': 'Driver'},
+      );
+
+      // Log assignment update for audit trail
+      await auditLogService.logDriverAssignment(
+        action: 'update',
+        studentId: assignmentData['student_id'],
+        studentName: '${student['fname']} ${student['lname']}',
+        driverId: assignmentData['driver_id'],
+        driverName: '${driver['fname']} ${driver['lname']}',
+        scheduleDetails: {
+          'pickup_time': assignmentData['pickup_time'],
+          'dropoff_time': assignmentData['dropoff_time'],
+          'pickup_address': assignmentData['pickup_address'],
+          'schedule_days': assignmentData['schedule_days'],
+          'status': assignmentData['status'],
+          'notes': assignmentData['notes'],
+        },
+      );
+
       _showSuccessSnackBar('Assignment updated successfully');
       await _loadAllData();
     } catch (e) {
@@ -2129,7 +2185,37 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
     try {
       setState(() => isLoading = true);
 
+      // Get assignment details before deletion for audit logging
+      final assignmentToDelete = assignments.firstWhere(
+        (a) => a['id'] == assignmentId,
+        orElse: () => {},
+      );
+
       await supabase.from('driver_assignments').delete().eq('id', assignmentId);
+
+      // Log assignment deletion for audit trail if we have the details
+      if (assignmentToDelete.isNotEmpty) {
+        final student = assignmentToDelete['students'] ?? {};
+        final driver = assignmentToDelete['users'] ?? {};
+        final studentName = '${student['fname'] ?? 'Unknown'} ${student['lname'] ?? 'Student'}';
+        final driverName = '${driver['fname'] ?? 'Unknown'} ${driver['lname'] ?? 'Driver'}';
+        
+        await auditLogService.logDriverAssignment(
+          action: 'unassign',
+          studentId: assignmentToDelete['student_id'].toString(),
+          studentName: studentName,
+          driverId: assignmentToDelete['driver_id'].toString(),
+          driverName: driverName,
+          scheduleDetails: {
+            'pickup_time': assignmentToDelete['pickup_time'],
+            'dropoff_time': assignmentToDelete['dropoff_time'],
+            'pickup_address': assignmentToDelete['pickup_address'],
+            'schedule_days': assignmentToDelete['schedule_days'],
+            'status': assignmentToDelete['status'],
+            'notes': assignmentToDelete['notes'],
+          },
+        );
+      }
 
       _showSuccessSnackBar('Assignment deleted successfully');
       await _loadAllData();
@@ -2173,6 +2259,38 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
 
       if (insertData.isNotEmpty) {
         await supabase.from('driver_assignments').insert(insertData);
+
+        // Get driver name for audit logging
+        final driver = drivers.firstWhere(
+          (d) => d['id'].toString() == driverId,
+          orElse: () => {'fname': 'Unknown', 'lname': 'Driver'},
+        );
+        final driverName = '${driver['fname']} ${driver['lname']}';
+
+        // Log bulk assignment for audit trail
+        for (String studentId in studentIds) {
+          final student = students.firstWhere(
+            (s) => s['id'].toString() == studentId,
+            orElse: () => {'fname': 'Unknown', 'lname': 'Student'},
+          );
+          
+          await auditLogService.logDriverAssignment(
+            action: 'assign',
+            studentId: studentId,
+            studentName: '${student['fname']} ${student['lname']}',
+            driverId: driverId,
+            driverName: driverName,
+            scheduleDetails: {
+              'pickup_time': pickupTime,
+              'dropoff_time': dropoffTime,
+              'schedule_days': scheduleDays,
+              'status': 'active',
+              'notes': 'Bulk assignment',
+              'bulk_operation': true,
+            },
+          );
+        }
+
         _showSuccessSnackBar('Bulk assignment completed successfully');
         await _loadAllData();
       }

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kidsync/widgets/add_edit_parent_modal.dart';
 import 'package:excel/excel.dart' as excel_lib;
 import 'dart:html' as html;
+import 'package:kidsync/services/audit_log_service.dart';
 
 class ParentGuardianPage extends StatefulWidget {
   const ParentGuardianPage({super.key});
@@ -14,6 +15,7 @@ class ParentGuardianPage extends StatefulWidget {
 
 class _ParentGuardianPageState extends State<ParentGuardianPage> {
   final supabase = Supabase.instance.client;
+  final auditLogService = AuditLogService();
   List<Map<String, dynamic>> parents = [];
   bool isLoading = false;
   String _searchQuery = '';
@@ -544,6 +546,27 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
           print('DEBUG: parent_student insert result: $insertRes');
         }
 
+        // Log parent creation
+        try {
+          final parentName = '${fname.trim()} ${lname.trim()}';
+          await auditLogService.logParentManagement(
+            action: 'create',
+            parentId: parentId.toString(),
+            parentName: parentName,
+            newValues: {
+              'fname': fname.trim(),
+              'mname': mname?.trim(),
+              'lname': lname.trim(),
+              'phone': phone.trim(),
+              'email': email.trim(),
+              'address': address?.trim(),
+              'student_count': studentsToLink.length,
+            },
+          );
+        } catch (auditError) {
+          print('Failed to log parent creation audit: $auditError');
+        }
+
         _showSuccessSnackBar('Parent added successfully');
         _fetchParents();
       } catch (error) {
@@ -622,6 +645,27 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
       print('Student relationships updated successfully');
 
+      // Log parent update
+      try {
+        final parentName = '${fname.trim()} ${lname.trim()}';
+        await auditLogService.logParentManagement(
+          action: 'update',
+          parentId: parentId.toString(),
+          parentName: parentName,
+          newValues: {
+            'fname': fname.trim(),
+            'mname': mname?.trim(),
+            'lname': lname.trim(),
+            'phone': phone.trim(),
+            'email': email.trim(),
+            'address': address?.trim(),
+            'student_count': studentsToLink.length,
+          },
+        );
+      } catch (auditError) {
+        print('Failed to log parent update audit: $auditError');
+      }
+
       _showSuccessSnackBar('Parent and user account updated successfully');
       _fetchParents();
     } catch (error) {
@@ -661,6 +705,14 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
           .from('parents')
           .update({'status': 'deleted'})
           .eq('id', parent['id']);
+
+      // Log parent deletion for audit trail
+      await auditLogService.logParentManagement(
+        action: 'DELETE',
+        parentId: parent['id'].toString(),
+        parentName: '${parent['first_name']} ${parent['last_name']}',
+        oldValues: parent,
+      );
 
       _showSuccessSnackBar('Parent deleted successfully');
       _fetchParents();

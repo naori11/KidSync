@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:excel/excel.dart' as excel_lib;
 import 'dart:html' as html;
+import 'package:kidsync/services/audit_log_service.dart';
 
 class SectionManagementPage extends StatefulWidget {
   const SectionManagementPage({super.key});
@@ -13,6 +14,7 @@ class SectionManagementPage extends StatefulWidget {
 
 class _SectionManagementPageState extends State<SectionManagementPage> {
   final supabase = Supabase.instance.client;
+  final auditLogService = AuditLogService();
   List<Map<String, dynamic>> sections = [];
   List<Map<String, dynamic>> teachers = [];
   bool isLoading = false;
@@ -258,16 +260,52 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                         'name': nameController.text.trim(),
                         'grade_level': selectedGradeLevel,
                       };
-                      if (section == null) {
-                        await supabase.from('sections').insert(payload);
-                      } else {
-                        await supabase
-                            .from('sections')
-                            .update(payload)
-                            .eq('id', section['id']);
+                      
+                      try {
+                        if (section == null) {
+                          // Create new section
+                          final result = await supabase.from('sections').insert(payload).select('id').single();
+                          
+                          // Log section creation
+                          await auditLogService.logSectionManagement(
+                            action: 'create',
+                            sectionId: result['id'].toString(),
+                            sectionName: nameController.text.trim(),
+                            gradeLevel: selectedGradeLevel,
+                          );
+                        } else {
+                          // Update existing section
+                          await supabase
+                              .from('sections')
+                              .update(payload)
+                              .eq('id', section['id']);
+                          
+                          // Log section update
+                          await auditLogService.logSectionManagement(
+                            action: 'update',
+                            sectionId: section['id'].toString(),
+                            sectionName: nameController.text.trim(),
+                            gradeLevel: selectedGradeLevel,
+                            oldValues: {
+                              'name': section['name'],
+                              'grade_level': section['grade_level'],
+                            },
+                            newValues: payload,
+                          );
+                        }
+                        
+                        Navigator.pop(context);
+                        await _fetchSections();
+                      } catch (e) {
+                        print('Error in section operation: $e');
+                        // Show error to user but don't prevent navigation
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error: ${e.toString()}'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
                       }
-                      Navigator.pop(context);
-                      await _fetchSections();
                     }
                   },
                   child: Row(
@@ -296,7 +334,26 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
 
   Future<void> _deleteSection(int id) async {
     try {
+      // Get section info before deletion for audit logging
+      final sectionResponse = await supabase
+          .from('sections')
+          .select('name, grade_level')
+          .eq('id', id)
+          .single();
+      
+      final sectionName = sectionResponse['name'];
+      final gradeLevel = sectionResponse['grade_level'];
+      
       await supabase.from('sections').delete().eq('id', id);
+      
+      // Log section deletion
+      await auditLogService.logSectionManagement(
+        action: 'delete',
+        sectionId: id.toString(),
+        sectionName: sectionName,
+        gradeLevel: gradeLevel,
+      );
+      
       await _fetchSections();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1258,7 +1315,33 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
 
                       // Insert or update
                       if (assignment == null) {
-                        await supabase.from('section_teachers').insert(payload);
+                        final result = await supabase.from('section_teachers').insert(payload).select('id').single();
+                        
+                        // Get teacher and section names for audit logging
+                        final teacherResponse = await supabase
+                            .from('users')
+                            .select('fname, lname')
+                            .eq('id', selectedTeacherId)
+                            .single();
+                        final sectionResponse = await supabase
+                            .from('sections')
+                            .select('name')
+                            .eq('id', sectionId)
+                            .single();
+                        
+                        final teacherName = '${teacherResponse['fname']} ${teacherResponse['lname']}';
+                        final sectionName = sectionResponse['name'];
+                        
+                        // Log teacher assignment creation
+                        await auditLogService.logTeacherSectionAssignment(
+                          action: 'assign',
+                          teacherId: selectedTeacherId,
+                          teacherName: teacherName,
+                          sectionId: sectionId.toString(),
+                          sectionName: sectionName,
+                          subject: subjectController.text.trim(),
+                        );
+                        
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
@@ -1272,6 +1355,32 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                             .from('section_teachers')
                             .update(payload)
                             .eq('id', assignment['id']);
+                        
+                        // Get teacher and section names for audit logging
+                        final teacherResponse = await supabase
+                            .from('users')
+                            .select('fname, lname')
+                            .eq('id', selectedTeacherId)
+                            .single();
+                        final sectionResponse = await supabase
+                            .from('sections')
+                            .select('name')
+                            .eq('id', sectionId)
+                            .single();
+                        
+                        final teacherName = '${teacherResponse['fname']} ${teacherResponse['lname']}';
+                        final sectionName = sectionResponse['name'];
+                        
+                        // Log teacher assignment update
+                        await auditLogService.logTeacherSectionAssignment(
+                          action: 'update',
+                          teacherId: selectedTeacherId,
+                          teacherName: teacherName,
+                          sectionId: sectionId.toString(),
+                          sectionName: sectionName,
+                          subject: subjectController.text.trim(),
+                        );
+                        
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
@@ -1325,7 +1434,37 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
 
   Future<void> _deleteTeacherAssignment(int assignmentId) async {
     try {
+      // Get assignment details before deletion for audit logging
+      final assignmentResponse = await supabase
+          .from('section_teachers')
+          .select('''
+            teacher_id,
+            section_id,
+            subject,
+            users!inner(fname, lname),
+            sections!inner(name)
+          ''')
+          .eq('id', assignmentId)
+          .single();
+      
+      final teacherId = assignmentResponse['teacher_id'];
+      final sectionId = assignmentResponse['section_id'];
+      final subject = assignmentResponse['subject'];
+      final teacherName = '${assignmentResponse['users']['fname']} ${assignmentResponse['users']['lname']}';
+      final sectionName = assignmentResponse['sections']['name'];
+      
       await supabase.from('section_teachers').delete().eq('id', assignmentId);
+      
+      // Log teacher assignment deletion
+      await auditLogService.logTeacherSectionAssignment(
+        action: 'unassign',
+        teacherId: teacherId,
+        teacherName: teacherName,
+        sectionId: sectionId.toString(),
+        sectionName: sectionName,
+        subject: subject,
+      );
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Row(
