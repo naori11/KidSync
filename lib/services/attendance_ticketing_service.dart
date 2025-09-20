@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'teacher_audit_service.dart';
 
 class AttendanceTicketingService {
   final supabase = Supabase.instance.client;
+  final teacherAuditService = TeacherAuditService();
   
   static final AttendanceTicketingService _instance = AttendanceTicketingService._internal();
   factory AttendanceTicketingService() => _instance;
@@ -168,7 +170,23 @@ class AttendanceTicketingService {
           throw Exception('Failed to send notification: ${insertError.toString()}');
         }
         
-        // Log the ticket creation
+        // Log the ticket creation with proper audit logging
+        await teacherAuditService.logParentNotificationTrigger(
+          studentId: studentId.toString(),
+          studentName: studentName,
+          notificationType: 'attendance_ticket',
+          parentName: 'Parent(s) of $studentName',
+          parentContact: 'Multiple parents notified',
+          notificationContent: message,
+          triggerReason: customReason,
+          attendanceData: {
+            'teacher_name': teacherName,
+            'section_name': sectionName,
+            'notification_count': notifications.length,
+          },
+        );
+        
+        // Keep existing ticket activity logging for compatibility
         await _logTicketActivity(
           studentId: studentId,
           action: 'ticket_created',
@@ -232,7 +250,20 @@ class AttendanceTicketingService {
         'notes': 'Attendance ticket resolved - resets consecutive absence tracking',
       });
 
-      // Log the ticket resolution
+      // Log the ticket resolution with proper audit logging (fetches student name automatically)
+      await teacherAuditService.logIssueResolutionWithLookup(
+        issueId: 'attendance_ticket_${studentId}_${DateTime.now().millisecondsSinceEpoch}',
+        studentId: studentId.toString(),
+        issueType: 'attendance_ticket',
+        resolution: 'resolved_by_teacher',
+        resolutionNotes: resolutionNotes ?? 'Issue resolved by teacher',
+        followUpActions: {
+          'resolved_by': resolvedBy,
+          'resolved_at': DateTime.now().toIso8601String(),
+        },
+      );
+      
+      // Keep existing ticket activity logging for compatibility
       await _logTicketActivity(
         studentId: studentId,
         action: 'ticket_resolved',

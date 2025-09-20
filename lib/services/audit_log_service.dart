@@ -709,6 +709,389 @@ class AuditLogService {
     );
   }
 
+  // TEACHER ATTENDANCE MANAGEMENT METHODS
+
+  /// Log manual attendance marking
+  Future<bool> logAttendanceMarking({
+    required String studentId,
+    required String studentName,
+    required String sectionId,
+    required String sectionName,
+    required String status,
+    required String date,
+    String? previousStatus,
+    String? notes,
+    bool isRfidAssisted = false,
+  }) async {
+    String description;
+    if (previousStatus != null && previousStatus != status) {
+      description = 'Updated attendance for $studentName in $sectionName from $previousStatus to $status for $date';
+    } else {
+      description = 'Marked $studentName as $status in $sectionName for $date';
+    }
+    
+    if (isRfidAssisted) {
+      description += ' (RFID-assisted)';
+    }
+
+    return await logEvent(
+      actionType: previousStatus != null ? 'Update' : 'Create',
+      actionCategory: 'Attendance Management',
+      description: description,
+      targetType: 'section_attendance',
+      targetId: '${sectionId}_${studentId}_$date',
+      targetName: '$studentName - $sectionName ($date)',
+      module: 'Teacher Panel',
+      oldValues: previousStatus != null ? {'status': previousStatus} : null,
+      newValues: {'status': status, 'notes': notes},
+      metadata: {
+        'student_id': studentId,
+        'section_id': sectionId,
+        'date': date,
+        'is_rfid_assisted': isRfidAssisted,
+      },
+    );
+  }
+
+  /// Log bulk attendance operations
+  Future<bool> logBulkAttendanceOperation({
+    required String operation, // 'mark_all_present', 'mark_all_absent', etc.
+    required int studentCount,
+    required String sectionId,
+    required String sectionName,
+    required String date,
+    required String status,
+    List<String>? affectedStudents,
+  }) async {
+    return await logEvent(
+      actionType: 'Update',
+      actionCategory: 'Attendance Management',
+      description: 'Bulk $operation: marked $studentCount students as $status in $sectionName for $date',
+      targetType: 'section_attendance_bulk',
+      targetId: '${sectionId}_$date',
+      targetName: '$sectionName - Bulk Operation ($date)',
+      module: 'Teacher Panel',
+      newValues: {'status': status, 'operation': operation},
+      metadata: {
+        'section_id': sectionId,
+        'date': date,
+        'student_count': studentCount,
+        'affected_students': affectedStudents,
+        'operation_type': operation,
+      },
+    );
+  }
+
+  /// Log early dismissal authorization
+  Future<bool> logEarlyDismissal({
+    required String dismissalId,
+    required String studentId,
+    required String studentName,
+    required String sectionId,
+    required String sectionName,
+    required String reason,
+    required String pickupPerson,
+    required String dismissalTime,
+    String? notes,
+  }) async {
+    return await logEvent(
+      actionType: 'Create',
+      actionCategory: 'Attendance Management',
+      description: 'Authorized early dismissal for $studentName from $sectionName. Reason: $reason, Pickup: $pickupPerson',
+      targetType: 'early_dismissal',
+      targetId: dismissalId,
+      targetName: '$studentName - Early Dismissal',
+      module: 'Teacher Panel',
+      newValues: {
+        'student_id': studentId,
+        'reason': reason,
+        'pickup_person': pickupPerson,
+        'dismissal_time': dismissalTime,
+        'notes': notes,
+      },
+      metadata: {
+        'student_id': studentId,
+        'section_id': sectionId,
+        'dismissal_time': dismissalTime,
+      },
+    );
+  }
+
+  /// Log emergency exit processing
+  Future<bool> logEmergencyExit({
+    required String studentId,
+    required String studentName,
+    required String sectionId,
+    required String sectionName,
+    required String exitTime,
+    String? reason,
+    String? emergencyContact,
+  }) async {
+    return await logEvent(
+      actionType: 'Create',
+      actionCategory: 'Attendance Management',
+      description: 'Processed emergency exit for $studentName from $sectionName at $exitTime',
+      targetType: 'emergency_exit',
+      targetId: '${studentId}_$exitTime',
+      targetName: '$studentName - Emergency Exit',
+      module: 'Teacher Panel',
+      status: 'warning', // Emergency situations should be flagged
+      newValues: {
+        'student_id': studentId,
+        'exit_time': exitTime,
+        'reason': reason,
+        'emergency_contact': emergencyContact,
+      },
+      metadata: {
+        'student_id': studentId,
+        'section_id': sectionId,
+        'exit_time': exitTime,
+        'is_emergency': true,
+      },
+    );
+  }
+
+  /// Log RFID attendance override
+  Future<bool> logRfidAttendanceOverride({
+    required String studentId,
+    required String studentName,
+    required String sectionId,
+    required String sectionName,
+    required String date,
+    required String originalStatus,
+    required String newStatus,
+    String? overrideReason,
+  }) async {
+    return await logEvent(
+      actionType: 'Update',
+      actionCategory: 'Attendance Management',
+      description: 'Overrode RFID attendance for $studentName in $sectionName: $originalStatus → $newStatus${overrideReason != null ? ' (Reason: $overrideReason)' : ''}',
+      targetType: 'rfid_attendance_override',
+      targetId: '${sectionId}_${studentId}_$date',
+      targetName: '$studentName - RFID Override',
+      module: 'Teacher Panel',
+      oldValues: {'status': originalStatus, 'source': 'rfid'},
+      newValues: {'status': newStatus, 'source': 'manual_override'},
+      metadata: {
+        'student_id': studentId,
+        'section_id': sectionId,
+        'date': date,
+        'override_reason': overrideReason,
+        'is_rfid_override': true,
+      },
+    );
+  }
+
+  // TEACHER STUDENT ISSUE MANAGEMENT METHODS
+
+  /// Log attendance issue flagging
+  Future<bool> logAttendanceIssueFlag({
+    required String studentId,
+    required String studentName,
+    required String sectionId,
+    required String sectionName,
+    required String issueType, // 'chronic_absence', 'frequent_tardiness', etc.
+    required String severity, // 'low', 'medium', 'high', 'urgent'
+    String? description,
+    Map<String, dynamic>? issueDetails,
+  }) async {
+    return await logEvent(
+      actionType: 'Create',
+      actionCategory: 'Student Issue Management',
+      description: 'Flagged $issueType issue for $studentName in $sectionName (Severity: $severity)',
+      targetType: 'attendance_issue',
+      targetId: '${studentId}_${DateTime.now().millisecondsSinceEpoch}',
+      targetName: '$studentName - $issueType',
+      module: 'Teacher Panel',
+      status: severity == 'urgent' ? 'warning' : 'info',
+      newValues: {
+        'issue_type': issueType,
+        'severity': severity,
+        'description': description,
+      },
+      metadata: {
+        'student_id': studentId,
+        'section_id': sectionId,
+        'issue_details': issueDetails,
+      },
+    );
+  }
+
+  /// Log parent notification triggers
+  Future<bool> logParentNotificationTrigger({
+    required String studentId,
+    required String studentName,
+    required String notificationType, // 'attendance_alert', 'absence_warning', etc.
+    required String parentName,
+    String? parentContact,
+    String? notificationContent,
+    Map<String, dynamic>? attendanceData,
+  }) async {
+    return await logEvent(
+      actionType: 'Create',
+      actionCategory: 'Student Issue Management',
+      description: 'Triggered $notificationType notification to $parentName for $studentName',
+      targetType: 'parent_notification',
+      targetId: '${studentId}_${DateTime.now().millisecondsSinceEpoch}',
+      targetName: '$studentName - Parent Notification',
+      module: 'Teacher Panel',
+      newValues: {
+        'notification_type': notificationType,
+        'parent_name': parentName,
+        'parent_contact': parentContact,
+        'content': notificationContent,
+      },
+      metadata: {
+        'student_id': studentId,
+        'attendance_data': attendanceData,
+      },
+    );
+  }
+
+  /// Log issue resolution
+  Future<bool> logIssueResolution({
+    required String issueId,
+    required String studentId,
+    required String studentName,
+    required String issueType,
+    required String resolution,
+    String? resolutionNotes,
+    Map<String, dynamic>? followUpActions,
+  }) async {
+    return await logEvent(
+      actionType: 'Update',
+      actionCategory: 'Student Issue Management',
+      description: 'Resolved $issueType issue for $studentName. Resolution: $resolution',
+      targetType: 'issue_resolution',
+      targetId: issueId,
+      targetName: '$studentName - Issue Resolved',
+      module: 'Teacher Panel',
+      newValues: {
+        'resolution': resolution,
+        'resolution_notes': resolutionNotes,
+        'status': 'resolved',
+      },
+      metadata: {
+        'student_id': studentId,
+        'issue_type': issueType,
+        'follow_up_actions': followUpActions,
+      },
+    );
+  }
+
+  // TEACHER REPORTING & EXPORT METHODS
+
+  /// Log attendance report export
+  Future<bool> logTeacherAttendanceExport({
+    required String sectionId,
+    required String sectionName,
+    required String exportType, // 'monthly_summary', 'detailed_report', 'student_calendar'
+    required String fileName,
+    required int recordCount,
+    String? dateRange,
+    String? filters,
+    List<String>? includedStudents,
+  }) async {
+    return await logEvent(
+      actionType: 'Export',
+      actionCategory: 'Data Export & Reporting',
+      description: 'Exported $exportType for $sectionName to $fileName ($recordCount records)${dateRange != null ? ' for $dateRange' : ''}',
+      targetType: 'attendance_export',
+      targetId: '${sectionId}_${DateTime.now().millisecondsSinceEpoch}',
+      targetName: '$sectionName - $exportType',
+      module: 'Teacher Panel',
+      metadata: {
+        'section_id': sectionId,
+        'export_type': exportType,
+        'file_name': fileName,
+        'record_count': recordCount,
+        'date_range': dateRange,
+        'filters': filters,
+        'included_students': includedStudents,
+      },
+    );
+  }
+
+  /// Log monthly summary generation
+  Future<bool> logMonthlySummaryGeneration({
+    required String sectionId,
+    required String sectionName,
+    required String month,
+    required int totalStudents,
+    required Map<String, int> attendanceStats,
+    List<String>? studentsWithIssues,
+  }) async {
+    return await logEvent(
+      actionType: 'View',
+      actionCategory: 'Data Export & Reporting',
+      description: 'Generated monthly attendance summary for $sectionName ($month) - $totalStudents students',
+      targetType: 'monthly_summary',
+      targetId: '${sectionId}_$month',
+      targetName: '$sectionName - Monthly Summary ($month)',
+      module: 'Teacher Panel',
+      metadata: {
+        'section_id': sectionId,
+        'month': month,
+        'total_students': totalStudents,
+        'attendance_stats': attendanceStats,
+        'students_with_issues': studentsWithIssues,
+      },
+    );
+  }
+
+  /// Log student calendar access
+  Future<bool> logStudentCalendarAccess({
+    required String studentId,
+    required String studentName,
+    required String sectionId,
+    required String sectionName,
+    required String viewedMonth,
+    Map<String, dynamic>? attendanceData,
+  }) async {
+    return await logEvent(
+      actionType: 'View',
+      actionCategory: 'Data Export & Reporting',
+      description: 'Accessed attendance calendar for $studentName in $sectionName ($viewedMonth)',
+      targetType: 'student_calendar_access',
+      targetId: '${studentId}_${DateTime.now().millisecondsSinceEpoch}',
+      targetName: '$studentName - Calendar Access',
+      module: 'Teacher Panel',
+      metadata: {
+        'student_id': studentId,
+        'section_id': sectionId,
+        'viewed_month': viewedMonth,
+        'attendance_data': attendanceData,
+      },
+    );
+  }
+
+  /// Log schedule modification by teacher
+  Future<bool> logScheduleModification({
+    required String sectionId,
+    required String sectionName,
+    required String modificationType, // 'class_time', 'class_days', 'schedule_override'
+    Map<String, dynamic>? oldSchedule,
+    Map<String, dynamic>? newSchedule,
+    String? reason,
+  }) async {
+    return await logEvent(
+      actionType: 'Update',
+      actionCategory: 'Section Management',
+      description: 'Modified $modificationType for $sectionName${reason != null ? ' (Reason: $reason)' : ''}',
+      targetType: 'schedule_modification',
+      targetId: '${sectionId}_${DateTime.now().millisecondsSinceEpoch}',
+      targetName: '$sectionName - Schedule Change',
+      module: 'Teacher Panel',
+      oldValues: oldSchedule,
+      newValues: newSchedule,
+      metadata: {
+        'section_id': sectionId,
+        'modification_type': modificationType,
+        'reason': reason,
+      },
+    );
+  }
+
   /// Fetch audit logs with filtering
   Future<List<Map<String, dynamic>>> getAuditLogs({
     int limit = 50,

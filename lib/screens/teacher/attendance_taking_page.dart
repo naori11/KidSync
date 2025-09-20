@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/teacher_audit_service.dart';
 
 class TeacherSectionAttendancePage extends StatefulWidget {
   final int sectionId;
@@ -24,6 +25,7 @@ class TeacherSectionAttendancePage extends StatefulWidget {
 class _TeacherSectionAttendancePageState
     extends State<TeacherSectionAttendancePage> {
   final supabase = Supabase.instance.client;
+  final teacherAuditService = TeacherAuditService();
   List<Map<String, dynamic>> students = [];
   Map<int, Map<String, dynamic>> todayAttendance = {};
   Map<int, Map<String, dynamic>> todayScan = {};
@@ -353,6 +355,24 @@ class _TeacherSectionAttendancePageState
             record,
             onConflict: 'section_id, student_id, date',
           );
+
+          // Log RFID attendance marking
+          final student = students.firstWhere(
+            (s) => s['id'] == record['student_id'],
+            orElse: () => {'fname': 'Unknown', 'lname': 'Student'},
+          );
+          final studentName = '${student['fname']} ${student['lname']}';
+          
+          await teacherAuditService.logAttendanceMarking(
+            studentId: record['student_id'].toString(),
+            studentName: studentName,
+            sectionId: widget.sectionId.toString(),
+            sectionName: widget.sectionName,
+            status: record['status'],
+            date: record['date'],
+            isRfidAssisted: true,
+            notes: 'RFID auto-attendance',
+          );
         }
         print('Auto-marked ${autoAttendanceRecords.length} students via RFID');
       } catch (e) {
@@ -511,6 +531,18 @@ class _TeacherSectionAttendancePageState
       }
 
       await _loadEarlyDismissalStatus();
+
+      // Log the early dismissal creation
+      await teacherAuditService.logEarlyDismissal(
+        studentId: 'section_${widget.sectionId}', // For section-wide dismissals
+        studentName: 'Entire Section',
+        sectionId: widget.sectionId.toString(),
+        sectionName: widget.sectionName,
+        dismissalTime: DateTime.now().toIso8601String(),
+        reason: reason,
+        fetcherName: 'Section-wide dismissal',
+        notes: 'Early dismissal applied to all ${students.length} students in section',
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -742,13 +774,36 @@ class _TeacherSectionAttendancePageState
     );
     if (confirm != true) return;
 
+    List<String> affectedStudents = [];
+    int markedCount = 0;
+
     for (final stu in students) {
       final currentAttendance = _getCurrentAttendanceStatus(stu['id']);
       final scan = todayScan[stu['id']];
       // Only mark as present if they haven't tapped RFID and are currently absent
       if (currentAttendance == "Absent" && scan == null) {
         await _markAttendance(stu['id'], "Present");
+        affectedStudents.add('${stu['fname']} ${stu['lname']}');
+        markedCount++;
       }
+    }
+
+    // Log the bulk operation
+    if (markedCount > 0) {
+      final today = DateTime.now();
+      final todayDateStr = "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+      
+      await teacherAuditService.logBulkAttendanceOperation(
+        sectionId: widget.sectionId.toString(),
+        sectionName: widget.sectionName,
+        operation: 'mark_all_present',
+        affectedStudentCount: markedCount,
+        date: todayDateStr,
+        affectedStudents: affectedStudents.map((name) => {
+          'student_name': name,
+          'new_status': 'present',
+        }).toList(),
+      );
     }
   }
 
@@ -854,10 +909,38 @@ class _TeacherSectionAttendancePageState
       // Submit all pending attendance records with proper upsert logic
       for (final attendance in pendingAttendance.values) {
         try {
+          // Get student name for audit logging
+          final student = students.firstWhere(
+            (s) => s['id'] == attendance['student_id'],
+            orElse: () => {'fname': 'Unknown', 'lname': 'Student'},
+          );
+          final studentName = '${student['fname']} ${student['lname']}';
+          final studentId = attendance['student_id'].toString();
+          final status = attendance['status'];
+          final date = attendance['date'];
+          final notes = attendance['notes'];
+
+          // Check if this is an update or new record
+          final existingAttendance = todayAttendance[attendance['student_id']];
+          final previousStatus = existingAttendance?['status'];
+
           // Use upsert with onConflict to handle existing records
           await supabase.from('section_attendance').upsert(
             attendance,
             onConflict: 'section_id, student_id, date',
+          );
+
+          // Log the attendance action
+          await teacherAuditService.logAttendanceMarking(
+            studentId: studentId,
+            studentName: studentName,
+            sectionId: widget.sectionId.toString(),
+            sectionName: widget.sectionName,
+            status: status,
+            date: date,
+            previousStatus: previousStatus,
+            notes: notes,
+            isRfidAssisted: false, // Manual attendance submission
           );
         } catch (individualError) {
           print('Error updating individual attendance record: $individualError');
@@ -998,13 +1081,32 @@ class _TeacherSectionAttendancePageState
     );
 
     if (result == true) {
+      // Get student information for audit logging
+      final student = students.firstWhere(
+        (s) => s['id'] == studentId,
+        orElse: () => {'fname': 'Unknown', 'lname': 'Student'},
+      );
+      final studentName = '${student['fname']} ${student['lname']}';
+      final exitTime = DateTime.now().toIso8601String();
+      final reason = notesController.text.trim().isEmpty
+          ? "Emergency exit - no details provided"
+          : notesController.text.trim();
+
       await _markAttendance(
         studentId,
         "Emergency Exit",
-        notes:
-            notesController.text.trim().isEmpty
-                ? "Emergency exit - no details provided"
-                : notesController.text.trim(),
+        notes: reason,
+      );
+
+      // Log the emergency exit
+      await teacherAuditService.logEmergencyExit(
+        studentId: studentId.toString(),
+        studentName: studentName,
+        sectionId: widget.sectionId.toString(),
+        sectionName: widget.sectionName,
+        emergencyType: 'safety', // Default emergency type
+        reason: reason,
+        notes: 'Emergency exit logged by teacher',
       );
     }
   }

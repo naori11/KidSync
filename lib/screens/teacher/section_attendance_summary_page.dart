@@ -6,6 +6,7 @@ import 'dart:html' as html;
 
 import 'student_attendance_calendar_page.dart';
 import '../../services/attendance_monitoring_service.dart';
+import '../../services/teacher_audit_service.dart';
 import '../../widgets/attendance_status_badge.dart';
 import '../../widgets/attendance_insights_card.dart';
 
@@ -32,6 +33,7 @@ class _TeacherSectionAttendanceSummaryPageState
     extends State<TeacherSectionAttendanceSummaryPage> {
   final supabase = Supabase.instance.client;
   final AttendanceMonitoringService _attendanceService = AttendanceMonitoringService();
+  final TeacherAuditService _teacherAuditService = TeacherAuditService();
   DateTime selectedMonth = DateTime(
     DateTime.now().year,
     DateTime.now().month,
@@ -390,6 +392,19 @@ class _TeacherSectionAttendanceSummaryPageState
         return;
       }
 
+      // Generate filename and log export action
+      final monthLabel = DateFormat('yyyy-MM').format(selectedMonth);
+      final fileName = '${widget.sectionName}_Attendance_${monthLabel}.xlsx';
+      
+      await _teacherAuditService.logTeacherAttendanceExport(
+        sectionId: widget.sectionId.toString(),
+        sectionName: widget.sectionName,
+        exportType: 'monthly_attendance_report',
+        fileName: fileName,
+        recordCount: students.length,
+        dateRange: monthLabel,
+      );
+
       // Show loading indicator
       showDialog(
         context: context,
@@ -449,9 +464,6 @@ class _TeacherSectionAttendanceSummaryPageState
       if (fileBytes == null) {
         throw Exception('Failed to generate Excel file');
       }
-
-      final monthLabel = DateFormat('yyyy-MM').format(selectedMonth);
-      final fileName = '${widget.sectionName}_Attendance_${monthLabel}.xlsx';
 
       // Download file
       final blob = html.Blob([
