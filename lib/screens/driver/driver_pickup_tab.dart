@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/driver_models.dart';
 import '../../services/driver_service.dart';
 import '../../services/verification_service.dart';
+import '../../services/driver_audit_service.dart';
 
 class DriverPickupTab extends StatefulWidget {
   final Color primaryColor;
@@ -26,6 +27,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
   List<Student> droppedOffStudents = [];
   final DriverService _driverService = DriverService();
   final VerificationService _verificationService = VerificationService();
+  final DriverAuditService _driverAuditService = DriverAuditService();
   bool _isLoading = true;
   String? _error;
 
@@ -389,6 +391,20 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           droppedOffStudents.removeWhere((s) => s.id == student.id);
         });
 
+        // Log pickup cancellation (HIGH PRIORITY - Transportation Safety & Compliance)
+        try {
+          await _driverAuditService.logPickupCancellation(
+            studentId: student.studentDbId!.toString(),
+            studentName: student.name,
+            reason: 'Manual cancellation via driver app',
+            driverId: user.id,
+            driverName: user.userMetadata?['fname'] ?? 'Driver',
+            notes: 'Driver cancelled pickup operation',
+          );
+        } catch (auditError) {
+          print('Error logging pickup cancellation: $auditError');
+        }
+
         _showConfirmationDialog(
           '${student.name} pickup cancelled',
           Colors.orange,
@@ -415,6 +431,21 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             pickedUpStudents.add(updatedStudent);
           });
 
+          // Log pickup operation (HIGH PRIORITY - Transportation Safety & Compliance)
+          try {
+            await _driverAuditService.logStudentPickup(
+              studentId: student.studentDbId!.toString(),
+              studentName: student.name,
+              pickupTime: pickupTime,
+              driverId: user.id,
+              driverName: user.userMetadata?['fname'] ?? 'Driver',
+              verificationStatus: 'pending',
+              notes: 'Picked up via driver app',
+            );
+          } catch (auditError) {
+            print('Error logging pickup operation: $auditError');
+          }
+
           // Create verification request for parents
           try {
             await _verificationService.createVerificationRequest(
@@ -424,12 +455,45 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               eventTime: pickupTime,
             );
 
+            // Log verification request creation (HIGH PRIORITY - Parent Safety Verification)
+            try {
+              await _driverAuditService.logVerificationRequestCreation(
+                studentId: student.studentDbId!.toString(),
+                studentName: student.name,
+                eventType: 'pickup',
+                eventTime: pickupTime,
+                driverId: user.id,
+                driverName: user.userMetadata?['fname'] ?? 'Driver',
+                parentNotificationStatus: 'sent',
+                verificationMethod: 'app_notification',
+              );
+            } catch (auditError) {
+              print('Error logging verification request: $auditError');
+            }
+
             _showConfirmationDialog(
               '✓ ${student.name} marked as picked up - Verification request sent to parents',
               widget.primaryColor,
             );
           } catch (verificationError) {
             print('Error creating verification request: $verificationError');
+            
+            // Log verification request failure
+            try {
+              await _driverAuditService.logVerificationRequestCreation(
+                studentId: student.studentDbId!.toString(),
+                studentName: student.name,
+                eventType: 'pickup',
+                eventTime: pickupTime,
+                driverId: user.id,
+                driverName: user.userMetadata?['fname'] ?? 'Driver',
+                parentNotificationStatus: 'failed',
+                verificationMethod: 'app_notification',
+              );
+            } catch (auditError) {
+              print('Error logging verification request failure: $auditError');
+            }
+            
             _showConfirmationDialog(
               '✓ ${student.name} marked as picked up - Warning: Could not send verification request',
               Colors.orange,
@@ -467,6 +531,20 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
         setState(() {
           droppedOffStudents.removeWhere((s) => s.id == student.id);
         });
+
+        // Log dropoff cancellation (HIGH PRIORITY - Transportation Safety & Compliance)
+        try {
+          await _driverAuditService.logDropoffCancellation(
+            studentId: student.studentDbId!.toString(),
+            studentName: student.name,
+            reason: 'Manual cancellation via driver app',
+            driverId: user.id,
+            driverName: user.userMetadata?['fname'] ?? 'Driver',
+            notes: 'Driver cancelled dropoff operation',
+          );
+        } catch (auditError) {
+          print('Error logging dropoff cancellation: $auditError');
+        }
 
         _showConfirmationDialog(
           '${student.name} dropoff cancelled',
@@ -506,6 +584,21 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             droppedOffStudents.add(updatedStudent);
           });
 
+          // Log dropoff operation (HIGH PRIORITY - Transportation Safety & Compliance)
+          try {
+            await _driverAuditService.logStudentDropoff(
+              studentId: student.studentDbId!.toString(),
+              studentName: student.name,
+              dropoffTime: dropoffTime,
+              driverId: user.id,
+              driverName: user.userMetadata?['fname'] ?? 'Driver',
+              verificationStatus: 'pending',
+              notes: 'Dropped off via driver app',
+            );
+          } catch (auditError) {
+            print('Error logging dropoff operation: $auditError');
+          }
+
           // Create verification request for parents
           try {
             await _verificationService.createVerificationRequest(
@@ -515,12 +608,45 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               eventTime: dropoffTime,
             );
 
+            // Log verification request creation (HIGH PRIORITY - Parent Safety Verification)
+            try {
+              await _driverAuditService.logVerificationRequestCreation(
+                studentId: student.studentDbId!.toString(),
+                studentName: student.name,
+                eventType: 'dropoff',
+                eventTime: dropoffTime,
+                driverId: user.id,
+                driverName: user.userMetadata?['fname'] ?? 'Driver',
+                parentNotificationStatus: 'sent',
+                verificationMethod: 'app_notification',
+              );
+            } catch (auditError) {
+              print('Error logging verification request: $auditError');
+            }
+
             _showConfirmationDialog(
               '✓ ${student.name} marked as dropped off - Verification request sent to parents',
               Colors.green,
             );
           } catch (verificationError) {
             print('Error creating verification request: $verificationError');
+            
+            // Log verification request failure
+            try {
+              await _driverAuditService.logVerificationRequestCreation(
+                studentId: student.studentDbId!.toString(),
+                studentName: student.name,
+                eventType: 'dropoff',
+                eventTime: dropoffTime,
+                driverId: user.id,
+                driverName: user.userMetadata?['fname'] ?? 'Driver',
+                parentNotificationStatus: 'failed',
+                verificationMethod: 'app_notification',
+              );
+            } catch (auditError) {
+              print('Error logging verification request failure: $auditError');
+            }
+            
             _showConfirmationDialog(
               '✓ ${student.name} marked as dropped off - Warning: Could not send verification request',
               Colors.orange,
@@ -1567,7 +1693,54 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
     );
   }
 
-  void _showTaskCompletedDialog() {
+  void _showTaskCompletedDialog() async {
+    // Log task completion (MEDIUM PRIORITY - Operational Tracking)
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      final uniqueStudents = <int>{};
+      for (final studentData in morningPickupStudents) {
+        uniqueStudents.add(studentData['students']['id']);
+      }
+      for (final studentData in afternoonDropoffStudents) {
+        uniqueStudents.add(studentData['students']['id']);
+      }
+      
+      final totalStudents = uniqueStudents.length;
+      final completedStudents = pickedUpStudents.length;
+      final routeType = morningPickupStudents.isNotEmpty && afternoonDropoffStudents.isNotEmpty 
+          ? 'mixed' 
+          : morningPickupStudents.isNotEmpty 
+              ? 'morning_pickup' 
+              : 'afternoon_dropoff';
+      
+      // Calculate completion time based on first pickup
+      final firstPickupTime = pickedUpStudents.isNotEmpty 
+          ? pickedUpStudents.first.pickupTime 
+          : DateTime.now();
+      final completionTime = DateTime.now().difference(firstPickupTime ?? DateTime.now());
+      
+      await _driverAuditService.logTaskCompletion(
+        totalStudents: totalStudents,
+        completionTime: completionTime,
+        routeType: routeType,
+        driverId: user?.id,
+        driverName: user?.userMetadata?['fname'] ?? 'Driver',
+        routeEfficiencyMetrics: {
+          'completed_students': completedStudents,
+          'completion_rate': completedStudents / totalStudents,
+          'minutes_per_student': completionTime.inMinutes / (completedStudents > 0 ? completedStudents : 1),
+        },
+        completedStudentIds: pickedUpStudents.map((s) => s.id).toList(),
+        performanceMetrics: {
+          'total_pickups': pickedUpStudents.length,
+          'total_dropoffs': droppedOffStudents.length,
+          'route_completion': 'successful',
+        },
+      );
+    } catch (auditError) {
+      print('Error logging task completion: $auditError');
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1608,7 +1781,26 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
     );
   }
 
-  void _showStudentInfo(Student student) {
+  void _showStudentInfo(Student student) async {
+    // Log student information access
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      await _driverAuditService.logStudentInfoAccess(
+        studentId: student.studentDbId?.toString() ?? student.id,
+        studentName: student.name,
+        accessType: 'view_details',
+        driverId: user?.id,
+        driverName: user?.userMetadata?['fname'] ?? 'Driver',
+        accessDetails: {
+          'access_reason': 'driver_information_review',
+          'student_grade': student.grade,
+          'student_section': student.sectionName,
+        },
+      );
+    } catch (auditError) {
+      print('Error logging student info access: $auditError');
+    }
+
     showDialog(
       context: context,
       barrierDismissible: true,

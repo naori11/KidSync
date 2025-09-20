@@ -5,17 +5,52 @@ import 'driver_pickup_tab.dart';
 import 'driver_students_tab.dart';
 import 'driver_notifications_tab.dart';
 import 'driver_profile_tab.dart';
+import '../../services/driver_audit_service.dart';
 
 class DriverHomeScreen extends StatelessWidget {
-  const DriverHomeScreen({Key? key}) : super(key: key);
+  DriverHomeScreen({Key? key}) : super(key: key);
+
+  final DriverAuditService _driverAuditService = DriverAuditService();
 
   Future<void> _logout(BuildContext context) async {
     try {
+      final user = Supabase.instance.client.auth.currentUser;
+      
+      // Log logout activity (HIGH PRIORITY - Driver Authentication)
+      if (user != null) {
+        try {
+          await _driverAuditService.logDriverAuthActivity(
+            activity: 'logout',
+            driverId: user.id,
+            driverName: user.userMetadata?['fname'] ?? 'Driver',
+            isSuccessful: true,
+          );
+        } catch (auditError) {
+          print('Error logging logout activity: $auditError');
+        }
+      }
+
       await Supabase.instance.client.auth.signOut();
       if (context.mounted) {
         Navigator.of(context).pushReplacementNamed('/login');
       }
     } catch (error) {
+      // Log logout failure
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        try {
+          await _driverAuditService.logDriverAuthActivity(
+            activity: 'logout',
+            driverId: user.id,
+            driverName: user.userMetadata?['fname'] ?? 'Driver',
+            isSuccessful: false,
+            failureReason: error.toString(),
+          );
+        } catch (auditError) {
+          print('Error logging logout failure: $auditError');
+        }
+      }
+
       if (context.mounted) {
         _showErrorDialog(
           context,
@@ -128,6 +163,34 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
   bool showNotifications = false;
   bool showProfile = false;
   late PageController _pageController;
+  final DriverAuditService _driverAuditService = DriverAuditService();
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: 0);
+    _logDashboardAccess();
+  }
+
+  /// Log dashboard access for driver authentication tracking
+  Future<void> _logDashboardAccess() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        await _driverAuditService.logDashboardAccess(
+          driverId: user.id,
+          driverName: user.userMetadata?['fname'] ?? 'Driver',
+          dashboardMetrics: {
+            'initial_tab': 'dashboard',
+            'session_start': DateTime.now().toIso8601String(),
+            'platform': 'mobile_app',
+          },
+        );
+      }
+    } catch (auditError) {
+      print('Error logging dashboard access: $auditError');
+    }
+  }
 
   void _toggleNotifications() {
     setState(() {
@@ -196,12 +259,6 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
         );
       },
     );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _pageController = PageController(initialPage: 0);
   }
 
   @override
