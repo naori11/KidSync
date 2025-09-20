@@ -211,9 +211,9 @@ class DriverAuditService {
 
   // DRIVER AUTHENTICATION & SESSION (HIGH PRIORITY)
 
-  /// Log driver login/logout activities
+  /// Log driver login and session timeout activities (logout not logged)
   Future<bool> logDriverAuthActivity({
-    required String activity, // 'login', 'logout', 'session_timeout'
+    required String activity, // 'login', 'session_timeout'
     String? driverId,
     String? driverName,
     String? ipAddress,
@@ -223,6 +223,11 @@ class DriverAuditService {
     Duration? sessionDuration,
     Map<String, dynamic>? authMetadata,
   }) async {
+    // Skip logging logout activities
+    if (activity.toLowerCase() == 'logout') {
+      return true;
+    }
+
     final currentUser = supabase.auth.currentUser;
     final actualDriverId = driverId ?? currentUser?.id;
     final actualDriverName = driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
@@ -248,7 +253,7 @@ class DriverAuditService {
         'failure_reason': failureReason,
         'session_duration_minutes': sessionDuration?.inMinutes,
         'access_control': 'verified',
-        'shift_tracking': activity == 'login' ? 'started' : activity == 'logout' ? 'ended' : 'monitored',
+        'shift_tracking': activity == 'login' ? 'started' : 'monitored',
         'accountability': 'logged',
         'timestamp': DateTime.now().toIso8601String(),
         ...?authMetadata,
