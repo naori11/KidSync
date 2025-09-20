@@ -4,6 +4,7 @@ import 'package:web_socket_channel/html.dart';
 import 'dart:convert';
 import '../../models/guard_models.dart';
 import '../../services/notification_service.dart';
+import '../../services/guard_audit_service.dart';
 
 final supabase = Supabase.instance.client;
 final user = supabase.auth.currentUser;
@@ -42,6 +43,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
   late HtmlWebSocketChannel channel;
   final NotificationService _notificationService = NotificationService();
+  final GuardAuditService _guardAuditService = GuardAuditService();
 
   // Make cooldown tracking static so it persists across page navigations
   static Map<String, DateTime> rfidCooldowns = {};
@@ -50,10 +52,31 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   @override
   void initState() {
     super.initState();
+    // Log guard dashboard access
+    _guardAuditService.logDashboardAccess();
+    
     // Initialize WebSocket channel
-    channel = HtmlWebSocketChannel.connect(
-      'wss://rfid-websocket-server.onrender.com',
-    );
+    try {
+      channel = HtmlWebSocketChannel.connect(
+        'wss://rfid-websocket-server.onrender.com',
+      );
+      
+      // Log successful RFID system connection
+      _guardAuditService.logRFIDSystemAccess(
+        accessType: 'websocket_connect',
+        connectionDetails: 'Connected to RFID WebSocket server',
+        isSuccessful: true,
+      );
+    } catch (e) {
+      // Log failed RFID system connection
+      _guardAuditService.logRFIDSystemAccess(
+        accessType: 'websocket_connect',
+        connectionDetails: 'Failed to connect to RFID WebSocket server',
+        isSuccessful: false,
+        errorDetails: e.toString(),
+      );
+      rethrow;
+    }
 
     // Listen for incoming RFID data
     channel.stream.listen((message) {
@@ -78,11 +101,44 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         }
 
         if (uid != null) {
+          // Log RFID scan attempt
+          _guardAuditService.logRFIDScanAttempt(
+            rfidUid: uid,
+            isSuccessful: true,
+            scanMetadata: {
+              'raw_message': message.toString(),
+              'scan_source': 'websocket',
+            },
+          );
+          
           // Fetch real student data from database
           _fetchStudentByRFID(uid);
+        } else {
+          // Log failed RFID scan
+          _guardAuditService.logRFIDScanAttempt(
+            rfidUid: 'unknown',
+            isSuccessful: false,
+            failureReason: 'Invalid RFID message format',
+            scanMetadata: {
+              'raw_message': message.toString(),
+              'scan_source': 'websocket',
+            },
+          );
         }
       } catch (e) {
         print('Error processing WebSocket message: $e');
+        
+        // Log RFID scan processing error
+        _guardAuditService.logSystemError(
+          errorType: 'rfid_processing_error',
+          errorDescription: 'Failed to process RFID WebSocket message',
+          systemComponent: 'websocket',
+          errorDetails: {
+            'raw_message': message.toString(),
+            'error': e.toString(),
+          },
+        );
+        
         _showErrorNotification('Error processing RFID scan');
       }
     });
@@ -90,6 +146,13 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
   @override
   void dispose() {
+    // Log WebSocket disconnection
+    _guardAuditService.logRFIDSystemAccess(
+      accessType: 'websocket_disconnect',
+      connectionDetails: 'Disconnecting from RFID WebSocket server',
+      isSuccessful: true,
+    );
+    
     channel.sink.close();
     super.dispose();
   }
@@ -459,6 +522,19 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
       if (timeDiff < cooldownSeconds) {
         final remainingTime = cooldownSeconds - timeDiff;
+        
+        // Log cooldown blocked scan attempt
+        _guardAuditService.logRFIDScanAttempt(
+          rfidUid: rfidUid,
+          isSuccessful: false,
+          failureReason: 'Scan cooldown active ($remainingTime seconds remaining)',
+          scanMetadata: {
+            'last_scan_time': lastScan.toIso8601String(),
+            'cooldown_seconds': cooldownSeconds,
+            'remaining_seconds': remainingTime,
+          },
+        );
+        
         _showErrorNotification(
           'Please wait ${remainingTime}s before scanning again',
         );
@@ -493,6 +569,19 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       if (response != null) {
         final student = Student.fromJson(response);
 
+        // Log successful RFID scan with student data
+        _guardAuditService.logRFIDScanAttempt(
+          rfidUid: rfidUid,
+          isSuccessful: true,
+          studentId: student.id.toString(),
+          studentName: student.fullName,
+          scanMetadata: {
+            'student_section': student.classSection,
+            'student_grade': student.gradeLevel,
+            'scan_timestamp': now.toIso8601String(),
+          },
+        );
+
         // Determine if this should be entry or exit
         final action = await _checkTodayAttendanceStatus(student.id);
 
@@ -514,6 +603,18 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             final scheduleCheck = await _checkClassSchedule(student);
             currentScheduleCheck = scheduleCheck; // Store the result
 
+            // Log schedule validation check
+            _guardAuditService.logScheduleValidation(
+              studentId: student.id.toString(),
+              studentName: student.fullName,
+              canExit: scheduleCheck['canExit'] ?? false,
+              validationResult: scheduleCheck['message'],
+              restrictionReason: scheduleCheck['canExit'] == false ? scheduleCheck['message'] : null,
+              classEndTime: scheduleCheck['lastClassEndTime'],
+              currentClass: scheduleCheck['currentClass'],
+              scheduleDetails: scheduleCheck,
+            );
+
             if (!scheduleCheck['canExit']) {
               setState(() {
                 scheduleValidationMessage = scheduleCheck['message'];
@@ -526,16 +627,50 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           } else {
             // If override mode or validation disabled, still check for early dismissal info
             currentScheduleCheck = await _checkClassSchedule(student);
+            
+            // Log override mode usage
+            if (isOverrideMode) {
+              _guardAuditService.logOverrideAuthorization(
+                overrideType: 'schedule_validation',
+                studentId: student.id.toString(),
+                studentName: student.fullName,
+                justification: 'Guard override - schedule validation bypassed',
+                originalRestriction: scheduleValidationMessage,
+              );
+            }
           }
           await _processExit(student);
         }
       } else {
+        // Log failed student lookup
+        _guardAuditService.logRFIDScanAttempt(
+          rfidUid: rfidUid,
+          isSuccessful: false,
+          failureReason: 'Student not found or inactive',
+          scanMetadata: {
+            'lookup_timestamp': now.toIso8601String(),
+            'database_response': 'null',
+          },
+        );
+        
         setState(() {
           isLoadingStudent = false;
         });
         _showErrorNotification('Student not found or inactive');
       }
     } catch (e) {
+      // Log database error during student lookup
+      _guardAuditService.logSystemError(
+        errorType: 'database_lookup_error',
+        errorDescription: 'Failed to fetch student data from database',
+        systemComponent: 'database',
+        errorDetails: {
+          'rfid_uid': rfidUid,
+          'error': e.toString(),
+          'lookup_timestamp': now.toIso8601String(),
+        },
+      );
+      
       setState(() {
         isLoadingStudent = false;
       });
@@ -566,6 +701,16 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         'notes': 'Automatic entry via RFID scan',
       });
 
+      // Log successful student entry
+      _guardAuditService.logStudentEntry(
+        studentId: student.id.toString(),
+        studentName: student.fullName,
+        rfidUid: student.rfidUid ?? '',
+        sectionName: student.classSection,
+        isSuccessful: true,
+        notes: 'Automatic entry via RFID scan - immediate check-in approved',
+      );
+
       // Send RFID entry notification to parents
       print(
         'DEBUG: About to send RFID entry notification for student ${student.id}',
@@ -589,6 +734,29 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         }
       });
     } catch (e) {
+      // Log failed student entry
+      _guardAuditService.logStudentEntry(
+        studentId: student.id.toString(),
+        studentName: student.fullName,
+        rfidUid: student.rfidUid ?? '',
+        sectionName: student.classSection,
+        isSuccessful: false,
+        notes: 'Entry failed due to database error: ${e.toString()}',
+      );
+      
+      // Log the database error
+      _guardAuditService.logSystemError(
+        errorType: 'database_insert_error',
+        errorDescription: 'Failed to insert scan record during entry process',
+        systemComponent: 'database',
+        errorDetails: {
+          'student_id': student.id.toString(),
+          'student_name': student.fullName,
+          'rfid_uid': student.rfidUid ?? '',
+          'error': e.toString(),
+        },
+      );
+      
       _showErrorNotification('Error recording entry: ${e.toString()}');
     }
   }
@@ -803,6 +971,23 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       );
 
       if (tempFetcher != null) {
+        // Log successful PIN verification
+        _guardAuditService.logTemporaryFetcherPINVerification(
+          studentId: scannedStudent!.id.toString(),
+          studentName: scannedStudent!.fullName,
+          pin: pin,
+          isSuccessful: true,
+          fetcherName: tempFetcher['fetcher_name'],
+          tempFetcherId: tempFetcher['id'].toString(),
+          fetcherDetails: {
+            'relationship': tempFetcher['relationship'],
+            'contact_number': tempFetcher['contact_number'],
+            'id_type': tempFetcher['id_type'],
+            'id_number': tempFetcher['id_number'],
+            'valid_date': tempFetcher['valid_date'],
+          },
+        );
+
         setState(() {
           verifiedTempFetcher = tempFetcher;
           isShowingTempFetcher = true;
@@ -812,9 +997,31 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'PIN verified successfully! Please review fetcher details.',
         );
       } else {
+        // Log failed PIN verification
+        _guardAuditService.logTemporaryFetcherPINVerification(
+          studentId: scannedStudent!.id.toString(),
+          studentName: scannedStudent!.fullName,
+          pin: pin,
+          isSuccessful: false,
+          failureReason: 'Invalid PIN or PIN not found',
+        );
+
         await _showDetailedPinErrorNotification(pin, scannedStudent!.id);
       }
     } catch (e) {
+      // Log error during PIN verification
+      _guardAuditService.logSystemError(
+        errorType: 'pin_verification_error',
+        errorDescription: 'Error occurred during temporary fetcher PIN verification',
+        systemComponent: 'database',
+        errorDetails: {
+          'student_id': scannedStudent!.id.toString(),
+          'student_name': scannedStudent!.fullName,
+          'pin': pin,
+          'error': e.toString(),
+        },
+      );
+
       _showErrorNotification(
         'Error verifying temporary fetcher: ${e.toString()}',
       );
@@ -857,6 +1064,19 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'notes': detailedNotes,
         });
 
+        // Log successful temporary fetcher pickup
+        _guardAuditService.logStudentExit(
+          studentId: scannedStudent!.id.toString(),
+          studentName: scannedStudent!.fullName,
+          rfidUid: scannedStudent!.rfidUid ?? '',
+          isApproved: true,
+          fetcherName: verifiedTempFetcher!['fetcher_name'],
+          fetcherType: 'temporary',
+          exitType: 'regular',
+          sectionName: scannedStudent!.classSection,
+          notes: 'Temporary fetcher pickup approved after PIN verification',
+        );
+
         // Send RFID exit notification to parents
         print(
           'DEBUG: About to send RFID exit notification for student ${scannedStudent!.id}',
@@ -885,6 +1105,34 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'notes':
               'Temporary fetcher pickup denied: ${denyReason ?? 'No reason provided'}',
         });
+
+        // Log denied temporary fetcher pickup
+        _guardAuditService.logStudentExit(
+          studentId: scannedStudent!.id.toString(),
+          studentName: scannedStudent!.fullName,
+          rfidUid: scannedStudent!.rfidUid ?? '',
+          isApproved: false,
+          fetcherName: verifiedTempFetcher!['fetcher_name'],
+          fetcherType: 'temporary',
+          denyReason: denyReason ?? 'No reason provided',
+          sectionName: scannedStudent!.classSection,
+          notes: 'Temporary fetcher pickup denied by guard',
+        );
+
+        // Log pickup denial decision
+        _guardAuditService.logPickupDenialDecision(
+          studentId: scannedStudent!.id.toString(),
+          studentName: scannedStudent!.fullName,
+          denyReason: denyReason ?? 'No reason provided',
+          fetcherType: 'temporary',
+          fetcherName: verifiedTempFetcher!['fetcher_name'],
+          additionalNotes: 'Temporary fetcher with valid PIN denied by guard',
+          decisionContext: {
+            'pin_code': verifiedTempFetcher!['pin_code'],
+            'fetcher_relationship': verifiedTempFetcher!['relationship'],
+            'fetcher_contact': verifiedTempFetcher!['contact_number'],
+          },
+        );
 
         // Send pickup denial notification to parents
         print(
@@ -934,6 +1182,21 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         if (mounted) clearScan();
       });
     } catch (e) {
+      // Log error during temp fetcher pickup processing
+      _guardAuditService.logSystemError(
+        errorType: 'temp_fetcher_pickup_error',
+        errorDescription: 'Error processing temporary fetcher pickup decision',
+        systemComponent: 'database',
+        errorDetails: {
+          'student_id': scannedStudent!.id.toString(),
+          'student_name': scannedStudent!.fullName,
+          'fetcher_name': verifiedTempFetcher!['fetcher_name'],
+          'approved': approved,
+          'deny_reason': denyReason,
+          'error': e.toString(),
+        },
+      );
+
       _showErrorNotification(
         'Error processing temporary fetcher pickup: ${e.toString()}',
       );
@@ -1047,18 +1310,22 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       final status = approved ? "Checked Out" : "Denied";
 
       String notes = "";
+      String? exitType;
+      
       if (!approved) {
         notes = denyReason ?? "Denied by guard";
       } else if (currentScheduleCheck != null && currentScheduleCheck!['exitType'] == 'early_dismissal') {
         // Early dismissal exit
         final dismissalInfo = currentScheduleCheck!['earlyDismissal'];
         notes = "Early dismissal exit - Reason: ${dismissalInfo['reason']}";
+        exitType = 'early_dismissal';
       } else if (currentScheduleCheck != null && currentScheduleCheck!['exitType'] == 'emergency_exit') {
         // Emergency exit
         final emergencyInfo = currentScheduleCheck!['emergencyExit'];
         final markedBy = emergencyInfo['markedBy'];
         final teacherName = "${markedBy['fname'] ?? ''} ${markedBy['lname'] ?? ''}".trim();
         notes = "Emergency exit - Approved by teacher: $teacherName";
+        exitType = 'emergency_exit';
       } else if (isOverrideMode) {
         // Check what type of override this was
         if (scheduleValidationMessage != null) {
@@ -1071,8 +1338,10 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         } else {
           notes = "Early dismissal override - Schedule validation bypassed";
         }
+        exitType = 'override';
       } else {
         notes = "Regular exit after class hours";
+        exitType = 'regular';
       }
 
       await supabase.from('scan_records').insert({
@@ -1086,6 +1355,40 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         'notes': notes,
       });
 
+      // Log authorized fetcher verification
+      if (fetchers != null && fetchers!.isNotEmpty) {
+        final fetcher = fetchers!.first;
+        _guardAuditService.logAuthorizedFetcherVerification(
+          studentId: scannedStudent!.id.toString(),
+          studentName: scannedStudent!.fullName,
+          fetcherId: fetcher.id.toString(),
+          fetcherName: fetcher.name,
+          fetcherType: fetcher.relationship,
+          isVerified: approved,
+          verificationMethod: 'Guard visual confirmation',
+          notes: approved ? 'Fetcher approved by guard' : 'Fetcher denied by guard: ${denyReason ?? 'No reason provided'}',
+        );
+      }
+
+      // Log student exit/denial
+      _guardAuditService.logStudentExit(
+        studentId: scannedStudent!.id.toString(),
+        studentName: scannedStudent!.fullName,
+        rfidUid: scannedStudent!.rfidUid ?? '',
+        isApproved: approved,
+        fetcherName: fetchers?.isNotEmpty == true ? fetchers!.first.name : null,
+        fetcherType: 'authorized',
+        denyReason: denyReason,
+        exitType: exitType ?? 'regular',
+        sectionName: scannedStudent!.classSection,
+        notes: notes,
+        scheduleOverride: isOverrideMode ? {
+          'override_enabled': true,
+          'original_message': scheduleValidationMessage,
+          'override_justification': 'Guard override authorization',
+        } : null,
+      );
+
       // Send RFID exit notification to parents only if approved
       if (approved) {
         // Log early dismissal exit if applicable
@@ -1093,6 +1396,16 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             currentScheduleCheck!['exitType'] == 'early_dismissal' &&
             currentScheduleCheck!['earlyDismissal'] != null) {
           await _logEarlyDismissalExit(scannedStudent!.id, currentScheduleCheck!['earlyDismissal']);
+          
+          // Log emergency handling for early dismissal
+          _guardAuditService.logEmergencyHandling(
+            emergencyType: 'early_dismissal',
+            description: 'Student released during early dismissal period',
+            studentId: scannedStudent!.id.toString(),
+            studentName: scannedStudent!.fullName,
+            responseAction: 'Student exit approved',
+            emergencyDetails: currentScheduleCheck!['earlyDismissal'],
+          );
         }
 
         // Log emergency exit completion if applicable
@@ -1100,6 +1413,16 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             currentScheduleCheck!['exitType'] == 'emergency_exit' &&
             currentScheduleCheck!['emergencyExit'] != null) {
           await _logEmergencyExitCompletion(scannedStudent!.id, currentScheduleCheck!['emergencyExit']);
+          
+          // Log emergency handling for emergency exit
+          _guardAuditService.logEmergencyHandling(
+            emergencyType: 'emergency_exit',
+            description: 'Student released during emergency exit procedure',
+            studentId: scannedStudent!.id.toString(),
+            studentName: scannedStudent!.fullName,
+            responseAction: 'Emergency exit approved and completed',
+            emergencyDetails: currentScheduleCheck!['emergencyExit'],
+          );
         }
 
         print(
@@ -1115,6 +1438,26 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'DEBUG: RFID exit notification sent (regular pickup): $notificationSent',
         );
       } else {
+        // Log pickup denial decision for authorized fetchers
+        _guardAuditService.logPickupDenialDecision(
+          studentId: scannedStudent!.id.toString(),
+          studentName: scannedStudent!.fullName,
+          denyReason: denyReason ?? 'No reason provided',
+          fetcherType: 'authorized',
+          fetcherName: fetchers?.isNotEmpty == true ? fetchers!.first.name : null,
+          additionalNotes: 'Authorized fetcher denied by guard decision',
+          decisionContext: {
+            'fetcher_details': fetchers?.isNotEmpty == true ? {
+              'name': fetchers!.first.name,
+              'relationship': fetchers!.first.relationship,
+              'contact': fetchers!.first.contact,
+              'is_primary': fetchers!.first.isPrimary,
+            } : null,
+            'schedule_check': currentScheduleCheck,
+            'override_mode': isOverrideMode,
+          },
+        );
+
         // Send pickup denial notification to parents
         print(
           'DEBUG: About to send pickup denial notification for student ${scannedStudent!.id}',
@@ -1160,6 +1503,20 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         print('DEBUG: Pickup denial notification sent: $notificationSent');
       }
     } catch (e) {
+      // Log error during pickup record saving
+      _guardAuditService.logSystemError(
+        errorType: 'pickup_record_error',
+        errorDescription: 'Failed to save pickup record to database',
+        systemComponent: 'database',
+        errorDetails: {
+          'student_id': scannedStudent!.id.toString(),
+          'student_name': scannedStudent!.fullName,
+          'approved': approved,
+          'deny_reason': denyReason,
+          'error': e.toString(),
+        },
+      );
+      
       print('Error saving pickup record: $e');
     }
   }
@@ -1450,10 +1807,18 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                 ),
                 child: TextButton.icon(
                   onPressed: () {
+                    final previousState = isScheduleValidationEnabled;
                     setState(() {
                       isScheduleValidationEnabled =
                           !isScheduleValidationEnabled;
                     });
+                    
+                    // Log schedule validation control change
+                    _guardAuditService.logRFIDSystemAccess(
+                      accessType: 'configuration_change',
+                      connectionDetails: 'Schedule validation ${isScheduleValidationEnabled ? 'enabled' : 'disabled'} - Previous state: $previousState',
+                      isSuccessful: true,
+                    );
                   },
                   icon: Icon(
                     isScheduleValidationEnabled
