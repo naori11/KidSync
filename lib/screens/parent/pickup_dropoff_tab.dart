@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:kidsync/services/pickup_dropoff_service.dart';
 import '../../models/pickup_dropoff_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/parent_audit_service.dart';
 
 class PickupDropoffScreen extends StatefulWidget {
   final Color primaryColor;
@@ -38,9 +39,11 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
 
   // Add these as class variables
   final PickupDropoffService _service = PickupDropoffService();
+  final ParentAuditService _auditService = ParentAuditService();
   StudentSchedule? _studentSchedule;
   List<PickupDropoffPattern> _patterns = [];
   int? _currentStudentId; // Internal student ID tracking
+  String? _currentStudentName; // Track student name for audit logging
   bool _isLoading = false;
 
   // Get current week date range
@@ -154,6 +157,32 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
     return months[month - 1];
   }
 
+  // Helper method to get student name by ID
+  Future<String?> _getStudentName(int studentId) async {
+    try {
+      final response = await supabase
+          .from('students')
+          .select('fname, mname, lname')
+          .eq('id', studentId)
+          .maybeSingle();
+      
+      if (response != null) {
+        final firstName = response['fname'] ?? '';
+        final middleName = response['mname'] ?? '';
+        final lastName = response['lname'] ?? '';
+        
+        String fullName = firstName;
+        if (middleName.isNotEmpty) fullName += ' $middleName';
+        if (lastName.isNotEmpty) fullName += ' $lastName';
+        
+        return fullName.trim();
+      }
+    } catch (e) {
+      print('Error fetching student name: $e');
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -196,6 +225,9 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
     }
 
     try {
+      // Load student name first
+      _currentStudentName = await _getStudentName(_currentStudentId!);
+      
       // Load student schedule
       _studentSchedule = await _service.getStudentSchedule(_currentStudentId!);
 
@@ -1302,6 +1334,16 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
     );
 
     if (success) {
+      // Log the emergency change
+      await _auditService.logEmergencyPickupRequest(
+        childId: _currentStudentId!.toString(),
+        childName: _currentStudentName ?? 'Student $_currentStudentId',
+        emergencyReason: 'Emergency transportation change',
+        requestedFetcher: 'Dropoff: ${emergencySchedule['dropoff']}, Pickup: ${emergencySchedule['pickup']}',
+        approvalStatus: 'approved',
+        requestedTime: DateTime.now(),
+      );
+
       setState(() {
         // Refresh data
         _loadData();
@@ -1339,6 +1381,16 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
       newPattern,
     );
     if (success) {
+      // Log the weekly pattern change
+      await _auditService.logTransportationScheduleChange(
+        childId: _currentStudentId!.toString(),
+        childName: _currentStudentName ?? 'Student $_currentStudentId',
+        changeType: 'weekly_pattern',
+        description: 'Updated weekly pickup/dropoff pattern',
+        oldSchedule: _weeklyPattern.cast<String, dynamic>(),
+        newSchedule: newPattern.cast<String, dynamic>(),
+      );
+
       setState(() {
         _weeklyPattern = newPattern;
       });
@@ -1362,6 +1414,16 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
       schedule,
     );
     if (success) {
+      // Log the exception creation
+      await _auditService.logTransportationScheduleChange(
+        childId: _currentStudentId!.toString(),
+        childName: _currentStudentName ?? 'Student $_currentStudentId',
+        changeType: 'exception',
+        description: 'Set schedule exception for ${date.toIso8601String().split('T')[0]}',
+        newSchedule: schedule.cast<String, dynamic>(),
+        effectiveDate: date.toIso8601String().split('T')[0],
+      );
+
       String dateKey = date.toIso8601String().split('T')[0];
       setState(() {
         _exceptions[dateKey] = schedule;

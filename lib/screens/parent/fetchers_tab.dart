@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/services.dart';
 import 'dart:math';
 import '../../models/parent_models.dart';
+import '../../services/parent_audit_service.dart';
 
 class FetchersScreen extends StatefulWidget {
   final Color primaryColor;
@@ -29,6 +30,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
   final TextEditingController _notesController = TextEditingController();
 
   final supabase = Supabase.instance.client;
+  final ParentAuditService _auditService = ParentAuditService();
   String _currentPin = '';
   String? _currentFetcherName;
 
@@ -328,6 +330,25 @@ class _FetchersScreenState extends State<FetchersScreen> {
         _currentPin = pin;
         _isGeneratingPin = false;
       });
+
+      // Log the temporary fetcher creation
+      await _auditService.logTemporaryFetcherCreation(
+        childId: currentStudentId!.toString(),
+        childName: childName ?? 'Unknown Child',
+        fetcherName: _fetcherNameController.text.trim(),
+        relationship: _selectedRelationship!,
+        pinCode: pin,
+        validDate: DateTime.now().toIso8601String().split('T')[0],
+        contactNumber: _contactNumberController.text.trim(),
+        idType: _selectedIdType,
+        idNumber: _idNumberController.text.trim(),
+        emergencyContact: _emergencyContactController.text.trim().isEmpty
+            ? null
+            : _emergencyContactController.text.trim(),
+        notes: _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
+      );
 
       // Refresh the temporary fetchers list
       await _loadTemporaryFetchers();

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../../services/notification_service.dart';
 import '../parent/parent_home.dart'; // For Student model
+import '../../services/parent_audit_service.dart';
 
 class ParentNotificationsModal extends StatefulWidget {
   final Student selectedStudent;
@@ -23,6 +24,7 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
   late Animation<double> _fadeAnimation;
   final supabase = Supabase.instance.client;
   final NotificationService _notificationService = NotificationService();
+  final ParentAuditService _auditService = ParentAuditService();
   
   List<Map<String, dynamic>> todayNotifications = [];
   // ...existing code...
@@ -146,6 +148,21 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
           parentId,
           studentId: widget.selectedStudent.id,
         );
+
+        // Log notification acknowledgment
+        for (final notif in [...todayNotifs, ...allNotifs]) {
+          if (notif['is_read'] != true) {
+            await _auditService.logNotificationAcknowledgment(
+              notificationId: notif['id']?.toString() ?? '',
+              notificationType: notif['type'] ?? 'general',
+              childId: widget.selectedStudent.id.toString(),
+              childName: widget.selectedStudent.fullName,
+              responseType: 'acknowledged',
+              acknowledgmentTime: DateTime.now(),
+              notificationData: notif,
+            );
+          }
+        }
       }
     } catch (e) {
       print('Error loading notifications: $e');

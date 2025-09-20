@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/parent_audit_service.dart';
 
 class ConfirmationLogsScreen extends StatefulWidget {
   final Color primaryColor;
@@ -19,6 +20,7 @@ class ConfirmationLogsScreen extends StatefulWidget {
 
 class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
   final supabase = Supabase.instance.client;
+  final ParentAuditService _auditService = ParentAuditService();
   List<ConfirmationLog> confirmationLogs = [];
   bool isLoading = true;
   String? errorMessage;
@@ -35,6 +37,54 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
     // Reload data when selectedStudentId changes
     if (widget.selectedStudentId != oldWidget.selectedStudentId) {
       _loadConfirmationLogs();
+    }
+  }
+
+  // Add this method to handle verification responses
+  Future<void> _verifyEvent(ConfirmationLog log, String status, {String? notes}) async {
+    try {
+      // Update verification status in database
+      await supabase
+          .from('pickup_dropoff_verifications')
+          .upsert({
+            'pickup_dropoff_log_id': int.parse(log.id),
+            'student_id': int.parse(log.studentId),
+            'status': status,
+            'parent_response_time': DateTime.now().toIso8601String(),
+            'parent_notes': notes,
+          });
+
+      // Log the verification action
+      await _auditService.logPickupDropoffVerification(
+        childId: log.studentId,
+        childName: log.studentName,
+        eventType: log.eventType,
+        verificationStatus: status,
+        driverName: log.driverName,
+        eventTime: log.eventTime,
+        responseTime: DateTime.now(),
+        parentNotes: notes,
+        logId: log.id,
+      );
+
+      // Refresh the logs
+      await _loadConfirmationLogs();
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${log.eventType.capitalizeFirst()} ${status.toLowerCase()} successfully'),
+          backgroundColor: status == 'confirmed' ? Colors.green : Colors.orange,
+        ),
+      );
+    } catch (e) {
+      print('Error verifying event: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to verify ${log.eventType}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 

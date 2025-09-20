@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/parent_models.dart';
 import '../../services/notification_service.dart';
+
 import 'parent_dashboard_tab.dart';
 import 'pickup_dropoff_tab.dart';
 import 'fetchers_tab.dart';
@@ -253,10 +254,11 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
   }
 
   // Add method to switch students
-  void _switchToStudent(Student student) {
+  void _switchToStudent(Student student) async {
     setState(() {
       selectedStudent = student;
     });
+    
     // Reload dashboard data for the new student
     _loadDashboardFetchers();
     _loadNotificationCount();
