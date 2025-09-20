@@ -35,6 +35,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
   // Remove isEntryMode and isAwaitingDecision - replaced with auto detection
   String? currentAction; // 'entry' or 'exit'
+  String? currentScanner; // Track which scanner was used for current scan
   bool isScheduleValidationEnabled = true;
   bool isOverrideMode = false;
   String? scheduleValidationMessage;
@@ -48,6 +49,11 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   // Make cooldown tracking static so it persists across page navigations
   static Map<String, DateTime> rfidCooldowns = {};
   static const int cooldownSeconds = 30; // 30 second cooldown
+
+  // Scanner tracking - prevent consecutive taps on same scanner
+  static Map<String, String> lastScannerPerRfid = {}; // rfid_uid -> last_scanner
+  static Map<String, DateTime> lastScanTimePerRfid = {}; // rfid_uid -> last_scan_time
+  static const int scannerCooldownSeconds = 5; // 5 second cooldown for same scanner
 
   @override
   void initState() {
@@ -84,6 +90,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
       try {
         String? uid;
+        String? scanner;
 
         // Try to parse as JSON first
         try {
@@ -91,28 +98,32 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           if (parsedMessage['type'] == 'rfid_scan' &&
               parsedMessage['uid'] != null) {
             uid = parsedMessage['uid'];
+            scanner = parsedMessage['scanner']; // Extract scanner info
           }
         } catch (jsonError) {
           // If JSON parsing fails, treat the message as a raw UID string
           String rawData = message.toString().trim();
           if (rawData.isNotEmpty && rawData.length > 4) {
             uid = rawData;
+            // No scanner info available for legacy format
+            scanner = null;
           }
         }
 
         if (uid != null) {
-          // Log RFID scan attempt
+          // Log RFID scan attempt with scanner info
           _guardAuditService.logRFIDScanAttempt(
             rfidUid: uid,
             isSuccessful: true,
             scanMetadata: {
               'raw_message': message.toString(),
               'scan_source': 'websocket',
+              'scanner': scanner ?? 'unknown',
             },
           );
           
-          // Fetch real student data from database
-          _fetchStudentByRFID(uid);
+          // Fetch real student data from database with scanner info
+          _fetchStudentByRFID(uid, scanner: scanner);
         } else {
           // Log failed RFID scan
           _guardAuditService.logRFIDScanAttempt(
@@ -511,11 +522,12 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   }
 
   // Modified fetch student method - simplified entry handling
-  Future<void> _fetchStudentByRFID(String rfidUid) async {
+  Future<void> _fetchStudentByRFID(String rfidUid, {String? scanner}) async {
     _cleanupCooldowns();
 
-    // Check cooldown
     final now = DateTime.now();
+
+    // Check general cooldown (existing logic)
     if (rfidCooldowns.containsKey(rfidUid)) {
       final lastScan = rfidCooldowns[rfidUid]!;
       final timeDiff = now.difference(lastScan).inSeconds;
@@ -532,6 +544,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             'last_scan_time': lastScan.toIso8601String(),
             'cooldown_seconds': cooldownSeconds,
             'remaining_seconds': remainingTime,
+            'scanner': scanner ?? 'unknown',
           },
         );
         
@@ -542,8 +555,48 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       }
     }
 
-    // Set cooldown for this RFID
+    // New scanner-specific validation
+    if (scanner != null && lastScannerPerRfid.containsKey(rfidUid)) {
+      final lastScanner = lastScannerPerRfid[rfidUid]!;
+      final lastScanTime = lastScanTimePerRfid[rfidUid];
+      
+      // Check if same scanner was used recently
+      if (lastScanner == scanner && lastScanTime != null) {
+        final timeDiff = now.difference(lastScanTime).inSeconds;
+        
+        if (timeDiff < scannerCooldownSeconds) {
+          final remainingTime = scannerCooldownSeconds - timeDiff;
+          
+          // Log scanner-specific blocked scan
+          _guardAuditService.logRFIDScanAttempt(
+            rfidUid: rfidUid,
+            isSuccessful: false,
+            failureReason: 'Same scanner used consecutively (${remainingTime}s cooldown remaining)',
+            scanMetadata: {
+              'current_scanner': scanner,
+              'last_scanner': lastScanner,
+              'last_scan_time': lastScanTime.toIso8601String(),
+              'scanner_cooldown_seconds': scannerCooldownSeconds,
+              'remaining_seconds': remainingTime,
+            },
+          );
+          
+          _showErrorNotification(
+            'Cannot use same scanner consecutively. Please wait ${remainingTime}s or use a different scanner.',
+          );
+          return;
+        }
+      }
+    }
+
+    // Set cooldowns for this RFID
     rfidCooldowns[rfidUid] = now;
+    
+    // Update scanner tracking
+    if (scanner != null) {
+      lastScannerPerRfid[rfidUid] = scanner;
+      lastScanTimePerRfid[rfidUid] = now;
+    }
 
     setState(() {
       isLoadingStudent = true;
@@ -552,6 +605,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       fetchStatus = null;
       showNotification = false;
       currentAction = null;
+      currentScanner = null; // Clear scanner info
       scheduleValidationMessage = null;
       isOverrideMode = false;
       lastClassEndTime = null;
@@ -569,7 +623,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       if (response != null) {
         final student = Student.fromJson(response);
 
-        // Log successful RFID scan with student data
+        // Log successful RFID scan with student data and scanner info
         _guardAuditService.logRFIDScanAttempt(
           rfidUid: rfidUid,
           isSuccessful: true,
@@ -579,15 +633,24 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             'student_section': student.classSection,
             'student_grade': student.gradeLevel,
             'scan_timestamp': now.toIso8601String(),
+            'scanner': scanner ?? 'unknown',
           },
         );
 
-        // Determine if this should be entry or exit
-        final action = await _checkTodayAttendanceStatus(student.id);
+        // Determine if this should be entry or exit based on scanner type
+        String action;
+        if (scanner != null) {
+          // Use scanner type to determine action
+          action = scanner == 'entry' ? 'entry' : 'exit';
+        } else {
+          // Fallback to existing logic for legacy compatibility
+          action = await _checkTodayAttendanceStatus(student.id);
+        }
 
         setState(() {
           scannedStudent = student;
           currentAction = action;
+          currentScanner = scanner; // Store scanner info
           isLoadingStudent = false;
 
           activeScanToken =
@@ -596,7 +659,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
         if (action == 'entry') {
           // Entry: Always allow for elementary students
-          await _processEntry(student);
+          await _processEntry(student, scanner: scanner);
         } else {
           // Exit: Apply schedule validation
           if (isScheduleValidationEnabled && !isOverrideMode) {
@@ -639,7 +702,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               );
             }
           }
-          await _processExit(student);
+          await _processExit(student, scanner: scanner);
         }
       } else {
         // Log failed student lookup
@@ -650,6 +713,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           scanMetadata: {
             'lookup_timestamp': now.toIso8601String(),
             'database_response': 'null',
+            'scanner': scanner ?? 'unknown',
           },
         );
         
@@ -668,6 +732,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'rfid_uid': rfidUid,
           'error': e.toString(),
           'lookup_timestamp': now.toIso8601String(),
+          'scanner': scanner ?? 'unknown',
         },
       );
       
@@ -685,11 +750,27 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       (uid, lastScan) =>
           now.difference(lastScan).inSeconds > cooldownSeconds * 2,
     );
+    
+    // Clean up scanner tracking maps
+    lastScanTimePerRfid.removeWhere(
+      (uid, lastScan) =>
+          now.difference(lastScan).inSeconds > scannerCooldownSeconds * 2,
+    );
+    
+    // Remove entries from scanner map if they no longer have a timestamp
+    lastScannerPerRfid.removeWhere((uid, scanner) => 
+        !lastScanTimePerRfid.containsKey(uid));
   }
 
   // Process entry (immediate check-in)
-  Future<void> _processEntry(Student student) async {
+  Future<void> _processEntry(Student student, {String? scanner}) async {
     try {
+      // Create detailed notes with scanner information
+      String notes = 'Automatic entry via RFID scan';
+      if (scanner != null) {
+        notes += ' - Scanner: $scanner';
+      }
+
       await supabase.from('scan_records').insert({
         'student_id': student.id,
         'guard_id': user?.id,
@@ -698,7 +779,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         'action': 'entry',
         'verified_by': 'RFID Entry',
         'status': 'Checked In',
-        'notes': 'Automatic entry via RFID scan',
+        'notes': notes,
       });
 
       // Log successful student entry
@@ -708,7 +789,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         rfidUid: student.rfidUid ?? '',
         sectionName: student.classSection,
         isSuccessful: true,
-        notes: 'Automatic entry via RFID scan - immediate check-in approved',
+        notes: '$notes - immediate check-in approved',
       );
 
       // Send RFID entry notification to parents
@@ -726,10 +807,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       _showSuccessNotification('Student checked in successfully');
 
       // Entry mode timer: hide after 8 seconds
+      final currentToken = activeScanToken;
       Future.delayed(Duration(seconds: 8), () {
-        if (mounted) clearScan();
-        // Only clear if the active token hasn't changed (i.e. no newer scan)
-        if (activeScanToken != null && activeScanToken == activeScanToken) {
+        if (mounted && currentToken != null && currentToken == activeScanToken) {
           clearScan();
         }
       });
@@ -753,6 +833,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'student_id': student.id.toString(),
           'student_name': student.fullName,
           'rfid_uid': student.rfidUid ?? '',
+          'scanner': scanner ?? 'unknown',
           'error': e.toString(),
         },
       );
@@ -762,7 +843,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   }
 
   // Process exit (show fetchers and require approval)
-  Future<void> _processExit(Student student) async {
+  Future<void> _processExit(Student student, {String? scanner}) async {
     setState(() {
       isLoadingFetchers = true;
     });
@@ -1062,6 +1143,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               'Temporary Fetcher: ${verifiedTempFetcher!['fetcher_name']} (PIN: ${verifiedTempFetcher!['pin_code']})',
           'status': 'Checked Out',
           'notes': detailedNotes,
+          'scanner_location': currentScanner, // Add scanner information
         });
 
         // Log successful temporary fetcher pickup
@@ -1104,6 +1186,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'status': 'Denied',
           'notes':
               'Temporary fetcher pickup denied: ${denyReason ?? 'No reason provided'}',
+          'scanner_location': currentScanner, // Add scanner information
         });
 
         // Log denied temporary fetcher pickup
@@ -1353,6 +1436,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         'verified_by': verifiedBy,
         'status': status,
         'notes': notes,
+        'scanner_location': currentScanner, // Add scanner information
       });
 
       // Log authorized fetcher verification
@@ -1578,6 +1662,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       isLoadingStudent = false;
       isLoadingFetchers = false;
       currentAction = null;
+      currentScanner = null; // Clear scanner info
       scheduleValidationMessage = null;
       isOverrideMode = false;
       lastClassEndTime = null;
@@ -1772,7 +1857,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
   // Simulate RFID scan for testing
   void simulateRFIDScan() {
-    _fetchStudentByRFID('d9e0c801');
+    _fetchStudentByRFID('d9e0c801', scanner: 'entry');
   }
 
   @override
@@ -1843,7 +1928,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               ),
               SizedBox(height: 8),
 
-              // Test RFID Scan Button
+              // Test RFID Scan Buttons
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -1856,14 +1941,27 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                     ),
                   ],
                 ),
-                child: TextButton.icon(
-                  onPressed: simulateRFIDScan,
-                  icon: Icon(Icons.credit_card, size: 16),
-                  label: Text('Test RFID Scan', style: TextStyle(fontSize: 14)),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.blue[700],
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
+                child: Column(
+                  children: [
+                    TextButton.icon(
+                      onPressed: simulateRFIDScan,
+                      icon: Icon(Icons.credit_card, size: 16),
+                      label: Text('Test Entry Scan', style: TextStyle(fontSize: 14)),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.green[700],
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _fetchStudentByRFID('d9e0c801', scanner: 'exit'),
+                      icon: Icon(Icons.credit_card, size: 16),
+                      label: Text('Test Exit Scan', style: TextStyle(fontSize: 14)),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.red[700],
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -3042,6 +3140,58 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                               ),
                           ],
                         ),
+
+                        // Scanner Information (if available)
+                        if (currentScanner != null) ...[
+                          SizedBox(height: 24),
+                          Container(
+                            padding: EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(color: Colors.blue[200]!),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    currentScanner == 'entry' ? Icons.login : Icons.logout,
+                                    size: 28,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 16),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Scanner Used',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        color: Colors.blue[700],
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      currentScanner!.toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 24,
+                                        color: Colors.black87,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
