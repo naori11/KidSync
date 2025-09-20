@@ -57,14 +57,160 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
     });
   }
 
+  // Time period helpers
+  List<Activity> _applyTimePeriodFilter(List<Activity> input) {
+    DateTime now = DateTime.now();
+    DateTime start;
+    DateTime end;
+
+    switch (widget.selectedTimePeriod) {
+      case 'Today':
+        start = DateTime(now.year, now.month, now.day);
+        end = start.add(const Duration(days: 1));
+        break;
+      case 'This Week':
+        final monday = now.subtract(Duration(days: now.weekday - 1));
+        start = DateTime(monday.year, monday.month, monday.day);
+        end = start.add(const Duration(days: 7));
+        break;
+      case 'This Month':
+        start = DateTime(now.year, now.month, 1);
+        end = (now.month < 12)
+            ? DateTime(now.year, now.month + 1, 1)
+            : DateTime(now.year + 1, 1, 1);
+        break;
+      default:
+        start = DateTime(now.year, now.month, now.day);
+        end = start.add(const Duration(days: 1));
+    }
+
+    return input.where((a) {
+      final ts = a.timestamp;
+      if (ts == null) return false;
+      // inclusive of start, exclusive of end
+      return !ts.isBefore(start) && ts.isBefore(end);
+    }).toList();
+  }
+
+  void _openFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        final timeFiltered = _applyTimePeriodFilter(activities);
+        final tempCount = timeFiltered.where((a) => a.isTemporaryFetcher).length;
+        final earlyCount = timeFiltered
+            .where((a) => a.isEarlyDismissal || a.isVeryEarlyDismissal)
+            .length;
+        final emergencyCount = timeFiltered.where((a) => a.isEmergencyExit).length;
+
+        String selected = showTempFetchersOnly
+            ? 'Temp Fetchers'
+            : (showEarlyDismissalOnly
+                ? 'Early Dismissal'
+                : (showEmergencyExitOnly ? 'Emergency' : 'All'));
+
+        Widget buildOption({
+          required String label,
+          String? subtitle,
+          required IconData icon,
+          required Color color,
+        }) {
+          return RadioListTile<String>(
+            value: label,
+            groupValue: selected,
+            onChanged: (value) {
+              setState(() {
+                showTempFetchersOnly = label == 'Temp Fetchers';
+                showEarlyDismissalOnly = label == 'Early Dismissal';
+                showEmergencyExitOnly = label == 'Emergency';
+              });
+              Navigator.pop(context);
+            },
+            activeColor: Colors.green,
+            dense: true,
+            secondary: Icon(icon, color: color, size: 18),
+            title: Text(label),
+            subtitle: subtitle != null ? Text(subtitle) : null,
+          );
+        }
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.filter_list, color: Colors.green),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Filter',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          showTempFetchersOnly = false;
+                          showEarlyDismissalOnly = false;
+                          showEmergencyExitOnly = false;
+                        });
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Clear', style: TextStyle(color: Colors.redAccent)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                buildOption(
+                  label: 'All',
+                  subtitle: 'Show all activities in the selected period',
+                  icon: Icons.select_all,
+                  color: Colors.grey[600]!,
+                ),
+                buildOption(
+                  label: 'Temp Fetchers',
+                  subtitle: 'Only temporary fetchers ($tempCount)',
+                  icon: Icons.pin,
+                  color: Colors.orange,
+                ),
+                buildOption(
+                  label: 'Early Dismissal',
+                  subtitle: 'Only early dismissals ($earlyCount)',
+                  icon: Icons.schedule_outlined,
+                  color: Colors.amber[700]!,
+                ),
+                buildOption(
+                  label: 'Emergency',
+                  subtitle: 'Only emergency exits ($emergencyCount)',
+                  icon: Icons.emergency,
+                  color: Colors.red[700]!,
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
+    // Apply time period filter first
+    final List<Activity> timeFiltered = _applyTimePeriodFilter(activities);
+
     List<Activity> filteredActivities =
-        activities.where((activity) {
+        timeFiltered.where((activity) {
           bool matchesSearch = activity.studentName.toLowerCase().contains(
             widget.searchQuery.toLowerCase(),
           );
@@ -83,11 +229,11 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
 
     // Count different activity types
     final tempFetcherCount =
-        activities.where((a) => a.isTemporaryFetcher).length;
+        timeFiltered.where((a) => a.isTemporaryFetcher).length;
     final earlyDismissalCount =
-        activities.where((a) => a.isEarlyDismissal || a.isVeryEarlyDismissal).length;
+        timeFiltered.where((a) => a.isEarlyDismissal || a.isVeryEarlyDismissal).length;
     final emergencyExitCount =
-        activities.where((a) => a.isEmergencyExit).length;
+        timeFiltered.where((a) => a.isEmergencyExit).length;
 
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -111,187 +257,14 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
               ),
               SizedBox(width: 24),
 
-              // Temporary Fetcher Filter Toggle
-              Container(
-                decoration: BoxDecoration(
-                  color:
-                      showTempFetchersOnly
-                          ? Colors.orange[50]
-                          : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color:
-                        showTempFetchersOnly
-                            ? Colors.orange
-                            : Colors.grey[300]!,
-                  ),
-                ),
-                child: InkWell(
-                  onTap: () {
-                    setState(() {
-                      showTempFetchersOnly = !showTempFetchersOnly;
-                      if (showTempFetchersOnly) {
-                        showEarlyDismissalOnly = false;
-                        showEmergencyExitOnly = false;
-                      }
-                    });
-                  },
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.pin,
-                          size: 16,
-                          color:
-                              showTempFetchersOnly
-                                  ? Colors.orange
-                                  : Colors.grey[600],
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Temp Fetchers ($tempFetcherCount)',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color:
-                                showTempFetchersOnly
-                                    ? Colors.orange
-                                    : Colors.grey[700],
-                            fontWeight:
-                                showTempFetchersOnly
-                                    ? FontWeight.w500
-                                    : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              // Temporary Fetcher Filter Toggle (removed in favor of dropdown menu)
+              const SizedBox.shrink(),
               
               SizedBox(width: 8),
 
-              // Early Dismissal Filter Toggle
-              Container(
-                decoration: BoxDecoration(
-                  color:
-                      showEarlyDismissalOnly
-                          ? Colors.amber[50]
-                          : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color:
-                        showEarlyDismissalOnly
-                            ? Colors.amber
-                            : Colors.grey[300]!,
-                  ),
-                ),
-                child: InkWell(
-                  onTap: () {
-                    setState(() {
-                      showEarlyDismissalOnly = !showEarlyDismissalOnly;
-                      if (showEarlyDismissalOnly) {
-                        showTempFetchersOnly = false;
-                        showEmergencyExitOnly = false;
-                      }
-                    });
-                  },
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.schedule_outlined,
-                          size: 16,
-                          color:
-                              showEarlyDismissalOnly
-                                  ? Colors.amber[700]
-                                  : Colors.grey[600],
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Early Dismissal ($earlyDismissalCount)',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color:
-                                showEarlyDismissalOnly
-                                    ? Colors.amber[700]
-                                    : Colors.grey[700],
-                            fontWeight:
-                                showEarlyDismissalOnly
-                                    ? FontWeight.w500
-                                    : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              // Emergency Exit Filter Toggle (removed in favor of dropdown menu)
+              const SizedBox.shrink(),
               
-              SizedBox(width: 8),
-
-              // Emergency Exit Filter Toggle
-              Container(
-                decoration: BoxDecoration(
-                  color:
-                      showEmergencyExitOnly
-                          ? Colors.red[50]
-                          : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color:
-                        showEmergencyExitOnly
-                            ? Colors.red
-                            : Colors.grey[300]!,
-                  ),
-                ),
-                child: InkWell(
-                  onTap: () {
-                    setState(() {
-                      showEmergencyExitOnly = !showEmergencyExitOnly;
-                      if (showEmergencyExitOnly) {
-                        showTempFetchersOnly = false;
-                        showEarlyDismissalOnly = false;
-                      }
-                    });
-                  },
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.emergency,
-                          size: 16,
-                          color:
-                              showEmergencyExitOnly
-                                  ? Colors.red[700]
-                                  : Colors.grey[600],
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Emergency ($emergencyExitCount)',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color:
-                                showEmergencyExitOnly
-                                    ? Colors.red[700]
-                                    : Colors.grey[700],
-                            fontWeight:
-                                showEmergencyExitOnly
-                                    ? FontWeight.w500
-                                    : FontWeight.normal,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
               Spacer(),
 
               SizedBox(
@@ -306,6 +279,14 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                       size: 20,
                       color: Colors.grey[600],
                     ),
+                    suffixIcon: IconButton(
+                      tooltip: 'Clear search',
+                      icon: Icon(Icons.clear, size: 16, color: Colors.grey[600]),
+                      onPressed: () {
+                        widget.searchController.clear();
+                        widget.onSearchChanged('');
+                      },
+                    ),
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 10,
@@ -317,19 +298,132 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                 ),
               ),
               SizedBox(width: 16),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromARGB(10, 78, 241, 157),
-                  foregroundColor: Colors.grey[700],
-                  elevation: 0,
-                  side: BorderSide(color: Colors.grey[300]!),
+              // Prominent dropdown-style Filter button
+              Theme(
+                data: Theme.of(context).copyWith(
+                  // Ensure popup uses clean white like the app theme
+                  popupMenuTheme: PopupMenuThemeData(
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    textStyle: TextStyle(color: Colors.grey[800]),
+                  ),
+                  dividerTheme: DividerThemeData(
+                    color: Colors.grey[200],
+                    thickness: 1,
+                    space: 4,
+                  ),
+                  // Softer green-ish interactions
+                  hoverColor: const Color(0xFF19AE61).withOpacity(0.06),
+                  highlightColor: const Color(0xFF19AE61).withOpacity(0.08),
+                  splashColor: const Color(0xFF19AE61).withOpacity(0.10),
+                  // Defensive: some platforms read from these for menu
+                  canvasColor: Colors.white,
+                  cardColor: Colors.white,
+                ),
+                child: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    setState(() {
+                      showTempFetchersOnly = value == 'Temp';
+                      showEarlyDismissalOnly = value == 'Early';
+                      showEmergencyExitOnly = value == 'Emergency';
+                      if (value == 'All') {
+                        showTempFetchersOnly = false;
+                        showEarlyDismissalOnly = false;
+                        showEmergencyExitOnly = false;
+                      }
+                    });
+                  },
+                  offset: const Offset(0, 8),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 6,
+                  constraints: const BoxConstraints(minWidth: 240),
+                  itemBuilder: (context) {
+                    final bool none =
+                        !showTempFetchersOnly && !showEarlyDismissalOnly && !showEmergencyExitOnly;
+                    return [
+                      PopupMenuItem<String>(
+                        value: 'All',
+                        child: Row(
+                          children: [
+                            Icon(Icons.select_all, color: Colors.grey[700], size: 18),
+                            const SizedBox(width: 8),
+                            const Expanded(child: Text('All')),
+                            if (none) Icon(Icons.check, size: 16, color: Colors.green[700]),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuDivider(),
+                      PopupMenuItem<String>(
+                        value: 'Temp',
+                        child: Row(
+                          children: [
+                            const Icon(Icons.pin, color: Colors.orange, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text('Temp Fetchers ($tempFetcherCount)')),
+                            if (showTempFetchersOnly)
+                              Icon(Icons.check, size: 16, color: Colors.green[700]),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'Early',
+                        child: Row(
+                          children: [
+                            Icon(Icons.schedule_outlined, color: Colors.amber[700], size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text('Early Dismissal ($earlyDismissalCount)')),
+                            if (showEarlyDismissalOnly)
+                              Icon(Icons.check, size: 16, color: Colors.green[700]),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'Emergency',
+                        child: Row(
+                          children: [
+                            Icon(Icons.emergency, color: Colors.red[700], size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text('Emergency ($emergencyExitCount)')),
+                            if (showEmergencyExitOnly)
+                              Icon(Icons.check, size: 16, color: Colors.green[700]),
+                          ],
+                        ),
+                      ),
+                    ];
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.filter_list, size: 18, color: Color(0xFF19AE61)),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Filter',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(Icons.keyboard_arrow_down, size: 18, color: Colors.grey[700]),
+                      ],
+                    ),
                   ),
                 ),
-                onPressed: () {},
-                icon: Icon(Icons.filter_list, size: 16),
-                label: Text('Filter'),
               ),
             ],
           ),
@@ -462,7 +556,7 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Showing ${filteredActivities.length} of ${activities.length} entries',
+                  'Showing ${filteredActivities.length} of ${timeFiltered.length} entries',
                   style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
                 Row(

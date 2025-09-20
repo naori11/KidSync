@@ -100,6 +100,8 @@ class _BulkImportPageState extends State<BulkImportPage> {
               ),
             ),
 
+            
+
             // Main content
             Expanded(
               child:
@@ -120,8 +122,7 @@ class _BulkImportPageState extends State<BulkImportPage> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: Colors.grey[300]!,
-          width: 2,
-          style: BorderStyle.solid,
+          width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
@@ -193,13 +194,34 @@ class _BulkImportPageState extends State<BulkImportPage> {
 
           const SizedBox(height: 24),
 
+          // File info chips
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildInfoChip('Supported: .xlsx, .xls', Icons.insert_drive_file, Colors.blue),
+              _buildInfoChip('Max size: 100MB', Icons.sd_storage_rounded, Colors.orange),
+              _buildInfoChip('Secure upload', Icons.lock_outline, Colors.purple),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
           // Instructions
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.blue[50],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue[200]!),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue[100]!),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,27 +234,157 @@ class _BulkImportPageState extends State<BulkImportPage> {
                       'Import Instructions',
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                         color: Colors.blue[700],
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text(
-                  '• Use the provided template format\n'
-                  '• Ensure all required fields are filled\n'
-                  '• Student names should be in format: "Surname, First Name, Middle Name, Suffix"\n'
-                  '• At least one parent/guardian contact is required\n'
-                  '• Duplicate students will be skipped\n'
-                  '• A backup will be created automatically before import',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.blue[700],
-                    height: 1.5,
-                  ),
-                ),
+                _buildBulletItem('Use the provided template format'),
+                _buildBulletItem('Ensure all required fields are filled'),
+                _buildBulletItem('Student names should be in format: "Surname, First Name, Middle Name, Suffix"'),
+                _buildBulletItem('At least one parent/guardian contact is required'),
+                _buildBulletItem('Duplicate students will be skipped'),
+                _buildBulletItem('A backup will be created automatically before import'),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Professional UI helpers
+  Widget _buildProcessSteps() {
+    final bool hasParsed = parsedData.isNotEmpty;
+    final bool hasErrors = validationErrors.isNotEmpty;
+    final bool validating = isValidating;
+    final bool importing = isImporting;
+
+    int activeIndex;
+    if (importing) {
+      activeIndex = 3;
+    } else if (validating) {
+      activeIndex = 2;
+    } else if (!hasParsed) {
+      activeIndex = 1;
+    } else {
+      activeIndex = hasErrors ? 2 : 3;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          )
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(child: _buildStep('Download Template', Icons.file_download_outlined, 0, activeIndex)),
+          const SizedBox(width: 12),
+          Expanded(child: _buildStep('Upload File', Icons.upload_file, 1, activeIndex)),
+          const SizedBox(width: 12),
+          Expanded(child: _buildStep('Validate', Icons.verified_outlined, 2, activeIndex)),
+          const SizedBox(width: 12),
+          Expanded(child: _buildStep('Import', Icons.playlist_add_check_circle_outlined, 3, activeIndex)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStep(String label, IconData icon, int index, int activeIndex) {
+    final bool isActive = activeIndex == index;
+    final bool isCompleted = activeIndex > index;
+    final Color primary = const Color(0xFF2ECC71);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isActive || isCompleted ? primary.withOpacity(0.06) : Colors.grey[50],
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isActive
+              ? primary
+              : (isCompleted ? primary.withOpacity(0.5) : Colors.grey[200]!),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: (isActive || isCompleted) ? primary.withOpacity(0.15) : Colors.grey[200],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isCompleted ? Icons.check : icon,
+              size: 16,
+              color: isActive || isCompleted ? primary : Colors.grey[600],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isActive || isCompleted ? Colors.black87 : Colors.grey[700],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoChip(String label, IconData icon, MaterialColor color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color.shade700),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBulletItem(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.check_circle_outline, size: 16, color: Colors.blue),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 14, color: Colors.blue[800]),
             ),
           ),
         ],
@@ -323,23 +475,34 @@ class _BulkImportPageState extends State<BulkImportPage> {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.grey[200]!),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Color(0xFF2ECC71),
-                  ),
+                Row(
+                  children: [
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF2ECC71),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Text(
+                      isValidating ? 'Validating data...' : 'Importing data...',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                Text(
-                  isValidating ? 'Validating data...' : 'Importing data...',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
+                const SizedBox(height: 12),
+                LinearProgressIndicator(
+                  minHeight: 6,
+                  backgroundColor: Colors.grey[200],
+                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF2ECC71)),
                 ),
               ],
             ),
@@ -444,13 +607,27 @@ class _BulkImportPageState extends State<BulkImportPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.25)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 24),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -459,16 +636,16 @@ class _BulkImportPageState extends State<BulkImportPage> {
                 title,
                 style: TextStyle(
                   fontSize: 12,
-                  color: color,
+                  color: Colors.grey[700],
                   fontWeight: FontWeight.w500,
                 ),
               ),
               Text(
                 value,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: color,
+                  color: Colors.black87,
                 ),
               ),
             ],
@@ -483,9 +660,16 @@ class _BulkImportPageState extends State<BulkImportPage> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -678,9 +862,9 @@ class _BulkImportPageState extends State<BulkImportPage> {
         throw Exception('Please select an Excel file (.xlsx or .xls)');
       }
 
-      // Validate file size (10MB limit)
-      if (file.size > 10 * 1024 * 1024) {
-        throw Exception('File size must be less than 10MB');
+      // Validate file size (100MB limit)
+      if (file.size > 100 * 1024 * 1024) {
+        throw Exception('File size must be less than 100MB');
       }
 
       final reader = html.FileReader();
