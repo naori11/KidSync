@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -212,35 +213,19 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Standardized Header
-        Row(
-          children: [
-            const Text(
-              "Audit Logs",
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1A1A1A),
-                letterSpacing: 0.5,
-              ),
-            ),
-            const Spacer(),
-            // Filter Toggle Button
-            Container(
+        // Responsive Header
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 700;
+
+            final Widget filterButton = Container(
               height: 44,
               decoration: BoxDecoration(
                 color: _hasActiveFilters() ? const Color(0xFF2ECC71) : Colors.white,
-                border: Border.all(
-                  color: const Color(0xFF2ECC71),
-                  width: 1.5,
-                ),
+                border: Border.all(color: const Color(0xFF2ECC71), width: 1.5),
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
+                  BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2)),
                 ],
               ),
               child: Material(
@@ -253,36 +238,21 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.filter_list,
-                          color: _hasActiveFilters() ? Colors.white : const Color(0xFF2ECC71),
-                          size: 18,
-                        ),
+                        Icon(Icons.filter_list, color: _hasActiveFilters() ? Colors.white : const Color(0xFF2ECC71), size: 18),
                         const SizedBox(width: 8),
-                        Text(
-                          'Filters',
-                          style: TextStyle(
-                            color: _hasActiveFilters() ? Colors.white : const Color(0xFF2ECC71),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                        Text('Filters',
+                            style: TextStyle(
+                              color: _hasActiveFilters() ? Colors.white : const Color(0xFF2ECC71),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            )),
                         if (_hasActiveFilters()) ...[
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '${_getActiveFilterCount()}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
+                            child: Text('${_getActiveFilterCount()}',
+                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
                           ),
                         ],
                       ],
@@ -290,23 +260,15 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            // Standardized Search bar
-            Container(
-              width: 260,
+            );
+
+            final Widget searchField = Container(
               height: 44,
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: Border.all(color: const Color(0xFFE0E0E0)),
                 borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
               ),
               child: TextField(
                 controller: _searchController,
@@ -314,64 +276,72 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                 decoration: const InputDecoration(
                   hintText: 'Search logs...',
                   hintStyle: TextStyle(fontSize: 14, color: Color(0xFF9E9E9E)),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: Color(0xFF2ECC71),
-                    size: 20,
-                  ),
+                  prefixIcon: Icon(Icons.search, color: Color(0xFF2ECC71), size: 20),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                    vertical: 12.0,
-                    horizontal: 16.0,
-                  ),
+                  contentPadding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            // Standardized Export button
-            SizedBox(
+            );
+
+            final Widget exportButton = SizedBox(
               height: 44,
               child: OutlinedButton.icon(
-                icon: const Icon(
-                  Icons.file_download_outlined,
-                  color: Color(0xFF2ECC71),
-                  size: 18,
-                ),
-                label: const Text(
-                  "Export",
-                  style: TextStyle(
-                    color: Color(0xFF2ECC71),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                icon: const Icon(Icons.file_download_outlined, color: Color(0xFF2ECC71), size: 18),
+                label: const Text("Export",
+                    style: TextStyle(color: Color(0xFF2ECC71), fontSize: 14, fontWeight: FontWeight.w500)),
                 style: OutlinedButton.styleFrom(
                   backgroundColor: Colors.white,
-                  side: const BorderSide(
-                    color: Color(0xFF2ECC71),
-                    width: 1.5,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  side: const BorderSide(color: Color(0xFF2ECC71), width: 1.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   elevation: 1,
                   shadowColor: Colors.black.withOpacity(0.05),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Export functionality coming soon...'),
-                      backgroundColor: Colors.orange,
-                    ),
+                    const SnackBar(content: Text('Export functionality coming soon...'), backgroundColor: Colors.orange),
                   );
                 },
               ),
-            ),
-          ],
+            );
+
+            if (!isCompact) {
+              return Row(
+                children: [
+                  const Text(
+                    "Audit Logs",
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A), letterSpacing: 0.5),
+                  ),
+                  const Spacer(),
+                  filterButton,
+                  const SizedBox(width: 12),
+                  SizedBox(width: 260, child: searchField),
+                  const SizedBox(width: 12),
+                  exportButton,
+                ],
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Audit Logs",
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A), letterSpacing: 0.5),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    filterButton,
+                    const SizedBox(width: 12),
+                    Expanded(child: searchField),
+                    const SizedBox(width: 12),
+                    exportButton,
+                  ],
+                ),
+              ],
+            );
+          },
         ),
         // Standardized Breadcrumb
         const Padding(
@@ -708,161 +678,127 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
         ),
         const SizedBox(height: 12),
         // Quick filter shortcuts
-        Row(
-          children: [
-            const Text(
-              'Quick Filters:',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF666666),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              const Text(
+                'Quick Filters:',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF666666),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            _buildQuickFilterChip('Today', () {
-              final today = DateTime.now();
-              setState(() {
-                _startDate = DateTime(today.year, today.month, today.day);
-                _endDate = DateTime(today.year, today.month, today.day);
-              });
-            }),
-            const SizedBox(width: 8),
-            _buildQuickFilterChip('Last 7 Days', () {
-              final today = DateTime.now();
-              setState(() {
-                _startDate = today.subtract(const Duration(days: 7));
-                _endDate = today;
-              });
-            }),
-            const SizedBox(width: 8),
-            _buildQuickFilterChip('Errors Only', () {
-              setState(() {
-                _statusFilter = 'error';
-              });
-            }),
-            const SizedBox(width: 8),
-            _buildQuickFilterChip('Admin Actions', () {
-              setState(() {
-                _roleFilter = 'Admin';
-              });
-            }),
-          ],
+              const SizedBox(width: 12),
+              _buildQuickFilterChip('Today', () {
+                final today = DateTime.now();
+                setState(() {
+                  _startDate = DateTime(today.year, today.month, today.day);
+                  _endDate = DateTime(today.year, today.month, today.day);
+                });
+              }),
+              const SizedBox(width: 8),
+              _buildQuickFilterChip('Last 7 Days', () {
+                final today = DateTime.now();
+                setState(() {
+                  _startDate = today.subtract(const Duration(days: 7));
+                  _endDate = today;
+                });
+              }),
+              const SizedBox(width: 8),
+              _buildQuickFilterChip('Errors Only', () {
+                setState(() {
+                  _statusFilter = 'error';
+                });
+              }),
+              const SizedBox(width: 8),
+              _buildQuickFilterChip('Admin Actions', () {
+                setState(() {
+                  _roleFilter = 'Admin';
+                });
+              }),
+            ],
+          ),
         ),
       ],
     );
   }
 
   Widget _buildTableHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FA),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(12),
-          topRight: Radius.circular(12),
-        ),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-      ),
-      child: Row(
-        children: [
-          // Timestamp column
-          SizedBox(
-            width: 140,
-            child: Text(
-              'Date & Time',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                color: Colors.grey.shade800,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 900;
+        if (isCompact) {
+          // Use card layout on small screens; hide table header
+          return const SizedBox.shrink();
+        }
 
-          // User column
-          SizedBox(
-            width: 180,
-            child: Text(
-              'User & Role',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                color: Colors.grey.shade800,
-                letterSpacing: 0.3,
-              ),
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8F9FA),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(12),
+              topRight: Radius.circular(12),
             ),
+            border: Border.all(color: const Color(0xFFE0E0E0)),
           ),
-
-          // Action & Type column
-          SizedBox(
-            width: 160,
-            child: Text(
-              'Action & Type',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                color: Colors.grey.shade800,
-                letterSpacing: 0.3,
+          child: Row(
+            children: const [
+              Expanded(
+                flex: 2,
+                child: Text(
+                  'Date & Time',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF424242), letterSpacing: 0.3),
+                ),
               ),
-            ),
-          ),
-
-          // Module column
-          SizedBox(
-            width: 140,
-            child: Text(
-              'Module',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                color: Colors.grey.shade800,
-                letterSpacing: 0.3,
+              Expanded(
+                flex: 3,
+                child: Text(
+                  'User & Role',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF424242), letterSpacing: 0.3),
+                ),
               ),
-            ),
-          ),
-
-          // Status column
-          SizedBox(
-            width: 90,
-            child: Text(
-              'Status',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                color: Colors.grey.shade800,
-                letterSpacing: 0.3,
+              Expanded(
+                flex: 3,
+                child: Text(
+                  'Action & Type',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF424242), letterSpacing: 0.3),
+                ),
               ),
-            ),
-          ),
-
-          // Details column
-          Expanded(
-            child: Text(
-              'Details',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                color: Colors.grey.shade800,
-                letterSpacing: 0.3,
+              Expanded(
+                flex: 2,
+                child: Text(
+                  'Module',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF424242), letterSpacing: 0.3),
+                ),
               ),
-            ),
-          ),
-
-          // Actions column
-          SizedBox(
-            width: 60,
-            child: Text(
-              'Actions',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                color: Colors.grey.shade800,
-                letterSpacing: 0.3,
+              Expanded(
+                flex: 2,
+                child: Text(
+                  'Status',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF424242), letterSpacing: 0.3),
+                ),
               ),
-            ),
+              Expanded(
+                flex: 6,
+                child: Text(
+                  'Details',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF424242), letterSpacing: 0.3),
+                ),
+              ),
+              SizedBox(
+                width: 60,
+                child: Text(
+                  'Actions',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF424242), letterSpacing: 0.3),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1010,11 +946,19 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
           ),
           // Log entries
           Expanded(
-            child: ListView.builder(
-              itemCount: filteredLogs.length,
-              itemBuilder: (context, index) {
-                final log = filteredLogs[index];
-                return _buildLogEntry(log, index % 2 == 0);
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 900;
+                return ListView.builder(
+                  itemCount: filteredLogs.length,
+                  itemBuilder: (context, index) {
+                    final log = filteredLogs[index];
+                    if (isCompact) {
+                      return _buildLogCard(log);
+                    }
+                    return _buildLogEntry(log, index % 2 == 0);
+                  },
+                );
               },
             ),
           ),
@@ -1072,6 +1016,15 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
     return count;
   }
 
+  // Shorten long action text previews for the table so it doesn't crowd other columns.
+  // Always append an ellipsis so all rows visually end the same way.
+  String _shortenAction(String text, {int max = 32}) {
+    final t = text.trim();
+    if (max <= 0) return '...';
+    final base = t.length <= max ? t : t.substring(0, max);
+    return base.trimRight() + '...';
+  }
+
   // Build the floating filter sidebar
   Widget _buildFilterSidebar() {
     return Positioned(
@@ -1081,9 +1034,9 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
-        width: 400,
+        width: math.min(400.0, MediaQuery.of(context).size.width * 0.9),
         transform: Matrix4.translationValues(
-          _isFilterSidebarOpen ? 0 : 400,
+          _isFilterSidebarOpen ? 0 : math.min(400.0, MediaQuery.of(context).size.width * 0.9),
           0,
           0,
         ),
@@ -1111,28 +1064,16 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.filter_list,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+                  const Icon(Icons.filter_list, color: Colors.white, size: 24),
                   const SizedBox(width: 12),
                   const Text(
                     'Filter Options',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   const Spacer(),
                   IconButton(
                     onPressed: () => setState(() => _isFilterSidebarOpen = false),
-                    icon: const Icon(
-                      Icons.close,
-                      color: Colors.white,
-                      size: 24,
-                    ),
+                    icon: const Icon(Icons.close, color: Colors.white, size: 24),
                   ),
                 ],
               ),
@@ -1161,18 +1102,9 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                             _searchQuery = '';
                           });
                         },
-                        icon: const Icon(
-                          Icons.clear_all,
-                          size: 18,
-                          color: Color(0xFF666666),
-                        ),
-                        label: const Text(
-                          'Clear All Filters',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF666666),
-                          ),
-                        ),
+                        icon: const Icon(Icons.clear_all, size: 18, color: Color(0xFF666666)),
+                        label: const Text('Clear All Filters',
+                            style: TextStyle(fontSize: 14, color: Color(0xFF666666))),
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Color(0xFFE0E0E0)),
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1319,29 +1251,18 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
               ),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.info_outline,
-                    size: 16,
-                    color: Colors.grey[600],
-                  ),
+                  Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
                   const SizedBox(width: 8),
                   Text(
                     '${_getActiveFilterCount()} filter${_getActiveFilterCount() == 1 ? '' : 's'} active',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600], fontWeight: FontWeight.w500),
                   ),
                   const Spacer(),
                   TextButton(
                     onPressed: () => setState(() => _isFilterSidebarOpen = false),
                     child: const Text(
                       'Apply Filters',
-                      style: TextStyle(
-                        color: Color(0xFF2ECC71),
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: TextStyle(color: Color(0xFF2ECC71), fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -1424,6 +1345,161 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
           fontWeight: FontWeight.w500,
           color: Color(0xFF2ECC71),
         ),
+      ),
+    );
+  }
+
+  // Build compact mobile card for a single log entry
+  Widget _buildLogCard(Map<String, dynamic> log) {
+    final timestamp = log['timestamp'] as DateTime;
+    final dateFormatter = DateFormat('MMM d, yyyy');
+    final timeFormatter = DateFormat('HH:mm');
+    final status = log['status'] as String;
+    final role = log['user']['role'] as String;
+
+    Color getRoleColor(String role) {
+      switch (role) {
+        case 'Admin':
+          return const Color(0xFF9C27B0);
+        case 'Teacher':
+          return const Color(0xFF2196F3);
+        case 'Guard':
+          return const Color(0xFFFF9800);
+        case 'Driver':
+          return const Color(0xFF4CAF50);
+        case 'Parent':
+          return const Color(0xFFE91E63);
+        case 'System':
+          return const Color(0xFF607D8B);
+        default:
+          return const Color(0xFF757575);
+      }
+    }
+
+    Widget statusPill(String status) {
+      Color color;
+      String label;
+      switch (status) {
+        case 'success':
+          color = const Color(0xFF2ECC71);
+          label = 'Success';
+          break;
+        case 'warning':
+          color = const Color(0xFFF39C12);
+          label = 'Warning';
+          break;
+        case 'error':
+          color = const Color(0xFFE74C3C);
+          label = 'Error';
+          break;
+        default:
+          color = Colors.grey;
+          label = 'Unknown';
+      }
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: color)),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('${dateFormatter.format(timestamp)}  ${timeFormatter.format(timestamp)}',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1A1A1A))),
+              statusPill(status),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Text(log['user']['name'],
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1A1A1A)),
+                    overflow: TextOverflow.ellipsis),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: getRoleColor(role).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: getRoleColor(role).withOpacity(0.3), width: 0.5),
+                ),
+                child: Text(role, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: getRoleColor(role))),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(log['module'], style: const TextStyle(fontSize: 13, color: Color(0xFF1A1A1A)), overflow: TextOverflow.ellipsis),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(color: const Color(0xFF2ECC71).withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
+                child: Text(log['actionType'],
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Color(0xFF2ECC71))),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            log['details'],
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.3),
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: PopupMenuButton<String>(
+              color: Colors.white,
+              icon: Icon(Icons.more_vert, color: Colors.grey.shade600, size: 18),
+              onSelected: (value) {
+                switch (value) {
+                  case 'view':
+                    _showLogDetails(log);
+                    break;
+                  case 'copy':
+                    _copyLogDetails(log);
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'view',
+                  child: Row(children: [Icon(Icons.visibility, size: 16, color: Colors.grey[600]), const SizedBox(width: 8), const Text('View Details')]),
+                ),
+                PopupMenuItem(
+                  value: 'copy',
+                  child: Row(children: [Icon(Icons.copy, size: 16, color: Colors.grey[600]), const SizedBox(width: 8), const Text('Copy Info')]),
+                ),
+              ],
+            ),
+          )
+        ],
       ),
     );
   }
@@ -1560,45 +1636,33 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
       child: Row(
         children: [
           // Timestamp column
-          SizedBox(
-            width: 140,
+          Expanded(
+            flex: 2,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   dateFormatter.format(timestamp),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: Color(0xFF1A1A1A),
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1A1A1A)),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   timeFormatter.format(timestamp),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w400,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w400),
                 ),
               ],
             ),
           ),
 
           // User & Role column
-          SizedBox(
-            width: 180,
+          Expanded(
+            flex: 3,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   log['user']['name'],
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: Color(0xFF1A1A1A),
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1A1A1A)),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
@@ -1607,89 +1671,61 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                   decoration: BoxDecoration(
                     color: getRoleColor(role).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: getRoleColor(role).withOpacity(0.3),
-                      width: 0.5,
-                    ),
+                    border: Border.all(color: getRoleColor(role).withOpacity(0.3), width: 0.5),
                   ),
-                  child: Text(
-                    role,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: getRoleColor(role),
-                    ),
-                  ),
+                  child: Text(role,
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: getRoleColor(role))),
                 ),
               ],
             ),
           ),
 
           // Action & Type column
-          SizedBox(
-            width: 160,
+          Expanded(
+            flex: 3,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  log['action'],
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF1A1A1A),
-                  ),
+                  _shortenAction(log['action'].toString(), max: 32),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF1A1A1A)),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
+                  softWrap: false,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2ECC71).withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    log['actionType'],
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF2ECC71),
-                    ),
-                  ),
+                  decoration: BoxDecoration(color: const Color(0xFF2ECC71).withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
+                  child: Text(log['actionType'],
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Color(0xFF2ECC71))),
                 ),
               ],
             ),
           ),
 
           // Module column
-          SizedBox(
-            width: 140,
+          Expanded(
+            flex: 2,
             child: Text(
               log['module'],
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF1A1A1A),
-                fontWeight: FontWeight.w400,
-              ),
+              style: const TextStyle(fontSize: 13, color: Color(0xFF1A1A1A), fontWeight: FontWeight.w400),
               overflow: TextOverflow.ellipsis,
             ),
           ),
 
           // Status column
-          SizedBox(
-            width: 90,
+          Expanded(
+            flex: 2,
             child: getStatusIndicator(status),
           ),
 
           // Details column
           Expanded(
+            flex: 6,
             child: Text(
               log['details'],
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey.shade700,
-                height: 1.3,
-              ),
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.3),
               overflow: TextOverflow.ellipsis,
               maxLines: 2,
             ),
@@ -1699,6 +1735,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
           SizedBox(
             width: 60,
             child: PopupMenuButton<String>(
+              color: Colors.white,
               icon: Icon(
                 Icons.more_vert,
                 color: Colors.grey.shade600,
@@ -1759,6 +1796,8 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
         title: Row(
           children: [
             const Icon(
@@ -1777,7 +1816,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
           ],
         ),
         content: Container(
-          width: 500,
+          width: math.min(500.0, MediaQuery.of(context).size.width - 48),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1804,7 +1843,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.grey[50],
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.grey[200]!),
                 ),
