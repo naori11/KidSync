@@ -303,6 +303,22 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     return date;
   }
 
+  // Computes the vertical space taken by a section header (font size/weight) plus
+  // the 16px gap used before a card, so we can align columns precisely on wide screens.
+  double _sectionHeaderSpacer(BuildContext context) {
+    const style = TextStyle(
+      fontSize: 18,
+      fontWeight: FontWeight.w600,
+      color: Color(0xFF1F2937),
+    );
+    final painter = TextPainter(
+      text: const TextSpan(text: "Today's Schedule", style: style),
+      maxLines: 1,
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return painter.height + 16; // header height + SizedBox(16)
+  }
+
   Widget _buildSummaryCards() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -337,6 +353,76 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           ),
         ],
       ),
+    );
+  }
+
+  // Responsive details layout following the reference wireframe:
+  // - Broad overview at top (we use AttendanceInsightsCard above)
+  // - Below it: two-column grid
+  //   Left: Today's Schedule (top) + Attendance Alerts (bottom)
+  //   Right: Students Requiring Attention (spans vertically)
+  // On narrow screens, stack vertically in the original order.
+  Widget _buildDetailLayoutGrid() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 1000; // desktop/tablet wide breakpoint
+        if (!isWide) {
+          // Original stacked order for mobile / narrow screens
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildScheduleList(),
+              const SizedBox(height: 24),
+              _buildAlerts(),
+              const SizedBox(height: 24),
+              _buildAttendanceIssues(),
+            ],
+          );
+        }
+
+        // Two-column grid for wide screens
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Left column: schedule + alerts stacked
+            Expanded(
+              flex: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildScheduleList(),
+                  const SizedBox(height: 24),
+                  _buildAlerts(),
+                ],
+              ),
+            ),
+            const SizedBox(width: 24),
+            // No extra horizontal spacer to avoid doubling with inner paddings
+            // Right column: students requiring attention spanning vertically
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Opacity(
+                    opacity: 0.0,
+                    child: Text(
+                      "Today's Schedule",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildAttendanceIssues(),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -953,11 +1039,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      _buildScheduleList(),
-                      const SizedBox(height: 24),
-                      _buildAlerts(),
-                      const SizedBox(height: 24),
-                      _buildAttendanceIssues(),
+                      // Reference layout grid (schedule + alerts on left, issues on right)
+                      _buildDetailLayoutGrid(),
                       _buildViewAllClassesButton(),
                       const SizedBox(height: 32),
                     ],
