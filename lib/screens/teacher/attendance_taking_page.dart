@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:excel/excel.dart' as excel_lib;
+import 'dart:html' as html;
 import '../../services/teacher_audit_service.dart';
 
 class TeacherSectionAttendancePage extends StatefulWidget {
@@ -54,6 +56,7 @@ class _TeacherSectionAttendancePageState
   DateTime? classStartTime;
   DateTime? classEndTime;
   bool isTestingSection = false;
+  bool isTodayClassDay = false;
 
   @override
   void initState() {
@@ -110,6 +113,7 @@ class _TeacherSectionAttendancePageState
     classStartTime = null;
     classEndTime = null;
     attendanceActive = false;
+    isTodayClassDay = false;
 
     if (scheduleRows.isNotEmpty) {
       // Build a readable schedule string (list multiple rows)
@@ -138,6 +142,9 @@ class _TeacherSectionAttendancePageState
       // Determine today's schedules (rows that include today)
       final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       final todayAbbrev = weekDays[now.weekday - 1];
+
+      // Check if today is a class day
+      isTodayClassDay = classDays.contains(todayAbbrev);
 
       final todays =
           scheduleRows.where((r) {
@@ -1087,7 +1094,6 @@ class _TeacherSectionAttendancePageState
         orElse: () => {'fname': 'Unknown', 'lname': 'Student'},
       );
       final studentName = '${student['fname']} ${student['lname']}';
-      final exitTime = DateTime.now().toIso8601String();
       final reason = notesController.text.trim().isEmpty
           ? "Emergency exit - no details provided"
           : notesController.text.trim();
@@ -1111,49 +1117,356 @@ class _TeacherSectionAttendancePageState
     }
   }
 
-  // Export CSV function
-  Future<void> _exportCSV() async {
+  // Export today's attendance as Excel file
+  Future<void> _exportTodayAttendance() async {
     try {
-      // Create CSV content
-      final List<List<String>> csvData = [
-        ['Student Name', 'RFID Status', 'Attendance Status', 'Time'],
-      ];
-
-      for (final student in students) {
-        final scan = todayScan[student['id']];
-        final status = _getCurrentAttendanceStatus(student['id']);
-        final scanTime =
-            scan != null
-                ? DateFormat("h:mm a").format(DateTime.parse(scan['scan_time']))
-                : 'Not tapped';
-
-        csvData.add([
-          '${student['fname']} ${student['lname']}',
-          scan != null ? 'Tapped' : 'Not tapped',
-          status,
-          scanTime,
-        ]);
+      if (students.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No students found to export'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
       }
 
-      // Convert to CSV string and would be used for download
-      // String csvString = csvData.map((row) => row.join(',')).join('\n');
+      // Generate filename and log export action
+      final today = DateTime.now();
+      final todayLabel = DateFormat('yyyy-MM-dd').format(today);
+      final fileName = '${widget.sectionName}_Attendance_${todayLabel}.xlsx';
+      
+      await teacherAuditService.logTeacherAttendanceExport(
+        sectionId: widget.sectionId.toString(),
+        sectionName: widget.sectionName,
+        exportType: 'daily_attendance_report',
+        fileName: fileName,
+        recordCount: students.length,
+        dateRange: todayLabel,
+      );
 
-      // For web, you would typically download the file
-      // For now, just show a success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("CSV export functionality would be implemented here"),
-          backgroundColor: Colors.blue,
-        ),
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const Dialog(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(width: 20),
+                  Text('Generating attendance report...'),
+                ],
+              ),
+            ),
+          );
+        },
       );
+
+      // Create Excel workbook
+      var excel = excel_lib.Excel.createExcel();
+
+      // Create Today's Attendance sheet
+      var attendanceSheet = excel['Today\'s Attendance'];
+      await _createTodayAttendanceSheet(attendanceSheet);
+
+      // Create Summary sheet
+      var summarySheet = excel['Summary'];
+      await _createTodaySummarySheet(summarySheet);
+
+      // Clean up: Remove any default sheets
+      final defaultSheetNames = ['Sheet1', 'Sheet', 'Worksheet'];
+      for (String defaultName in defaultSheetNames) {
+        if (excel.sheets.containsKey(defaultName)) {
+          excel.delete(defaultName);
+        }
+      }
+
+      // Set Today's Attendance as the default sheet
+      excel.setDefaultSheet('Today\'s Attendance');
+
+      // Generate and download file
+      List<int>? fileBytes = excel.encode();
+      if (fileBytes == null) {
+        throw Exception('Failed to generate Excel file');
+      }
+
+      // Download file
+      final blob = html.Blob([
+        fileBytes,
+      ], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..click();
+      html.document.body?.children.add(anchor);
+      anchor.click();
+      html.document.body?.children.remove(anchor);
+      html.Url.revokeObjectUrl(url);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Attendance report exported successfully: $fileName'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error exporting CSV: $e"),
-          backgroundColor: Colors.red,
+      // Close loading dialog if still open
+      if (mounted) Navigator.of(context).pop();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error exporting attendance: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Create Today's Attendance sheet with detailed attendance data
+  Future<void> _createTodayAttendanceSheet(excel_lib.Sheet sheet) async {
+    int rowIndex = 0;
+    final today = DateTime.now();
+    final todayLabel = DateFormat('EEEE, MMMM d, yyyy').format(today);
+
+    // Title
+    var titleCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    titleCell.value = excel_lib.TextCellValue(
+      'DAILY ATTENDANCE REPORT - ${widget.sectionName}',
+    );
+    titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
+    rowIndex += 2;
+
+    // Report info
+    var reportInfos = [
+      ['Section:', widget.sectionName],
+      ['Date:', todayLabel],
+      ['Class Schedule:', _getClassScheduleString()],
+      ['Today is Class Day:', isTodayClassDay ? 'Yes' : 'No'],
+      ['Generated On:', DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())],
+      ['Generated By:', _getCurrentUserName()],
+    ];
+
+    for (var info in reportInfos) {
+      var labelCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
         ),
       );
+      labelCell.value = excel_lib.TextCellValue(info[0]);
+      labelCell.cellStyle = excel_lib.CellStyle(bold: true);
+
+      var valueCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
+      valueCell.value = excel_lib.TextCellValue(info[1]);
+      rowIndex++;
     }
+    rowIndex++;
+
+    // Headers
+    final headers = [
+      'Student Name',
+      'Attendance Status',
+      'Time',
+    ];
+
+    for (int i = 0; i < headers.length; i++) {
+      var headerCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: i,
+          rowIndex: rowIndex,
+        ),
+      );
+      headerCell.value = excel_lib.TextCellValue(headers[i]);
+      headerCell.cellStyle = excel_lib.CellStyle(bold: true);
+    }
+    rowIndex++;
+
+    // Student data rows
+    for (final student in students) {
+      final studentId = student['id'] as int;
+      final fullName = '${student['fname']} ${student['lname']}';
+      final status = _getCurrentAttendanceStatus(studentId);
+      final scan = todayScan[studentId];
+      final attendance = _getCurrentAttendanceRecord(studentId);
+      
+      // Determine time to display based on attendance status
+      String timeToShow = '';
+      if (status == 'Present' || status == 'Late') {
+        // For Present/Late, prefer attendance marked time, fallback to RFID tap time
+        if (attendance?['marked_at'] != null) {
+          timeToShow = DateFormat('h:mm a').format(DateTime.parse(attendance!['marked_at']));
+        } else if (scan != null) {
+          timeToShow = DateFormat('h:mm a').format(DateTime.parse(scan['scan_time']));
+        }
+      } else if (status == 'Excused' || status == 'Emergency Exit') {
+        // For Excused/Emergency Exit, show when it was marked
+        if (attendance?['marked_at'] != null) {
+          timeToShow = DateFormat('h:mm a').format(DateTime.parse(attendance!['marked_at']));
+        }
+      }
+      // For Absent or Not Marked, leave time empty (no meaningful time to show)
+
+      final rowData = [
+        fullName,
+        status,
+        timeToShow,
+      ];
+
+      for (int i = 0; i < rowData.length; i++) {
+        var cell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: i,
+            rowIndex: rowIndex,
+          ),
+        );
+        cell.value = excel_lib.TextCellValue(rowData[i]);
+      }
+      rowIndex++;
+    }
+
+    // Auto-resize columns
+    final columnWidths = [25.0, 18.0, 15.0]; // Student Name, Attendance Status, Time
+    for (int i = 0; i < columnWidths.length; i++) {
+      sheet.setColumnWidth(i, columnWidths[i]);
+    }
+  }
+
+  // Create Summary sheet with attendance statistics
+  Future<void> _createTodaySummarySheet(excel_lib.Sheet sheet) async {
+    int rowIndex = 0;
+    final today = DateTime.now();
+    final todayLabel = DateFormat('EEEE, MMMM d, yyyy').format(today);
+    final summary = _getSummary();
+
+    // Title
+    var titleCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    titleCell.value = excel_lib.TextCellValue(
+      'ATTENDANCE SUMMARY - ${widget.sectionName}',
+    );
+    titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
+    rowIndex += 2;
+
+    // Report info
+    var reportInfos = [
+      ['Section:', widget.sectionName],
+      ['Date:', todayLabel],
+      ['Class Schedule:', _getClassScheduleString()],
+      ['Today is Class Day:', isTodayClassDay ? 'Yes' : 'No'],
+      ['Attendance Active:', attendanceActive ? 'Yes' : 'No'],
+      ['Testing Section:', isTestingSection ? 'Yes' : 'No'],
+    ];
+
+    for (var info in reportInfos) {
+      var labelCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
+      labelCell.value = excel_lib.TextCellValue(info[0]);
+      labelCell.cellStyle = excel_lib.CellStyle(bold: true);
+
+      var valueCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
+      valueCell.value = excel_lib.TextCellValue(info[1]);
+      rowIndex++;
+    }
+    rowIndex++;
+
+    // Attendance Statistics
+    var statsHeader = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    statsHeader.value = excel_lib.TextCellValue('ATTENDANCE STATISTICS');
+    statsHeader.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 16);
+    rowIndex += 2;
+
+    var attendanceStats = [
+      ['Present', summary['Present']],
+      ['Late', summary['Late']],
+      ['Absent', summary['Absent']],
+      ['Excused', summary['Excused']],
+      ['Emergency Exit', summary['Emergency Exit']],
+      ['Not Marked', summary['Not Marked']],
+      ['Total Students', summary['Total']],
+    ];
+
+    for (var stat in attendanceStats) {
+      var labelCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
+      labelCell.value = excel_lib.TextCellValue(stat[0] as String);
+      labelCell.cellStyle = excel_lib.CellStyle(bold: true);
+
+      var valueCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
+      valueCell.value = excel_lib.IntCellValue(stat[1] as int);
+      rowIndex++;
+    }
+
+    // Auto-resize columns
+    sheet.setColumnWidth(0, 20.0);
+    sheet.setColumnWidth(1, 15.0);
+  }
+
+  // Helper methods for Excel generation
+  String _getClassScheduleString() {
+    if (scheduleString != null && scheduleString!.isNotEmpty) {
+      return scheduleString!;
+    }
+    if (classDays.isNotEmpty && startTime != null && endTime != null) {
+      return '${classDays.join(", ")} ${_shortTime(startTime!.format(context))} - ${_shortTime(endTime!.format(context))}';
+    }
+    return 'No schedule information';
+  }
+
+  String _getCurrentUserName() {
+    final user = supabase.auth.currentUser;
+    if (user?.userMetadata?['fname'] != null &&
+        user?.userMetadata?['lname'] != null) {
+      return '${user!.userMetadata!['fname']} ${user.userMetadata!['lname']}';
+    }
+    return user?.email ?? 'Unknown User';
+  }
+
+  Map<String, dynamic>? _getCurrentAttendanceRecord(int studentId) {
+    // Check pending attendance first
+    if (pendingAttendance.containsKey(studentId)) {
+      return pendingAttendance[studentId];
+    }
+    // Check existing attendance
+    return todayAttendance[studentId];
   }
 
   // Calculate countdown to next session
@@ -1397,37 +1710,48 @@ class _TeacherSectionAttendancePageState
                         ),
                         const SizedBox(width: 12),
                         // Export button with student management styling
-                        SizedBox(
-                          height: 44,
-                          child: OutlinedButton.icon(
-                            icon: const Icon(
-                              Icons.file_download_outlined,
-                              color: Color(0xFF2ECC71),
-                              size: 18,
-                            ),
-                            label: const Text(
-                              "Export",
-                              style: TextStyle(
-                                color: Color(0xFF2ECC71),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
+                        Tooltip(
+                          message: (isTodayClassDay || isTestingSection) 
+                            ? "Export today's attendance to Excel"
+                            : "Export is only available on class days or for testing sections",
+                          child: SizedBox(
+                            height: 44,
+                            child: OutlinedButton.icon(
+                              icon: Icon(
+                                Icons.file_download_outlined,
+                                color: (isTodayClassDay || isTestingSection) 
+                                  ? const Color(0xFF2ECC71) 
+                                  : Colors.grey,
+                                size: 18,
                               ),
-                            ),
-                            onPressed: _exportCSV,
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              side: const BorderSide(
-                                color: Color(0xFF2ECC71),
-                                width: 1.5,
+                              label: Text(
+                                "Export",
+                                style: TextStyle(
+                                  color: (isTodayClassDay || isTestingSection) 
+                                    ? const Color(0xFF2ECC71) 
+                                    : Colors.grey,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              elevation: 1,
-                              shadowColor: Colors.black.withOpacity(0.05),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
+                              onPressed: (isTodayClassDay || isTestingSection) ? _exportTodayAttendance : null,
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                side: BorderSide(
+                                  color: (isTodayClassDay || isTestingSection) 
+                                    ? const Color(0xFF2ECC71) 
+                                    : Colors.grey,
+                                  width: 1.5,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: (isTodayClassDay || isTestingSection) ? 1 : 0,
+                                shadowColor: Colors.black.withOpacity(0.05),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
                               ),
                             ),
                           ),
