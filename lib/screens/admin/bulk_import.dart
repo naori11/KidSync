@@ -245,7 +245,7 @@ class _BulkImportPageState extends State<BulkImportPage> {
                 _buildBulletItem('Student names should be in format: "Surname, First Name, Middle Name, Suffix"'),
                 _buildBulletItem('Grade levels will be set from the file, sections will be empty for manual assignment'),
                 _buildBulletItem('At least one parent/guardian contact is required'),
-                _buildBulletItem('Duplicate students will be skipped'),
+                _buildBulletItem('Potential duplicate students will be detected and you can choose to skip or import them'),
                 _buildBulletItem('A backup will be created automatically before import'),
               ],
             ),
@@ -323,7 +323,43 @@ class _BulkImportPageState extends State<BulkImportPage> {
                 Icons.error_outline,
                 Colors.red,
               ),
+              const SizedBox(width: 20),
+              _buildStatCard(
+                'Potential Duplicates',
+                potentialDuplicates.length.toString(),
+                Icons.warning_amber_outlined,
+                Colors.orange,
+              ),
+              if (duplicateDecisions.values.where((d) => d == 'skip').isNotEmpty) ...[
+                const SizedBox(width: 20),
+                _buildStatCard(
+                  'Will Skip',
+                  duplicateDecisions.values.where((d) => d == 'skip').length.toString(),
+                  Icons.skip_next,
+                  Colors.orange,
+                ),
+              ],
               const Spacer(),
+              if (potentialDuplicates.isNotEmpty && !isImporting) ...[
+                SizedBox(
+                  height: 44,
+                  child: OutlinedButton.icon(
+                    icon: Icon(Icons.edit, color: Colors.orange[700]),
+                    label: Text(
+                      'Review Duplicates',
+                      style: TextStyle(color: Colors.orange[700]),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.orange[700]!),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: _showDuplicatesModal,
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
               if (validationErrors.isEmpty && !isImporting) ...[
                 SizedBox(
                   height: 44,
@@ -560,13 +596,18 @@ class _BulkImportPageState extends State<BulkImportPage> {
   }
 
   Widget _buildPreviewCard(Map<String, dynamic> record, int rowNumber) {
+    final willBeSkipped = duplicateDecisions[record['row_number']] == 'skip';
+    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: willBeSkipped ? Colors.orange[50] : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(
+          color: willBeSkipped ? Colors.orange[200]! : Colors.grey[200]!,
+          width: willBeSkipped ? 2 : 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.02),
@@ -583,11 +624,11 @@ class _BulkImportPageState extends State<BulkImportPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2ECC71),
+                  color: willBeSkipped ? Colors.orange[600] : const Color(0xFF2ECC71),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'Row $rowNumber',
+                  willBeSkipped ? 'Row $rowNumber (WILL SKIP)' : 'Row $rowNumber',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
@@ -599,9 +640,11 @@ class _BulkImportPageState extends State<BulkImportPage> {
               Expanded(
                 child: Text(
                   'Student: ${record['student_fname']} ${record['student_lname']}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
+                    color: willBeSkipped ? Colors.grey[600] : Colors.black,
+                    decoration: willBeSkipped ? TextDecoration.lineThrough : null,
                   ),
                 ),
               ),
@@ -610,26 +653,472 @@ class _BulkImportPageState extends State<BulkImportPage> {
           const SizedBox(height: 8),
           Text(
             'Grade: ${record['student_grade']} | Gender: ${record['student_gender']}',
-            style: TextStyle(color: Colors.grey[600]),
+            style: TextStyle(
+              color: Colors.grey[600],
+              decoration: willBeSkipped ? TextDecoration.lineThrough : null,
+            ),
           ),
           if (record['father_fname'] != null &&
               record['father_fname'].toString().trim().isNotEmpty)
             Text(
               'Father: ${record['father_fname']} ${record['father_lname']} (${record['father_email']})',
-              style: TextStyle(color: Colors.grey[600]),
+              style: TextStyle(
+                color: Colors.grey[600],
+                decoration: willBeSkipped ? TextDecoration.lineThrough : null,
+              ),
             ),
           if (record['mother_fname'] != null &&
               record['mother_fname'].toString().trim().isNotEmpty)
             Text(
               'Mother: ${record['mother_fname']} ${record['mother_lname']} (${record['mother_email']})',
-              style: TextStyle(color: Colors.grey[600]),
+              style: TextStyle(
+                color: Colors.grey[600],
+                decoration: willBeSkipped ? TextDecoration.lineThrough : null,
+              ),
             ),
           if (record['guardian_fname'] != null &&
               record['guardian_fname'].toString().trim().isNotEmpty)
             Text(
               'Guardian: ${record['guardian_fname']} ${record['guardian_lname']} (${record['guardian_email']})',
-              style: TextStyle(color: Colors.grey[600]),
+              style: TextStyle(
+                color: Colors.grey[600],
+                decoration: willBeSkipped ? TextDecoration.lineThrough : null,
+              ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showDuplicatesModal() async {
+    if (potentialDuplicates.isEmpty) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          height: MediaQuery.of(context).size.height * 0.8,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Icon(Icons.warning_amber_outlined, color: Colors.orange[700], size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Potential Duplicates Found',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange[700],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${potentialDuplicates.length} record(s) may be duplicates of existing students',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Instructions
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Review each potential duplicate below. Choose "Skip" to exclude from import or "Import Anyway" to proceed. Skipped records will exclude all related data (student and parent information).',
+                        style: TextStyle(color: Colors.blue[700], fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Duplicates list
+              Expanded(
+                child: ListView.builder(
+                  itemCount: potentialDuplicates.length,
+                  itemBuilder: (context, index) {
+                    return _buildDuplicateComparisonCard(potentialDuplicates[index]);
+                  },
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Action buttons
+              Row(
+                children: [
+                  // Stats
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Summary',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Total duplicates: ${potentialDuplicates.length}',
+                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          ),
+                          Text(
+                            'Will skip: ${duplicateDecisions.values.where((d) => d == 'skip').length}',
+                            style: TextStyle(fontSize: 12, color: Colors.orange[700]),
+                          ),
+                          Text(
+                            'Will import: ${duplicateDecisions.values.where((d) => d == 'import').length}',
+                            style: TextStyle(fontSize: 12, color: Colors.green[700]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 16),
+                  
+                  // Action buttons
+                  Column(
+                    children: [
+                      SizedBox(
+                        width: 120,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            // Skip all duplicates
+                            setState(() {
+                              for (final duplicate in potentialDuplicates) {
+                                duplicateDecisions[duplicate['row_number']] = 'skip';
+                              }
+                            });
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange[600],
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('Skip All'),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 8),
+                      
+                      SizedBox(
+                        width: 120,
+                        child: OutlinedButton(
+                          onPressed: () {
+                            // Import all duplicates
+                            setState(() {
+                              for (final duplicate in potentialDuplicates) {
+                                duplicateDecisions[duplicate['row_number']] = 'import';
+                              }
+                            });
+                          },
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: Colors.green[600]!),
+                            foregroundColor: Colors.green[600],
+                          ),
+                          child: const Text('Import All'),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      SizedBox(
+                        width: 120,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2ECC71),
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('Continue'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDuplicateComparisonCard(Map<String, dynamic> duplicate) {
+    final importRecord = duplicate['import_record'];
+    final existingStudent = duplicate['existing_student'];
+    final rowNumber = duplicate['row_number'];
+    final similarityScore = duplicate['similarity_score'];
+    final matchReasons = duplicate['match_reasons'] as List<String>;
+    final currentDecision = duplicateDecisions[rowNumber] ?? 'skip';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: currentDecision == 'skip' ? Colors.orange[300]! : Colors.green[300]!,
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with similarity score and decision buttons
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange[100],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Row $rowNumber',
+                  style: TextStyle(
+                    color: Colors.orange[800],
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.red[100],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${(similarityScore * 100).toInt()}% Match',
+                  style: TextStyle(
+                    color: Colors.red[800],
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              // Decision buttons
+              Row(
+                children: [
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        duplicateDecisions[rowNumber] = 'skip';
+                      });
+                    },
+                    icon: Icon(
+                      Icons.skip_next,
+                      size: 16,
+                      color: currentDecision == 'skip' ? Colors.orange[700] : Colors.grey,
+                    ),
+                    label: Text(
+                      'Skip',
+                      style: TextStyle(
+                        color: currentDecision == 'skip' ? Colors.orange[700] : Colors.grey,
+                        fontWeight: currentDecision == 'skip' ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      backgroundColor: currentDecision == 'skip' ? Colors.orange[50] : null,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        duplicateDecisions[rowNumber] = 'import';
+                      });
+                    },
+                    icon: Icon(
+                      Icons.add,
+                      size: 16,
+                      color: currentDecision == 'import' ? Colors.green[700] : Colors.grey,
+                    ),
+                    label: Text(
+                      'Import Anyway',
+                      style: TextStyle(
+                        color: currentDecision == 'import' ? Colors.green[700] : Colors.grey,
+                        fontWeight: currentDecision == 'import' ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      backgroundColor: currentDecision == 'import' ? Colors.green[50] : null,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Match reasons
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: matchReasons.map((reason) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Text(
+                reason,
+                style: TextStyle(
+                  color: Colors.blue[700],
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            )).toList(),
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Side-by-side comparison
+          Row(
+            children: [
+              // Import data (left side)
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[25],
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.blue[100]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Import Data',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue[700],
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${importRecord['student_fname']} ${importRecord['student_mname'] ?? ''} ${importRecord['student_lname']}'.trim(),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      if (importRecord['student_birthday'] != null)
+                        Text(
+                          'DOB: ${DateTime.parse(importRecord['student_birthday']).toString().split(' ')[0]}',
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      Text(
+                        'Grade: ${importRecord['student_grade']}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              const SizedBox(width: 12),
+              
+              // Existing data (right side)
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green[25],
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.green[100]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Existing Student',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green[700],
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${existingStudent['fname']} ${existingStudent['mname'] ?? ''} ${existingStudent['lname']}'.trim(),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      if (existingStudent['birthday'] != null)
+                        Text(
+                          'DOB: ${existingStudent['birthday']}',
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      Text(
+                        'Grade: ${existingStudent['grade_level']}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                      Text(
+                        'ID: ${existingStudent['id']}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -853,6 +1342,13 @@ class _BulkImportPageState extends State<BulkImportPage> {
       isLoading = false;
       isValidating = false;
     });
+
+    // Show duplicates modal if any potential duplicates were found
+    if (potentialDuplicates.isNotEmpty && mounted) {
+      // Small delay to ensure UI state is updated before showing modal
+      await Future.delayed(const Duration(milliseconds: 100));
+      await _showDuplicatesModal();
+    }
   }
 
   Future<Map<String, dynamic>?> _parseRow(
@@ -1118,34 +1614,238 @@ class _BulkImportPageState extends State<BulkImportPage> {
     }
   }
 
+  // Enhanced duplicate detection with similarity scoring
+  List<Map<String, dynamic>> potentialDuplicates = [];
+  
+  // Track user decisions on duplicates
+  Map<int, String> duplicateDecisions = {}; // row_number -> 'skip' or 'import'
+  
   Future<void> _checkExistingStudents(
     List<Map<String, dynamic>> records,
     List<String> errors,
   ) async {
     try {
+      potentialDuplicates.clear();
+      
       for (final record in records) {
         final rowNum = record['row_number'];
+        
+        // Get all active students for comparison
+        final existingStudents = await supabase
+            .from('students')
+            .select('id, fname, mname, lname, suffix, birthday, grade_level, address')
+            .inFilter('status', ['Active', 'active']);
 
-        // Check if student already exists (check both Active and active status for compatibility)
-        final existingStudent =
-            await supabase
-                .from('students')
-                .select('id, fname, lname, birthday')
-                .eq('fname', record['student_fname'])
-                .eq('lname', record['student_lname'])
-                .eq('birthday', record['student_birthday']?.split('T')[0])
-                .inFilter('status', ['Active', 'active'])
-                .maybeSingle();
-
-        if (existingStudent != null) {
-          errors.add(
-            'Row $rowNum: Student ${record['student_fname']} ${record['student_lname']} already exists in database',
-          );
+        for (final existing in existingStudents) {
+          final similarityScore = _calculateSimilarityScore(record, existing);
+          
+          if (similarityScore > 0.7) { // High similarity threshold
+            potentialDuplicates.add({
+              'row_number': rowNum,
+              'import_record': record,
+              'existing_student': existing,
+              'similarity_score': similarityScore,
+              'match_reasons': _getMatchReasons(record, existing),
+            });
+            
+            // Initialize with 'skip' as default decision for duplicates
+            if (!duplicateDecisions.containsKey(rowNum)) {
+              duplicateDecisions[rowNum] = 'skip';
+            }
+            
+            // Don't add to errors anymore - just track as potential duplicate
+            // User can review and decide whether to skip or import
+            break; // Only report first high-similarity match per record
+          }
         }
       }
     } catch (e) {
       errors.add('Database validation error: $e');
     }
+  }
+
+  double _calculateSimilarityScore(Map<String, dynamic> importRecord, Map<String, dynamic> existingStudent) {
+    double score = 0.0;
+    int criteria = 0;
+
+    // Name similarity (weighted heavily)
+    final importFirstName = (importRecord['student_fname'] ?? '').toString().toLowerCase();
+    final importLastName = (importRecord['student_lname'] ?? '').toString().toLowerCase();
+    final importMiddleName = (importRecord['student_mname'] ?? '').toString().toLowerCase();
+    
+    final existingFirstName = (existingStudent['fname'] ?? '').toString().toLowerCase();
+    final existingLastName = (existingStudent['lname'] ?? '').toString().toLowerCase();
+    final existingMiddleName = (existingStudent['mname'] ?? '').toString().toLowerCase();
+
+    // First name match
+    if (importFirstName.isNotEmpty && existingFirstName.isNotEmpty) {
+      if (importFirstName == existingFirstName) {
+        score += 0.4;
+      } else if (_areSimilarNames(importFirstName, existingFirstName)) {
+        score += 0.2;
+      }
+      criteria++;
+    }
+
+    // Last name match  
+    if (importLastName.isNotEmpty && existingLastName.isNotEmpty) {
+      if (importLastName == existingLastName) {
+        score += 0.4;
+      } else if (_areSimilarNames(importLastName, existingLastName)) {
+        score += 0.2;
+      }
+      criteria++;
+    }
+
+    // Middle name match (if both have middle names)
+    if (importMiddleName.isNotEmpty && existingMiddleName.isNotEmpty) {
+      if (importMiddleName == existingMiddleName) {
+        score += 0.1;
+      }
+      criteria++;
+    }
+
+    // Birthday match
+    if (importRecord['student_birthday'] != null && existingStudent['birthday'] != null) {
+      final importDate = DateTime.tryParse(importRecord['student_birthday'].toString());
+      final existingDate = DateTime.tryParse(existingStudent['birthday'].toString());
+      
+      if (importDate != null && existingDate != null) {
+        final daysDifference = (importDate.difference(existingDate)).inDays.abs();
+        if (daysDifference == 0) {
+          score += 0.3; // Exact birthday match
+        } else if (daysDifference <= 7) {
+          score += 0.1; // Close birthday match
+        }
+        criteria++;
+      }
+    }
+
+    // Grade level proximity
+    final importGrade = importRecord['student_grade']?.toString();
+    final existingGrade = existingStudent['grade_level']?.toString();
+    if (importGrade != null && existingGrade != null) {
+      if (importGrade == existingGrade) {
+        score += 0.1;
+      }
+      criteria++;
+    }
+
+    // Normalize score based on available criteria
+    return criteria > 0 ? score : 0.0;
+  }
+
+  bool _areSimilarNames(String name1, String name2) {
+    // Check for common name variations and nicknames
+    final commonVariations = {
+      'michael': ['mike', 'mick'],
+      'elizabeth': ['liz', 'beth', 'betty'],
+      'robert': ['rob', 'bob', 'bobby'],
+      'william': ['will', 'bill', 'billy'],
+      'james': ['jim', 'jimmy'],
+      'richard': ['rick', 'dick'],
+      'christopher': ['chris'],
+      'matthew': ['matt'],
+      'anthony': ['tony'],
+      'patricia': ['pat', 'patty'],
+      'jennifer': ['jen', 'jenny'],
+      'maria': ['mary'],
+      'jose': ['joe'],
+      'antonio': ['tony'],
+    };
+
+    // Check if one name is a nickname of the other
+    for (final entry in commonVariations.entries) {
+      if ((name1 == entry.key && entry.value.contains(name2)) ||
+          (name2 == entry.key && entry.value.contains(name1))) {
+        return true;
+      }
+    }
+
+    // Check for phonetic similarity (simple)
+    if (name1.length > 2 && name2.length > 2) {
+      final soundsLike = _getSoundexCode(name1) == _getSoundexCode(name2);
+      if (soundsLike) return true;
+    }
+
+    return false;
+  }
+
+  String _getSoundexCode(String name) {
+    // Simple Soundex algorithm for phonetic matching
+    if (name.isEmpty) return '';
+    
+    final code = StringBuffer();
+    code.write(name[0].toUpperCase());
+    
+    final mapping = {
+      'bfpv': '1',
+      'cgjkqsxz': '2',
+      'dt': '3',
+      'l': '4',
+      'mn': '5',
+      'r': '6'
+    };
+    
+    for (int i = 1; i < name.length && code.length < 4; i++) {
+      final char = name[i].toLowerCase();
+      for (final entry in mapping.entries) {
+        if (entry.key.contains(char)) {
+          if (code.toString().isEmpty || code.toString().split('').last != entry.value) {
+            code.write(entry.value);
+            break;
+          }
+        }
+      }
+    }
+    
+    // Pad with zeros
+    while (code.length < 4) {
+      code.write('0');
+    }
+    
+    return code.toString();
+  }
+
+  List<String> _getMatchReasons(Map<String, dynamic> importRecord, Map<String, dynamic> existingStudent) {
+    final reasons = <String>[];
+    
+    final importFirstName = (importRecord['student_fname'] ?? '').toString().toLowerCase();
+    final importLastName = (importRecord['student_lname'] ?? '').toString().toLowerCase();
+    final existingFirstName = (existingStudent['fname'] ?? '').toString().toLowerCase();
+    final existingLastName = (existingStudent['lname'] ?? '').toString().toLowerCase();
+
+    if (importFirstName == existingFirstName) {
+      reasons.add('Same first name');
+    } else if (_areSimilarNames(importFirstName, existingFirstName)) {
+      reasons.add('Similar first name');
+    }
+
+    if (importLastName == existingLastName) {
+      reasons.add('Same last name');
+    } else if (_areSimilarNames(importLastName, existingLastName)) {
+      reasons.add('Similar last name');
+    }
+
+    if (importRecord['student_birthday'] != null && existingStudent['birthday'] != null) {
+      final importDate = DateTime.tryParse(importRecord['student_birthday'].toString());
+      final existingDate = DateTime.tryParse(existingStudent['birthday'].toString());
+      
+      if (importDate != null && existingDate != null) {
+        final daysDifference = (importDate.difference(existingDate)).inDays.abs();
+        if (daysDifference == 0) {
+          reasons.add('Same birthday');
+        } else if (daysDifference <= 7) {
+          reasons.add('Similar birthday');
+        }
+      }
+    }
+
+    if (importRecord['student_grade'] == existingStudent['grade_level']) {
+      reasons.add('Same grade level');
+    }
+
+    return reasons;
   }
 
   Future<void> _startImport() async {
@@ -1155,10 +1855,21 @@ class _BulkImportPageState extends State<BulkImportPage> {
       return;
     }
 
+    // Filter out records that user decided to skip
+    final recordsToImport = parsedData.where((record) {
+      final rowNumber = record['row_number'];
+      final decision = duplicateDecisions[rowNumber];
+      return decision != 'skip'; // Import if no decision (default) or explicitly set to 'import'
+    }).toList();
+
+    final skippedCount = parsedData.length - recordsToImport.length;
+
     setState(() {
       isImporting = true;
       importStats = {
         'total': parsedData.length,
+        'to_import': recordsToImport.length,
+        'skipped': skippedCount,
         'successful': 0,
         'failed': 0,
         'students_created': 0,
@@ -1171,8 +1882,19 @@ class _BulkImportPageState extends State<BulkImportPage> {
       // Create backup
       await _createBackup();
 
-      // Process each record
-      for (final record in parsedData) {
+      // Show confirmation if there are skipped records
+      if (skippedCount > 0) {
+        final shouldContinue = await _showSkipConfirmation(skippedCount);
+        if (!shouldContinue) {
+          setState(() {
+            isImporting = false;
+          });
+          return;
+        }
+      }
+
+      // Process each record that wasn't skipped
+      for (final record in recordsToImport) {
         try {
           await _importRecord(record);
           setState(() {
@@ -1219,6 +1941,32 @@ class _BulkImportPageState extends State<BulkImportPage> {
 
       _showErrorSnackBar('Import failed: $e');
     }
+  }
+
+  Future<bool> _showSkipConfirmation(int skippedCount) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Import'),
+        content: Text(
+          'You have chosen to skip $skippedCount record(s) that appear to be duplicates. '
+          'Do you want to proceed with importing the remaining records?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2ECC71),
+            ),
+            child: const Text('Proceed with Import'),
+          ),
+        ],
+      ),
+    ) ?? false;
   }
 
   Future<void> _createBackup() async {
@@ -1476,6 +2224,11 @@ class _BulkImportPageState extends State<BulkImportPage> {
                 Text('Import Summary:'),
                 const SizedBox(height: 8),
                 Text('• Total Records: ${importStats['total']}'),
+                if (importStats['skipped'] != null && importStats['skipped']! > 0)
+                  Text(
+                    '• Skipped (Duplicates): ${importStats['skipped']}',
+                    style: TextStyle(color: Colors.orange),
+                  ),
                 Text(
                   '• Successful: ${importStats['successful']}',
                   style: TextStyle(color: Colors.green),
@@ -1520,6 +2273,8 @@ class _BulkImportPageState extends State<BulkImportPage> {
     setState(() {
       parsedData.clear();
       validationErrors.clear();
+      potentialDuplicates.clear();
+      duplicateDecisions.clear();
       importStats = {
         'total': 0,
         'successful': 0,
