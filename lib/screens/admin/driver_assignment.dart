@@ -3608,16 +3608,10 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  items:
-                      widget.students.map((student) {
-                        return DropdownMenuItem<String>(
-                          value: student['id'].toString(),
-                          child: Text(
-                            '${student['fname']} ${student['lname']} - ${student['grade_level'] ?? ''}',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        );
-                      }).toList(),
+                  items: _buildStudentDropdownItems(
+                    widget.students,
+                    'No students available',
+                  ),
                   onChanged: (value) {
                     setState(() => selectedStudentId = value);
                     _loadStudentScheduleReference();
@@ -3650,16 +3644,10 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  items:
-                      widget.drivers.map((driver) {
-                        return DropdownMenuItem<String>(
-                          value: driver['id'].toString(),
-                          child: Text(
-                            '${driver['fname']} ${driver['lname']}',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        );
-                      }).toList(),
+                  items: _buildDriverDropdownItems(
+                    widget.drivers,
+                    'No drivers available',
+                  ),
                   onChanged:
                       (value) => setState(() => selectedDriverId = value),
                   validator:
@@ -4297,6 +4285,68 @@ class _AssignmentDialogState extends State<_AssignmentDialog> {
     return days.toString();
   }
 
+  // Helper function to build dropdown items with empty state handling
+  List<DropdownMenuItem<String>> _buildStudentDropdownItems(
+    List<Map<String, dynamic>> students,
+    String emptyMessage,
+  ) {
+    if (students.isEmpty) {
+      return [
+        DropdownMenuItem<String>(
+          value: null,
+          enabled: false,
+          child: Text(
+            emptyMessage,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ];
+    }
+    return students.map((student) {
+      return DropdownMenuItem<String>(
+        value: student['id'].toString(),
+        child: Text(
+          '${student['fname']} ${student['lname']} - ${student['grade_level'] ?? ''}',
+          style: const TextStyle(fontSize: 16),
+        ),
+      );
+    }).toList();
+  }
+
+  // Helper function to build driver dropdown items with empty state handling
+  List<DropdownMenuItem<String>> _buildDriverDropdownItems(
+    List<Map<String, dynamic>> drivers,
+    String emptyMessage,
+  ) {
+    if (drivers.isEmpty) {
+      return [
+        DropdownMenuItem<String>(
+          value: null,
+          enabled: false,
+          child: Text(
+            emptyMessage,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ];
+    }
+    return drivers.map((driver) {
+      return DropdownMenuItem<String>(
+        value: driver['id'].toString(),
+        child: Text(
+          '${driver['fname']} ${driver['lname']}',
+          style: const TextStyle(fontSize: 16),
+        ),
+      );
+    }).toList();
+  }
+
   String _getEarliestTime() {
     if (studentSchedule.isEmpty) return 'N/A';
 
@@ -4408,19 +4458,10 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                items:
-                    widget.drivers.map((driver) {
-                      return DropdownMenuItem<String>(
-                        value: driver['id'].toString(),
-                        child: Text(
-                          '${driver['fname']} ${driver['lname']}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                items: _buildDriverDropdownItems(
+                  widget.drivers,
+                  'No drivers available',
+                ),
                 onChanged: (value) => setState(() => selectedDriverId = value),
                 validator:
                     (value) => value == null ? 'Please select a driver' : null,
@@ -4748,6 +4789,40 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
         ),
       ],
     );
+  }
+
+  // Helper function to build driver dropdown items with empty state handling
+  List<DropdownMenuItem<String>> _buildDriverDropdownItems(
+    List<Map<String, dynamic>> drivers,
+    String emptyMessage,
+  ) {
+    if (drivers.isEmpty) {
+      return [
+        DropdownMenuItem<String>(
+          value: null,
+          enabled: false,
+          child: Text(
+            emptyMessage,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ];
+    }
+    return drivers.map((driver) {
+      return DropdownMenuItem<String>(
+        value: driver['id'].toString(),
+        child: Text(
+          '${driver['fname']} ${driver['lname']}',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }).toList();
   }
 }
 

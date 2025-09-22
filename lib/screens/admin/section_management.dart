@@ -32,6 +32,69 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
   bool get isDesktop => MediaQuery.of(context).size.width >= 1200;
   bool get isSmallMobile => MediaQuery.of(context).size.width < 480;
 
+  // Helper function to build dropdown items with empty state handling
+  List<DropdownMenuItem<T>> _buildDropdownItems<T>({
+    required List<Map<String, dynamic>> items,
+    required String Function(Map<String, dynamic>) getValueFunction,
+    required String Function(Map<String, dynamic>) getDisplayTextFunction,
+    required String emptyMessage,
+    T Function(Map<String, dynamic>)? getDropdownValueFunction,
+  }) {
+    if (items.isEmpty) {
+      return [
+        DropdownMenuItem<T>(
+          value: null,
+          enabled: false,
+          child: Text(
+            emptyMessage,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return items.map((item) {
+      return DropdownMenuItem<T>(
+        value: getDropdownValueFunction != null
+            ? getDropdownValueFunction(item)
+            : getValueFunction(item) as T,
+        child: Text(getDisplayTextFunction(item)),
+      );
+    }).toList();
+  }
+
+  // Helper function for string dropdown items
+  List<DropdownMenuItem<String>> _buildStringDropdownItems({
+    required List<String> items,
+    required String emptyMessage,
+  }) {
+    if (items.isEmpty) {
+      return [
+        DropdownMenuItem<String>(
+          value: null,
+          enabled: false,
+          child: Text(
+            emptyMessage,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return items.map((item) {
+      return DropdownMenuItem<String>(
+        value: item,
+        child: Text(item),
+      );
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -667,15 +730,14 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                           ),
                           value: selectedTeacherId,
                           items:
-                              teachers.map((teacher) {
-                                return DropdownMenuItem(
-                                  value: teacher['id'],
-                                  child: Text(
+                              _buildDropdownItems<dynamic>(
+                                items: teachers,
+                                getValueFunction: (teacher) => teacher['id'].toString(),
+                                getDisplayTextFunction: (teacher) =>
                                     '${teacher['fname']} ${teacher['lname']}',
-                                    style: const TextStyle(fontSize: 16),
-                                  ),
-                                );
-                              }).toList(),
+                                getDropdownValueFunction: (teacher) => teacher['id'],
+                                emptyMessage: 'No teachers available',
+                              ),
                           onChanged: (value) async {
                             setDialogState(() {
                               selectedTeacherId = value;
@@ -1315,7 +1377,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
 
                       // Insert or update
                       if (assignment == null) {
-                        final result = await supabase.from('section_teachers').insert(payload).select('id').single();
+                        await supabase.from('section_teachers').insert(payload);
                         
                         // Get teacher and section names for audit logging
                         final teacherResponse = await supabase
@@ -2211,7 +2273,8 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
   // Sort sections by grade level hierarchy and then by section name
   List<Map<String, dynamic>> _sortSectionsByGradeAndName(List<Map<String, dynamic>> sections) {
     final gradeOrder = [
-      'Preschool',
+      'Pre-K1',
+      'Pre-K2',
       'Kinder',
       'Grade 1',
       'Grade 2',

@@ -47,6 +47,69 @@ class _UserManagementPageState extends State<UserManagementPage> {
   bool _isUploadingImage = false;
   Uint8List? _selectedImageBytes;
 
+  // Helper function to build dropdown items with empty state handling
+  List<DropdownMenuItem<T>> _buildDropdownItems<T>({
+    required List<Map<String, dynamic>> items,
+    required String Function(Map<String, dynamic>) getValueFunction,
+    required String Function(Map<String, dynamic>) getDisplayTextFunction,
+    required String emptyMessage,
+    T Function(Map<String, dynamic>)? getDropdownValueFunction,
+  }) {
+    if (items.isEmpty) {
+      return [
+        DropdownMenuItem<T>(
+          value: null,
+          enabled: false,
+          child: Text(
+            emptyMessage,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return items.map((item) {
+      return DropdownMenuItem<T>(
+        value: getDropdownValueFunction != null
+            ? getDropdownValueFunction(item)
+            : getValueFunction(item) as T,
+        child: Text(getDisplayTextFunction(item)),
+      );
+    }).toList();
+  }
+
+  // Helper function for string dropdown items
+  List<DropdownMenuItem<String>> _buildStringDropdownItems({
+    required List<String> items,
+    required String emptyMessage,
+  }) {
+    if (items.isEmpty) {
+      return [
+        DropdownMenuItem<String>(
+          value: null,
+          enabled: false,
+          child: Text(
+            emptyMessage,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return items.map((item) {
+      return DropdownMenuItem<String>(
+        value: item,
+        child: Text(item),
+      );
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -783,33 +846,50 @@ class _UserManagementPageState extends State<UserManagementPage> {
     final roleOptionsBase = ['Guard', 'Teacher', 'Driver', 'Admin'];
 
     // Build DropdownMenuItem list; insert a disabled 'Parent' item when editing a Parent
-    List<DropdownMenuItem<String>> roleItems =
-        roleOptionsBase.map((role) {
-          IconData roleIcon;
-          switch (role) {
-            case 'Teacher':
-              roleIcon = Icons.school;
-              break;
-            case 'Guard':
-              roleIcon = Icons.security;
-              break;
-            case 'Driver':
-              roleIcon = Icons.directions_bus;
-              break;
-            default:
-              roleIcon = Icons.person;
-          }
-          return DropdownMenuItem(
-            value: role,
-            child: Row(
-              children: [
-                Icon(roleIcon, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 8),
-                Text(role),
-              ],
+    List<DropdownMenuItem<String>> roleItems = [];
+    
+    if (roleOptionsBase.isEmpty) {
+      roleItems.add(
+        DropdownMenuItem<String>(
+          value: null,
+          enabled: false,
+          child: Text(
+            'No roles available',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
             ),
-          );
-        }).toList();
+          ),
+        ),
+      );
+    } else {
+      roleItems = roleOptionsBase.map((role) {
+        IconData roleIcon;
+        switch (role) {
+          case 'Teacher':
+            roleIcon = Icons.school;
+            break;
+          case 'Guard':
+            roleIcon = Icons.security;
+            break;
+          case 'Driver':
+            roleIcon = Icons.directions_bus;
+            break;
+          default:
+            roleIcon = Icons.person;
+        }
+        return DropdownMenuItem(
+          value: role,
+          child: Row(
+            children: [
+              Icon(roleIcon, size: 16, color: Colors.grey[600]),
+              const SizedBox(width: 8),
+              Text(role),
+            ],
+          ),
+        );
+      }).toList();
+    }
 
     // If editing a Parent, include a non-selectable Parent item so the dropdown can show it
     if (selectedRole == 'Parent') {

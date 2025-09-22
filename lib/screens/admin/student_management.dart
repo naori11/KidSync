@@ -719,13 +719,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                     genderOptions.contains(selectedGender)
                                         ? selectedGender
                                         : null,
-                                items:
-                                    genderOptions.map((gender) {
-                                      return DropdownMenuItem(
-                                        value: gender,
-                                        child: Text(gender),
-                                      );
-                                    }).toList(),
+                                items: _buildStringDropdownItems(
+                                  genderOptions,
+                                  'No gender options available',
+                                ),
                                 onChanged: (value) {
                                   setDialogState(() {
                                     selectedGender = value;
@@ -835,13 +832,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                     gradeOptions.contains(selectedGradeLevel)
                                         ? selectedGradeLevel
                                         : null,
-                                items:
-                                    gradeOptions.map((grade) {
-                                      return DropdownMenuItem(
-                                        value: grade,
-                                        child: Text(grade),
-                                      );
-                                    }).toList(),
+                                items: _buildStringDropdownItems(
+                                  gradeOptions,
+                                  'No grade levels available',
+                                ),
                                 onChanged: (value) {
                                   setDialogState(() {
                                     selectedGradeLevel = value;
@@ -866,23 +860,43 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   isRequired: true,
                                 ),
                                 value: selectedSectionId,
-                                items:
-                                    sections
-                                        .where(
-                                          (s) =>
-                                              selectedGradeLevel == null ||
-                                              s['grade_level'] ==
-                                                  selectedGradeLevel,
-                                        )
-                                        .map((section) {
-                                          return DropdownMenuItem<int>(
-                                            value: section['id'],
-                                            child: Text(
-                                              '${section['name']} (${section['grade_level']})',
-                                            ),
-                                          );
-                                        })
-                                        .toList(),
+                                items: () {
+                                  final filteredSections = sections
+                                      .where(
+                                        (s) =>
+                                            selectedGradeLevel == null ||
+                                            s['grade_level'] ==
+                                                selectedGradeLevel,
+                                      )
+                                      .toList();
+                                  
+                                  if (filteredSections.isEmpty) {
+                                    return [
+                                      DropdownMenuItem<int>(
+                                        value: null,
+                                        enabled: false,
+                                        child: Text(
+                                          selectedGradeLevel == null 
+                                              ? 'Please select grade level first'
+                                              : 'No sections available for this grade',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ),
+                                    ];
+                                  }
+                                  
+                                  return filteredSections.map((section) {
+                                    return DropdownMenuItem<int>(
+                                      value: section['id'],
+                                      child: Text(
+                                        '${section['name']} (${section['grade_level']})',
+                                      ),
+                                    );
+                                  }).toList();
+                                }(),
                                 onChanged: (value) {
                                   setDialogState(() {
                                     selectedSectionId = value;
@@ -2134,6 +2148,64 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         fontWeight: FontWeight.w500,
       ),
     );
+  }
+
+  // Helper function to build dropdown items with empty state handling
+  List<DropdownMenuItem<T>> _buildDropdownItems<T>(
+    List<Map<String, dynamic>> items,
+    String valueField,
+    String displayField,
+    String emptyMessage,
+  ) {
+    if (items.isEmpty) {
+      return [
+        DropdownMenuItem<T>(
+          value: null,
+          enabled: false,
+          child: Text(
+            emptyMessage,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ];
+    }
+    return items.map((item) {
+      return DropdownMenuItem<T>(
+        value: item[valueField] as T,
+        child: Text(item[displayField]),
+      );
+    }).toList();
+  }
+
+  // Helper function to build string dropdown items with empty state handling
+  List<DropdownMenuItem<String>> _buildStringDropdownItems(
+    List<String> items,
+    String emptyMessage,
+  ) {
+    if (items.isEmpty) {
+      return [
+        DropdownMenuItem<String>(
+          value: null,
+          enabled: false,
+          child: Text(
+            emptyMessage,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ];
+    }
+    return items.map((item) {
+      return DropdownMenuItem<String>(
+        value: item,
+        child: Text(item),
+      );
+    }).toList();
   }
 
   Future<void> _deleteStudent(int id, {Map<String, dynamic>? studentData}) async {

@@ -232,6 +232,41 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
     Navigator.of(context).pop(result);
   }
 
+  // Helper function for string dropdown items
+  List<DropdownMenuItem<String>> _buildStringDropdownItems({
+    required List<String> items,
+    required String emptyMessage,
+  }) {
+    if (items.isEmpty) {
+      return [
+        DropdownMenuItem<String>(
+          value: null,
+          enabled: false,
+          child: Text(
+            emptyMessage,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return items.map((item) {
+      return DropdownMenuItem<String>(
+        value: item,
+        child: Text(
+          item.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.parent != null;
