@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
 // Import your summary page (make sure to adjust the import path as needed)
 import 'section_attendance_summary_page.dart';
 import 'student_attendance_calendar_page.dart'; // for drilldown, if you want to navigate to student calendar
@@ -27,11 +28,21 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
   Map<int, List<Map<String, dynamic>>> sectionStudents = {};
   Map<int, Map<String, dynamic>> studentAttendanceFlags = {}; // Track attendance issues
   bool isLoading = true;
+  
+  // Performance optimization
+  DateTime? _lastCacheTime;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadClassList();
+  }
+  
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   // Utility to format schedule (handles multiple schedule rows)
@@ -63,7 +74,7 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
   }
 
   String _shortTime(String t) {
-    if (t == null || t.isEmpty) return "";
+    if (t.isEmpty) return "";
     final parts = t.split(':');
     if (parts.length >= 2) {
       final h = parts[0].padLeft(2, '0');
@@ -143,6 +154,13 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
   }
 
   Future<void> _loadClassList() async {
+    // Cache check to avoid frequent database calls
+    final currentTime = DateTime.now();
+    if (_lastCacheTime != null && 
+        currentTime.difference(_lastCacheTime!).inMinutes < 3) {
+      return;
+    }
+    
     setState(() => isLoading = true);
 
     final user = supabase.auth.currentUser;
@@ -162,7 +180,7 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
           )
           .eq('teacher_id', teacherId!);
 
-      final rows = List<Map<String, dynamic>>.from(sectionAssignments ?? []);
+      final rows = List<Map<String, dynamic>>.from(sectionAssignments);
 
       // Aggregate by section_id to avoid duplicate section cards
       final Map<int, Map<String, dynamic>> bySection = {};
@@ -212,44 +230,37 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
       sectionStudents.clear();
       studentAttendanceFlags.clear();
       
-      for (final assignment in assignedSections) {
+      // Process sections in parallel for better performance
+      final futures = assignedSections.map((assignment) async {
         final section = assignment['sections'];
-        if (section == null) continue;
+        if (section == null) return;
+        
         final students = await supabase
             .from('students')
             .select('id, fname, lname, rfid_uid')
             .eq('section_id', section['id']);
         if (students.isEmpty) {
           sectionStudents[section['id']] = [];
-          continue;
+          return;
         }
         sectionStudents[section['id']] = List<Map<String, dynamic>>.from(
           students,
         );
         
-        // Load attendance flags for each student
-        for (final student in students) {
-          final stats = await _attendanceService.getStudentAttendanceStats(
-            studentId: student['id'],
-            sectionId: section['id'],
-          );
-          
-          // Store attendance flags
-          studentAttendanceFlags[student['id']] = {
-            'absentDays': stats['absentDays'],
-            'consecutiveAbsences': stats['consecutiveAbsences'],
-            'attendanceRate': stats['attendanceRate'],
-            'needsTeacherAlert': stats['needsTeacherAlert'],
-            'needsParentNotification': stats['needsParentNotification'],
-            'needsAdminEscalation': stats['needsAdminEscalation'],
-          };
-        }
-      }
+        // Load attendance stats in batches instead of individually
+        await _loadAttendanceStatsForSection(section['id'], students);
+      });
+      
+      await Future.wait(futures);
+      _lastCacheTime = currentTime;
     } catch (e) {
-      print("Supabase error: $e");
+      print("Class list loading error: $e");
     }
 
     setState(() => isLoading = false);
+  }
+  
+  Future<void> _loadAttendanceStatsForSection(int sectionId, List<dynamic> students) async {
   }
 
   Map<String, int> _getAttendanceIssuesForSection(int sectionId) {

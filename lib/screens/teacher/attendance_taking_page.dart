@@ -35,6 +35,10 @@ class _TeacherSectionAttendancePageState
   // Add these new variables for local state management
   Map<int, Map<String, dynamic>> pendingAttendance = {};
   bool hasUnsavedChanges = false;
+  
+  // Performance optimization
+  Timer? _loadingDebouncer;
+  DateTime? _lastLoadTime;
 
   bool isLoading = true;
   bool isSubmitting = false;
@@ -69,8 +73,8 @@ class _TeacherSectionAttendancePageState
   Timer? _rfidTimer;
 
   void _setupRfidMonitoring() {
-    // Check for new RFID taps every 30 seconds during active attendance
-    _rfidTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+    // Check for new RFID taps every 45 seconds (reduced from 30) to save resources
+    _rfidTimer = Timer.periodic(const Duration(seconds: 45), (timer) {
       if (attendanceActive || isTestingSection) {
         _checkForNewRfidTaps();
       }
@@ -80,7 +84,15 @@ class _TeacherSectionAttendancePageState
   @override
   void dispose() {
     _rfidTimer?.cancel();
+    _loadingDebouncer?.cancel();
     super.dispose();
+  }
+  
+  void _debouncedLoadAttendance() {
+    _loadingDebouncer?.cancel();
+    _loadingDebouncer = Timer(const Duration(milliseconds: 500), () {
+      _loadAttendanceData();
+    });
   }
 
   Future<void> _loadAttendanceData() async {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
 import 'class_list_page.dart';
 import '../../services/attendance_monitoring_service.dart';
 import '../../services/attendance_ticketing_service.dart';
@@ -39,6 +40,10 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   List<Map<String, dynamic>> studentsWithAttendanceIssues = [];
   Map<String, dynamic> attendanceInsights = {};
   bool isLoading = true;
+  
+  // Simple performance caching
+  DateTime? _lastLoadTime;
+  Timer? _refreshTimer;
 
   int totalClassesToday = 0;
   int totalStudentsToday = 0;
@@ -51,6 +56,12 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   void initState() {
     super.initState();
     _loadDashboard();
+  }
+  
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   String formatSchedule(Map<String, dynamic> assignment) {
@@ -110,6 +121,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   }
 
   Future<void> _loadDashboard() async {
+    // Simple cache check - avoid reloading data if loaded recently
+    final currentTime = DateTime.now();
+    if (_lastLoadTime != null && 
+        currentTime.difference(_lastLoadTime!).inMinutes < 2) {
+      return;
+    }
+    
     setState(() => isLoading = true);
 
     final user = supabase.auth.currentUser;
@@ -292,6 +310,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       teacherId: teacherId!,
     );
 
+    _lastLoadTime = DateTime.now();
     setState(() => isLoading = false);
   }
 
