@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -244,106 +243,11 @@ class _BulkImportPageState extends State<BulkImportPage> {
                 _buildBulletItem('Use the provided template format'),
                 _buildBulletItem('Ensure all required fields are filled'),
                 _buildBulletItem('Student names should be in format: "Surname, First Name, Middle Name, Suffix"'),
+                _buildBulletItem('Grade levels will be set from the file, sections will be empty for manual assignment'),
                 _buildBulletItem('At least one parent/guardian contact is required'),
                 _buildBulletItem('Duplicate students will be skipped'),
                 _buildBulletItem('A backup will be created automatically before import'),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Professional UI helpers
-  Widget _buildProcessSteps() {
-    final bool hasParsed = parsedData.isNotEmpty;
-    final bool hasErrors = validationErrors.isNotEmpty;
-    final bool validating = isValidating;
-    final bool importing = isImporting;
-
-    int activeIndex;
-    if (importing) {
-      activeIndex = 3;
-    } else if (validating) {
-      activeIndex = 2;
-    } else if (!hasParsed) {
-      activeIndex = 1;
-    } else {
-      activeIndex = hasErrors ? 2 : 3;
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          )
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(child: _buildStep('Download Template', Icons.file_download_outlined, 0, activeIndex)),
-          const SizedBox(width: 12),
-          Expanded(child: _buildStep('Upload File', Icons.upload_file, 1, activeIndex)),
-          const SizedBox(width: 12),
-          Expanded(child: _buildStep('Validate', Icons.verified_outlined, 2, activeIndex)),
-          const SizedBox(width: 12),
-          Expanded(child: _buildStep('Import', Icons.playlist_add_check_circle_outlined, 3, activeIndex)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStep(String label, IconData icon, int index, int activeIndex) {
-    final bool isActive = activeIndex == index;
-    final bool isCompleted = activeIndex > index;
-    final Color primary = const Color(0xFF2ECC71);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: isActive || isCompleted ? primary.withOpacity(0.06) : Colors.grey[50],
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isActive
-              ? primary
-              : (isCompleted ? primary.withOpacity(0.5) : Colors.grey[200]!),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: (isActive || isCompleted) ? primary.withOpacity(0.15) : Colors.grey[200],
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              isCompleted ? Icons.check : icon,
-              size: 16,
-              color: isActive || isCompleted ? primary : Colors.grey[600],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isActive || isCompleted ? Colors.black87 : Colors.grey[700],
-              ),
             ),
           ),
         ],
@@ -1142,6 +1046,7 @@ class _BulkImportPageState extends State<BulkImportPage> {
           record['student_grade'].toString().trim().isEmpty) {
         errors.add('Row $rowNum: Student grade is required');
       }
+      // Note: Grade level will be set as provided, sections will be empty for manual assignment
 
       if (record['student_gender'] == null ||
           record['student_gender'].toString().trim().isEmpty) {
@@ -1179,7 +1084,7 @@ class _BulkImportPageState extends State<BulkImportPage> {
         errors.add('Row $rowNum: At least one parent/guardian is required');
       }
 
-      // Email validation
+      // Email validation - more permissive
       for (final parentType in ['father', 'mother', 'guardian']) {
         final email = record['${parentType}_email'];
         final hasParent =
@@ -1187,27 +1092,27 @@ class _BulkImportPageState extends State<BulkImportPage> {
             record['${parentType}_fname'].toString().trim().isNotEmpty;
 
         if (hasParent) {
-          if (email == null || email.toString().trim().isEmpty) {
-            errors.add(
-              'Row $rowNum: ${parentType.capitalize()} email is required',
-            );
-          } else if (!emailRegex.hasMatch(email.toString().trim())) {
-            errors.add('Row $rowNum: Invalid ${parentType} email format');
+          // Only validate email format if provided
+          if (email != null && email.toString().trim().isNotEmpty) {
+            final emailTrimmed = email.toString().trim().toLowerCase();
+            if (!emailRegex.hasMatch(emailTrimmed)) {
+              errors.add('Row $rowNum: Invalid ${parentType} email format');
+            }
+            // Note: Duplicate emails are allowed - existing parents will be linked
           }
 
+          // Phone validation - make optional but validate format if provided
           final phone = record['${parentType}_phone'];
-          if (phone == null || phone.toString().trim().isEmpty) {
-            errors.add(
-              'Row $rowNum: ${parentType.capitalize()} phone is required',
-            );
-          } else if (!phoneRegex.hasMatch(phone.toString().trim())) {
-            errors.add('Row $rowNum: Invalid ${parentType} phone format');
+          if (phone != null && phone.toString().trim().isNotEmpty) {
+            if (!phoneRegex.hasMatch(phone.toString().trim())) {
+              errors.add('Row $rowNum: Invalid ${parentType} phone format');
+            }
           }
         }
       }
     }
 
-    // Check for existing students in database
+    // Check for existing students in database (skip email validation - allow existing emails)
     if (errors.isEmpty) {
       await _checkExistingStudents(records, errors);
     }
@@ -1221,7 +1126,7 @@ class _BulkImportPageState extends State<BulkImportPage> {
       for (final record in records) {
         final rowNum = record['row_number'];
 
-        // Check if student already exists
+        // Check if student already exists (check both Active and active status for compatibility)
         final existingStudent =
             await supabase
                 .from('students')
@@ -1229,7 +1134,7 @@ class _BulkImportPageState extends State<BulkImportPage> {
                 .eq('fname', record['student_fname'])
                 .eq('lname', record['student_lname'])
                 .eq('birthday', record['student_birthday']?.split('T')[0])
-                .eq('status', 'active')
+                .inFilter('status', ['Active', 'active'])
                 .maybeSingle();
 
         if (existingStudent != null) {
@@ -1244,6 +1149,12 @@ class _BulkImportPageState extends State<BulkImportPage> {
   }
 
   Future<void> _startImport() async {
+    // Check if there are validation errors before starting import
+    if (validationErrors.isNotEmpty) {
+      _showErrorSnackBar('Cannot start import: Please resolve all validation errors first');
+      return;
+    }
+
     setState(() {
       isImporting = true;
       importStats = {
@@ -1342,7 +1253,8 @@ class _BulkImportPageState extends State<BulkImportPage> {
                 'grade_level': record['student_grade'],
                 'gender': record['student_gender'],
                 'address': record['student_address'],
-                'status': 'active',
+                'status': 'Active',
+                'section_id': null, // Section will be manually assigned later
               })
               .select()
               .single();
@@ -1351,7 +1263,7 @@ class _BulkImportPageState extends State<BulkImportPage> {
       importStats['students_created'] =
           (importStats['students_created'] ?? 0) + 1;
 
-      // 2. Create parents and relationships
+      // 2. Create parents and relationships - handle errors gracefully
       final parentTypes = ['father', 'mother', 'guardian'];
       List<Map<String, dynamic>> createdParents = [];
 
@@ -1359,54 +1271,71 @@ class _BulkImportPageState extends State<BulkImportPage> {
         final fname = record['${parentType}_fname'];
         if (fname == null || fname.toString().trim().isEmpty) continue;
 
-        final email = record['${parentType}_email'].toString().trim();
-        final phone = record['${parentType}_phone'].toString().trim();
+        try {
+          final email = record['${parentType}_email']?.toString().trim();
+          final phone = record['${parentType}_phone']?.toString().trim();
 
-        // Check if parent with same email already exists
-        final existingParent =
-            await supabase
-                .from('parents')
-                .select('id, user_id')
-                .eq('email', email)
-                .eq('status', 'active')
-                .maybeSingle();
+          // Skip parent if missing critical data
+          if (email == null || email.isEmpty) {
+            print('Skipping $parentType for student $studentId: missing email');
+            continue;
+          }
 
-        int parentId;
-        if (existingParent != null) {
-          // Parent exists, use existing parent
-          parentId = existingParent['id'];
-        } else {
-          // Create new parent and user account
-          final userId = await _createUserAccount(
-            email: email,
-            fname: record['${parentType}_fname'],
-            mname: record['${parentType}_mname'],
-            lname: record['${parentType}_lname'],
-            phone: phone,
-          );
-
-          final parentInsert =
+          // Check if parent with same email already exists
+          final existingParent =
               await supabase
                   .from('parents')
-                  .insert({
-                    'fname': record['${parentType}_fname'],
-                    'mname': record['${parentType}_mname'],
-                    'lname': record['${parentType}_lname'],
-                    'phone': phone,
-                    'email': email,
-                    'address': record['${parentType}_address'],
-                    'status': 'active',
-                    'user_id': userId,
-                  })
-                  .select()
-                  .single();
+                  .select('id, user_id')
+                  .eq('email', email)
+                  .eq('status', 'Active')
+                  .maybeSingle();
 
-          parentId = parentInsert['id'];
-          importStats['parents_created'] =
-              (importStats['parents_created'] ?? 0) + 1;
+          int parentId;
+          if (existingParent != null) {
+            // Parent exists, use existing parent
+            parentId = existingParent['id'];
+            print('Using existing parent $parentId for email $email');
+          } else {
+            // Create new parent and user account
+            try {
+              final userId = await _createUserAccount(
+                email: email,
+                fname: record['${parentType}_fname'],
+                mname: record['${parentType}_mname'],
+                lname: record['${parentType}_lname'],
+                phone: phone ?? '',
+              );
+
+              final parentInsert =
+                  await supabase
+                      .from('parents')
+                      .insert({
+                        'fname': record['${parentType}_fname'],
+                        'mname': record['${parentType}_mname'],
+                        'lname': record['${parentType}_lname'],
+                        'phone': phone,
+                        'email': email,
+                        'address': record['${parentType}_address'],
+                        'status': 'Active',
+                        'user_id': userId,
+                      })
+                      .select()
+                      .single();
+
+              parentId = parentInsert['id'];
+              importStats['parents_created'] =
+                  (importStats['parents_created'] ?? 0) + 1;
+            } catch (parentError) {
+              print('Failed to create parent $parentType: $parentError');
+              continue; // Skip this parent but continue with others
+            }
+          }
+
+          createdParents.add({'id': parentId, 'type': parentType});
+        } catch (parentError) {
+          print('Error processing parent $parentType: $parentError');
+          // Continue with other parents
         }
-
-        createdParents.add({'id': parentId, 'type': parentType});
       }
 
       // 3. Create parent-student relationships
@@ -1516,7 +1445,8 @@ class _BulkImportPageState extends State<BulkImportPage> {
 
       return userId;
     } catch (e) {
-      throw Exception('User creation failed: $e');
+      // More descriptive error for debugging
+      throw Exception('User creation failed for $email: $e');
     }
   }
 

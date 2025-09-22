@@ -585,7 +585,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
     // Grade level options (integers to match database)
     final gradeOptions = [
-      'Preschool',
+      'Pre-K1',
+      'Pre-K2',
       'Kinder',
       'Grade 1',
       'Grade 2',
@@ -4530,11 +4531,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
           2: const FlexColumnWidth(2.0), // Name + Image
           3: const FlexColumnWidth(1.0), // Class
           4: FlexColumnWidth(isTablet ? 0.6 : 0.8), // Gender - responsive
-          5: const FlexColumnWidth(1.2), // Contact
-          6: const FlexColumnWidth(1.4), // Email
-          7: const FlexColumnWidth(1.0), // Enrollment
-          8: FlexColumnWidth(isTablet ? 0.6 : 0.8), // Status - responsive
-          9: const FlexColumnWidth(0.6), // Actions
+          5: const FlexColumnWidth(1.0), // Enrollment
+          6: FlexColumnWidth(isTablet ? 0.6 : 0.8), // Status - responsive
+          7: const FlexColumnWidth(0.6), // Actions
         },
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         children: [
@@ -4862,7 +4861,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   ),
                 ),
 
-                // 9. Status
+                // 6. Status
                 TableCell(
                   verticalAlignment: TableCellVerticalAlignment.middle,
                   child: Container(
@@ -4930,7 +4929,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   ),
                 ),
 
-                // 8. Actions
+                // 7. Actions
                 TableCell(
                   verticalAlignment: TableCellVerticalAlignment.middle,
                   child: Container(
