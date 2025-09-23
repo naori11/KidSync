@@ -38,7 +38,6 @@ class _TeacherSectionAttendancePageState
   
   // Performance optimization
   Timer? _loadingDebouncer;
-  DateTime? _lastLoadTime;
 
   bool isLoading = true;
   bool isSubmitting = false;
@@ -78,6 +77,8 @@ class _TeacherSectionAttendancePageState
       if (attendanceActive || isTestingSection) {
         _checkForNewRfidTaps();
       }
+      // Also check for students who should be automatically marked absent
+      _checkForAutomaticAbsences();
     });
   }
 
@@ -86,13 +87,6 @@ class _TeacherSectionAttendancePageState
     _rfidTimer?.cancel();
     _loadingDebouncer?.cancel();
     super.dispose();
-  }
-  
-  void _debouncedLoadAttendance() {
-    _loadingDebouncer?.cancel();
-    _loadingDebouncer = Timer(const Duration(milliseconds: 500), () {
-      _loadAttendanceData();
-    });
   }
 
   Future<void> _loadAttendanceData() async {
@@ -396,6 +390,105 @@ class _TeacherSectionAttendancePageState
         print('Auto-marked ${autoAttendanceRecords.length} students via RFID');
       } catch (e) {
         print('Error auto-marking attendance: $e');
+      }
+    }
+  }
+
+  // Check for students who should be automatically marked absent when class time has ended
+  Future<void> _checkForAutomaticAbsences() async {
+    // Only apply auto-absence logic for regular sections (not testing sections)
+    if (isTestingSection) return;
+    
+    // Only check if we have a valid class end time
+    if (classEndTime == null) return;
+    
+    final now = DateTime.now();
+    
+    // Only proceed if class time has ended
+    if (!now.isAfter(classEndTime!)) return;
+
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    final today = DateTime.now();
+    final todayDateStr =
+        "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+
+    final List<Map<String, dynamic>> autoAbsenceRecords = [];
+    final List<String> affectedStudents = [];
+    int processedCount = 0;
+
+    for (final student in students) {
+      final studentId = student['id'] as int;
+      
+      // Check if student has no attendance record (neither pending nor existing)
+      final hasPendingAttendance = pendingAttendance.containsKey(studentId);
+      final hasExistingAttendance = todayAttendance.containsKey(studentId);
+      
+      if (!hasPendingAttendance && !hasExistingAttendance) {
+        processedCount++;
+        final studentName = '${student['fname']} ${student['lname']}';
+        
+        final attendanceRecord = {
+          'section_id': widget.sectionId,
+          'student_id': studentId,
+          'date': todayDateStr,
+          'status': 'Absent',
+          'marked_by': user.id,
+          'marked_at': DateTime.now().toIso8601String(),
+          'notes': 'Auto-marked absent - class time ended',
+        };
+
+        autoAbsenceRecords.add(attendanceRecord);
+        affectedStudents.add(studentName);
+        
+        // Update local attendance map
+        todayAttendance[studentId] = attendanceRecord;
+        
+        print('Auto-marking student $studentId as absent - class time ended');
+      }
+    }
+
+    print('Auto-absence processing: $processedCount students to mark absent, ${autoAbsenceRecords.length} records to create');
+
+    // Bulk insert auto-absence records if any
+    if (autoAbsenceRecords.isNotEmpty) {
+      try {
+        // Use upsert with proper conflict resolution for auto-absence
+        for (final record in autoAbsenceRecords) {
+          await supabase.from('section_attendance').upsert(
+            record,
+            onConflict: 'section_id, student_id, date',
+          );
+
+          // Log absence marking
+          final student = students.firstWhere(
+            (s) => s['id'] == record['student_id'],
+            orElse: () => {'fname': 'Unknown', 'lname': 'Student'},
+          );
+          final studentName = '${student['fname']} ${student['lname']}';
+          
+          await teacherAuditService.logAttendanceMarking(
+            studentId: record['student_id'].toString(),
+            studentName: studentName,
+            sectionId: widget.sectionId.toString(),
+            sectionName: widget.sectionName,
+            status: record['status'],
+            date: record['date'],
+            isRfidAssisted: false,
+            notes: 'Auto-absence: class time ended',
+          );
+        }
+        print('Auto-marked ${autoAbsenceRecords.length} students as absent');
+        
+        // Update UI to reflect changes
+        if (mounted) {
+          setState(() {
+            // UI will automatically update with the new todayAttendance data
+          });
+        }
+      } catch (e) {
+        print('Error auto-marking absences: $e');
       }
     }
   }
@@ -840,8 +933,6 @@ class _TeacherSectionAttendancePageState
     }
     
     // Default logic for students without attendance records
-    // Only mark as absent if class time has ended or if it's not a class day
-    final now = DateTime.now();
     
     // For testing sections, always default to "Absent" (existing behavior)
     if (isTestingSection) {
@@ -853,28 +944,29 @@ class _TeacherSectionAttendancePageState
       return "Not Marked";
     }
     
-    // If class time has ended, mark as absent
-    if (classEndTime != null && now.isAfter(classEndTime!)) {
-      return "Absent";
-    }
-    
-    // During active class time, don't mark as absent yet
+    // If class time has ended, the automatic absence marking will handle creating records
+    // This method just reflects what's already in the database or pending changes
+    // Students without records during active attendance time are "Not Marked"
     return "Not Marked";
   }
 
-  // Check if student was auto-marked via RFID
+  // Check if student was auto-marked via RFID (exclude auto-absence from indicator)
   bool _isAutoMarked(int studentId) {
     // Check pending attendance first
     if (pendingAttendance.containsKey(studentId)) {
       final notes = pendingAttendance[studentId]!['notes']?.toString() ?? '';
-      return notes.contains('Auto-marked via RFID');
+      final status = pendingAttendance[studentId]!['status'];
+      // Only show auto indicator for non-absent statuses
+      return notes.contains('Auto-marked via RFID') && status != 'Absent';
     }
     
     // Check existing attendance
     final att = todayAttendance[studentId];
     if (att != null) {
       final notes = att['notes']?.toString() ?? '';
-      return notes.contains('Auto-marked via RFID');
+      final status = att['status'];
+      // Only show auto indicator for non-absent statuses
+      return notes.contains('Auto-marked via RFID') && status != 'Absent';
     }
     
     return false;
