@@ -706,7 +706,7 @@ class _TeacherSectionAttendanceSummaryPageState
             urgentCases++;
           }
           
-          if (badgeType == 'monitoring' || badgeType == 'escalate') {
+          if (badgeType == 'monitoring') {
             notificationsSent++;
           }
         }

@@ -783,34 +783,37 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     // Determine badges to show based on consecutive absences and ticket status
     List<Widget> badgeWidgets = [];
 
-    if (hasTicket && !isResolved) {
+    // Only show badges if there are 3+ consecutive absences and no unresolved notifications
+    if (consecutiveAbsences >= 3 && (!hasTicket || isResolved)) {
+      if (consecutiveAbsences >= 8) {
+        badgeWidgets.add(const AttendanceStatusBadge(
+          type: AttendanceBadgeType.critical,
+        ));
+      } else if (consecutiveAbsences >= 5) {
+        badgeWidgets.add(const AttendanceStatusBadge(
+          type: AttendanceBadgeType.urgent,
+        ));
+      } else if (consecutiveAbsences >= 3) {
+        badgeWidgets.add(const AttendanceStatusBadge(
+          type: AttendanceBadgeType.attention,
+        ));
+      }
+    } else if (hasTicket && !isResolved) {
       badgeWidgets.add(const AttendanceStatusBadge(
         type: AttendanceBadgeType.monitoring,
-      ));
-    } else if (consecutiveAbsences >= 5) {
-      badgeWidgets.add(const AttendanceStatusBadge(
-        type: AttendanceBadgeType.critical,
-      ));
-    } else if (consecutiveAbsences >= 4) {
-      badgeWidgets.add(const AttendanceStatusBadge(
-        type: AttendanceBadgeType.urgent,
-      ));
-    } else if (consecutiveAbsences >= 3) {
-      badgeWidgets.add(const AttendanceStatusBadge(
-        type: AttendanceBadgeType.attention,
       ));
     }
 
     // Determine priority color for container styling
     Color priorityColor;
-    if (consecutiveAbsences >= 5) {
-      priorityColor = const Color(0xFF8B0000);
-    } else if (consecutiveAbsences >= 4) {
-      priorityColor = const Color(0xFFDC2626);
+    if (consecutiveAbsences >= 8) {
+      priorityColor = const Color(0xFF8B0000); // Dark red for critical
+    } else if (consecutiveAbsences >= 5) {
+      priorityColor = const Color(0xFFDC2626); // Red for urgent
     } else if (hasTicket && !isResolved) {
-      priorityColor = const Color(0xFF3B82F6);
+      priorityColor = const Color(0xFF3B82F6); // Blue for monitoring
     } else {
-      priorityColor = const Color(0xFFF59E0B);
+      priorityColor = const Color(0xFFF59E0B); // Orange for attention
     }
 
     return Container(

@@ -261,6 +261,28 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
   }
   
   Future<void> _loadAttendanceStatsForSection(int sectionId, List<dynamic> students) async {
+    try {
+      // Load attendance statistics for students in this section
+      for (final student in students) {
+        final stats = await _attendanceService.getStudentAttendanceStats(
+          studentId: student['id'],
+          sectionId: sectionId,
+        );
+        
+        final consecutiveAbsences = stats['consecutiveAbsences'] as int;
+        final hasParentNotificationSent = stats['hasParentNotificationSent'] as bool;
+        
+        // Only flag students with 3+ consecutive absences and no notification ticket sent
+        if (consecutiveAbsences >= 3 && !hasParentNotificationSent) {
+          studentAttendanceFlags[student['id']] = {
+            'needsTeacherAlert': true,
+            'consecutiveAbsences': consecutiveAbsences,
+          };
+        }
+      }
+    } catch (e) {
+      print('Error loading attendance stats for section $sectionId: $e');
+    }
   }
 
   Map<String, int> _getAttendanceIssuesForSection(int sectionId) {
@@ -271,15 +293,14 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
     
     for (final student in students) {
       final flags = studentAttendanceFlags[student['id']];
-      if (flags != null) {
-        if (flags['needsAdminEscalation'] == true) {
+      if (flags != null && flags['needsTeacherAlert'] == true) {
+        final consecutiveAbsences = flags['consecutiveAbsences'] as int? ?? 0;
+        totalIssues++;
+        
+        if (consecutiveAbsences >= 8) {
           urgentIssues++;
-          totalIssues++;
-        } else if (flags['needsParentNotification'] == true) {
+        } else if (consecutiveAbsences >= 5) {
           highPriorityIssues++;
-          totalIssues++;
-        } else if (flags['needsTeacherAlert'] == true) {
-          totalIssues++;
         }
       }
     }

@@ -6,7 +6,6 @@ enum AttendanceBadgeType {
   attention,
   urgent,
   monitoring,
-  escalate,
   critical,
   resolved,
 }
@@ -76,12 +75,6 @@ class AttendanceStatusBadge extends StatelessWidget {
           color: const Color(0xFFDC2626), // Red
           icon: Icons.priority_high,
         );
-      case AttendanceBadgeType.escalate:
-        return _BadgeConfig(
-          text: 'ESCALATE',
-          color: const Color(0xFFF59E0B), // Orange
-          icon: Icons.warning,
-        );
       case AttendanceBadgeType.monitoring:
         return _BadgeConfig(
           text: 'MONITORING',
@@ -147,9 +140,6 @@ class AttendanceStatusBadgeFromService extends StatelessWidget {
         break;
       case 'urgent':
         type = AttendanceBadgeType.urgent;
-        break;
-      case 'escalate':
-        type = AttendanceBadgeType.escalate;
         break;
       case 'monitoring':
         type = AttendanceBadgeType.monitoring;

@@ -9,10 +9,8 @@ class AttendanceMonitoringService {
   AttendanceMonitoringService._internal();
 
   // Absence thresholds
-  static const int TEACHER_ALERT_THRESHOLD = 5; // Teacher notified after 5 absences
   static const int PARENT_NOTIFICATION_THRESHOLD = 5; // Parent notified after 5 absences
   static const int ESCALATION_DAYS = 3; // Escalate if no response after 3 school days
-  static const int ADMIN_ESCALATION_THRESHOLD = 8; // Admin notified after 8 absences
 
   /// Get attendance statistics for a student in a specific date range
   Future<Map<String, dynamic>> getStudentAttendanceStats({
@@ -342,12 +340,10 @@ class AttendanceMonitoringService {
         'consecutiveAbsences': consecutiveAbsences,
         'attendanceRate': totalDays > 0 ? (presentDays / totalDays * 100).round() : 0,
         'recentAbsences': recentAbsences.take(10).toList(), // Last 10 absences
-        'needsTeacherAlert': absentDays >= TEACHER_ALERT_THRESHOLD,
-        'needsParentNotification': absentDays >= PARENT_NOTIFICATION_THRESHOLD,
-        'needsAdminEscalation': absentDays >= ADMIN_ESCALATION_THRESHOLD,
+        'needsTeacherAlert': consecutiveAbsences >= 3,
         'hasParentNotificationSent': hasParentNotificationSent,
         'lastNotificationDate': lastNotificationDate?.toIso8601String(),
-        'isUrgentIssue': isUrgentIssue,
+        'isUrgentIssue': consecutiveAbsences >= 3 && !hasParentNotificationSent,
       };
     } catch (e) {
       print('Error getting student attendance stats: $e');
@@ -361,8 +357,8 @@ class AttendanceMonitoringService {
         'attendanceRate': 0,
         'recentAbsences': [],
         'needsTeacherAlert': false,
-        'needsParentNotification': false,
-        'needsAdminEscalation': false,
+
+
         'hasParentNotificationSent': false,
         'lastNotificationDate': null,
         'isUrgentIssue': false,
@@ -408,8 +404,8 @@ class AttendanceMonitoringService {
             sectionId: sectionData['id'],
           );
 
-          // Include students with urgent issues or those needing alerts
-          if (stats['isUrgentIssue'] || stats['needsTeacherAlert'] || stats['needsParentNotification'] || stats['needsAdminEscalation']) {
+          // Include students with consecutive absence issues needing attention
+          if (stats['consecutiveAbsences'] >= 3 && (!stats['hasParentNotificationSent'] || stats['isUrgentIssue'])) {
             studentsWithIssues.add({
               'student': student,
               'section': {
@@ -428,17 +424,20 @@ class AttendanceMonitoringService {
         final aStats = a['stats'] as Map<String, dynamic>;
         final bStats = b['stats'] as Map<String, dynamic>;
         
-        // Prioritize urgent issues first
-        if (aStats['isUrgentIssue'] && !bStats['isUrgentIssue']) return -1;
-        if (!aStats['isUrgentIssue'] && bStats['isUrgentIssue']) return 1;
+        // Prioritize by consecutive absences count
+        final aConsecutive = aStats['consecutiveAbsences'] as int;
+        final bConsecutive = bStats['consecutiveAbsences'] as int;
         
-        // Then prioritize admin escalation
-        if (aStats['needsAdminEscalation'] && !bStats['needsAdminEscalation']) return -1;
-        if (!aStats['needsAdminEscalation'] && bStats['needsAdminEscalation']) return 1;
+        // First sort by consecutive absences (higher first)
+        if (aConsecutive != bConsecutive) {
+          return bConsecutive.compareTo(aConsecutive);
+        }
         
-        // Then parent notification
-        if (aStats['needsParentNotification'] && !bStats['needsParentNotification']) return -1;
-        if (!aStats['needsParentNotification'] && bStats['needsParentNotification']) return 1;
+        // Then prioritize those without notifications sent
+        final aHasNotification = aStats['hasParentNotificationSent'] as bool;
+        final bHasNotification = bStats['hasParentNotificationSent'] as bool;
+        if (!aHasNotification && bHasNotification) return -1;
+        if (aHasNotification && !bHasNotification) return 1;
         
         // If same priority, sort by absence count
         return (bStats['absentDays'] as int).compareTo(aStats['absentDays'] as int);
@@ -538,85 +537,7 @@ class AttendanceMonitoringService {
     }
   }
 
-  /// Send escalation notification to administrators
-  Future<bool> sendAdminEscalationNotification({
-    required int studentId,
-    required String studentName,
-    required int absentCount,
-    required int consecutiveAbsences,
-    required String teacherName,
-    required String sectionName,
-    required String escalationReason,
-    String? teacherId,
-  }) async {
-    try {
-      // Get all admin users
-      final adminUsers = await supabase
-          .from('users')
-          .select('id, fname, lname, email')
-          .eq('role', 'Admin');
 
-      if (adminUsers.isEmpty) {
-        print('No admin users found for escalation');
-        return false;
-      }
-
-      // Prepare notification message
-      String title = '🚨 Attendance Escalation - $studentName';
-      String message = 'ATTENTION: $studentName ($sectionName) requires immediate attention. ';
-      message += 'Total absences: $absentCount. ';
-      
-      if (consecutiveAbsences > 0) {
-        message += 'Consecutive absences: $consecutiveAbsences days. ';
-      }
-      
-      message += 'Teacher: $teacherName. ';
-      message += 'Escalation reason: $escalationReason ';
-      message += 'Please coordinate with the teacher and contact the family immediately.';
-
-      // Send notification to each admin
-      final List<Map<String, dynamic>> notifications = [];
-      for (final admin in adminUsers) {
-        notifications.add({
-          'recipient_id': admin['id'],
-          'title': title,
-          'message': message,
-          'type': 'attendance_escalation',
-          'student_id': studentId,
-          'is_read': false,
-          'created_at': DateTime.now().toIso8601String(),
-        });
-      }
-
-      if (notifications.isNotEmpty) {
-        await supabase.from('notifications').insert(notifications);
-        
-        // Log the escalation
-        await _logNotificationInDatabase(
-          studentId: studentId,
-          notificationType: 'attendance_escalation',
-          details: {
-            'action': 'admin_escalation_sent',
-            'absent_count': absentCount,
-            'consecutive_absences': consecutiveAbsences,
-            'teacher_name': teacherName,
-            'section_name': sectionName,
-            'escalation_reason': escalationReason,
-            'sent_to_count': notifications.length,
-          },
-          sentBy: teacherId,
-        );
-        
-        print('Admin escalation notification sent for student $studentId');
-        return true;
-      }
-
-      return false;
-    } catch (e) {
-      print('Error sending admin escalation notification: $e');
-      return false;
-    }
-  }
 
   /// Check if we need to send follow-up notifications
   Future<List<Map<String, dynamic>>> checkForFollowUps() async {
@@ -713,7 +634,7 @@ class AttendanceMonitoringService {
           .from('notifications')
           .select('*')
           .eq('student_id', studentId)
-          .inFilter('type', ['attendance_alert', 'attendance_escalation', 'attendance_followup', 'system_log_attendance_alert', 'system_log_attendance_escalation'])
+          .inFilter('type', ['attendance_alert', 'attendance_followup', 'system_log_attendance_alert'])
           .order('created_at', ascending: false);
 
       return List<Map<String, dynamic>>.from(history);
@@ -806,52 +727,30 @@ class AttendanceMonitoringService {
       // Check if there are ANY unresolved notifications
       final hasUnresolvedNotifs = await hasUnresolvedNotifications(studentId);
 
-      // Determine badge state based purely on consecutive absences (automatic indicators)
+      // Determine badge state based on consecutive absences and notification status
       String badgeType = 'none';
       String badgeText = '';
       String badgeColor = '';
       String badgeIcon = '';
 
-      // Show badges based on actual attendance issues, regardless of notification status
-      if (consecutiveAbsences >= 5) {
-        badgeType = 'critical';
-        badgeText = 'CRITICAL';
-        badgeColor = '0xFF8B0000'; // Dark red
-        badgeIcon = 'priority_high';
-      } else if (consecutiveAbsences >= 4) {
-        badgeType = 'urgent';
-        badgeText = 'URGENT';
-        badgeColor = '0xFFDC2626'; // Red
-        badgeIcon = 'priority_high';
-      } else if (consecutiveAbsences >= 3) {
-        badgeType = 'escalate';
-        badgeText = 'ESCALATE';
-        badgeColor = '0xFFF59E0B'; // Orange
-        badgeIcon = 'warning';
-      } else if (consecutiveAbsences >= 2 || stats['absentDaysThisMonth'] >= 3) {
-        badgeType = 'attention';
-        badgeText = 'ATTENTION';
-        badgeColor = '0xFFF59E0B'; // Orange
-        badgeIcon = 'info';
-      }
-
-      // Override with monitoring state only if there are unresolved notifications
-      if (hasUnresolvedNotifs && badgeType != 'none') {
-        String originalBadgeType = badgeType;
-        badgeType = 'monitoring';
-        badgeText = 'MONITORING';
-        badgeColor = '0xFF3B82F6'; // Blue
-        badgeIcon = 'visibility';
-        
-        // Store the original badge type for reference
-        return {
-          'badgeType': badgeType,
-          'badgeText': badgeText,
-          'badgeColor': badgeColor,
-          'badgeIcon': badgeIcon,
-          'originalBadgeType': originalBadgeType,
-          'stats': stats,
-        };
+      // Only show badges if there are consecutive absences AND no notification ticket sent
+      if (consecutiveAbsences >= 3 && !hasUnresolvedNotifs) {
+        if (consecutiveAbsences >= 8) {
+          badgeType = 'critical';
+          badgeText = 'CRITICAL';
+          badgeColor = '0xFF8B0000'; // Dark red
+          badgeIcon = 'priority_high';
+        } else if (consecutiveAbsences >= 5) {
+          badgeType = 'urgent';
+          badgeText = 'URGENT';
+          badgeColor = '0xFFDC2626'; // Red
+          badgeIcon = 'warning';
+        } else if (consecutiveAbsences >= 3) {
+          badgeType = 'attention';
+          badgeText = 'NEEDS ATTENTION';
+          badgeColor = '0xFFF59E0B'; // Orange
+          badgeIcon = 'info';
+        }
       }
 
       return {
@@ -881,7 +780,7 @@ class AttendanceMonitoringService {
           .from('notifications')
           .select('type, created_at')
           .eq('student_id', studentId)
-          .inFilter('type', ['attendance_alert', 'attendance_escalation', 'attendance_resolved'])
+          .inFilter('type', ['attendance_alert', 'attendance_resolved'])
           .order('created_at', ascending: false)
           .limit(1);
 
@@ -894,8 +793,8 @@ class AttendanceMonitoringService {
         return false;
       }
 
-      // If last notification was an alert or escalation, it's unresolved
-      return ['attendance_alert', 'attendance_escalation'].contains(lastNotification['type']);
+      // If last notification was an alert, it's unresolved
+      return lastNotification['type'] == 'attendance_alert';
     } catch (e) {
       print('Error checking unresolved notifications: $e');
       return false;
@@ -1026,7 +925,6 @@ class AttendanceMonitoringService {
 
       int totalNotificationsSent = 0;
       int issuesResolved = 0;
-      int escalatedCases = 0;
       List<Map<String, dynamic>> recentNotifications = [];
 
       for (final section in sections) {
@@ -1041,9 +939,7 @@ class AttendanceMonitoringService {
               .eq('student_id', student['id'])
               .inFilter('type', [
                 'attendance_alert', 
-                'attendance_escalation',
-                'system_log_attendance_alert',
-                'system_log_attendance_escalation'
+                'system_log_attendance_alert'
               ])
               .gte('created_at', defaultStartDate.toIso8601String())
               .lte('created_at', defaultEndDate.toIso8601String())
@@ -1063,11 +959,6 @@ class AttendanceMonitoringService {
           issuesResolved += resolvedNotifications.length;
 
           for (final notification in notifications) {
-            if (notification['type'] == 'attendance_escalation' || 
-                notification['type'] == 'system_log_attendance_escalation') {
-              escalatedCases++;
-            }
-
             recentNotifications.add({
               'student_name': '${student['fname']} ${student['lname']}',
               'section_name': sectionData['name'],
@@ -1087,7 +978,6 @@ class AttendanceMonitoringService {
       return {
         'totalNotificationsSent': totalNotificationsSent,
         'issuesResolved': issuesResolved,
-        'escalatedCases': escalatedCases,
         'resolutionRate': resolutionRate,
         'recentNotifications': recentNotifications.take(10).toList(),
       };
@@ -1096,7 +986,6 @@ class AttendanceMonitoringService {
       return {
         'totalNotificationsSent': 0,
         'issuesResolved': 0,
-        'escalatedCases': 0,
         'resolutionRate': 0,
         'recentNotifications': [],
       };
@@ -1299,11 +1188,12 @@ class AttendanceMonitoringService {
               .order('created_at', ascending: false)
               .limit(1);
 
-          final shouldSendParentNotification = stats['needsParentNotification'] as bool;
-          final shouldEscalateToAdmin = stats['needsAdminEscalation'] as bool;
+          final consecutiveAbsences = stats['consecutiveAbsences'] as int;
+          final hasParentNotificationSent = stats['hasParentNotificationSent'] as bool;
 
-          // Send parent notification if needed and not recently sent
-          if (shouldSendParentNotification && 
+          // Send parent notification for 5+ consecutive absences if not already sent recently
+          if (consecutiveAbsences >= 5 && 
+              !hasParentNotificationSent &&
               (existingNotifications.isEmpty || 
                DateTime.now().difference(DateTime.parse(existingNotifications.first['created_at'])).inDays >= 2)) {
             
@@ -1314,20 +1204,6 @@ class AttendanceMonitoringService {
               consecutiveAbsences: stats['consecutiveAbsences'],
               teacherName: '${teacher['fname']} ${teacher['lname']}',
               sectionName: section['name'],
-              teacherId: teacher['id'],
-            );
-          }
-
-          // Escalate to admin if needed
-          if (shouldEscalateToAdmin) {
-            await sendAdminEscalationNotification(
-              studentId: student['id'],
-              studentName: '${student['fname']} ${student['lname']}',
-              absentCount: stats['absentDays'],
-              consecutiveAbsences: stats['consecutiveAbsences'],
-              teacherName: '${teacher['fname']} ${teacher['lname']}',
-              sectionName: section['name'],
-              escalationReason: 'High absence count (${stats['absentDays']} days) requires administrative intervention',
               teacherId: teacher['id'],
             );
           }

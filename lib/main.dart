@@ -8,7 +8,6 @@ import 'screens/set_password_screen.dart';
 import 'screens/parent/parent_home.dart';
 import 'screens/driver/driver_panel.dart';
 import 'services/verification_reminder_service.dart';
-import 'services/attendance_escalation_service.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_strategy/url_strategy.dart';
 import 'dart:html' as html;
@@ -74,9 +73,6 @@ Future<void> main() async {
 
   // Start the verification reminder service
   VerificationReminderService().startReminderService();
-
-  // Start the attendance escalation service
-  AttendanceEscalationService().startEscalationMonitoring();
 
   runApp(KidSyncApp(initialUrl: initialUrlFromMain)); // Pass initialUrl
 }
