@@ -4,7 +4,6 @@ import 'dart:async';
 // Import your summary page (make sure to adjust the import path as needed)
 import 'section_attendance_summary_page.dart';
 import 'student_attendance_calendar_page.dart'; // for drilldown, if you want to navigate to student calendar
-import '../../services/attendance_monitoring_service.dart';
 
 class TeacherClassListPage extends StatefulWidget {
   final void Function(int sectionId, String sectionName)? onViewAttendance;
@@ -21,7 +20,6 @@ class TeacherClassListPage extends StatefulWidget {
 
 class _TeacherClassListPageState extends State<TeacherClassListPage> {
   final supabase = Supabase.instance.client;
-  final AttendanceMonitoringService _attendanceService = AttendanceMonitoringService();
   String? teacherId;
   // assignedSections now holds one entry per section (aggregated)
   List<Map<String, dynamic>> assignedSections = [];
@@ -77,9 +75,15 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
     if (t.isEmpty) return "";
     final parts = t.split(':');
     if (parts.length >= 2) {
-      final h = parts[0].padLeft(2, '0');
-      final m = parts[1].padLeft(2, '0');
-      return "$h:$m";
+      final hour = int.tryParse(parts[0]);
+      final minute = int.tryParse(parts[1]);
+      if (hour != null && minute != null) {
+        // Format to 12-hour time
+        final period = hour >= 12 ? 'PM' : 'AM';
+        final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+        final displayMinute = minute.toString().padLeft(2, '0');
+        return "$displayHour:$displayMinute $period";
+      }
     }
     return t;
   }
@@ -262,26 +266,77 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
   
   Future<void> _loadAttendanceStatsForSection(int sectionId, List<dynamic> students) async {
     try {
-      // Load attendance statistics for students in this section
+      // Batch load attendance statistics for all students in this section
+      final studentIds = students.map((s) => s['id'] as int).toList();
+      if (studentIds.isEmpty) return;
+      
+      // Get recent attendance data for all students at once
+      final recentAttendance = await supabase
+          .from('section_attendance')
+          .select('student_id, date, status')
+          .eq('section_id', sectionId)
+          .inFilter('student_id', studentIds)
+          .gte('date', DateTime.now().subtract(Duration(days: 14)).toIso8601String().split('T')[0])
+          .order('date', ascending: false);
+      
+      // Process attendance data to find consecutive absences
       for (final student in students) {
-        final stats = await _attendanceService.getStudentAttendanceStats(
-          studentId: student['id'],
-          sectionId: sectionId,
-        );
+        final studentId = student['id'] as int;
+        final studentAttendance = recentAttendance
+            .where((a) => a['student_id'] == studentId)
+            .toList();
         
-        final consecutiveAbsences = stats['consecutiveAbsences'] as int;
-        final hasParentNotificationSent = stats['hasParentNotificationSent'] as bool;
+        // Count consecutive absences from most recent date
+        int consecutiveAbsences = 0;
+        final now = DateTime.now();
+        for (int i = 0; i < 14; i++) {
+          final checkDate = now.subtract(Duration(days: i));
+          final dateStr = checkDate.toIso8601String().split('T')[0];
+          
+          final dayAttendance = studentAttendance
+              .where((a) => a['date'] == dateStr)
+              .isEmpty ? null : studentAttendance
+              .where((a) => a['date'] == dateStr)
+              .first;
+          
+          if (dayAttendance == null || dayAttendance['status'] == 'Absent') {
+            consecutiveAbsences++;
+          } else {
+            break; // Found a non-absent day, stop counting
+          }
+        }
         
         // Only flag students with 3+ consecutive absences and no notification ticket sent
-        if (consecutiveAbsences >= 3 && !hasParentNotificationSent) {
-          studentAttendanceFlags[student['id']] = {
-            'needsTeacherAlert': true,
-            'consecutiveAbsences': consecutiveAbsences,
-          };
+        if (consecutiveAbsences >= 3) {
+          // Check if there's an unresolved notification (simplified check)
+          final hasNotification = await _hasUnresolvedNotification(studentId);
+          if (!hasNotification) {
+            studentAttendanceFlags[studentId] = {
+              'needsTeacherAlert': true,
+              'consecutiveAbsences': consecutiveAbsences,
+            };
+          }
         }
       }
     } catch (e) {
       print('Error loading attendance stats for section $sectionId: $e');
+    }
+  }
+  
+  Future<bool> _hasUnresolvedNotification(int studentId) async {
+    try {
+      final notifications = await supabase
+          .from('notifications')
+          .select('type, created_at')
+          .eq('student_id', studentId)
+          .inFilter('type', ['attendance_alert', 'attendance_ticket', 'attendance_resolved'])
+          .order('created_at', ascending: false)
+          .limit(1);
+      
+      if (notifications.isEmpty) return false;
+      return notifications.first['type'] != 'attendance_resolved';
+    } catch (e) {
+      return false;
     }
   }
 

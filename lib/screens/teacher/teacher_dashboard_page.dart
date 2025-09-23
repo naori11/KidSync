@@ -75,7 +75,28 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     if (days.isEmpty || startTime.isEmpty || endTime.isEmpty) {
       return "--";
     }
-    return "$days | $startTime - $endTime";
+    
+    // Format times to 12-hour format
+    final formattedStart = _formatTimeTo12Hour(startTime);
+    final formattedEnd = _formatTimeTo12Hour(endTime);
+    
+    return "$days | $formattedStart - $formattedEnd";
+  }
+  
+  String _formatTimeTo12Hour(String timeStr) {
+    if (timeStr.isEmpty) return timeStr;
+    final parts = timeStr.split(':');
+    if (parts.length >= 2) {
+      final hour = int.tryParse(parts[0]);
+      final minute = int.tryParse(parts[1]);
+      if (hour != null && minute != null) {
+        final period = hour >= 12 ? 'PM' : 'AM';
+        final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+        final displayMinute = minute.toString().padLeft(2, '0');
+        return '$displayHour:$displayMinute $period';
+      }
+    }
+    return timeStr;
   }
 
   String computeSectionStatus(Map<String, dynamic> assignment) {
@@ -154,20 +175,39 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       return;
     }
 
-    // Fetch section assignments for this teacher
-    final sectionAssignments = await supabase
-        .from('section_teachers')
-        .select(
-          'id, section_id, subject, days, start_time, end_time, assigned_at, sections(id, name, grade_level)',
-        )
-        .eq('teacher_id', teacherId!);
+      // Fetch section assignments for this teacher
+      final sectionAssignments = await supabase
+          .from('section_teachers')
+          .select(
+            'id, section_id, subject, days, start_time, end_time, assigned_at, sections(id, name, grade_level)',
+          )
+          .eq('teacher_id', teacherId!);
 
-    assignedSections = List<Map<String, dynamic>>.from(sectionAssignments);
-    sectionStudents.clear();
-    sectionAttendanceStats.clear();
-    sectionStudentStatus.clear();
+      assignedSections = List<Map<String, dynamic>>.from(sectionAssignments);
+      sectionStudents.clear();
+      sectionAttendanceStats.clear();
+      sectionStudentStatus.clear();
 
-    // Date filters for today
+      // Batch load students for all sections at once
+      final allSectionIds = assignedSections
+          .map((a) => a['sections']?['id'] as int?)
+          .where((id) => id != null)
+          .cast<int>()
+          .toSet()
+          .toList();
+
+      if (allSectionIds.isNotEmpty) {
+        final allStudents = await supabase
+            .from('students')
+            .select('id, fname, lname, rfid_uid, section_id')
+            .inFilter('section_id', allSectionIds);
+        
+        // Group students by section
+        for (final student in allStudents) {
+          final sectionId = student['section_id'] as int;
+          sectionStudents.putIfAbsent(sectionId, () => []).add(student);
+        }
+      }    // Date filters for today
     final now = DateTime.now();
     final nowUtc = now.toUtc();
     final todayStart = DateTime.utc(
@@ -205,32 +245,22 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           return days.contains(todayAbbrev);
         }).toList();
 
+    // Batch process today's attendance for all sections
     int totalStudents = 0, totalPresent = 0;
     List<Map<String, dynamic>> allLateArrivals = [];
 
-    for (final assignment in todayAssignments) {
-      final section = assignment['sections'];
-      if (section == null) continue;
+    // Get all student IDs across all sections
+    final allStudentIds = sectionStudents.values
+        .expand((students) => students)
+        .map((s) => s['id'] as int)
+        .toList();
 
-      final students = await supabase
-          .from('students')
-          .select('id, fname, lname, rfid_uid')
-          .eq('section_id', section['id']);
-      final studentsList = List<Map<String, dynamic>>.from(students);
-      sectionStudents[section['id']] = studentsList;
-
-      final studentIds = studentsList.map((s) => s['id'] as int).toList();
-      if (studentIds.isEmpty) {
-        sectionAttendanceStats[section['id']] = {'present': 0, 'attendance': 0};
-        sectionStudentStatus[section['id']] = {};
-        continue;
-      }
-
-      // Attendance records for today
+    if (allStudentIds.isNotEmpty) {
+      // Batch load scan records for all students
       final scanRecords = await supabase
           .from('scan_records')
           .select('student_id, scan_time, action')
-          .inFilter('student_id', studentIds)
+          .inFilter('student_id', allStudentIds)
           .eq('action', 'entry')
           .gte('scan_time', todayStart.toIso8601String())
           .lte('scan_time', todayEnd.toIso8601String());
@@ -242,78 +272,90 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         presentIds.add(sid);
         entryTimes[sid] = DateTime.parse(record['scan_time']);
       }
-
-      int presentCount = 0;
-      Map<int, String> statusMap = {};
-      List<Map<String, dynamic>> lateThisSection = [];
-      // Parse class start time
-      final startTimeStr = assignment['start_time'] ?? '';
-      DateTime? classStartTime;
-      if (startTimeStr.contains(':')) {
-        final st = startTimeStr.split(':');
-        classStartTime = DateTime(
-          now.year,
-          now.month,
-          now.day,
-          int.parse(st[0]),
-          int.parse(st[1]),
-        );
-      }
-      // Parse class end time
-      final endTimeStr = assignment['end_time'] ?? '';
-      DateTime? classEndTime;
-      if (endTimeStr.contains(':')) {
-        final et = endTimeStr.split(':');
-        classEndTime = DateTime(
-          now.year,
-          now.month,
-          now.day,
-          int.parse(et[0]),
-          int.parse(et[1]),
-        );
-      }
       
-      for (final student in studentsList) {
-        final int sid = student['id'];
-        if (presentIds.contains(sid)) {
-          presentCount++;
-          statusMap[sid] = "Present";
-          // Determine late arrivals (entryTime > classStartTime + 5min)
-          if (classStartTime != null &&
-              entryTimes[sid] != null &&
-              entryTimes[sid]!.isAfter(
-                classStartTime.add(const Duration(minutes: 5)),
-              )) {
-            lateThisSection.add({
-              'name': '${student['fname']} ${student['lname']}',
-              'avatar': _avatarImages[student['id'] % _avatarImages.length],
-              'section': section['name'],
-              'time': entryTimes[sid]!,
-            });
-          }
-        } else {
-          // Only count as absent if class time has ended
-          if (classEndTime != null && now.isAfter(classEndTime)) {
-            statusMap[sid] = "Absent";
+      // Process each section's attendance
+      for (final assignment in todayAssignments) {
+        final section = assignment['sections'];
+        if (section == null) continue;
+        final sectionId = section['id'] as int;
+        final studentsList = sectionStudents[sectionId] ?? [];
+        
+        if (studentsList.isEmpty) {
+          sectionAttendanceStats[sectionId] = {'present': 0, 'attendance': 0};
+          sectionStudentStatus[sectionId] = {};
+          continue;
+        }
+        
+        totalStudents += studentsList.length;
+        
+        int presentCount = 0;
+        Map<int, String> statusMap = {};
+        List<Map<String, dynamic>> lateThisSection = [];
+        
+        // Parse class times for this assignment
+        final startTimeStr = assignment['start_time'] ?? '';
+        final endTimeStr = assignment['end_time'] ?? '';
+        DateTime? classStartTime;
+        DateTime? classEndTime;
+        
+        if (startTimeStr.contains(':')) {
+          final st = startTimeStr.split(':');
+          classStartTime = DateTime(
+            now.year, now.month, now.day,
+            int.parse(st[0]), int.parse(st[1]),
+          );
+        }
+        if (endTimeStr.contains(':')) {
+          final et = endTimeStr.split(':');
+          classEndTime = DateTime(
+            now.year, now.month, now.day,
+            int.parse(et[0]), int.parse(et[1]),
+          );
+        }
+        
+        for (final student in studentsList) {
+          final int sid = student['id'];
+          if (presentIds.contains(sid)) {
+            presentCount++;
+            statusMap[sid] = "Present";
+            // Check for late arrivals
+            if (classStartTime != null &&
+                entryTimes[sid] != null &&
+                entryTimes[sid]!.isAfter(
+                  classStartTime.add(const Duration(minutes: 5)),
+                )) {
+              lateThisSection.add({
+                'name': '${student['fname']} ${student['lname']}',
+                'avatar': _avatarImages[student['id'] % _avatarImages.length],
+                'section': section['name'],
+                'time': entryTimes[sid]!,
+              });
+            }
           } else {
-            statusMap[sid] = "Not Marked";
+            // Only count as absent if class time has ended
+            if (classEndTime != null && now.isAfter(classEndTime)) {
+              statusMap[sid] = "Absent";
+            } else {
+              statusMap[sid] = "Not Marked";
+            }
           }
         }
-      }
-      int attendancePercent =
-          studentsList.isEmpty
-              ? 0
-              : ((presentCount / studentsList.length) * 100).round();
+        
+        int attendancePercent =
+            studentsList.isEmpty
+                ? 0
+                : ((presentCount / studentsList.length) * 100).round();
 
-      sectionAttendanceStats[section['id']] = {
-        'present': presentCount,
-        'attendance': attendancePercent,
-      };
-      sectionStudentStatus[section['id']] = statusMap;
-      totalStudents += studentsList.length;
-      totalPresent += presentCount;
-      allLateArrivals.addAll(lateThisSection);
+        sectionAttendanceStats[sectionId] = {
+          'present': presentCount,
+          'attendance': attendancePercent,
+        };
+        sectionStudentStatus[sectionId] = statusMap;
+        totalPresent += presentCount;
+        allLateArrivals.addAll(lateThisSection);
+      }
     }
+
     // Count actual absences (not including "Not Marked" students)
     int actualAbsent = 0;
     for (final assignment in todayAssignments) {

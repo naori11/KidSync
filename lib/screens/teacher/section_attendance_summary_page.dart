@@ -208,7 +208,8 @@ class _TeacherSectionAttendanceSummaryPageState
           .select('student_id, status, date')
           .eq('section_id', widget.sectionId)
           .gte('date', DateFormat('yyyy-MM-dd').format(startOfMonth))
-          .lte('date', DateFormat('yyyy-MM-dd').format(endOfMonth));
+          .lte('date', DateFormat('yyyy-MM-dd').format(endOfMonth))
+          .order('date', ascending: true); // Order by date for better processing
 
       studentAttendanceStats.clear();
       for (final s in students) {
@@ -221,13 +222,11 @@ class _TeacherSectionAttendanceSummaryPageState
         };
       }
 
-      // Create a map of existing attendance records for quick lookup
-      Map<String, Map<String, dynamic>> attendanceMap = {};
+      // Group attendance records by student for efficient processing
+      Map<int, List<Map<String, dynamic>>> attendanceByStudent = {};
       for (final row in attendanceRows) {
-        final studentId = row['student_id'].toString();
-        final date = row['date'] as String;
-        final key = '${studentId}_$date';
-        attendanceMap[key] = row;
+        final studentId = row['student_id'] as int;
+        attendanceByStudent.putIfAbsent(studentId, () => []).add(row);
       }
 
       // Process attendance for each student and each class day in the month
@@ -235,6 +234,7 @@ class _TeacherSectionAttendanceSummaryPageState
       for (final student in students) {
         final studentId = student['id'] as int;
         final stats = studentAttendanceStats[studentId]!;
+        final studentAttendanceList = attendanceByStudent[studentId] ?? [];
         
         for (int day = 1; day <= endOfMonth.day; day++) {
           final date = DateTime(selectedMonth.year, selectedMonth.month, day);
@@ -242,13 +242,13 @@ class _TeacherSectionAttendanceSummaryPageState
           // Check if this is a class day
           if (_isClassDay(date)) {
             final dateStr = DateFormat('yyyy-MM-dd').format(date);
-            final key = '${studentId}_$dateStr';
             
-            // Check if there's an attendance record for this day
-            if (attendanceMap.containsKey(key)) {
+            // Find attendance record for this day
+            final dayRecord = studentAttendanceList.where((r) => r['date'] == dateStr).isEmpty ? null : studentAttendanceList.where((r) => r['date'] == dateStr).first;
+            
+            if (dayRecord != null) {
               // Process existing attendance record
-              final record = attendanceMap[key]!;
-              final status = (record['status'] ?? '').toString().toLowerCase();
+              final status = (dayRecord['status'] ?? '').toString().toLowerCase();
               stats['total'] = (stats['total'] ?? 0) + 1;
               
               if (status == 'present')

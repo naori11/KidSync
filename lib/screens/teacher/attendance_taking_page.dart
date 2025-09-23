@@ -58,7 +58,6 @@ class _TeacherSectionAttendancePageState
   String? scheduleString;
   DateTime? classStartTime;
   DateTime? classEndTime;
-  bool isTestingSection = false;
   bool isTodayClassDay = false;
 
   @override
@@ -74,7 +73,7 @@ class _TeacherSectionAttendancePageState
   void _setupRfidMonitoring() {
     // Check for new RFID taps every 45 seconds (reduced from 30) to save resources
     _rfidTimer = Timer.periodic(const Duration(seconds: 45), (timer) {
-      if (attendanceActive || isTestingSection) {
+      if (attendanceActive) {
         _checkForNewRfidTaps();
       }
       // Also check for students who should be automatically marked absent
@@ -91,16 +90,6 @@ class _TeacherSectionAttendancePageState
 
   Future<void> _loadAttendanceData() async {
     setState(() => isLoading = true);
-
-    // Load section info (to get is_testing flag)
-    final sectionRes =
-        await supabase
-            .from('sections')
-            .select('id, is_testing')
-            .eq('id', widget.sectionId)
-            .maybeSingle();
-
-    isTestingSection = sectionRes != null && sectionRes['is_testing'] == true;
 
     // Load ALL section_teachers rows for this section (handle duplicates)
     final schedRows = await supabase
@@ -211,10 +200,7 @@ class _TeacherSectionAttendancePageState
       }
     }
 
-    // OVERRIDE: If this is a testing section, always allow attendance
-    if (isTestingSection) {
-      attendanceActive = true;
-    }
+    // Attendance is only active during scheduled class times
 
     // Load students in section
     final studentList = await supabase
@@ -295,9 +281,9 @@ class _TeacherSectionAttendancePageState
     Map<int, Map<String, dynamic>> scans,
     Map<int, Map<String, dynamic>> attendance,
   ) async {
-    // Only process during active attendance or in testing sections
-    if (!attendanceActive && !isTestingSection) {
-      print('Auto-attendance skipped: not active and not testing section');
+    // Only process during active attendance
+    if (!attendanceActive) {
+      print('Auto-attendance skipped: not active');
       return;
     }
 
@@ -326,8 +312,8 @@ class _TeacherSectionAttendancePageState
         String notes = "Auto-marked via RFID tap";
 
         // Check if it should be marked as late based on scan time and class start time
-        // Only apply late logic if we have a valid class start time and this is not a testing section
-        if (classStartTime != null && !isTestingSection) {
+        // Only apply late logic if we have a valid class start time
+        if (classStartTime != null) {
           final scanTime = DateTime.parse(scan['scan_time']);
           final lateThreshold = classStartTime!.add(
             Duration(minutes: lateThresholdMinutes),
@@ -396,8 +382,7 @@ class _TeacherSectionAttendancePageState
 
   // Check for students who should be automatically marked absent when class time has ended
   Future<void> _checkForAutomaticAbsences() async {
-    // Only apply auto-absence logic for regular sections (not testing sections)
-    if (isTestingSection) return;
+    // Apply auto-absence logic for all sections
     
     // Only check if we have a valid class end time
     if (classEndTime == null) return;
@@ -495,7 +480,7 @@ class _TeacherSectionAttendancePageState
 
   // Check for new RFID taps and process them
   Future<void> _checkForNewRfidTaps() async {
-    if (!attendanceActive && !isTestingSection) return;
+    if (!attendanceActive) return;
 
     try {
       // Get current students list
@@ -566,9 +551,12 @@ class _TeacherSectionAttendancePageState
     if (t.isEmpty) return "";
     final parts = t.split(':');
     if (parts.length >= 2) {
-      final h = parts[0].padLeft(2, '0');
-      final m = parts[1].padLeft(2, '0');
-      return "$h:$m";
+      final hour = int.tryParse(parts[0]);
+      final minute = int.tryParse(parts[1]);
+      if (hour != null && minute != null) {
+        final time = TimeOfDay(hour: hour, minute: minute);
+        return time.format(context);
+      }
     }
     return t;
   }
@@ -934,10 +922,7 @@ class _TeacherSectionAttendancePageState
     
     // Default logic for students without attendance records
     
-    // For testing sections, always default to "Absent" (existing behavior)
-    if (isTestingSection) {
-      return "Absent";
-    }
+    // Default logic for students without attendance records
     
     // If attendance is not active (not a class day/time), don't mark as absent yet
     if (!attendanceActive) {
@@ -1477,7 +1462,6 @@ class _TeacherSectionAttendancePageState
       ['Class Schedule:', _getClassScheduleString()],
       ['Today is Class Day:', isTodayClassDay ? 'Yes' : 'No'],
       ['Attendance Active:', attendanceActive ? 'Yes' : 'No'],
-      ['Testing Section:', isTestingSection ? 'Yes' : 'No'],
     ];
 
     for (var info in reportInfos) {
@@ -1815,15 +1799,15 @@ class _TeacherSectionAttendancePageState
                         const SizedBox(width: 12),
                         // Export button with student management styling
                         Tooltip(
-                          message: (isTodayClassDay || isTestingSection) 
+                          message: isTodayClassDay 
                             ? "Export today's attendance to Excel"
-                            : "Export is only available on class days or for testing sections",
+                            : "Export is only available on class days",
                           child: SizedBox(
                             height: 44,
                             child: OutlinedButton.icon(
                               icon: Icon(
                                 Icons.file_download_outlined,
-                                color: (isTodayClassDay || isTestingSection) 
+                                color: isTodayClassDay 
                                   ? const Color(0xFF2ECC71) 
                                   : Colors.grey,
                                 size: 18,
@@ -1831,18 +1815,18 @@ class _TeacherSectionAttendancePageState
                               label: Text(
                                 "Export",
                                 style: TextStyle(
-                                  color: (isTodayClassDay || isTestingSection) 
+                                  color: isTodayClassDay 
                                     ? const Color(0xFF2ECC71) 
                                     : Colors.grey,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-                              onPressed: (isTodayClassDay || isTestingSection) ? _exportTodayAttendance : null,
+                              onPressed: isTodayClassDay ? _exportTodayAttendance : null,
                               style: OutlinedButton.styleFrom(
                                 backgroundColor: Colors.white,
                                 side: BorderSide(
-                                  color: (isTodayClassDay || isTestingSection) 
+                                  color: isTodayClassDay 
                                     ? const Color(0xFF2ECC71) 
                                     : Colors.grey,
                                   width: 1.5,
@@ -1850,7 +1834,7 @@ class _TeacherSectionAttendancePageState
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                elevation: (isTodayClassDay || isTestingSection) ? 1 : 0,
+                                elevation: isTodayClassDay ? 1 : 0,
                                 shadowColor: Colors.black.withOpacity(0.05),
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 16,
@@ -1864,37 +1848,9 @@ class _TeacherSectionAttendancePageState
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // TESTING SECTION banner
-                  if (isTestingSection)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 32),
-                      child: Card(
-                        color: const Color(0xFFFCF4DD),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: const [
-                              Icon(Icons.warning, color: Color(0xFFFFA726)),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  "This is a testing section. Attendance can be recorded at any time.",
-                                  style: TextStyle(
-                                    color: Color(0xFF8F9BB3),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
+                  // Class status information is shown below if needed
                   // Status message if attendance is not active
-                  if (!attendanceActive && !isTestingSection) ...[
+                  if (!attendanceActive) ...[
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 32,
