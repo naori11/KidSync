@@ -242,6 +242,7 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
               selectedStudentName = null;
             });
           },
+          onOpenAttendance: _showAttendancePage,
         );
       case 1:
         return TeacherClassListPage(
@@ -264,7 +265,7 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
         builder: (context, constraints) {
           final isTablet = constraints.maxWidth >= 768;
           final isMobile = constraints.maxWidth < 768;
-          final isLargeScreen = constraints.maxWidth >= 1200;
+          // ignore: unused_local_variable\n          final isLargeScreen = constraints.maxWidth >= 1200; // Used for future features
           
           return Row(
             children: [

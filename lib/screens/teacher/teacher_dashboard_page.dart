@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import 'class_list_page.dart';
+import 'attendance_taking_page.dart';
 import '../../services/attendance_monitoring_service.dart';
 import '../../services/attendance_ticketing_service.dart';
 import '../../widgets/attendance_status_badge.dart';
 import '../../widgets/smart_attendance_button.dart';
-import '../../widgets/attendance_insights_card.dart';
 
 // Sample avatars for mock/student images
 const _avatarImages = [
@@ -19,8 +19,9 @@ const _avatarImages = [
 
 class TeacherDashboardPage extends StatefulWidget {
   final VoidCallback? onOpenClassList;
+  final Function(int sectionId, String sectionName)? onOpenAttendance;
 
-  const TeacherDashboardPage({super.key, this.onOpenClassList});
+  const TeacherDashboardPage({super.key, this.onOpenClassList, this.onOpenAttendance});
 
   @override
   State<TeacherDashboardPage> createState() => _TeacherDashboardPageState();
@@ -258,6 +259,20 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
           int.parse(st[1]),
         );
       }
+      // Parse class end time
+      final endTimeStr = assignment['end_time'] ?? '';
+      DateTime? classEndTime;
+      if (endTimeStr.contains(':')) {
+        final et = endTimeStr.split(':');
+        classEndTime = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          int.parse(et[0]),
+          int.parse(et[1]),
+        );
+      }
+      
       for (final student in studentsList) {
         final int sid = student['id'];
         if (presentIds.contains(sid)) {
@@ -277,7 +292,12 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             });
           }
         } else {
-          statusMap[sid] = "Absent";
+          // Only count as absent if class time has ended
+          if (classEndTime != null && now.isAfter(classEndTime)) {
+            statusMap[sid] = "Absent";
+          } else {
+            statusMap[sid] = "Not Marked";
+          }
         }
       }
       int attendancePercent =
@@ -294,10 +314,23 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       totalPresent += presentCount;
       allLateArrivals.addAll(lateThisSection);
     }
+    // Count actual absences (not including "Not Marked" students)
+    int actualAbsent = 0;
+    for (final assignment in todayAssignments) {
+      final section = assignment['sections'];
+      if (section == null) continue;
+      final statusMap = sectionStudentStatus[section['id']] ?? {};
+      for (final status in statusMap.values) {
+        if (status == "Absent") {
+          actualAbsent++;
+        }
+      }
+    }
+    
     totalClassesToday = todayAssignments.length;
     totalStudentsToday = totalStudents;
     totalPresentToday = totalPresent;
-    totalAbsentToday = totalStudentsToday - totalPresentToday;
+    totalAbsentToday = actualAbsent;
     lateArrivals = allLateArrivals;
 
     // Load students with attendance issues using ticketing service
@@ -320,22 +353,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         "${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][now.weekday - 1]}, "
         "${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][now.month - 1]} ${now.day}";
     return date;
-  }
-
-  // Computes the vertical space taken by a section header (font size/weight) plus
-  // the 16px gap used before a card, so we can align columns precisely on wide screens.
-  double _sectionHeaderSpacer(BuildContext context) {
-    const style = TextStyle(
-      fontSize: 18,
-      fontWeight: FontWeight.w600,
-      color: Color(0xFF1F2937),
-    );
-    final painter = TextPainter(
-      text: const TextSpan(text: "Today's Schedule", style: style),
-      maxLines: 1,
-      textDirection: TextDirection.ltr,
-    )..layout();
-    return painter.height + 16; // header height + SizedBox(16)
   }
 
   Widget _buildSummaryCards() {
@@ -392,8 +409,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             children: [
               _buildScheduleList(),
               const SizedBox(height: 24),
-              _buildAlerts(),
-              const SizedBox(height: 24),
               _buildAttendanceIssues(),
             ],
           );
@@ -403,15 +418,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Left column: schedule + alerts stacked
+            // Left column: schedule only
             Expanded(
               flex: 3,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildScheduleList(),
-                  const SizedBox(height: 24),
-                  _buildAlerts(),
                 ],
               ),
             ),
@@ -518,35 +531,22 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                               ?.length ??
                           0,
                       onGoToClass: () {
-                        showDialog(
-                          context: context,
-                          builder:
-                              (_) => AlertDialog(
-                                contentPadding: const EdgeInsets.all(0),
-                                backgroundColor: Colors.transparent,
-                                elevation: 0,
-                                content: SizedBox(
-                                  width: 540,
-                                  child: _ClassStudentListModal(
-                                    classTitle: assignment['sections']['name'],
-                                    schedule: formatSchedule(assignment),
-                                    subject: assignment['subject'] ?? '',
-                                    students: [
-                                      for (final student
-                                          in sectionStudents[assignment['sections']['id']] ??
-                                              [])
-                                        _StudentRowData(
-                                          "${student['fname']} ${student['lname']}",
-                                          _avatarImages[student['id'] %
-                                              _avatarImages.length],
-                                          sectionStudentStatus[assignment['sections']['id']]?[student['id']] ??
-                                              "Absent",
-                                        ),
-                                    ],
-                                  ),
-                                ),
+                        if (widget.onOpenAttendance != null) {
+                          widget.onOpenAttendance!(assignment['sections']['id'], assignment['sections']['name']);
+                        } else {
+                          // Fallback: Direct navigation (loses sidebar)
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => TeacherSectionAttendancePage(
+                                sectionId: assignment['sections']['id'],
+                                sectionName: assignment['sections']['name'],
+                                onBack: () {
+                                  Navigator.of(context).pop();
+                                },
                               ),
-                        );
+                            ),
+                          );
+                        }
                       },
                     ),
                   ),
@@ -557,108 +557,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     );
   }
 
-  Widget _buildAlerts() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
-            ),
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 6,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Attendance Alerts",
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 18,
-                color: Color(0xFF1F2937),
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (totalAbsentToday > 0)
-              Text(
-                "$totalAbsentToday student${totalAbsentToday > 1 ? 's' : ''} absent today.",
-                style: const TextStyle(
-                  color: Color(0xFFEF4444),
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-            if (lateArrivals.isNotEmpty) ...[
-              if (totalAbsentToday > 0) const SizedBox(height: 8),
-              Text(
-                "${lateArrivals.length} late arrival${lateArrivals.length > 1 ? 's' : ''}:",
-                style: const TextStyle(
-                  color: Color(0xFFEF4444),
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final late in lateArrivals)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 12,
-                            backgroundImage: NetworkImage(late['avatar']),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            "${late['name']} (${late['section']})",
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF1F2937),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            "at ${late['time'].hour.toString().padLeft(2, '0')}:${late['time'].minute.toString().padLeft(2, '0')}",
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF6B7280),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ],
-            if (totalAbsentToday == 0 && lateArrivals.isEmpty)
-              const Text(
-                "No alerts. All students are present and on time!",
-                style: TextStyle(
-                  color: Color(0xFF10B981),
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildAttendanceIssues() {
     return Padding(
@@ -1053,14 +952,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                       const SizedBox(height: 24),
                       _buildSummaryCards(),
                       const SizedBox(height: 24),
-                      // Add attendance insights card
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: AttendanceInsightsCard(
-                          insights: attendanceInsights,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
                       // Reference layout grid (schedule + alerts on left, issues on right)
                       _buildDetailLayoutGrid(),
                       _buildViewAllClassesButton(),
@@ -1310,144 +1201,4 @@ class _ScheduleListTile extends StatelessWidget {
   }
 }
 
-// For dialog "View Details" modal
-class _ClassStudentListModal extends StatelessWidget {
-  final String classTitle;
-  final String schedule;
-  final String subject;
-  final List<_StudentRowData> students;
-  const _ClassStudentListModal({
-    required this.classTitle,
-    required this.schedule,
-    required this.subject,
-    required this.students,
-  });
 
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Container(
-        padding: const EdgeInsets.all(0),
-        width: double.infinity,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(32, 22, 32, 0),
-              child: Text(
-                classTitle,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(32, 4, 32, 0),
-              child: Row(
-                children: [
-                  if (subject.isNotEmpty)
-                    Text(
-                      subject,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF2563EB),
-                      ),
-                    ),
-                  if (subject.isNotEmpty) const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      schedule,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF8F9BB3),
-                        fontWeight: FontWeight.w500,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(32, 2, 32, 0),
-              child: Text(
-                "Current Class Students",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF8F9BB3),
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            ListView.separated(
-              shrinkWrap: true,
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: students.length,
-              separatorBuilder: (_, __) => const Divider(height: 0),
-              itemBuilder: (context, idx) {
-                final s = students[idx];
-                final isPresent = s.status == "Present";
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundImage: NetworkImage(s.avatarUrl),
-                  ),
-                  title: Text(
-                    s.name,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color:
-                              isPresent
-                                  ? const Color(0xFF19AE61)
-                                  : const Color(0xFFEB5757),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        isPresent ? "Present" : "Absent",
-                        style: TextStyle(
-                          color:
-                              isPresent
-                                  ? const Color(0xFF19AE61)
-                                  : const Color(0xFFEB5757),
-                          fontWeight: FontWeight.w500,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StudentRowData {
-  final String name;
-  final String avatarUrl;
-  final String status;
-  _StudentRowData(this.name, this.avatarUrl, this.status);
-}
