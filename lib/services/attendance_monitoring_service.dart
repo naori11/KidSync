@@ -30,16 +30,16 @@ class AttendanceMonitoringService {
       // Check if parent notification has been sent for this student
       final notificationHistory = await getAttendanceNotificationHistory(studentId);
       bool hasParentNotificationSent = notificationHistory.any((notification) => 
-        notification['type'] == 'attendance_alert' || 
-        notification['type'] == 'system_log_attendance_alert'
+        ['attendance_alert', 'attendance_ticket', 'system_log_attendance_alert', 'system_log_ticket_ticket_created']
+            .contains(notification['type'])
       );
       
       // Get the most recent notification date
       DateTime? lastNotificationDate;
       if (hasParentNotificationSent) {
         final recentNotification = notificationHistory.firstWhere(
-          (notification) => notification['type'] == 'attendance_alert' || 
-                          notification['type'] == 'system_log_attendance_alert',
+          (notification) => ['attendance_alert', 'attendance_ticket', 'system_log_attendance_alert', 'system_log_ticket_ticket_created']
+              .contains(notification['type']),
           orElse: () => <String, dynamic>{},
         );
         if (recentNotification.isNotEmpty) {
@@ -343,7 +343,7 @@ class AttendanceMonitoringService {
         'needsTeacherAlert': consecutiveAbsences >= 3,
         'hasParentNotificationSent': hasParentNotificationSent,
         'lastNotificationDate': lastNotificationDate?.toIso8601String(),
-        'isUrgentIssue': consecutiveAbsences >= 3 && !hasParentNotificationSent,
+        'isUrgentIssue': isUrgentIssue,
       };
     } catch (e) {
       print('Error getting student attendance stats: $e');
@@ -634,7 +634,13 @@ class AttendanceMonitoringService {
           .from('notifications')
           .select('*')
           .eq('student_id', studentId)
-          .inFilter('type', ['attendance_alert', 'attendance_followup', 'system_log_attendance_alert'])
+          .inFilter('type', [
+            'attendance_alert', 
+            'attendance_ticket',
+            'attendance_followup', 
+            'system_log_attendance_alert',
+            'attendance_resolved'
+          ])
           .order('created_at', ascending: false);
 
       return List<Map<String, dynamic>>.from(history);
@@ -775,12 +781,17 @@ class AttendanceMonitoringService {
   /// Check if student has unresolved attendance notifications
   Future<bool> hasUnresolvedNotifications(int studentId) async {
     try {
-      // Get latest notification for this student
+      // Get all attendance-related notifications for this student
       final notifications = await supabase
           .from('notifications')
           .select('type, created_at')
           .eq('student_id', studentId)
-          .inFilter('type', ['attendance_alert', 'attendance_resolved'])
+          .inFilter('type', [
+            'attendance_alert', 
+            'attendance_ticket',
+            'system_log_attendance_alert',
+            'attendance_resolved'
+          ])
           .order('created_at', ascending: false)
           .limit(1);
 
@@ -793,8 +804,9 @@ class AttendanceMonitoringService {
         return false;
       }
 
-      // If last notification was an alert, it's unresolved
-      return lastNotification['type'] == 'attendance_alert';
+      // If last notification was any type of alert/ticket, it's unresolved
+      return ['attendance_alert', 'attendance_ticket', 'system_log_attendance_alert', 'system_log_ticket_ticket_created']
+          .contains(lastNotification['type']);
     } catch (e) {
       print('Error checking unresolved notifications: $e');
       return false;
@@ -932,13 +944,14 @@ class AttendanceMonitoringService {
         final students = sectionData['students'] as List;
 
         for (final student in students) {
-          // Get notification history for this period - include both regular and system log types
+          // Get notification history for this period - include all attendance notification types
           final notifications = await supabase
               .from('notifications')
               .select('*')
               .eq('student_id', student['id'])
               .inFilter('type', [
                 'attendance_alert', 
+                'attendance_ticket',
                 'system_log_attendance_alert'
               ])
               .gte('created_at', defaultStartDate.toIso8601String())

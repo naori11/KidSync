@@ -45,6 +45,7 @@ class _TeacherSectionAttendanceSummaryPageState
   Map<int, Map<String, int>> studentAttendanceStats = {};
   Map<int, Map<String, dynamic>> studentUrgentStatus = {};
   Map<int, Map<String, dynamic>> studentBadgeStatus = {};
+  Map<int, bool> studentNotificationStatus = {}; // Track notification status for each student
 
   int totalPresent = 0;
   int totalLate = 0;
@@ -100,6 +101,8 @@ class _TeacherSectionAttendanceSummaryPageState
           .order('lname', ascending: true);
 
       students = List<Map<String, dynamic>>.from(studentRows);
+      print('Loaded ${students.length} students for notification status tracking');
+      print('Loaded ${students.length} students: ${students.map((s) => '${s['fname']} ${s['lname']} (ID: ${s['id']})').toList()}');
 
       // Load class schedule information from section_teachers table
       final assignmentRows = await supabase
@@ -308,15 +311,29 @@ class _TeacherSectionAttendanceSummaryPageState
 
       // Calculate urgent status for each student
       studentUrgentStatus.clear();
+      print('Processing ${students.length} students for notification status...');
       for (final student in students) {
         final studentId = student['id'] as int;
+        print('Processing student ${student['fname']} ${student['lname']} (ID: $studentId)');
         try {
-          final attendanceStats = await _attendanceService.getStudentAttendanceStats(
-            studentId: studentId,
-            sectionId: widget.sectionId,
-            startDate: selectedMonth,
-            endDate: DateTime(selectedMonth.year, selectedMonth.month + 1, 0),
-          );
+          // Try to get attendance stats, but don't let errors block notification checking
+          Map<String, dynamic> attendanceStats = {};
+          try {
+            attendanceStats = await _attendanceService.getStudentAttendanceStats(
+              studentId: studentId,
+              sectionId: widget.sectionId,
+              startDate: selectedMonth,
+              endDate: DateTime(selectedMonth.year, selectedMonth.month + 1, 0),
+            );
+          } catch (statsError) {
+            print('Error getting student attendance stats for $studentId: $statsError');
+            // Set default values if stats can't be retrieved
+            attendanceStats = {
+              'isUrgentIssue': false,
+              'hasParentNotificationSent': false,
+              'lastNotificationDate': null,
+            };
+          }
           
           studentUrgentStatus[studentId] = {
             'isUrgentIssue': attendanceStats['isUrgentIssue'] ?? false,
@@ -330,6 +347,13 @@ class _TeacherSectionAttendanceSummaryPageState
             sectionId: widget.sectionId,
           );
           studentBadgeStatus[studentId] = badgeStatus;
+          
+          // Check notification status for this student - ALWAYS run this
+          final hasUnresolved = await _hasUnresolvedNotification(studentId);
+          studentNotificationStatus[studentId] = hasUnresolved;
+          if (hasUnresolved) {
+            print('✓ Student ${student['fname']} ${student['lname']} has unresolved notification');
+          }
         } catch (e) {
           print('Error getting urgent status for student $studentId: $e');
           studentUrgentStatus[studentId] = {
@@ -689,7 +713,7 @@ class _TeacherSectionAttendanceSummaryPageState
   }
 
   Widget _buildAttendanceQuickStats() {
-    // Calculate attendance issue stats
+    // Calculate attendance issue stats using precomputed data
     int studentsWithIssues = 0;
     int urgentCases = 0;
     int notificationsSent = 0;
@@ -697,22 +721,37 @@ class _TeacherSectionAttendanceSummaryPageState
     for (final student in students) {
       final studentId = student['id'] as int;
       final badgeStatus = studentBadgeStatus[studentId];
+      final urgentStatus = studentUrgentStatus[studentId];
+      final hasNotification = studentNotificationStatus[studentId] ?? false;
+      
       if (badgeStatus != null) {
-        final badgeType = badgeStatus['badgeType'] as String? ?? 'none';
-        if (badgeType != 'none') {
+        final stats = badgeStatus['stats'] as Map<String, dynamic>? ?? {};
+        final consecutiveAbsences = stats['consecutiveAbsences'] as int? ?? 0;
+        
+        // Count students with issues (3+ consecutive absences)
+        if (consecutiveAbsences >= 3) {
           studentsWithIssues++;
           
-          if (badgeType == 'urgent' || badgeType == 'critical') {
+          // Count urgent cases (5+ consecutive absences OR still urgent after notification)
+          if (urgentStatus != null) {
+            final isUrgentIssue = urgentStatus['isUrgentIssue'] as bool? ?? false;
+            if (consecutiveAbsences >= 5 || isUrgentIssue) {
+              urgentCases++;
+            }
+          } else if (consecutiveAbsences >= 5) {
             urgentCases++;
-          }
-          
-          if (badgeType == 'monitoring') {
-            notificationsSent++;
           }
         }
       }
+      
+      // Count students with unresolved notifications
+      if (hasNotification) {
+        notificationsSent++;
+      }
     }
-
+    
+    print('Statistics - Notifications sent/pending: $notificationsSent out of ${students.length} students');
+    
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 0),
       child: AttendanceQuickStats(
@@ -722,9 +761,7 @@ class _TeacherSectionAttendanceSummaryPageState
         notificationsSent: notificationsSent,
       ),
     );
-  }
-
-  void _showStudentAttendanceCalendar(int studentId, String studentName) {
+  }  void _showStudentAttendanceCalendar(int studentId, String studentName) {
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -1571,6 +1608,41 @@ class _TeacherSectionAttendanceSummaryPageState
                                                                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                                                                   ),
                                                                 ),
+                                                              // Notification pending indicator
+                                                              if (studentNotificationStatus[s['id']] == true)
+                                                                Padding(
+                                                                  padding: const EdgeInsets.only(left: 4),
+                                                                  child: Container(
+                                                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                                    decoration: BoxDecoration(
+                                                                      color: const Color(0xFF3B82F6).withOpacity(0.1),
+                                                                      borderRadius: BorderRadius.circular(6),
+                                                                      border: Border.all(
+                                                                        color: const Color(0xFF3B82F6).withOpacity(0.3),
+                                                                        width: 1,
+                                                                      ),
+                                                                    ),
+                                                                    child: Row(
+                                                                      mainAxisSize: MainAxisSize.min,
+                                                                      children: [
+                                                                        Icon(
+                                                                          Icons.notifications_active,
+                                                                          size: 8,
+                                                                          color: const Color(0xFF3B82F6),
+                                                                        ),
+                                                                        const SizedBox(width: 2),
+                                                                        Text(
+                                                                          'Notified',
+                                                                          style: TextStyle(
+                                                                            fontSize: 8,
+                                                                            color: const Color(0xFF3B82F6),
+                                                                            fontWeight: FontWeight.w500,
+                                                                          ),
+                                                                        ),
+                                                                      ],
+                                                                    ),
+                                                                  ),
+                                                                ),
                                                             ],
                                                           ),
                                                           const SizedBox(
@@ -1649,6 +1721,82 @@ class _TeacherSectionAttendanceSummaryPageState
     final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final abbrev = weekDays[date.weekday - 1];
     return classDays.contains(abbrev);
+  }
+
+  // Helper method to check if a student has unresolved notifications
+  // Public method to refresh data - can be called after notification operations
+  Future<void> refreshData() async {
+    await _loadData();
+  }
+
+  Future<bool> _hasUnresolvedNotification(int studentId) async {
+    print('=== _hasUnresolvedNotification called for student $studentId ===');
+    try {
+      // Get ALL notifications for this student (not filtered by date)
+      final notifications = await supabase
+          .from('notifications')
+          .select('type, created_at, title, message')
+          .eq('student_id', studentId)
+          .order('created_at', ascending: false);
+          
+      print('Found ${notifications.length} notifications for student $studentId');
+      if (notifications.isNotEmpty) {
+        print('All notifications for student $studentId:');
+        for (int i = 0; i < notifications.length && i < 10; i++) {
+          final notif = notifications[i];
+          print('  ${i + 1}. Type: ${notif['type']}, Date: ${notif['created_at']}, Title: ${notif['title']}');
+        }
+      }
+      
+      // Filter to only the types we care about
+      final relevantNotifications = notifications.where((n) => [
+        'attendance_alert',
+        'attendance_ticket', 
+        'system_log_attendance_alert',
+        'system_log_ticket_ticket_created',  // This is the actual type being created!
+        'attendance_resolved',
+        'system_log_ticket_ticket_resolved'
+      ].contains(n['type'])).toList();
+      
+      print('Found ${relevantNotifications.length} relevant notifications for student $studentId');
+      if (relevantNotifications.isNotEmpty) {
+        print('Relevant notification types: ${relevantNotifications.map((n) => n['type']).toList()}');
+        // Look for the most recent notification that's not a resolution
+        Map<String, dynamic>? latestAlert;
+        Map<String, dynamic>? latestResolution;
+        
+        for (final notification in notifications) {
+          final type = notification['type'] as String;
+          if (['attendance_alert', 'attendance_ticket', 'system_log_attendance_alert', 'system_log_ticket_ticket_created'].contains(type)) {
+            latestAlert ??= notification;
+          } else if (['attendance_resolved', 'system_log_ticket_ticket_resolved'].contains(type)) {
+            latestResolution ??= notification;
+          }
+        }
+        
+        // If no alert found, no unresolved notifications
+        if (latestAlert == null) {
+          return false;
+        }
+        
+        // If no resolution found, alert is unresolved
+        if (latestResolution == null) {
+          return true;
+        }
+        
+        // Compare dates to see if resolution is after the latest alert
+        final alertDate = DateTime.parse(latestAlert['created_at']);
+        final resolutionDate = DateTime.parse(latestResolution['created_at']);
+        
+        final isUnresolved = alertDate.isAfter(resolutionDate);
+        return isUnresolved;
+      }
+      
+      return false;
+    } catch (e) {
+      print('Error checking unresolved notifications for student $studentId: $e');
+      return false;
+    }
   }
 
   Widget _th(String label, {int flex = 1}) => Expanded(
