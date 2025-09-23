@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:excel/excel.dart' as excel_lib;
 import 'dart:html' as html;
 import 'dart:convert';
+import 'package:web_socket_channel/html.dart';
 
 class UserManagementPageAdmin extends StatelessWidget {
   const UserManagementPageAdmin({super.key});
@@ -838,6 +839,24 @@ class _UserManagementPageState extends State<UserManagementPage> {
     // Form state variables - Aligned with schema
     String? selectedRole = user?['role']?.toString();
     String selectedStatus = user?['status']?.toString() ?? 'Active';
+    String? rfidUID;
+    
+    // Initialize RFID UID for guards from guard_rfid_cards table
+    if (selectedRole == 'Guard' && user?['id'] != null) {
+      try {
+        final rfidResponse = await supabase
+            .from('guard_rfid_cards')
+            .select('rfid_uid')
+            .eq('guard_id', user!['id'])
+            .eq('status', 'active')
+            .maybeSingle();
+        if (rfidResponse != null) {
+          rfidUID = rfidResponse['rfid_uid'];
+        }
+      } catch (e) {
+        print('Error fetching guard RFID: $e');
+      }
+    }
 
     // Form validation key
     final formKey = GlobalKey<FormState>();
@@ -1154,6 +1173,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                         : (value) {
                                           setDialogState(() {
                                             selectedRole = value;
+                                            // Clear RFID when role changes from Guard to something else
+                                            if (value != 'Guard') {
+                                              rfidUID = null;
+                                            }
                                           });
                                         },
                                 validator: (value) {
@@ -1212,6 +1235,184 @@ class _UserManagementPageState extends State<UserManagementPage> {
                           ],
                         ),
                         const SizedBox(height: 24),
+
+                        // RFID Section (shown only for Guards)
+                        if (selectedRole == 'Guard') ...[
+                          _buildSectionHeader('RFID Card Assignment'),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.blue[200]!),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.credit_card,
+                                      color: Colors.blue[700],
+                                      size: 20,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'RFID Card Information',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.blue[800],
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 12),
+                                if (rfidUID != null) ...[
+                                  Container(
+                                    padding: EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green[50],
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.green[200]!),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.check_circle,
+                                          color: Colors.green,
+                                          size: 20,
+                                        ),
+                                        SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'RFID Card Assigned',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.green[700],
+                                                ),
+                                              ),
+                                              SizedBox(height: 4),
+                                              Text(
+                                                'UID: $rfidUID',
+                                                style: TextStyle(
+                                                  fontFamily: 'Courier',
+                                                  fontSize: 12,
+                                                  color: Colors.green[600],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        IconButton(
+                                          onPressed: () async {
+                                            final newUID = await _showRFIDScanDialog(
+                                              context,
+                                              excludeUserId: user?['id'],
+                                            );
+                                            if (newUID != null) {
+                                              setDialogState(() {
+                                                rfidUID = newUID;
+                                              });
+                                            }
+                                          },
+                                          icon: Icon(
+                                            Icons.edit,
+                                            color: Colors.blue[700],
+                                            size: 20,
+                                          ),
+                                          tooltip: 'Change RFID Card',
+                                        ),
+                                        IconButton(
+                                          onPressed: () {
+                                            setDialogState(() {
+                                              rfidUID = null;
+                                            });
+                                          },
+                                          icon: Icon(
+                                            Icons.delete,
+                                            color: Colors.red[700],
+                                            size: 20,
+                                          ),
+                                          tooltip: 'Remove RFID Card',
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ] else ...[
+                                  Container(
+                                    padding: EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange[50],
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.orange[200]!),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.warning,
+                                          color: Colors.orange,
+                                          size: 20,
+                                        ),
+                                        SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            'No RFID card assigned. This guard will not be able to use override mode.',
+                                            style: TextStyle(
+                                              color: Colors.orange[700],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () async {
+                                          final newUID = await _showRFIDScanDialog(
+                                            context,
+                                            excludeUserId: user?['id'],
+                                          );
+                                          if (newUID != null) {
+                                            setDialogState(() {
+                                              rfidUID = newUID;
+                                            });
+                                          }
+                                        },
+                                        icon: Icon(Icons.nfc),
+                                        label: Text(
+                                          rfidUID != null ? 'Change RFID Card' : 'Assign RFID Card',
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Colors.blue[700],
+                                          side: BorderSide(color: Colors.blue[300]!),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'RFID cards enable guards to activate override mode for manual student selection during emergencies or when student cards are lost.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
 
                         // Profile Image Section (moved to bottom)
                         _buildSectionHeader('Profile Image'),
@@ -1609,6 +1810,20 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 ),
                               );
                             }
+
+                            // For Guards, save RFID separately
+                            if (selectedRole == 'Guard' && rfidUID != null && rfidUID!.isNotEmpty) {
+                              try {
+                                await supabase.from('guard_rfid_cards').upsert({
+                                  'guard_id': createdUser['id'],
+                                  'rfid_uid': rfidUID,
+                                  'status': 'active',
+                                  'assigned_at': DateTime.now().toIso8601String(),
+                                });
+                              } catch (rfidError) {
+                                print('Error saving guard RFID: $rfidError');
+                              }
+                            }
                           } else {
                             // existing user: upload image then edit
                             final XFile imageFile = XFile.fromData(
@@ -1656,6 +1871,37 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                       : positionController.text.trim(),
                               profileImageUrl: imageUrl,
                             );
+
+                            if (editRes['status'] != 200) {
+                              final errs = _extractFieldErrors(editRes['data']);
+                              _setFieldErrors(errs);
+                              return;
+                            }
+
+                            // For Guards, update RFID separately
+                            if (selectedRole == 'Guard') {
+                              if (rfidUID != null && rfidUID!.isNotEmpty) {
+                                try {
+                                  await supabase.from('guard_rfid_cards').upsert({
+                                    'guard_id': user['id'],
+                                    'rfid_uid': rfidUID,
+                                    'status': 'active',
+                                    'assigned_at': DateTime.now().toIso8601String(),
+                                  });
+                                } catch (rfidError) {
+                                  print('Error updating guard RFID: $rfidError');
+                                }
+                              } else {
+                                // Remove RFID if empty
+                                try {
+                                  await supabase.from('guard_rfid_cards')
+                                      .delete()
+                                      .eq('guard_id', user['id']);
+                                } catch (rfidError) {
+                                  print('Error removing guard RFID: $rfidError');
+                                }
+                              }
+                            }
 
                             if (editRes['status'] != 200) {
                               final errs = _extractFieldErrors(editRes['data']);
@@ -1738,6 +1984,20 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 .eq('email', emailController.text.trim())
                                 .single();
 
+                            // For Guards, save RFID separately
+                            if (selectedRole == 'Guard' && rfidUID != null && rfidUID!.isNotEmpty) {
+                              try {
+                                await supabase.from('guard_rfid_cards').upsert({
+                                  'guard_id': createdUser['id'],
+                                  'rfid_uid': rfidUID,
+                                  'status': 'active',
+                                  'assigned_at': DateTime.now().toIso8601String(),
+                                });
+                              } catch (rfidError) {
+                                print('Error saving guard RFID: $rfidError');
+                              }
+                            }
+
                             // Log user creation immediately after successful creation
                             try {
                               final userName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
@@ -1788,6 +2048,31 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               final errs = _extractFieldErrors(editRes['data']);
                               _setFieldErrors(errs);
                               return;
+                            }
+
+                            // For Guards, update RFID separately
+                            if (selectedRole == 'Guard') {
+                              if (rfidUID != null && rfidUID!.isNotEmpty) {
+                                try {
+                                  await supabase.from('guard_rfid_cards').upsert({
+                                    'guard_id': user['id'],
+                                    'rfid_uid': rfidUID,
+                                    'status': 'active',
+                                    'assigned_at': DateTime.now().toIso8601String(),
+                                  });
+                                } catch (rfidError) {
+                                  print('Error updating guard RFID: $rfidError');
+                                }
+                              } else {
+                                // Remove RFID if empty
+                                try {
+                                  await supabase.from('guard_rfid_cards')
+                                      .delete()
+                                      .eq('guard_id', user['id']);
+                                } catch (rfidError) {
+                                  print('Error removing guard RFID: $rfidError');
+                                }
+                              }
                             }
 
                             // Log user update immediately after successful edit (no image path)
@@ -2020,6 +2305,411 @@ class _UserManagementPageState extends State<UserManagementPage> {
         fontSize: 15,
         fontWeight: FontWeight.w500,
       ),
+    );
+  }
+
+  // RFID validation methods for guards
+  Future<Map<String, dynamic>?> _checkRFIDExistsInStudents(
+    String rfidUID,
+  ) async {
+    try {
+      final response = await supabase
+          .from('students')
+          .select('id, fname, lname, grade_level, sections(name, grade_level)')
+          .eq('rfid_uid', rfidUID)
+          .maybeSingle();
+      return response;
+    } catch (e) {
+      print('Error checking RFID in students: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> _checkRFIDExistsInGuards(
+    String rfidUID, {
+    String? excludeUserId,
+  }) async {
+    try {
+      var query = supabase
+          .from('guard_rfid_cards')
+          .select('id, guard_id, rfid_uid, status, users(fname, lname)')
+          .eq('rfid_uid', rfidUID)
+          .eq('status', 'active');
+
+      // If we're editing an existing user, exclude their current record
+      if (excludeUserId != null) {
+        query = query.neq('guard_id', excludeUserId);
+      }
+
+      final response = await query.maybeSingle();
+      return response;
+    } catch (e) {
+      print('Error checking RFID in guards: $e');
+      return null;
+    }
+  }
+
+  Future<bool> _validateRFIDUniqueness(
+    String rfidUID, {
+    String? excludeUserId,
+  }) async {
+    // Check against students first
+    final existingStudent = await _checkRFIDExistsInStudents(rfidUID);
+    if (existingStudent != null) {
+      return false;
+    }
+
+    // Check against other guards
+    final existingGuard = await _checkRFIDExistsInGuards(
+      rfidUID,
+      excludeUserId: excludeUserId,
+    );
+    return existingGuard == null;
+  }
+
+  // RFID scanning dialog for guards
+  Future<String?> _showRFIDScanDialog(
+    BuildContext context, {
+    String? excludeUserId,
+  }) async {
+    String? scannedUID;
+    HtmlWebSocketChannel? channel;
+    bool isScanning = true;
+    bool isConnected = false;
+    String connectionStatus = 'Connecting to RFID scanner...';
+    bool isValidating = false;
+    String? validationError;
+
+    return await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            // Initialize WebSocket connection
+            if (channel == null && isScanning) {
+              try {
+                channel = HtmlWebSocketChannel.connect(
+                  'wss://rfid-websocket-server.onrender.com',
+                );
+
+                channel!.stream.listen(
+                  (data) async {
+                    try {
+                      final Map<String, dynamic> message = json.decode(data);
+                      if (message['type'] == 'rfid_scan' &&
+                          message['uid'] != null) {
+                        final uid = message['uid'];
+
+                        setDialogState(() {
+                          isScanning = false;
+                          isValidating = true;
+                          connectionStatus = 'Validating RFID card...';
+                          validationError = null;
+                        });
+
+                        // Validate RFID uniqueness
+                        final isUnique = await _validateRFIDUniqueness(
+                          uid,
+                          excludeUserId: excludeUserId,
+                        );
+
+                        if (isUnique) {
+                          setDialogState(() {
+                            scannedUID = uid;
+                            isValidating = false;
+                            connectionStatus =
+                                'RFID card validated successfully!';
+                          });
+                        } else {
+                          // Check what entity already has this RFID
+                          final existingStudent = await _checkRFIDExistsInStudents(uid);
+                          final existingGuard = await _checkRFIDExistsInGuards(
+                            uid,
+                            excludeUserId: excludeUserId,
+                          );
+
+                          String errorMessage;
+                          if (existingStudent != null) {
+                            final studentName =
+                                "${existingStudent['fname'] ?? ''} ${existingStudent['lname'] ?? ''}";
+                            final sectionInfo = existingStudent['sections'];
+                            final classInfo =
+                                sectionInfo != null
+                                    ? "${sectionInfo['name']} (${sectionInfo['grade_level']})"
+                                    : "Unknown Class";
+                            errorMessage =
+                                'This RFID card is already assigned to student $studentName in $classInfo';
+                          } else if (existingGuard != null) {
+                            final guardUser = existingGuard['users'];
+                            final guardName = guardUser != null
+                                ? "${guardUser['fname'] ?? ''} ${guardUser['lname'] ?? ''}"
+                                : "Unknown Guard";
+                            errorMessage =
+                                'This RFID card is already assigned to guard $guardName';
+                          } else {
+                            errorMessage = 'This RFID card is already in use';
+                          }
+
+                          setDialogState(() {
+                            isValidating = false;
+                            validationError = errorMessage;
+                            connectionStatus = 'RFID validation failed';
+                            isScanning = true; // Allow scanning again
+                          });
+                        }
+                      }
+                    } catch (e) {
+                      print('Error parsing WebSocket message: $e');
+                      setDialogState(() {
+                        isValidating = false;
+                        validationError = 'Error processing RFID scan';
+                        isScanning = true;
+                      });
+                    }
+                  },
+                  onError: (error) {
+                    setDialogState(() {
+                      isConnected = false;
+                      connectionStatus =
+                          'Connection error. Please check your RFID scanner.';
+                    });
+                  },
+                  onDone: () {
+                    setDialogState(() {
+                      isConnected = false;
+                      if (isScanning) {
+                        connectionStatus = 'Connection lost. Please try again.';
+                      }
+                    });
+                  },
+                );
+
+                setDialogState(() {
+                  isConnected = true;
+                  connectionStatus = 'Connected! Please tap the RFID card on the scanner...';
+                });
+              } catch (e) {
+                setDialogState(() {
+                  isConnected = false;
+                  connectionStatus = 'Failed to connect to RFID scanner.';
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Icon(
+                    Icons.credit_card,
+                    color: Colors.blue,
+                    size: 24,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Scan RFID Card',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              content: Container(
+                width: 400,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Connection status
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isConnected
+                            ? Colors.green[50]
+                            : Colors.orange[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isConnected
+                              ? Colors.green[200]!
+                              : Colors.orange[200]!,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isConnected ? Icons.wifi : Icons.wifi_off,
+                            color: isConnected ? Colors.green : Colors.orange,
+                            size: 20,
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              connectionStatus,
+                              style: TextStyle(
+                                color: isConnected ? Colors.green[700] : Colors.orange[700],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: 20),
+
+                    // Scanning indicator
+                    if (isScanning && isConnected) ...[
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(50),
+                          border: Border.all(color: Colors.blue[200]!, width: 2),
+                        ),
+                        child: Icon(
+                          Icons.credit_card,
+                          size: 50,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Please tap the RFID card on the scanner...',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[600],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+
+                    // Validating indicator
+                    if (isValidating) ...[
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text(
+                        'Validating RFID card...',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[600],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+
+                    // Success indicator
+                    if (scannedUID != null) ...[
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          borderRadius: BorderRadius.circular(50),
+                          border: Border.all(color: Colors.green[200]!, width: 2),
+                        ),
+                        child: Icon(
+                          Icons.check_circle,
+                          size: 50,
+                          color: Colors.green,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'RFID Card Validated!',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green[700],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'UID: $scannedUID',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                          fontFamily: 'Courier',
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+
+                    // Error indicator
+                    if (validationError != null) ...[
+                      Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error,
+                              color: Colors.red,
+                              size: 20,
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                validationError!,
+                                style: TextStyle(
+                                  color: Colors.red[700],
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Please try a different RFID card',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    if (channel != null) {
+                      channel!.sink.close();
+                    }
+                    Navigator.of(context).pop(null);
+                  },
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ),
+                if (scannedUID != null)
+                  ElevatedButton(
+                    onPressed: () {
+                      if (channel != null) {
+                        channel!.sink.close();
+                      }
+                      Navigator.of(context).pop(scannedUID);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: Text('Use This Card'),
+                  ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

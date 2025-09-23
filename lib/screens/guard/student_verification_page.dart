@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:web_socket_channel/html.dart';
 import 'dart:convert';
+import 'dart:async';
 import '../../models/guard_models.dart';
 import '../../services/notification_service.dart';
 import '../../services/guard_audit_service.dart';
@@ -41,6 +42,13 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   String? scheduleValidationMessage;
   TimeOfDay? lastClassEndTime;
   Map<String, dynamic>? currentScheduleCheck; // Store the schedule check result
+
+  // Guard override mode variables
+  DateTime? _overrideModeStartTime;
+  List<Student>? _searchResults;
+  bool _isSearching = false;
+  String _searchQuery = '';
+  TextEditingController _searchController = TextEditingController();
 
   late HtmlWebSocketChannel channel;
   final NotificationService _notificationService = NotificationService();
@@ -85,7 +93,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     }
 
     // Listen for incoming RFID data
-    channel.stream.listen((message) {
+    channel.stream.listen((message) async {
       print("RFID received: $message");
 
       try {
@@ -122,8 +130,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             },
           );
           
-          // Fetch real student data from database with scanner info
-          _fetchStudentByRFID(uid, scanner: scanner);
+          // Check if this is a guard RFID card first
+          await _checkGuardRFID(uid, scanner: scanner);
         } else {
           // Log failed RFID scan
           _guardAuditService.logRFIDScanAttempt(
@@ -163,6 +171,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       connectionDetails: 'Disconnecting from RFID WebSocket server',
       isSuccessful: true,
     );
+    
+    _searchController.dispose();
     
     channel.sink.close();
     super.dispose();
@@ -521,7 +531,89 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     return dayNames[now.weekday % 7];
   }
 
-  // Modified fetch student method - simplified entry handling
+  // New method that includes scanner validation before processing student RFID
+  Future<void> _fetchStudentByRFIDWithValidation(String rfidUid, {String? scanner}) async {
+    print('Validating scanner access for RFID: $rfidUid, Scanner: ${scanner ?? "unknown"}');
+    
+    // First check if student exists
+    try {
+      final studentResponse = await supabase
+          .from('students')
+          .select('id, fname, lname, rfid_uid, status')
+          .eq('rfid_uid', rfidUid)
+          .neq('status', 'deleted')  // Changed from .eq('status', 'active') to match original logic
+          .maybeSingle();
+
+      if (studentResponse == null) {
+        _showErrorNotification('Student not found or inactive');
+        return;
+      }
+
+      final studentId = studentResponse['id'] as int;
+      final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
+      
+      // Check today's scan records to determine current status
+      final todayStatus = await _checkTodayAttendanceStatus(studentId);
+      print('Student $studentName current status: $todayStatus');
+      
+      // Validate scanner usage based on student status and scanner type
+      final validationResult = _validateScannerUsage(todayStatus, scanner);
+      
+      if (!validationResult['isValid']) {
+        // Log invalid scanner usage attempt
+        _guardAuditService.logRFIDScanAttempt(
+          rfidUid: rfidUid,
+          studentId: studentId.toString(),
+          studentName: studentName,
+
+          isSuccessful: false,
+          failureReason: validationResult['message'],
+        );
+        
+        _showErrorNotification(validationResult['message']);
+        return;
+      }
+      
+      // Validation passed, proceed with normal RFID processing
+      await _fetchStudentByRFID(rfidUid, scanner: scanner);
+      
+    } catch (e) {
+      print('Error validating student RFID: $e');
+      _showErrorNotification('Error validating student access: ${e.toString()}');
+    }
+  }
+
+  // Validate if the scanner usage is appropriate for student's current status
+  Map<String, dynamic> _validateScannerUsage(String expectedAction, String? scanner) {
+    // If no scanner info available, allow processing (backward compatibility)
+    if (scanner == null) {
+      return {'isValid': true, 'message': 'Scanner validation skipped - no scanner info'};
+    }
+    
+    // Check scanner and expected action compatibility
+    if (expectedAction == 'entry') {
+      if (scanner == 'entry') {
+        return {'isValid': true, 'message': 'Valid entry scanner usage'};
+      } else {
+        return {
+          'isValid': false, 
+          'message': 'Student needs to check IN first. Please use the ENTRY scanner.'
+        };
+      }
+    } else if (expectedAction == 'exit') {
+      if (scanner == 'exit') {
+        return {'isValid': true, 'message': 'Valid exit scanner usage'};
+      } else {
+        return {
+          'isValid': false, 
+          'message': 'Student is already checked in. Please use the EXIT scanner to check out.'
+        };
+      }
+    }
+    
+    // Default case - allow processing
+    return {'isValid': true, 'message': 'Scanner validation passed'};
+  }
   Future<void> _fetchStudentByRFID(String rfidUid, {String? scanner}) async {
     _cleanupCooldowns();
 
@@ -760,6 +852,296 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     // Remove entries from scanner map if they no longer have a timestamp
     lastScannerPerRfid.removeWhere((uid, scanner) => 
         !lastScanTimePerRfid.containsKey(uid));
+  }
+
+  // Check if scanned RFID belongs to a guard (for override mode)
+  Future<void> _checkGuardRFID(String rfidUid, {String? scanner}) async {
+    try {
+      print('Checking if RFID $rfidUid belongs to a guard...');
+      
+      // First, let's check if there are any guard RFID cards in the database
+      final allGuardCards = await supabase
+          .from('guard_rfid_cards')
+          .select('id, guard_id, rfid_uid, status')
+          .limit(5);
+      
+      print('Available guard RFID cards in database: $allGuardCards');
+      
+      // Check if this RFID belongs to a guard
+      final guardResponse = await supabase
+          .from('guard_rfid_cards')
+          .select('guard_id, users!guard_rfid_cards_guard_id_fkey(id, fname, lname, role)')
+          .eq('rfid_uid', rfidUid)
+          .eq('status', 'active')
+          .maybeSingle();
+
+      print('Guard RFID check response: $guardResponse');
+
+      if (guardResponse != null && guardResponse['users'] != null) {
+        // This is a guard RFID - enter override mode
+        final guard = guardResponse['users'];
+        String guardName = '${guard['fname'] ?? ''} ${guard['lname'] ?? ''}'.trim();
+        
+        if (guardName.isEmpty) {
+          guardName = 'Guard ${guard['id']}';
+        }
+        
+        print('Guard RFID detected: $guardName');
+        
+        // Log guard override activation
+        _guardAuditService.logOverrideAuthorization(
+          overrideType: 'guard_gate_override',
+          studentId: 'N/A',
+          studentName: 'Override Mode Activated',
+          justification: 'Guard RFID card scanned - Override mode enabled',
+          overrideDetails: {
+            'guard_id': guard['id'],
+            'guard_name': guardName,
+            'guard_rfid': rfidUid,
+            'scanner': scanner ?? 'unknown',
+            'activation_time': DateTime.now().toIso8601String(),
+          },
+        );
+
+        await _activateOverrideMode(guardName);
+        return;
+      }
+
+      print('Not a guard RFID, processing as student RFID...');
+      // Not a guard RFID, process as student RFID with validation
+      await _fetchStudentByRFIDWithValidation(rfidUid, scanner: scanner);
+    } catch (e) {
+      print('Error checking guard RFID: $e');
+      // Log the error but continue with student processing
+      _guardAuditService.logSystemError(
+        errorType: 'guard_rfid_check_error',
+        errorDescription: 'Failed to check if RFID belongs to guard',
+        systemComponent: 'database',
+        errorDetails: {
+          'rfid_uid': rfidUid,
+          'scanner': scanner ?? 'unknown',
+          'error': e.toString(),
+        },
+      );
+      
+      // Fall back to student RFID processing with validation
+      await _fetchStudentByRFIDWithValidation(rfidUid, scanner: scanner);
+    }
+  }
+
+  // Activate guard override mode
+  Future<void> _activateOverrideMode(String guardName) async {
+    setState(() {
+      isOverrideMode = true;
+      _overrideModeStartTime = DateTime.now();
+      scannedStudent = null;
+      fetchers = null;
+      fetchStatus = null;
+      showNotification = false;
+      currentAction = null;
+      currentScanner = null;
+      scheduleValidationMessage = null;
+      verifiedTempFetcher = null;
+      isShowingTempFetcher = false;
+      activeScanToken = null;
+      _searchResults = null;
+      _searchQuery = '';
+      _searchController.clear();
+    });
+
+    _showSuccessNotification(
+      'Override Mode Activated by $guardName. Search and select a student to process manually.',
+    );
+
+    // Log override mode activation
+    _guardAuditService.logRFIDSystemAccess(
+      accessType: 'override_mode_activated',
+      connectionDetails: 'Guard override mode activated by $guardName',
+      isSuccessful: true,
+    );
+  }
+
+  // Exit override mode
+  void _exitOverrideMode(String reason) {
+    
+    // Log override mode deactivation
+    final duration = _overrideModeStartTime != null 
+        ? DateTime.now().difference(_overrideModeStartTime!).inSeconds
+        : 0;
+    
+    _guardAuditService.logRFIDSystemAccess(
+      accessType: 'override_mode_deactivated',
+      connectionDetails: 'Guard override mode deactivated - $reason (Duration: ${duration}s)',
+      isSuccessful: true,
+    );
+
+    setState(() {
+      isOverrideMode = false;
+      _overrideModeStartTime = null;
+      _searchResults = null;
+      _searchQuery = '';
+      _searchController.clear();
+      _isSearching = false;
+    });
+
+    clearScan();
+  }
+
+  // Search for students in override mode
+  Future<void> _searchStudents(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _searchResults = null;
+        _isSearching = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+      _searchQuery = query;
+    });
+
+    try {
+      final response = await supabase
+          .from('students')
+          .select('''
+            *,
+            sections!inner(name)
+          ''')
+          .neq('status', 'deleted')
+          .or('fname.ilike.%$query%,lname.ilike.%$query%,grade_level.ilike.%$query%')
+          .limit(10);
+
+      final students = response.map((data) => Student.fromJson(data)).toList();
+
+      setState(() {
+        _searchResults = students;
+        _isSearching = false;
+      });
+
+      // Log student search in override mode
+      _guardAuditService.logRFIDSystemAccess(
+        accessType: 'override_student_search',
+        connectionDetails: 'Student search in override mode: "$query" - ${students.length} results',
+        isSuccessful: true,
+      );
+    } catch (e) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      _showErrorNotification('Error searching students: $e');
+    }
+  }
+
+  // Select student in override mode
+  Future<void> _selectStudentInOverrideMode(Student student) async {
+    // Set the selected student
+    setState(() {
+      scannedStudent = student;
+      _searchResults = null;
+      _searchQuery = '';
+      _searchController.clear();
+    });
+
+    // Log student selection in override mode
+    _guardAuditService.logOverrideAuthorization(
+      overrideType: 'student_selection_override',
+      studentId: student.id.toString(),
+      studentName: student.fullName,
+      justification: 'Student manually selected in guard override mode',
+      overrideDetails: {
+        'override_method': 'manual_selection',
+        'student_section': student.classSection,
+        'selection_time': DateTime.now().toIso8601String(),
+      },
+    );
+
+    // Determine action based on current context or default to exit
+    final action = await _checkTodayAttendanceStatus(student.id);
+    
+    setState(() {
+      currentAction = action;
+      activeScanToken = '${student.id}_${DateTime.now().microsecondsSinceEpoch}_override';
+    });
+
+    if (action == 'entry') {
+      await _processOverrideEntry(student);
+    } else {
+      await _processOverrideExit(student);
+    }
+  }
+
+  // Process entry in override mode
+  Future<void> _processOverrideEntry(Student student) async {
+    try {
+      // Create detailed notes with override information
+      String notes = 'Guard override entry - Manual selection';
+      
+      await supabase.from('scan_records').insert({
+        'student_id': student.id,
+        'guard_id': user?.id,
+        'rfid_uid': student.rfidUid ?? 'OVERRIDE',
+        'scan_time': DateTime.now().toIso8601String(),
+        'action': 'entry',
+        'verified_by': 'Guard Override - Manual Selection',
+        'status': 'Checked In',
+        'notes': notes,
+      });
+
+      // Log successful override entry
+      _guardAuditService.logStudentEntry(
+        studentId: student.id.toString(),
+        studentName: student.fullName,
+        rfidUid: student.rfidUid ?? 'OVERRIDE',
+        sectionName: student.classSection,
+        isSuccessful: true,
+        notes: '$notes - immediate check-in approved via guard override',
+      );
+
+      // Send notification to parents
+      await _notificationService
+          .sendRfidTapNotification(
+            studentId: student.id,
+            action: 'entry',
+            studentName: '${student.fname} ${student.lname}',
+          );
+
+      _showSuccessNotification('Student checked in successfully via guard override');
+
+      // Auto-clear after success
+      Future.delayed(Duration(seconds: 5), () {
+        if (mounted && isOverrideMode) {
+          _exitOverrideMode('Entry completed successfully');
+        }
+      });
+    } catch (e) {
+      // Log failed override entry
+      _guardAuditService.logStudentEntry(
+        studentId: student.id.toString(),
+        studentName: student.fullName,
+        rfidUid: student.rfidUid ?? 'OVERRIDE',
+        sectionName: student.classSection,
+        isSuccessful: false,
+        notes: 'Override entry failed due to database error: ${e.toString()}',
+      );
+      
+      _showErrorNotification('Error recording override entry: ${e.toString()}');
+    }
+  }
+
+  // Process exit in override mode (load fetchers for approval)
+  Future<void> _processOverrideExit(Student student) async {
+    setState(() {
+      isLoadingFetchers = true;
+    });
+
+    await _fetchAuthorizedFetchers(student.id);
+    
+    // Note: In override mode, schedule validation is bypassed
+    // The exit will be processed through the normal approval flow
+    // but marked as an override in the records
   }
 
   // Process entry (immediate check-in)
@@ -1419,7 +1801,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             notes = "Early dismissal override - ${scheduleValidationMessage}";
           }
         } else {
-          notes = "Early dismissal override - Schedule validation bypassed";
+          notes = "Guard override - Student manually selected and approved";
         }
         exitType = 'override';
       } else {
@@ -1664,11 +2046,18 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       currentAction = null;
       currentScanner = null; // Clear scanner info
       scheduleValidationMessage = null;
-      isOverrideMode = false;
       lastClassEndTime = null;
       verifiedTempFetcher = null;
       isShowingTempFetcher = false;
       activeScanToken = null;
+      
+      // Don't reset override mode here - let it timeout naturally
+      // or be explicitly exited
+      if (!isOverrideMode) {
+        _searchResults = null;
+        _searchQuery = '';
+        _searchController.clear();
+      }
     });
   }
 
@@ -1961,6 +2350,23 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                         padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
                     ),
+                    TextButton.icon(
+                      onPressed: isOverrideMode 
+                          ? () => _exitOverrideMode('Manual exit via debug button')
+                          : () => _activateOverrideMode('Debug Mode'),
+                      icon: Icon(
+                        isOverrideMode ? Icons.security_outlined : Icons.security, 
+                        size: 16
+                      ),
+                      label: Text(
+                        isOverrideMode ? 'Exit Override' : 'Test Override', 
+                        style: TextStyle(fontSize: 14)
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: isOverrideMode ? Colors.red[700] : Colors.orange[700],
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1975,12 +2381,14 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   }
 
   Widget _buildMainContent() {
-    if (currentAction == 'entry') {
+    if (isOverrideMode) {
+      return _buildOverrideModeLayout();
+    } else if (currentAction == 'entry') {
       return _buildEntryModeLayout();
     } else if (currentAction == 'exit') {
       if (isShowingTempFetcher && verifiedTempFetcher != null) {
         return _buildTempFetcherVerificationLayout();
-      } else if (scheduleValidationMessage != null) {
+      } else if (scheduleValidationMessage != null && !isOverrideMode) {
         return _buildScheduleBlockedLayout();
       } else {
         return _buildExitModeLayout();
@@ -2094,6 +2502,61 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                       ),
                     ],
                   ),
+                ),
+                
+                SizedBox(height: 24),
+
+                // Manual Override Button
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[50],
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.orange[200]!, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.orange.withOpacity(0.2),
+                        blurRadius: 6,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: InkWell(
+                    onTap: () => _activateOverrideMode('Manual Activation'),
+                    borderRadius: BorderRadius.circular(18),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.security, size: 20, color: Colors.orange[700]),
+                          SizedBox(width: 10),
+                          Text(
+                            'MANUAL OVERRIDE',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange[700],
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                SizedBox(height: 16),
+
+                // Override Instructions
+                Text(
+                  'For lost RFID cards or emergencies',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -5091,6 +5554,628 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                   ],
                 ),
           ),
+    );
+  }
+
+  // Override Mode Layout
+  Widget _buildOverrideModeLayout() {
+    if (scannedStudent != null) {
+      // Student selected - show normal entry/exit flow
+      if (currentAction == 'entry') {
+        return _buildEntryModeLayout();
+      } else {
+        return _buildExitModeLayout();
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Override Mode Header
+        Container(
+          padding: EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.orange[50]!, Colors.red[50]!],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.orange[200]!, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 20,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orange.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.security,
+                  size: 32,
+                  color: Colors.white,
+                ),
+              ),
+              SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'GUARD OVERRIDE MODE ACTIVE',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange[800],
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Search and select a student to process manually',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.orange[700],
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.green[100],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.green[300]!,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            size: 16,
+                            color: Colors.green[700],
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'Override mode active - Close manually when done',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.green[700],
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _exitOverrideMode('Manual exit by guard'),
+                icon: Icon(Icons.close, size: 20),
+                label: Text('Exit Override'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        SizedBox(height: 24),
+
+        // Search Section
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Left - Search Panel
+              Expanded(
+                flex: 2,
+                child: Container(
+                  padding: EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey[200]!, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 20,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Search Header
+                      Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.search,
+                              size: 24,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'STUDENT SEARCH',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue[800],
+                                    letterSpacing: 1.1,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Search by name, ID, or class',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.blue[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      SizedBox(height: 24),
+
+                      // Search Input
+                      TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          labelText: 'Search Students',
+                          hintText: 'Enter student name, class, or grade...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          prefixIcon: Icon(Icons.search),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: Icon(Icons.clear),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    _searchStudents('');
+                                  },
+                                )
+                              : null,
+                        ),
+                        style: TextStyle(fontSize: 16),
+                        onChanged: (value) {
+                          _searchStudents(value);
+                        },
+                      ),
+
+                      SizedBox(height: 24),
+
+                      // Search Results
+                      Expanded(
+                        child: _buildSearchResults(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              SizedBox(width: 24),
+
+              // Right - Instructions Panel
+              Expanded(
+                flex: 1,
+                child: Container(
+                  padding: EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey[200]!, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 20,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Instructions Header
+                      Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.info,
+                              size: 24,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              'OVERRIDE INSTRUCTIONS',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green[800],
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      SizedBox(height: 24),
+
+                      // Instructions List
+                      _buildInstructionItem(
+                        Icons.credit_card,
+                        'Guard RFID Scanned',
+                        'Your guard RFID card activated override mode',
+                        Colors.orange,
+                      ),
+                      SizedBox(height: 16),
+
+                      _buildInstructionItem(
+                        Icons.search,
+                        'Search Student',
+                        'Type student name, class, or grade in search box',
+                        Colors.blue,
+                      ),
+                      SizedBox(height: 16),
+
+                      _buildInstructionItem(
+                        Icons.touch_app,
+                        'Select Student',
+                        'Tap on a student from search results to select',
+                        Colors.green,
+                      ),
+                      SizedBox(height: 16),
+
+                      _buildInstructionItem(
+                        Icons.verified,
+                        'Process Manually',
+                        'Entry/exit will be processed without RFID card',
+                        Colors.purple,
+                      ),
+                      SizedBox(height: 16),
+
+                      _buildInstructionItem(
+                        Icons.timer,
+                        'Auto-Timeout',
+                        'Mode automatically exits after 30 seconds',
+                        Colors.red,
+                      ),
+
+                      Spacer(),
+
+                      // Emergency Note
+                      Container(
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.red[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.warning,
+                              size: 20,
+                              color: Colors.red[600],
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Override Usage',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.red[700],
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Use only for lost RFID cards or emergency situations. All actions are logged.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.red[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchResults() {
+    if (_isSearching) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(strokeWidth: 3),
+            SizedBox(height: 16),
+            Text(
+              'Searching students...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_searchQuery.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Start typing to search',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Enter student name, grade, or class',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_searchResults == null || _searchResults!.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search_off,
+              size: 64,
+              color: Colors.orange[400],
+            ),
+            SizedBox(height: 16),
+            Text(
+              'No students found',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.orange[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Try different search terms',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      itemCount: _searchResults!.length,
+      separatorBuilder: (context, index) => SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final student = _searchResults![index];
+        return _buildStudentSearchCard(student);
+      },
+    );
+  }
+
+  Widget _buildStudentSearchCard(Student student) {
+    return InkWell(
+      onTap: () => _selectStudentInOverrideMode(student),
+      child: Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Student Photo
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: _buildImageContent(student.imageUrl),
+              ),
+            ),
+
+            SizedBox(width: 16),
+
+            // Student Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    student.fullName,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    student.classSection,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.blue[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    student.studentId,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Select Button
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.touch_app,
+                    size: 16,
+                    color: Colors.blue[600],
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    'SELECT',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blue[600],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInstructionItem(IconData icon, String title, String description, Color color) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: color.withOpacity(0.3)),
+          ),
+          child: Icon(icon, size: 20, color: color),
+        ),
+        SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                description,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
