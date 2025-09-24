@@ -326,6 +326,7 @@ class _VerificationModalState extends State<VerificationModal>
     final eventTime = DateTime.parse(verification['event_time']);
     final studentName = '${student['fname']} ${student['lname']}';
     final driverName = '${driver['fname']} ${driver['lname']}';
+    final plateNumber = driver['plate_number'];
     final profileImageUrl = student['profile_image_url'];
     final driverImageUrl = driver['profile_image_url'];
 
@@ -497,6 +498,27 @@ class _VerificationModalState extends State<VerificationModal>
                                   color: black,
                                 ),
                               ),
+                              if (plateNumber != null && plateNumber.toString().isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.directions_car,
+                                      size: isMobile ? 12 : 14,
+                                      color: Colors.grey[600],
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Plate: $plateNumber',
+                                      style: TextStyle(
+                                        fontSize: isMobile ? 11 : 13,
+                                        color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -612,6 +634,27 @@ class _VerificationModalState extends State<VerificationModal>
                                     color: black,
                                   ),
                                 ),
+                                if (plateNumber != null && plateNumber.toString().isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.directions_car,
+                                        size: isMobile ? 12 : 14,
+                                        color: Colors.grey[600],
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Plate: $plateNumber',
+                                        style: TextStyle(
+                                          fontSize: isMobile ? 11 : 13,
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ],
                             ),
                           ),
