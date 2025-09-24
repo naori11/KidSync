@@ -33,40 +33,71 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
   }
 
   Future<void> _loadTodayStudents() async {
-    try {
-      setState(() {
-        isLoading = true;
-        error = null;
-      });
+    int retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        setState(() {
+          isLoading = true;
+          error = null;
+        });
 
-      final currentUser = supabase.auth.currentUser;
-      if (currentUser == null) {
-        throw Exception('User not logged in');
+        final currentUser = supabase.auth.currentUser;
+        if (currentUser == null) {
+          throw Exception('User not authenticated');
+        }
+
+        final currentUserId = currentUser.id;
+
+        // Use the new service method with timeout
+        final studentsData = await _driverService.getTodaysStudentsWithPatterns(
+          currentUserId,
+        ).timeout(Duration(seconds: 10)); // Add timeout
+
+        setState(() {
+          todayStudents = studentsData['all_students'];
+          morningPickupStudents = studentsData['morning_pickup'];
+          afternoonDropoffStudents = studentsData['afternoon_dropoff'];
+          isLoading = false;
+        });
+
+        print('Loaded ${todayStudents.length} students for today');
+        print('Morning pickup tasks: ${morningPickupStudents.length}');
+        print('Afternoon dropoff tasks: ${afternoonDropoffStudents.length}');
+        break; // Success, exit retry loop
+        
+      } catch (e) {
+        retryCount++;
+        print('Error loading today\'s students (attempt $retryCount): $e');
+        
+        if (retryCount >= maxRetries) {
+          setState(() {
+            error = 'Failed to load students after $maxRetries attempts: ${e.toString()}';
+            isLoading = false;
+          });
+          _showErrorSnackBar('Failed to load students after $maxRetries attempts');
+        } else {
+          // Exponential backoff
+          await Future.delayed(Duration(seconds: retryCount * 2));
+        }
       }
+    }
+  }
 
-      final currentUserId = currentUser.id;
-
-      // Use the new service method
-      final studentsData = await _driverService.getTodaysStudentsWithPatterns(
-        currentUserId,
+  void _showErrorSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          action: SnackBarAction(
+            label: 'Retry',
+            textColor: Colors.white,
+            onPressed: _loadTodayStudents,
+          ),
+        ),
       );
-
-      setState(() {
-        todayStudents = studentsData['all_students'];
-        morningPickupStudents = studentsData['morning_pickup'];
-        afternoonDropoffStudents = studentsData['afternoon_dropoff'];
-        isLoading = false;
-      });
-
-      print('Loaded ${todayStudents.length} students for today');
-      print('Morning pickup tasks: ${morningPickupStudents.length}');
-      print('Afternoon dropoff tasks: ${afternoonDropoffStudents.length}');
-    } catch (e) {
-      print('Error loading today\'s students: $e');
-      setState(() {
-        error = e.toString();
-        isLoading = false;
-      });
     }
   }
 

@@ -89,9 +89,14 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
   }
 
   void _setupPeriodicRefresh() {
+    _refreshTimer?.cancel(); // Cancel existing timer first
     // Refresh data every 30 seconds
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      _refreshData();
+      if (mounted) { // Check if widget is still mounted
+        _refreshData();
+      } else {
+        timer.cancel();
+      }
     });
   }
 
@@ -215,6 +220,20 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
 
   Future<Map<String, int>> _loadTaskStats(String driverId) async {
     try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        return _getEmptyTaskStats();
+      }
+
+      // Add null safety checks
+      final recentActivity = this.recentActivity;
+      final todaysData = this.todaysTasksData;
+      final assignedStudents = this.assignedStudents;
+      
+      if (todaysData.isEmpty) {
+        return _getEmptyTaskStats();
+      }
+
       final today = DateTime.now();
       final startOfDay = DateTime(today.year, today.month, today.day);
       final endOfDay = startOfDay.add(const Duration(days: 1));
@@ -236,7 +255,6 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
       }
 
       // Get today's scheduled tasks
-      final todaysData = todaysTasksData;
       final morningTasks = todaysData['morning_pickup'] as List? ?? [];
       final afternoonTasks = todaysData['afternoon_dropoff'] as List? ?? [];
 
@@ -253,14 +271,18 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
       };
     } catch (e) {
       print('Error loading task stats: $e');
-      return {
-        'completed_pickups': 0,
-        'completed_dropoffs': 0,
-        'pending_pickups': 0,
-        'pending_dropoffs': 0,
-        'total_students': 0,
-      };
+      return _getEmptyTaskStats();
     }
+  }
+
+  Map<String, int> _getEmptyTaskStats() {
+    return {
+      'completed_pickups': 0,
+      'completed_dropoffs': 0,
+      'pending_pickups': 0,
+      'pending_dropoffs': 0,
+      'total_students': 0,
+    };
   }
 
   @override
@@ -388,11 +410,15 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
                         radius: isMobile ? 24 : 30,
                         backgroundImage:
                             profileImageUrl != null &&
-                                    profileImageUrl.isNotEmpty
-                                ? NetworkImage(profileImageUrl)
+                                    profileImageUrl!.isNotEmpty
+                                ? NetworkImage(profileImageUrl!)
                                 : null,
+                        onBackgroundImageError: (exception, stackTrace) {
+                          // Log error and show fallback
+                          print('Error loading profile image: $exception');
+                        },
                         child:
-                            profileImageUrl == null || profileImageUrl.isEmpty
+                            profileImageUrl == null || profileImageUrl!.isEmpty
                                 ? Icon(
                                   Icons.person,
                                   color: primaryColor,

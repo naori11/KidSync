@@ -16,86 +16,106 @@ class VerificationService {
     required DateTime eventTime,
     int? pickupDropoffLogId,
   }) async {
-    try {
-      // Get all parents for this student
-      final parentResponse = await supabase
-          .from('parent_student')
-          .select('''
-            parent_id,
-            parents!parent_student_parent_id_fkey (
-              id,
-              fname,
-              lname,
-              user_id
-            )
-          ''')
-          .eq('student_id', studentId);
+    int retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        // Get all parents for this student with timeout
+        final parentResponse = await supabase
+            .from('parent_student')
+            .select('''
+              parent_id,
+              parents!parent_student_parent_id_fkey (
+                id,
+                fname,
+                lname,
+                user_id
+              )
+            ''')
+            .eq('student_id', studentId)
+            .timeout(Duration(seconds: 10));
 
-      if (parentResponse.isEmpty) {
-        print('No parents found for student $studentId');
-        return false;
-      }
+        if (parentResponse.isEmpty) {
+          print('No parents found for student $studentId');
+          return false;
+        }
 
-      // Get student information
-      final studentResponse = await supabase
-          .from('students')
-          .select('fname, lname')
-          .eq('id', studentId)
-          .single();
+        // Verify student and driver exist with error handling
+        await supabase
+            .from('students')
+            .select('fname, lname')
+            .eq('id', studentId)
+            .single()
+            .timeout(Duration(seconds: 10));
 
-      final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
+        await supabase
+            .from('users')
+            .select('fname, lname')
+            .eq('id', driverId)
+            .single()
+            .timeout(Duration(seconds: 10));
 
-      // Get driver information
-      final driverResponse = await supabase
-          .from('users')
-          .select('fname, lname')
-          .eq('id', driverId)
-          .single();
+        // Create verification requests for each parent
+        int successCount = 0;
+        for (final parentData in parentResponse) {
+          final parent = parentData['parents'];
+          if (parent != null) {
+            final parentId = parent['id'];
 
-      final driverName = '${driverResponse['fname']} ${driverResponse['lname']}';
+            try {
+              // Check if a verification request already exists
+              final existingVerification = await supabase
+                  .from('pickup_dropoff_verifications')
+                  .select('id')
+                  .eq('student_id', studentId)
+                  .eq('parent_id', parentId)
+                  .eq('event_type', eventType)
+                  .eq('event_time', eventTime.toIso8601String())
+                  .maybeSingle()
+                  .timeout(Duration(seconds: 10));
 
-      // Create verification requests for each parent
-      for (final parentData in parentResponse) {
-        final parent = parentData['parents'];
-        if (parent != null) {
-          final parentId = parent['id'];
-          final parentUserId = parent['user_id'];
-
-          // Check if a verification request already exists for this parent, student, event type, and time
-          final existingVerification = await supabase
-              .from('pickup_dropoff_verifications')
-              .select('id')
-              .eq('student_id', studentId)
-              .eq('parent_id', parentId)
-              .eq('event_type', eventType)
-              .eq('event_time', eventTime.toIso8601String())
-              .maybeSingle();
-
-          // Only create if it doesn't already exist
-          if (existingVerification == null) {
-            // Create verification request
-            await supabase.from('pickup_dropoff_verifications').insert({
-              'student_id': studentId,
-              'driver_id': driverId,
-              'parent_id': parentId,
-              'event_type': eventType,
-              'event_time': eventTime.toIso8601String(),
-              'pickup_dropoff_log_id': pickupDropoffLogId,
-              'status': 'pending',
-              'created_at': DateTime.now().toIso8601String(),
-            });
+              // Only create if it doesn't already exist
+              if (existingVerification == null) {
+                await supabase.from('pickup_dropoff_verifications').insert({
+                  'student_id': studentId,
+                  'driver_id': driverId,
+                  'parent_id': parentId,
+                  'event_type': eventType,
+                  'event_time': eventTime.toIso8601String(),
+                  'pickup_dropoff_log_id': pickupDropoffLogId,
+                  'status': 'pending',
+                  'created_at': DateTime.now().toIso8601String(),
+                }).timeout(Duration(seconds: 10));
+                
+                successCount++;
+              } else {
+                successCount++; // Count existing as success
+              }
+            } catch (parentError) {
+              print('Error creating verification for parent $parentId: $parentError');
+              // Continue with other parents
+            }
           }
+        }
 
-          // Note: Notifications are handled by the driver service
-          // Parents will see verification requests in their dashboard
+        return successCount > 0; // Success if at least one verification was created
+        
+      } catch (e) {
+        retryCount++;
+        print('Error creating verification request (attempt $retryCount): $e');
+        
+        if (retryCount >= maxRetries) {
+          print('Failed to create verification request after $maxRetries attempts');
+          return false;
+        } else {
+          // Exponential backoff
+          await Future.delayed(Duration(seconds: retryCount * 2));
         }
       }
-
-      return true;
-    } catch (e) {
-      print('Error creating verification request: $e');
-      return false;
     }
+    
+    return false;
   }
 
   /// Get pending verification requests for a parent
@@ -184,15 +204,7 @@ class VerificationService {
           .lt('reminder_count', 3); // Max 3 reminders
 
       for (final verification in pendingVerifications) {
-        final student = verification['students'];
-        final driver = verification['drivers'];
-        final parent = verification['parents'];
-        final eventType = verification['event_type'];
-        final studentName = '${student['fname']} ${student['lname']}';
-        final driverName = '${driver['fname']} ${driver['lname']}';
-        final eventTime = DateTime.parse(verification['event_time']);
-
-        // Note: Reminder notifications would be handled by a separate notification system
+        // Note: student and driver data would be used for actual notification sending
         // For now, just update the reminder count
 
         // Update reminder count
@@ -228,14 +240,5 @@ class VerificationService {
       print('Error getting verification history: $e');
       return [];
     }
-  }
-
-  /// Format time for display
-  String _formatTime(DateTime dateTime) {
-    final hour = dateTime.hour;
-    final minute = dateTime.minute.toString().padLeft(2, '0');
-    final period = hour >= 12 ? 'PM' : 'AM';
-    final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
-    return '$displayHour:$minute $period';
   }
 }

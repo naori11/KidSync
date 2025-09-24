@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'driver_dashboard_tab.dart';
@@ -164,12 +165,24 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
   bool showProfile = false;
   late PageController _pageController;
   final DriverAuditService _driverAuditService = DriverAuditService();
+  StreamSubscription<AuthState>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 0);
+    _setupAuthListener();
     _logDashboardAccess();
+  }
+
+  void _setupAuthListener() {
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen(
+      (AuthState data) {
+        if (data.event == AuthChangeEvent.signedOut) {
+          Navigator.pushReplacementNamed(context, '/login');
+        }
+      },
+    );
   }
 
   /// Log dashboard access for driver authentication tracking
@@ -261,8 +274,33 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
     );
   }
 
+  void _onNavItemTapped(int index) {
+    if (index != selectedIndex && _pageController.hasClients) {
+      setState(() {
+        selectedIndex = index;
+        showNotifications = false;
+        showProfile = false;
+      });
+      
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _onPageChanged(int index) {
+    if (index != selectedIndex) {
+      setState(() {
+        selectedIndex = index;
+      });
+    }
+  }
+
   @override
   void dispose() {
+    _authSubscription?.cancel();
     _pageController.dispose();
     super.dispose();
   }
@@ -367,9 +405,7 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
               Expanded(
                 child: PageView.builder(
                   controller: _pageController,
-                  onPageChanged: (index) {
-                    setState(() => selectedIndex = index);
-                  },
+                  onPageChanged: _onPageChanged,
                   itemCount: widget.navItems.length,
                   itemBuilder: (context, index) {
                     return Padding(
@@ -416,14 +452,7 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
                                 : widget.secondaryText,
                         size: 28,
                       ),
-                      onPressed: () {
-                        setState(() => selectedIndex = i);
-                        _pageController.animateToPage(
-                          i,
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                      },
+                      onPressed: () => _onNavItemTapped(i),
                     );
                   }),
                 ),
