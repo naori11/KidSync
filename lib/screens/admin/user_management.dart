@@ -300,6 +300,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       'Email',
       'Contact Number',
       'Position/Title',
+      'Plate Number',
       'Status',
       'Account Created',
     ];
@@ -390,6 +391,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
           user['email']?.toString() ?? '',
           user['contact_number']?.toString() ?? '',
           user['position']?.toString() ?? '',
+          user['plate_number']?.toString() ?? '',
           status,
           formattedCreatedAt,
         ];
@@ -478,6 +480,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
           user['email']?.toString() ?? '',
           user['contact_number']?.toString() ?? '',
           user['position']?.toString() ?? '',
+          user['plate_number']?.toString() ?? '',
           status,
           formattedCreatedAt,
         ];
@@ -522,8 +525,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
     sheet.setColumnWidth(6, 30.0);  // Email
     sheet.setColumnWidth(7, 15.0);  // Contact Number
     sheet.setColumnWidth(8, 20.0);  // Position
-    sheet.setColumnWidth(9, 10.0);  // Status
-    sheet.setColumnWidth(10, 20.0); // Account Created
+    sheet.setColumnWidth(9, 15.0);  // Plate Number
+    sheet.setColumnWidth(10, 10.0); // Status
+    sheet.setColumnWidth(11, 20.0); // Account Created
   }
 
   // Create the Summary sheet
@@ -651,6 +655,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     String? suffix,
     String? contactNumber,
     String? position,
+    String? plateNumber,
     String? profileImageUrl,
   }) async {
     try {
@@ -665,6 +670,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
           'suffix': suffix,
           'contact_number': contactNumber,
           'position': position,
+          'plate_number': plateNumber,
           'profile_image_url': profileImageUrl,
         },
       );
@@ -694,6 +700,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     String? suffix,
     String? contactNumber,
     String? position,
+    String? plateNumber,
     String? profileImageUrl,
   }) async {
     try {
@@ -709,6 +716,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
           'suffix': suffix,
           'contact_number': contactNumber,
           'position': position,
+          'plate_number': plateNumber,
           'profile_image_url': profileImageUrl,
         },
       );
@@ -834,6 +842,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
     final positionController = TextEditingController(
       text: user?['position']?.toString() ?? '',
+    );
+    final plateNumberController = TextEditingController(
+      text: user?['plate_number']?.toString() ?? '',
     );
 
     // Form state variables - Aligned with schema
@@ -1414,6 +1425,85 @@ class _UserManagementPageState extends State<UserManagementPage> {
                           const SizedBox(height: 24),
                         ],
 
+                        // Driver Section (shown only for Drivers)
+                        if (selectedRole == 'Driver') ...[
+                          _buildSectionHeader('Vehicle Information'),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.orange[50],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.orange[200]!),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.directions_bus,
+                                      color: Colors.orange[700],
+                                      size: 20,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Vehicle Details',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.orange[800],
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 16),
+                                TextFormField(
+                                  controller: plateNumberController,
+                                  decoration: _buildInputDecoration(
+                                    'Plate Number',
+                                    Icons.confirmation_number,
+                                  ),
+                                  textCapitalization: TextCapitalization.characters,
+                                  validator: (value) {
+                                    if (fieldErrors['plate_number'] != null)
+                                      return fieldErrors['plate_number'];
+                                    // Plate number is optional for drivers
+                                    if (value != null && value.trim().isNotEmpty) {
+                                      final plateRegex = RegExp(r'^[A-Z0-9\s\-]{2,15}$');
+                                      if (!plateRegex.hasMatch(value.trim().toUpperCase())) {
+                                        return 'Please enter a valid plate number';
+                                      }
+                                    }
+                                    return null;
+                                  },
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9\s\-]')),
+                                    LengthLimitingTextInputFormatter(15),
+                                    TextInputFormatter.withFunction(
+                                      (oldValue, newValue) {
+                                        return newValue.copyWith(
+                                          text: newValue.text.toUpperCase(),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 12),
+                                Text(
+                                  'Enter the vehicle plate number for this driver. This helps identify the vehicle during pickup and dropoff.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+
                         // Profile Image Section (moved to bottom)
                         _buildSectionHeader('Profile Image'),
                         const SizedBox(height: 16),
@@ -1769,6 +1859,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   positionController.text.trim().isEmpty
                                       ? null
                                       : positionController.text.trim(),
+                              plateNumber:
+                                  plateNumberController.text.trim().isEmpty
+                                      ? null
+                                      : plateNumberController.text.trim(),
                               profileImageUrl: null,
                             );
 
@@ -1925,6 +2019,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   'role': user['role'],
                                   'position': user['position'],
                                   'contact_number': user['contact_number'],
+                                  'plate_number': user['plate_number'],
                                   'profile_image_url': user['profile_image_url'],
                                 },
                                 newValues: {
@@ -1935,6 +2030,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   'role': selectedRole,
                                   'position': positionController.text.trim().isEmpty ? null : positionController.text.trim(),
                                   'contact_number': contactController.text.trim().isEmpty ? null : contactController.text.trim(),
+                                  'plate_number': plateNumberController.text.trim().isEmpty ? null : plateNumberController.text.trim(),
                                   'profile_image_url': imageUrl,
                                 },
                               );
@@ -1966,6 +2062,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   positionController.text.trim().isEmpty
                                       ? null
                                       : positionController.text.trim(),
+                              plateNumber:
+                                  plateNumberController.text.trim().isEmpty
+                                      ? null
+                                      : plateNumberController.text.trim(),
                               profileImageUrl: imageUrl,
                             );
 
@@ -2013,6 +2113,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
                                   'position': positionController.text.trim().isEmpty ? null : positionController.text.trim(),
                                   'contact_number': contactController.text.trim().isEmpty ? null : contactController.text.trim(),
+                                  'plate_number': plateNumberController.text.trim().isEmpty ? null : plateNumberController.text.trim(),
                                 },
                               );
                             } catch (e) {
@@ -2041,6 +2142,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   positionController.text.trim().isEmpty
                                       ? null
                                       : positionController.text.trim(),
+                              plateNumber:
+                                  plateNumberController.text.trim().isEmpty
+                                      ? null
+                                      : plateNumberController.text.trim(),
                               profileImageUrl: imageUrl,
                             );
 
@@ -2091,6 +2196,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   'role': user['role'],
                                   'position': user['position'],
                                   'contact_number': user['contact_number'],
+                                  'plate_number': user['plate_number'],
                                 },
                                 newValues: {
                                   'email': emailController.text.trim(),
@@ -2100,6 +2206,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   'role': selectedRole,
                                   'position': positionController.text.trim().isEmpty ? null : positionController.text.trim(),
                                   'contact_number': contactController.text.trim().isEmpty ? null : contactController.text.trim(),
+                                  'plate_number': plateNumberController.text.trim().isEmpty ? null : plateNumberController.text.trim(),
                                 },
                               );
                             } catch (e) {
@@ -3410,6 +3517,31 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                         fontStyle:
                                                             FontStyle.italic,
                                                       ),
+                                                    ),
+                                                  ],
+                                                  if (role == 'Driver' && 
+                                                      u['plate_number'] != null &&
+                                                      u['plate_number']
+                                                          .toString()
+                                                          .isNotEmpty) ...[
+                                                    const SizedBox(height: 2),
+                                                    Row(
+                                                      children: [
+                                                        Icon(
+                                                          Icons.directions_bus,
+                                                          size: 12,
+                                                          color: Colors.orange[600],
+                                                        ),
+                                                        const SizedBox(width: 4),
+                                                        Text(
+                                                          'Plate: ${u['plate_number']}',
+                                                          style: TextStyle(
+                                                            fontSize: 12,
+                                                            color: Colors.orange[700],
+                                                            fontWeight: FontWeight.w500,
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ],
                                                 ],

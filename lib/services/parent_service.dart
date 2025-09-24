@@ -14,16 +14,14 @@ class ParentService {
             dropoff_time,
             schedule_days,
             status,
-            drivers!inner(
+            drivers:users!driver_assignments_driver_id_fkey(
               id,
               fname,
               lname,
-              phone,
+              contact_number,
               email,
-              license_number,
-              users!inner(
-                profile_image_url
-              )
+              profile_image_url,
+              plate_number
             )
           ''')
           .eq('student_id', studentId)

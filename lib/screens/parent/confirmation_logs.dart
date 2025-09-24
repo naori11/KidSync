@@ -153,7 +153,8 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
             ),
             drivers:users!pickup_dropoff_logs_driver_id_fkey(
               fname,
-              lname
+              lname,
+              plate_number
             )
           ''')
           .eq('student_id', widget.selectedStudentId!)
@@ -908,6 +909,7 @@ class ConfirmationLog {
   final String section;
   final String eventType; // 'pickup' or 'dropoff'
   final String driverName;
+  final String? plateNumber;
   final DateTime eventTime;
   final String? notes;
 
@@ -925,6 +927,7 @@ class ConfirmationLog {
     required this.section,
     required this.eventType,
     required this.driverName,
+    this.plateNumber,
     required this.eventTime,
     this.notes,
     this.verificationStatus,
@@ -961,6 +964,7 @@ class ConfirmationLog {
       driverName:
           '${json['drivers']?['fname'] ?? ''} ${json['drivers']?['lname'] ?? ''}'
               .trim(),
+      plateNumber: json['drivers']?['plate_number'],
       eventTime: eventTime,
       notes: json['notes'],
       verificationStatus: verification?['status'],

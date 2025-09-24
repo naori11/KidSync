@@ -122,7 +122,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
       final response =
           await supabase
               .from('users')
-              .select('fname, lname, contact_number, profile_image_url')
+              .select('fname, lname, contact_number, profile_image_url, plate_number')
               .eq('id', driverId)
               .eq('role', 'Driver')
               .maybeSingle();
@@ -134,7 +134,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
           'phone': response['contact_number'] ?? 'No phone',
           'profile_image_url': response['profile_image_url'],
           'vehicle_number': 'BB-001', // From static data for now
-          'plate_number': 'ABC-1234', // Placeholder - not in database yet
+          'plate_number': response['plate_number'] ?? 'Not Set',
         };
       }
 
@@ -144,7 +144,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
         'phone': StaticDriverData.driverInfo.phoneNumber,
         'profile_image_url': null,
         'vehicle_number': StaticDriverData.driverInfo.vehicleNumber,
-        'plate_number': 'ABC-1234', // Placeholder
+        'plate_number': 'Not Set',
       };
     } catch (e) {
       print('Error loading driver info: $e');
@@ -153,7 +153,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
         'phone': StaticDriverData.driverInfo.phoneNumber,
         'profile_image_url': null,
         'vehicle_number': StaticDriverData.driverInfo.vehicleNumber,
-        'plate_number': 'ABC-1234', // Placeholder
+        'plate_number': 'Not Set',
       };
     }
   }
@@ -309,7 +309,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
     final driverName = driverInfo['name'] ?? 'Driver';
     final driverPhone = driverInfo['phone'] ?? 'No phone';
     final vehicleNumber = driverInfo['vehicle_number'] ?? 'N/A';
-    final plateNumber = driverInfo['plate_number'] ?? 'ABC-1234'; // Placeholder
+    final plateNumber = driverInfo['plate_number'] ?? 'Not Set';
     final profileImageUrl = driverInfo['profile_image_url'];
 
     return AnimatedContainer(

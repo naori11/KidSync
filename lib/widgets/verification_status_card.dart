@@ -31,6 +31,7 @@ class VerificationStatusCard extends StatelessWidget {
     final eventTime = DateTime.parse(verification['event_time']);
     final studentName = '${student['fname']} ${student['lname']}';
     final driverName = '${driver['fname']} ${driver['lname']}';
+    final plateNumber = driver['plate_number'];
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -206,6 +207,17 @@ class VerificationStatusCard extends StatelessWidget {
                                       color: black,
                                     ),
                                   ),
+                                  if (plateNumber != null && plateNumber.toString().isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Plate: $plateNumber',
+                                      style: TextStyle(
+                                        fontSize: isMobile ? 10 : 11,
+                                        color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),

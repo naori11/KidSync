@@ -13,6 +13,7 @@ class DriverProfileTab extends StatefulWidget {
 class _DriverProfileTabState extends State<DriverProfileTab> {
   String driverName = 'Loading...';
   String? profileImageUrl;
+  String? plateNumber;
   bool isLoadingProfile = true;
 
   @override
@@ -33,7 +34,7 @@ class _DriverProfileTabState extends State<DriverProfileTab> {
       final response =
           await supabase
               .from('users')
-              .select('fname, mname, lname, profile_image_url')
+              .select('fname, mname, lname, profile_image_url, plate_number')
               .eq('id', user.id)
               .maybeSingle();
 
@@ -54,6 +55,7 @@ class _DriverProfileTabState extends State<DriverProfileTab> {
         setState(() {
           driverName = fullName.trim();
           profileImageUrl = response['profile_image_url'];
+          plateNumber = response['plate_number'];
           isLoadingProfile = false;
         });
       } else {
@@ -119,6 +121,17 @@ class _DriverProfileTabState extends State<DriverProfileTab> {
                         color: const Color(0xFF19AE61),
                       ),
                     ),
+                    if (plateNumber != null && plateNumber!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'Plate: $plateNumber',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: const Color(0xFF000000).withOpacity(0.6),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

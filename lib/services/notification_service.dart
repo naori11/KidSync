@@ -366,7 +366,7 @@ class NotificationService {
               .select('''
             pickup_time,
             driver_id,
-            drivers:users!pickup_dropoff_logs_driver_id_fkey (fname, lname, profile_image_url)
+            drivers:users!pickup_dropoff_logs_driver_id_fkey (fname, lname, profile_image_url, plate_number)
           ''')
               .eq('student_id', studentId)
               .eq('event_type', 'pickup')
@@ -383,7 +383,7 @@ class NotificationService {
               .select('''
             dropoff_time,
             driver_id,
-            drivers:users!pickup_dropoff_logs_driver_id_fkey (fname, lname, profile_image_url)
+            drivers:users!pickup_dropoff_logs_driver_id_fkey (fname, lname, profile_image_url, plate_number)
           ''')
               .eq('student_id', studentId)
               .eq('event_type', 'dropoff')
@@ -416,7 +416,7 @@ class NotificationService {
             pickup_time,
             dropoff_time,
             drivers:users!driver_assignments_driver_id_fkey (
-              id, fname, mname, lname, contact_number, profile_image_url
+              id, fname, mname, lname, contact_number, profile_image_url, plate_number
             )
           ''')
               .eq('student_id', studentId)

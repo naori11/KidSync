@@ -632,8 +632,9 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
 
     final driver = driverInfo!['drivers'];
     final driverName = '${driver['fname']} ${driver['lname']}';
-    final driverPhone = driver['phone'] ?? 'No phone';
-    final profileImageUrl = driver['users']?['profile_image_url'];
+    final driverPhone = driver['contact_number'] ?? 'No phone';
+    final plateNumber = driver['plate_number'];
+    final profileImageUrl = driver['profile_image_url'];
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -736,24 +737,26 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.directions_car,
-                                  size: isMobile ? 14 : 16,
-                                  color: black.withOpacity(0.6),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'License: ${driver['license_number'] ?? 'N/A'}',
-                                  style: TextStyle(
-                                    fontSize: isMobile ? 13 : 15,
+                            if (plateNumber != null && plateNumber.isNotEmpty) ...[
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.confirmation_number,
+                                    size: isMobile ? 14 : 16,
                                     color: black.withOpacity(0.6),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Plate: $plateNumber',
+                                    style: TextStyle(
+                                      fontSize: isMobile ? 13 : 15,
+                                      color: black.withOpacity(0.6),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                            ],
                             Row(
                               children: [
                                 Icon(

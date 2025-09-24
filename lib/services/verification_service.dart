@@ -109,7 +109,7 @@ class VerificationService {
               id, fname, lname, profile_image_url
             ),
             drivers:users!pickup_dropoff_verifications_driver_id_fkey (
-              id, fname, lname, profile_image_url
+              id, fname, lname, profile_image_url, plate_number
             )
           ''')
           .eq('parent_id', parentId)
@@ -176,7 +176,7 @@ class VerificationService {
           .select('''
             *,
             students!pickup_dropoff_verifications_student_id_fkey (fname, lname),
-            drivers:users!pickup_dropoff_verifications_driver_id_fkey (fname, lname),
+            drivers:users!pickup_dropoff_verifications_driver_id_fkey (fname, lname, plate_number),
             parents!pickup_dropoff_verifications_parent_id_fkey (user_id)
           ''')
           .eq('status', 'pending')
@@ -216,7 +216,7 @@ class VerificationService {
           .from('pickup_dropoff_verifications')
           .select('''
             *,
-            drivers:users!pickup_dropoff_verifications_driver_id_fkey (fname, lname),
+            drivers:users!pickup_dropoff_verifications_driver_id_fkey (fname, lname, plate_number),
             parents!pickup_dropoff_verifications_parent_id_fkey (fname, lname)
           ''')
           .eq('student_id', studentId)
