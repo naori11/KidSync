@@ -20,7 +20,7 @@ class GuardAuditService {
     Map<String, dynamic>? scanMetadata,
   }) async {
     return await _auditService.logEvent(
-      actionType: isSuccessful ? 'Security' : 'Alert',
+      actionType: isSuccessful ? 'Security' : 'Security',
       actionCategory: 'RFID Operations',
       description: isSuccessful
           ? 'RFID scan successful for UID: $rfidUid${studentName != null ? ' (Student: $studentName)' : ''}'
@@ -87,7 +87,7 @@ class GuardAuditService {
     Map<String, dynamic>? scheduleOverride,
   }) async {
     return await _auditService.logEvent(
-      actionType: isApproved ? 'Security' : 'Alert',
+      actionType: isApproved ? 'Security' : 'Security',
       actionCategory: 'Student Entry/Exit',
       description: isApproved
           ? 'Student check-out approved: $studentName exited with ${fetcherName ?? 'authorized person'}${exitType != null && exitType != 'regular' ? ' ($exitType)' : ''}'
@@ -161,7 +161,7 @@ class GuardAuditService {
     Map<String, dynamic>? fetcherDetails,
   }) async {
     return await _auditService.logEvent(
-      actionType: isSuccessful ? 'Security' : 'Alert',
+      actionType: isSuccessful ? 'Security' : 'Security',
       actionCategory: 'Fetcher Verification',
       description: isSuccessful
           ? 'Temporary fetcher PIN verified: $pin for ${fetcherName ?? 'unknown fetcher'} (Student: $studentName)'
@@ -196,7 +196,7 @@ class GuardAuditService {
     Map<String, dynamic>? incidentDetails,
   }) async {
     return await _auditService.logEvent(
-      actionType: 'Alert',
+      actionType: 'Security',
       actionCategory: 'Security Incident',
       description: 'Unauthorized pickup attempt blocked: $denyReason (Student: $studentName)${attemptedFetcherName != null ? ' - Attempted by: $attemptedFetcherName' : ''}',
       targetType: 'security_incident',
@@ -298,7 +298,7 @@ class GuardAuditService {
     Map<String, dynamic>? decisionContext,
   }) async {
     return await _auditService.logEvent(
-      actionType: 'Alert',
+      actionType: 'Security',
       actionCategory: 'Critical Decision',
       description: 'Pickup denied with reason: $denyReason (Student: $studentName, Fetcher: ${fetcherName ?? 'Unknown'}, Type: $fetcherType)',
       targetType: 'pickup_denial',
@@ -360,7 +360,7 @@ class GuardAuditService {
     Map<String, dynamic>? emergencyDetails,
   }) async {
     return await _auditService.logEvent(
-      actionType: 'Alert',
+      actionType: 'Security',
       actionCategory: 'Emergency Response',
       description: 'Emergency handled: $emergencyType - $description${studentName != null ? ' (Student: $studentName)' : ''}',
       targetType: 'emergency_response',
@@ -390,7 +390,7 @@ class GuardAuditService {
     Map<String, dynamic>? incidentDetails,
   }) async {
     return await _auditService.logEvent(
-      actionType: 'Alert',
+      actionType: 'Security',
       actionCategory: 'Security Incident',
       description: 'Suspicious activity reported: $activityType - $description',
       targetType: 'suspicious_activity',
