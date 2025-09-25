@@ -6,6 +6,7 @@ import 'dart:async';
 import '../../models/guard_models.dart';
 import '../../services/notification_service.dart';
 import '../../services/guard_audit_service.dart';
+import '../../services/gate_control_service.dart';
 
 final supabase = Supabase.instance.client;
 final user = supabase.auth.currentUser;
@@ -49,10 +50,15 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   bool _isSearching = false;
   String _searchQuery = '';
   TextEditingController _searchController = TextEditingController();
+  
+  // Manual gate control state
+  bool _manualGateOpen = false;
+  String _manualGateType = ''; // 'entry' or 'exit' or 'closed'
 
   late HtmlWebSocketChannel channel;
   final NotificationService _notificationService = NotificationService();
   final GuardAuditService _guardAuditService = GuardAuditService();
+  final GateControlService _gateControlService = GateControlService();
 
   // Make cooldown tracking static so it persists across page navigations
   static Map<String, DateTime> rfidCooldowns = {};
@@ -68,6 +74,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     super.initState();
     // Log guard dashboard access
     _guardAuditService.logDashboardAccess();
+    
+    // Initialize Gate Control Service
+    _gateControlService.initialize();
     
     // Initialize WebSocket channel
     try {
@@ -173,9 +182,42 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     );
     
     _searchController.dispose();
+    _gateControlService.dispose();
     
     channel.sink.close();
     super.dispose();
+  }
+
+  // Check if student has already entered today (similar to _checkTodayAttendanceStatus but specifically for entry validation)
+  Future<bool> _checkIfStudentAlreadyEntered(int studentId) async {
+    final today = DateTime.now();
+    final startOfDay = DateTime(today.year, today.month, today.day);
+    final endOfDay = startOfDay.add(Duration(days: 1));
+
+    try {
+      final response = await supabase
+          .from('scan_records')
+          .select('action, scan_time')
+          .eq('student_id', studentId)
+          .gte('scan_time', startOfDay.toIso8601String())
+          .lt('scan_time', endOfDay.toIso8601String())
+          .order('scan_time', ascending: true);
+
+      if (response.isEmpty) {
+        return false; // No records today, student has not entered
+      }
+
+      // Check the latest record
+      final records = response as List;
+      final latestRecord = records.last;
+      final latestAction = latestRecord['action'];
+
+      // Student has already entered if latest action is 'entry' (and no successful exit after)
+      return latestAction == 'entry';
+    } catch (e) {
+      print('Error checking student entry status: $e');
+      return false; // Default to false on error to allow entry
+    }
   }
 
   // Check today's attendance status to determine entry/exit
@@ -750,8 +792,36 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         });
 
         if (action == 'entry') {
-          // Entry: Always allow for elementary students
-          await _processEntry(student, scanner: scanner);
+          // Entry: Check if student has already entered today
+          final hasAlreadyEntered = await _checkIfStudentAlreadyEntered(student.id);
+          
+          if (hasAlreadyEntered) {
+            // Student already entered - deny entry and gate should not open
+            await _gateControlService.denyEntry(student.rfidUid ?? '', 'Student already entered today');
+            
+            // Log denied entry attempt
+            _guardAuditService.logStudentEntry(
+              studentId: student.id.toString(),
+              studentName: student.fullName,
+              rfidUid: student.rfidUid ?? '',
+              sectionName: student.classSection,
+              isSuccessful: false,
+              notes: 'Entry denied - student already entered today',
+            );
+            
+            _showErrorNotification('Student has already entered today');
+            
+            // Clear scan after showing message
+            Future.delayed(Duration(seconds: 5), () {
+              if (mounted) {
+                clearScan();
+              }
+            });
+            
+          } else {
+            // Student has not entered yet - allow entry and open gate
+            await _processEntry(student, scanner: scanner);
+          }
         } else {
           // Exit: Apply schedule validation
           if (isScheduleValidationEnabled && !isOverrideMode) {
@@ -771,6 +841,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             );
 
             if (!scheduleCheck['canExit']) {
+              // Schedule blocked - deny exit and gate should not open
+              await _gateControlService.denyExit(student.rfidUid ?? '', scheduleCheck['message'] ?? 'Exit blocked by schedule');
+              
               setState(() {
                 scheduleValidationMessage = scheduleCheck['message'];
                 lastClassEndTime = scheduleCheck['lastClassEndTime'];
@@ -1058,7 +1131,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       },
     );
 
-    // Determine action based on current context or default to exit
+    // Determine action based on current context
     final action = await _checkTodayAttendanceStatus(student.id);
     
     setState(() {
@@ -1066,82 +1139,136 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       activeScanToken = '${student.id}_${DateTime.now().microsecondsSinceEpoch}_override';
     });
 
+    // Process the selected student through normal business logic
     if (action == 'entry') {
-      await _processOverrideEntry(student);
+      // Check if student has already entered today
+      final hasAlreadyEntered = await _checkIfStudentAlreadyEntered(student.id);
+      
+      if (hasAlreadyEntered) {
+        // Student already entered - deny entry and gate should not open
+        await _gateControlService.denyEntry(student.rfidUid ?? '', 'Student already entered today');
+        
+        _showErrorNotification('Student has already entered today');
+        
+        // Clear scan after showing message
+        Future.delayed(Duration(seconds: 5), () {
+          if (mounted) {
+            clearScan();
+          }
+        });
+        
+      } else {
+        // Student has not entered yet - allow entry and open gate
+        await _processEntry(student);
+      }
     } else {
-      await _processOverrideExit(student);
-    }
-  }
+      // Exit: Apply normal schedule validation (no override)
+      if (isScheduleValidationEnabled) {
+        final scheduleCheck = await _checkClassSchedule(student);
+        currentScheduleCheck = scheduleCheck;
 
-  // Process entry in override mode
-  Future<void> _processOverrideEntry(Student student) async {
-    try {
-      // Create detailed notes with override information
-      String notes = 'Guard override entry - Manual selection';
-      
-      await supabase.from('scan_records').insert({
-        'student_id': student.id,
-        'guard_id': user?.id,
-        'rfid_uid': student.rfidUid ?? 'OVERRIDE',
-        'scan_time': DateTime.now().toIso8601String(),
-        'action': 'entry',
-        'verified_by': 'Guard Override - Manual Selection',
-        'status': 'Checked In',
-        'notes': notes,
-      });
+        if (!scheduleCheck['canExit']) {
+          // Schedule blocked - deny exit and gate should not open
+          await _gateControlService.denyExit(student.rfidUid ?? '', scheduleCheck['message'] ?? 'Exit blocked by schedule');
+          
+          setState(() {
+            scheduleValidationMessage = scheduleCheck['message'];
+            lastClassEndTime = scheduleCheck['lastClassEndTime'];
+          });
 
-      // Log successful override entry
-      _guardAuditService.logStudentEntry(
-        studentId: student.id.toString(),
-        studentName: student.fullName,
-        rfidUid: student.rfidUid ?? 'OVERRIDE',
-        sectionName: student.classSection,
-        isSuccessful: true,
-        notes: '$notes - immediate check-in approved via guard override',
-      );
-
-      // Send notification to parents
-      await _notificationService
-          .sendRfidTapNotification(
-            studentId: student.id,
-            action: 'entry',
-            studentName: '${student.fname} ${student.lname}',
-          );
-
-      _showSuccessNotification('Student checked in successfully via guard override');
-
-      // Auto-clear after success
-      Future.delayed(Duration(seconds: 5), () {
-        if (mounted && isOverrideMode) {
-          _exitOverrideMode('Entry completed successfully');
+          // Show blocked layout for schedule blocks
+          return;
         }
-      });
-    } catch (e) {
-      // Log failed override entry
-      _guardAuditService.logStudentEntry(
-        studentId: student.id.toString(),
-        studentName: student.fullName,
-        rfidUid: student.rfidUid ?? 'OVERRIDE',
-        sectionName: student.classSection,
-        isSuccessful: false,
-        notes: 'Override entry failed due to database error: ${e.toString()}',
-      );
+      } else {
+        // If validation disabled, still check for early dismissal info
+        currentScheduleCheck = await _checkClassSchedule(student);
+      }
       
-      _showErrorNotification('Error recording override entry: ${e.toString()}');
+      // For override mode, bypass fetcher selection and immediately approve exit
+      await _processGuardOverrideExit(student);
     }
   }
 
-  // Process exit in override mode (load fetchers for approval)
-  Future<void> _processOverrideExit(Student student) async {
-    setState(() {
-      isLoadingFetchers = true;
-    });
+  // Manual gate control methods
+  Future<void> _manualOpenEntryGate() async {
+    try {
+      await _gateControlService.manualOpenEntryGate();
+      setState(() {
+        _manualGateOpen = true;
+        _manualGateType = 'entry';
+      });
+      
+      // Log manual gate control
+      _guardAuditService.logOverrideAuthorization(
+        overrideType: 'manual_gate_control',
+        studentId: 'N/A',
+        studentName: 'Manual Gate Operation',
+        justification: 'Entry gate opened manually by guard',
+        overrideDetails: {
+          'gate_type': 'entry',
+          'action': 'open',
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      );
+      
+      _showSuccessNotification('Entry gate opened manually');
+    } catch (e) {
+      _showErrorNotification('Error opening entry gate: $e');
+    }
+  }
 
-    await _fetchAuthorizedFetchers(student.id);
-    
-    // Note: In override mode, schedule validation is bypassed
-    // The exit will be processed through the normal approval flow
-    // but marked as an override in the records
+  Future<void> _manualOpenExitGate() async {
+    try {
+      await _gateControlService.manualOpenExitGate();
+      setState(() {
+        _manualGateOpen = true;
+        _manualGateType = 'exit';
+      });
+      
+      // Log manual gate control
+      _guardAuditService.logOverrideAuthorization(
+        overrideType: 'manual_gate_control',
+        studentId: 'N/A',
+        studentName: 'Manual Gate Operation',
+        justification: 'Exit gate opened manually by guard',
+        overrideDetails: {
+          'gate_type': 'exit',
+          'action': 'open',
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      );
+      
+      _showSuccessNotification('Exit gate opened manually');
+    } catch (e) {
+      _showErrorNotification('Error opening exit gate: $e');
+    }
+  }
+
+  Future<void> _manualCloseGate() async {
+    try {
+      await _gateControlService.manualCloseGate();
+      setState(() {
+        _manualGateOpen = false;
+        _manualGateType = '';
+      });
+      
+      // Log manual gate control
+      _guardAuditService.logOverrideAuthorization(
+        overrideType: 'manual_gate_control',
+        studentId: 'N/A',
+        studentName: 'Manual Gate Operation',
+        justification: 'Gate closed manually by guard',
+        overrideDetails: {
+          'previous_gate_type': _manualGateType,
+          'action': 'close',
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      );
+      
+      _showSuccessNotification('Gate closed manually');
+    } catch (e) {
+      _showErrorNotification('Error closing gate: $e');
+    }
   }
 
   // Process entry (immediate check-in)
@@ -1175,16 +1302,22 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       );
 
       // Send RFID entry notification to parents
-      print(
-        'DEBUG: About to send RFID entry notification for student ${student.id}',
-      );
-      final notificationSent = await _notificationService
+      await _notificationService
           .sendRfidTapNotification(
             studentId: student.id,
             action: 'entry',
             studentName: '${student.fname} ${student.lname}',
           );
-      print('DEBUG: RFID entry notification sent: $notificationSent');
+
+      // Open entry gate
+      if (student.rfidUid != null) {
+        // Check if we're in override mode and use appropriate gate control method
+        if (isOverrideMode) {
+          await _gateControlService.openEntryGateOverride(student.rfidUid!);
+        } else {
+          await _gateControlService.openEntryGate(student.rfidUid!);
+        }
+      }
 
       _showSuccessNotification('Student checked in successfully');
 
@@ -1221,6 +1354,92 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       );
       
       _showErrorNotification('Error recording entry: ${e.toString()}');
+    }
+  }
+
+  // Process guard override exit (bypass fetcher selection and immediately approve)
+  Future<void> _processGuardOverrideExit(Student student) async {
+    try {
+      final now = DateTime.now();
+      
+      // Create detailed notes for guard override exit
+      String notes = 'Guard override exit - immediate approval without fetcher selection';
+      
+      // Record the exit directly as approved
+      await supabase.from('scan_records').insert({
+        'student_id': student.id,
+        'guard_id': user?.id,
+        'rfid_uid': student.rfidUid ?? '',
+        'scan_time': now.toIso8601String(),
+        'action': 'exit',
+        'verified_by': 'Guard Override',
+        'status': 'Checked Out',
+        'notes': notes,
+      });
+
+      // Log successful guard override exit
+      _guardAuditService.logStudentExit(
+        studentId: student.id.toString(),
+        studentName: student.fullName,
+        rfidUid: student.rfidUid ?? '',
+        sectionName: student.classSection,
+        isApproved: true,
+        notes: '$notes - immediate checkout approved',
+        fetcherName: 'Guard Override',
+        exitType: 'override',
+      );
+
+      // Send exit notification to parents
+      await _notificationService.sendRfidTapNotification(
+        studentId: student.id,
+        action: 'exit',
+        studentName: '${student.fname} ${student.lname}',
+      );
+
+      // Open exit gate
+      if (student.rfidUid != null) {
+        await _gateControlService.openExitGateOverride(student.rfidUid!);
+      }
+
+      _showSuccessNotification('Student checked out successfully via guard override');
+
+      // Clear scan after showing message (shorter duration for exits)
+      final currentToken = activeScanToken;
+      Future.delayed(Duration(seconds: 5), () {
+        if (mounted && currentToken != null && currentToken == activeScanToken) {
+          clearScan();
+        }
+      });
+      
+    } catch (e) {
+      // Log failed guard override exit
+      _guardAuditService.logStudentExit(
+        studentId: student.id.toString(),
+        studentName: student.fullName,
+        rfidUid: student.rfidUid ?? '',
+        sectionName: student.classSection,
+        isApproved: false,
+        notes: 'Guard override exit failed due to database error: ${e.toString()}',
+        fetcherName: 'Guard Override',
+        denyReason: 'Database error during guard override',
+        exitType: 'override',
+      );
+      
+      // Log the database error
+      _guardAuditService.logSystemError(
+        errorType: 'database_insert_error',
+        errorDescription: 'Failed to insert scan record during guard override exit process',
+        systemComponent: 'database',
+        errorDetails: {
+          'student_id': student.id.toString(),
+          'student_name': student.fullName,
+          'rfid_uid': student.rfidUid ?? '',
+          'override_mode': 'guard_override_exit',
+          'error': e.toString(),
+        },
+      );
+      
+      _showErrorNotification('Error recording exit: ${e.toString()}');
     }
   }
 
@@ -1525,7 +1744,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               'Temporary Fetcher: ${verifiedTempFetcher!['fetcher_name']} (PIN: ${verifiedTempFetcher!['pin_code']})',
           'status': 'Checked Out',
           'notes': detailedNotes,
-          'scanner_location': currentScanner, // Add scanner information
         });
 
         // Log successful temporary fetcher pickup
@@ -1542,20 +1760,21 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         );
 
         // Send RFID exit notification to parents
-        print(
-          'DEBUG: About to send RFID exit notification for student ${scannedStudent!.id}',
-        );
-        final notificationSent = await _notificationService
+        await _notificationService
             .sendRfidTapNotification(
               studentId: scannedStudent!.id,
               action: 'exit',
               studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
             );
-        print('DEBUG: RFID exit notification sent: $notificationSent');
 
         _showSuccessNotification(
           'Pickup approved for temporary fetcher: ${verifiedTempFetcher!['fetcher_name']}',
         );
+        
+        // Control exit gate - approved
+        if (scannedStudent?.rfidUid != null) {
+          await _gateControlService.openExitGate(scannedStudent!.rfidUid!);
+        }
       } else {
         // Save denied record
         await supabase.from('scan_records').insert({
@@ -1568,7 +1787,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'status': 'Denied',
           'notes':
               'Temporary fetcher pickup denied: ${denyReason ?? 'No reason provided'}',
-          'scanner_location': currentScanner, // Add scanner information
         });
 
         // Log denied temporary fetcher pickup
@@ -1600,9 +1818,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         );
 
         // Send pickup denial notification to parents
-        print(
-          'DEBUG: About to send temporary fetcher pickup denial notification for student ${scannedStudent!.id}',
-        );
 
         // Get guard name for the notification
         String? guardName;
@@ -1624,7 +1839,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           }
         }
 
-        final notificationSent = await _notificationService
+        await _notificationService
             .sendPickupDenialNotification(
               studentId: scannedStudent!.id,
               studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
@@ -1633,13 +1848,15 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               fetcherName: verifiedTempFetcher!['fetcher_name'],
               fetcherType: 'temporary',
             );
-        print(
-          'DEBUG: Temporary fetcher pickup denial notification sent: $notificationSent',
-        );
 
         _showErrorNotification(
           'Pickup denied: ${denyReason ?? 'Access denied'}',
         );
+        
+        // Control exit gate - denied
+        if (scannedStudent?.rfidUid != null) {
+          await _gateControlService.denyExit(scannedStudent!.rfidUid!, denyReason ?? 'Temporary fetcher pickup denied');
+        }
       }
 
       // Auto-clear after success/denial
@@ -1763,7 +1980,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     }
   }
 
-  // Modified save pickup record to include override information
+  // Modified save pickup record to remove override logic
   Future<void> _savePickupRecord(bool approved, {String? denyReason}) async {
     if (scannedStudent == null) return;
     try {
@@ -1791,19 +2008,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         final teacherName = "${markedBy['fname'] ?? ''} ${markedBy['lname'] ?? ''}".trim();
         notes = "Emergency exit - Approved by teacher: $teacherName";
         exitType = 'emergency_exit';
-      } else if (isOverrideMode) {
-        // Check what type of override this was
-        if (scheduleValidationMessage != null) {
-          if (scheduleValidationMessage!.contains('Very early')) {
-            notes =
-                "Very early dismissal override (2+ hours) - Reason: ${scheduleValidationMessage}";
-          } else {
-            notes = "Early dismissal override - ${scheduleValidationMessage}";
-          }
-        } else {
-          notes = "Guard override - Student manually selected and approved";
-        }
-        exitType = 'override';
       } else {
         notes = "Regular exit after class hours";
         exitType = 'regular';
@@ -1818,7 +2022,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         'verified_by': verifiedBy,
         'status': status,
         'notes': notes,
-        'scanner_location': currentScanner, // Add scanner information
       });
 
       // Log authorized fetcher verification
@@ -1848,11 +2051,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         exitType: exitType ?? 'regular',
         sectionName: scannedStudent!.classSection,
         notes: notes,
-        scheduleOverride: isOverrideMode ? {
-          'override_enabled': true,
-          'original_message': scheduleValidationMessage,
-          'override_justification': 'Guard override authorization',
-        } : null,
       );
 
       // Send RFID exit notification to parents only if approved
@@ -1891,18 +2089,12 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           );
         }
 
-        print(
-          'DEBUG: About to send RFID exit notification for student ${scannedStudent!.id} (regular pickup)',
-        );
-        final notificationSent = await _notificationService
+        await _notificationService
             .sendRfidTapNotification(
               studentId: scannedStudent!.id,
               action: 'exit',
               studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
             );
-        print(
-          'DEBUG: RFID exit notification sent (regular pickup): $notificationSent',
-        );
       } else {
         // Log pickup denial decision for authorized fetchers
         _guardAuditService.logPickupDenialDecision(
@@ -1920,14 +2112,10 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               'is_primary': fetchers!.first.isPrimary,
             } : null,
             'schedule_check': currentScheduleCheck,
-            'override_mode': isOverrideMode,
           },
         );
 
         // Send pickup denial notification to parents
-        print(
-          'DEBUG: About to send pickup denial notification for student ${scannedStudent!.id}',
-        );
 
         // Get guard name for the notification
         String? guardName;
@@ -1957,7 +2145,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           fetcherType = 'authorized';
         }
 
-        final notificationSent = await _notificationService
+        await _notificationService
             .sendPickupDenialNotification(
               studentId: scannedStudent!.id,
               studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
@@ -1966,7 +2154,6 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               fetcherName: fetcherName,
               fetcherType: fetcherType,
             );
-        print('DEBUG: Pickup denial notification sent: $notificationSent');
       }
     } catch (e) {
       // Log error during pickup record saving
@@ -2071,13 +2258,22 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       showNotification = true;
       notificationMessage =
           approved
-              ? (isOverrideMode
-                  ? 'Early dismissal approved at $formattedTime'
-                  : 'Pickup approved at $formattedTime')
+              ? 'Pickup approved at $formattedTime'
               : 'Pickup denied at $formattedTime';
       notificationColor = approved ? Colors.green : Colors.red;
       actionTimestamp = now;
     });
+
+    // Control exit gate based on approval/denial
+    if (scannedStudent?.rfidUid != null) {
+      if (approved) {
+        // Approved - open exit gate
+        _gateControlService.openExitGate(scannedStudent!.rfidUid!);
+      } else {
+        // Denied - gate should not open
+        _gateControlService.denyExit(scannedStudent!.rfidUid!, denyReason ?? 'Pickup denied by guard');
+      }
+    }
 
     _savePickupRecord(approved, denyReason: denyReason);
 
@@ -5793,134 +5989,275 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
               SizedBox(width: 24),
 
-              // Right - Instructions Panel
+              // Right - Manual Gate Controls and Instructions Panel
               Expanded(
                 flex: 1,
-                child: Container(
-                  padding: EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey[200]!, width: 2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 20,
-                        offset: Offset(0, 8),
+                child: Column(
+                  children: [
+                    // Manual Gate Control Panel
+                    Container(
+                      padding: EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.grey[200]!, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 20,
+                            offset: Offset(0, 8),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Instructions Header
-                      Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Gate Control Header
+                          Row(
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: _manualGateOpen ? Colors.green : Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  _manualGateOpen ? Icons.lock_open : Icons.lock,
+                                  size: 24,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'MANUAL GATE CONTROL',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: _manualGateOpen ? Colors.green[800] : Colors.red[800],
+                                        letterSpacing: 1.1,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      _manualGateOpen 
+                                          ? '${_manualGateType.toUpperCase()} GATE OPEN'
+                                          : 'Gate is closed',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: _manualGateOpen ? Colors.green[700] : Colors.red[700],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          SizedBox(height: 20),
+
+                          // Gate Control Buttons
+                          if (!_manualGateOpen) ...[
+                            // Entry Gate Button
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: _manualOpenEntryGate,
+                                icon: Icon(Icons.input, size: 20),
+                                label: Text('OPEN ENTRY GATE'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 12),
+                            
+                            // Exit Gate Button
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: _manualOpenExitGate,
+                                icon: Icon(Icons.output, size: 20),
+                                label: Text('OPEN EXIT GATE'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                ),
+                              ),
+                            ),
+                          ] else ...[
+                            // Close Gate Button (when gate is open)
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: _manualCloseGate,
+                                icon: Icon(Icons.close, size: 20),
+                                label: Text('CLOSE GATE'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                ),
+                              ),
+                            ),
+                          ],
+
+                          SizedBox(height: 16),
+
+                          // Gate Status Info
                           Container(
                             padding: EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.green,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.info,
-                              size: 24,
-                              color: Colors.white,
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: Text(
-                              'OVERRIDE INSTRUCTIONS',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green[800],
-                                letterSpacing: 1.1,
+                              color: _manualGateOpen ? Colors.green[50] : Colors.grey[50],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _manualGateOpen ? Colors.green[200]! : Colors.grey[300]!,
                               ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _manualGateOpen ? Icons.info : Icons.info_outline,
+                                  size: 16,
+                                  color: _manualGateOpen ? Colors.green[700] : Colors.grey[600],
+                                ),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _manualGateOpen 
+                                        ? 'Gate will stay open until you close it manually'
+                                        : 'Use manual control when needed for maintenance or emergencies',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: _manualGateOpen ? Colors.green[700] : Colors.grey[600],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
+                    ),
 
-                      SizedBox(height: 24),
+                    SizedBox(height: 16),
 
-                      // Instructions List
-                      _buildInstructionItem(
-                        Icons.credit_card,
-                        'Guard RFID Scanned',
-                        'Your guard RFID card activated override mode',
-                        Colors.orange,
-                      ),
-                      SizedBox(height: 16),
-
-                      _buildInstructionItem(
-                        Icons.search,
-                        'Search Student',
-                        'Type student name, class, or grade in search box',
-                        Colors.blue,
-                      ),
-                      SizedBox(height: 16),
-
-                      _buildInstructionItem(
-                        Icons.touch_app,
-                        'Select Student',
-                        'Tap on a student from search results to select',
-                        Colors.green,
-                      ),
-                      SizedBox(height: 16),
-
-                      _buildInstructionItem(
-                        Icons.verified,
-                        'Process Manually',
-                        'Entry/exit will be processed without RFID card',
-                        Colors.purple,
-                      ),
-                      SizedBox(height: 16),
-
-                      _buildInstructionItem(
-                        Icons.timer,
-                        'Auto-Timeout',
-                        'Mode automatically exits after 30 seconds',
-                        Colors.red,
-                      ),
-
-                      Spacer(),
-
-                      // Emergency Note
-                      Container(
-                        padding: EdgeInsets.all(16),
+                    // Instructions Panel
+                    Expanded(
+                      child: Container(
+                        padding: EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: Colors.red[50],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.red[200]!),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.warning,
-                              size: 20,
-                              color: Colors.red[600],
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.grey[200]!, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 20,
+                              offset: Offset(0, 8),
                             ),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Override Usage',
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Instructions Header
+                            Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.info,
+                                    size: 24,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 16),
+                                Expanded(
+                                  child: Text(
+                                    'OVERRIDE INSTRUCTIONS',
                                     style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.red[700],
+                                      fontSize: 18,
                                       fontWeight: FontWeight.bold,
+                                      color: Colors.orange[800],
+                                      letterSpacing: 1.1,
                                     ),
                                   ),
-                                  SizedBox(height: 4),
-                                  Text(
-                                    'Use only for lost RFID cards or emergency situations. All actions are logged.',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.red[600],
+                                ),
+                              ],
+                            ),
+
+                            SizedBox(height: 20),
+
+                            // Instructions List (Condensed)
+                            _buildInstructionItem(
+                              Icons.search,
+                              'Search & Select',
+                              'Find and tap student to process normally',
+                              Colors.blue,
+                            ),
+                            SizedBox(height: 12),
+
+                            _buildInstructionItem(
+                              Icons.settings,
+                              'Manual Gates',
+                              'Open/close gates manually if needed',
+                              Colors.green,
+                            ),
+                            SizedBox(height: 12),
+
+                            _buildInstructionItem(
+                              Icons.security,
+                              'Normal Processing',
+                              'Selected students follow regular rules',
+                              Colors.purple,
+                            ),
+
+                            Spacer(),
+
+                            // Emergency Note (Condensed)
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.red[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.red[200]!),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.warning,
+                                    size: 16,
+                                    color: Colors.red[600],
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Override for emergencies only. All actions logged.',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.red[600],
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -5929,8 +6266,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
