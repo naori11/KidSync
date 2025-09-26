@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../models/driver_models.dart';
+import '../utils/time_utils.dart';
 import 'notification_service.dart';
 import 'verification_service.dart';
 
@@ -416,6 +417,186 @@ class DriverService {
     } catch (e) {
       print('Error recording dropoff: $e');
       return false;
+    }
+  }
+
+  /// Cancel a pickup event with reason and cleanup
+  Future<bool> cancelPickup({
+    required int studentId,
+    required String driverId,
+    required String reason,
+    String? notes,
+  }) async {
+    try {
+      final today = DateTime.now();
+      final startOfDay = DateTime(today.year, today.month, today.day);
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+
+      // Find the pickup record to cancel
+      final existingPickup = await supabase
+          .from('pickup_dropoff_logs')
+          .select('id')
+          .eq('student_id', studentId)
+          .eq('driver_id', driverId)
+          .eq('event_type', 'pickup')
+          .gte('created_at', startOfDay.toIso8601String())
+          .lt('created_at', endOfDay.toIso8601String())
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (existingPickup == null) {
+        print('No pickup record found to cancel for student $studentId');
+        return false;
+      }
+
+      final logId = existingPickup['id'];
+
+      // Insert cancellation record
+      await supabase.from('pickup_dropoff_logs').insert({
+        'student_id': studentId,
+        'driver_id': driverId,
+        'event_type': 'pickup_cancelled',
+        'notes': 'CANCELLED - Reason: $reason${notes != null ? '. Notes: $notes' : ''}',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      // Update original pickup record to mark as cancelled
+      await supabase
+          .from('pickup_dropoff_logs')
+          .update({
+            'notes': (existingPickup['notes'] ?? '') + ' [CANCELLED - $reason]',
+          })
+          .eq('id', logId);
+
+      // Cancel any pending verification requests
+      await _cancelVerificationRequest(logId, studentId, driverId, 'pickup');
+
+      // Notify parents of cancellation
+      await _notifyParentsCancellation(studentId, 'pickup', reason);
+
+      return true;
+    } catch (e) {
+      print('Error cancelling pickup: $e');
+      return false;
+    }
+  }
+
+  /// Cancel a dropoff event with reason and cleanup
+  Future<bool> cancelDropoff({
+    required int studentId,
+    required String driverId,
+    required String reason,
+    String? notes,
+  }) async {
+    try {
+      final today = DateTime.now();
+      final startOfDay = DateTime(today.year, today.month, today.day);
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+
+      // Find the dropoff record to cancel
+      final existingDropoff = await supabase
+          .from('pickup_dropoff_logs')
+          .select('id')
+          .eq('student_id', studentId)
+          .eq('driver_id', driverId)
+          .eq('event_type', 'dropoff')
+          .gte('created_at', startOfDay.toIso8601String())
+          .lt('created_at', endOfDay.toIso8601String())
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (existingDropoff == null) {
+        print('No dropoff record found to cancel for student $studentId');
+        return false;
+      }
+
+      final logId = existingDropoff['id'];
+
+      // Insert cancellation record
+      await supabase.from('pickup_dropoff_logs').insert({
+        'student_id': studentId,
+        'driver_id': driverId,
+        'event_type': 'dropoff_cancelled',
+        'notes': 'CANCELLED - Reason: $reason${notes != null ? '. Notes: $notes' : ''}',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      // Update original dropoff record to mark as cancelled
+      await supabase
+          .from('pickup_dropoff_logs')
+          .update({
+            'notes': (existingDropoff['notes'] ?? '') + ' [CANCELLED - $reason]',
+          })
+          .eq('id', logId);
+
+      // Cancel any pending verification requests
+      await _cancelVerificationRequest(logId, studentId, driverId, 'dropoff');
+
+      // Notify parents of cancellation
+      await _notifyParentsCancellation(studentId, 'dropoff', reason);
+
+      return true;
+    } catch (e) {
+      print('Error cancelling dropoff: $e');
+      return false;
+    }
+  }
+
+  /// Helper method to cancel verification requests
+  Future<void> _cancelVerificationRequest(int logId, int studentId, String driverId, String eventType) async {
+    try {
+      // Update verification status to cancelled
+      await supabase
+          .from('pickup_dropoff_verifications')
+          .update({
+            'status': 'cancelled',
+            'notes': 'Cancelled by driver',
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('pickup_dropoff_log_id', logId)
+          .eq('status', 'pending');
+      
+      print('✅ Verification request cancelled for $eventType log $logId');
+    } catch (e) {
+      print('Error cancelling verification request: $e');
+    }
+  }
+
+  /// Helper method to notify parents of cancellations
+  Future<void> _notifyParentsCancellation(int studentId, String eventType, String reason) async {
+    try {
+      // Get student information
+      final studentResponse = await supabase
+          .from('students')
+          .select('fname, lname')
+          .eq('id', studentId)
+          .maybeSingle();
+
+      if (studentResponse != null) {
+        final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
+        
+        // Create notification record for cancellation
+        await supabase.from('notifications').insert({
+          'user_id': null, // Will be sent to all parents of this student
+          'type': 'pickup_dropoff_cancellation',
+          'title': '${eventType == 'pickup' ? 'Pickup' : 'Dropoff'} Cancelled',
+          'message': '$studentName\'s ${eventType} has been cancelled. Reason: $reason',
+          'data': {
+            'student_id': studentId,
+            'student_name': studentName,
+            'event_type': eventType,
+            'reason': reason,
+            'cancelled_at': DateTime.now().toIso8601String(),
+          },
+          'created_at': DateTime.now().toIso8601String(),
+        });
+        
+        print('✅ Cancellation notification sent for $studentName $eventType');
+      }
+    } catch (e) {
+      print('Error notifying parents of cancellation: $e');
     }
   }
 

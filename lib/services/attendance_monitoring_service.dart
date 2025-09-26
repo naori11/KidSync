@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/time_utils.dart';
 
 class AttendanceMonitoringService {
   final supabase = Supabase.instance.client;
@@ -20,12 +21,12 @@ class AttendanceMonitoringService {
     DateTime? endDate,
   }) async {
     try {
-      final now = DateTime.now();
+      final now = TimeUtils.nowPST();
       final defaultStartDate = startDate ?? DateTime(now.year, now.month - 1, now.day); // Last month
       final defaultEndDate = endDate ?? now;
 
-      final startDateStr = "${defaultStartDate.year.toString().padLeft(4, '0')}-${defaultStartDate.month.toString().padLeft(2, '0')}-${defaultStartDate.day.toString().padLeft(2, '0')}";
-      final endDateStr = "${defaultEndDate.year.toString().padLeft(4, '0')}-${defaultEndDate.month.toString().padLeft(2, '0')}-${defaultEndDate.day.toString().padLeft(2, '0')}";
+      final startDateStr = TimeUtils.formatDateForQuery(defaultStartDate);
+      final endDateStr = TimeUtils.formatDateForQuery(defaultEndDate);
 
       // Check if parent notification has been sent for this student
       final notificationHistory = await getAttendanceNotificationHistory(studentId);
@@ -543,7 +544,7 @@ class AttendanceMonitoringService {
   Future<List<Map<String, dynamic>>> checkForFollowUps() async {
     try {
       // Look for parent notifications that are older than ESCALATION_DAYS and haven't been acknowledged
-      final cutoffDate = DateTime.now().subtract(Duration(days: ESCALATION_DAYS));
+      final cutoffDate = TimeUtils.nowPST().subtract(Duration(days: ESCALATION_DAYS));
       
       final overdueNotifications = await supabase
           .from('notifications')
@@ -603,7 +604,7 @@ class AttendanceMonitoringService {
           .from('notifications')
           .update({
             'is_read': true,
-            'read_at': DateTime.now().toIso8601String(),
+            'read_at': TimeUtils.formatForDatabase(TimeUtils.nowPST()),
           })
           .eq('student_id', studentId)
           .eq('type', notificationType)
@@ -669,7 +670,7 @@ class AttendanceMonitoringService {
       if (notification == null) return {'hasImproved': false, 'daysTracked': 0};
 
       final notificationDate = DateTime.parse(notification['created_at']);
-      final daysSinceNotification = DateTime.now().difference(notificationDate).inDays;
+      final daysSinceNotification = TimeUtils.nowPST().difference(notificationDate).inDays;
 
       // Check attendance improvement after notification
       final attendanceAfter = await supabase
@@ -1021,17 +1022,17 @@ class AttendanceMonitoringService {
         'type': 'attendance_resolved',
         'student_id': studentId,
         'is_read': true,
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': TimeUtils.formatForDatabase(TimeUtils.nowPST()),
       });
 
       // Create a virtual "resolution marker" scan record to break consecutive absences
       // This acts as an attendance intervention that resets the consecutive count
-      final now = DateTime.now();
+      final now = TimeUtils.nowPST();
       await supabase.from('scan_records').insert({
         'student_id': studentId,
         'guard_id': supabase.auth.currentUser?.id,
         'rfid_uid': 'teacher_resolution_${studentId}_${now.millisecondsSinceEpoch}',
-        'scan_time': now.toIso8601String(),
+        'scan_time': TimeUtils.formatForDatabase(now),
         'action': 'attendance_resolution',
         'notes': 'Attendance issue manually resolved by teacher - resets consecutive absence count',
       });

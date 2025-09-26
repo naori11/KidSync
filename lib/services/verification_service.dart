@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'notification_service.dart';
+import '../utils/time_utils.dart';
 
 class VerificationService {
   final supabase = Supabase.instance.client;
@@ -85,7 +86,7 @@ class VerificationService {
                   'event_time': eventTime.toIso8601String(),
                   'pickup_dropoff_log_id': pickupDropoffLogId,
                   'status': 'pending',
-                  'created_at': DateTime.now().toIso8601String(),
+                  'created_at': TimeUtils.formatForDatabase(TimeUtils.nowPST()),
                 }).timeout(Duration(seconds: 10));
                 
                 successCount++;
@@ -170,7 +171,7 @@ class VerificationService {
           .from('pickup_dropoff_verifications')
           .update({
             'status': 'confirmed',
-            'parent_response_time': DateTime.now().toIso8601String(),
+            'parent_response_time': TimeUtils.formatForDatabase(TimeUtils.nowPST()),
             'parent_notes': parentNotes,
           })
           .eq('id', verificationId);
@@ -272,7 +273,7 @@ class VerificationService {
           .from('pickup_dropoff_verifications')
           .update({
             'status': 'denied',
-            'parent_response_time': DateTime.now().toIso8601String(),
+            'parent_response_time': TimeUtils.formatForDatabase(TimeUtils.nowPST()),
             'parent_notes': parentNotes,
           })
           .eq('id', verificationId);
@@ -351,7 +352,7 @@ class VerificationService {
   Future<void> sendReminders() async {
     try {
       // Get pending verifications older than 15 minutes
-      final cutoffTime = DateTime.now().subtract(const Duration(minutes: 15));
+      final cutoffTime = TimeUtils.nowPST().subtract(const Duration(minutes: 15));
       
       final pendingVerifications = await supabase
           .from('pickup_dropoff_verifications')
@@ -374,7 +375,7 @@ class VerificationService {
             .from('pickup_dropoff_verifications')
             .update({
               'reminder_count': verification['reminder_count'] + 1,
-              'last_reminder_sent': DateTime.now().toIso8601String(),
+              'last_reminder_sent': TimeUtils.formatForDatabase(TimeUtils.nowPST()),
             })
             .eq('id', verification['id']);
       }

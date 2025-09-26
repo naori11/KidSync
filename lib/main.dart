@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:timezone/data/latest.dart' as tz;
 import 'screens/login_screen.dart';
 import 'screens/guard/guard_panel.dart';
 import 'screens/admin/admin_panel.dart';
@@ -8,6 +9,7 @@ import 'screens/set_password_screen.dart';
 import 'screens/parent/parent_home.dart';
 import 'screens/driver/driver_panel.dart';
 import 'services/verification_reminder_service.dart';
+import 'utils/time_utils.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_strategy/url_strategy.dart';
 import 'dart:html' as html;
@@ -56,6 +58,17 @@ class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize timezone data for proper PST handling
+  tz.initializeTimeZones();
+  
+  // Print debug info about current time setup
+  print('=== KIDSYNC TIME INITIALIZATION ===');
+  final timeDebugInfo = TimeUtils.getDebugTimeInfo();
+  timeDebugInfo.forEach((key, value) {
+    print('$key: $value');
+  });
+  print('=====================================');
 
   // Capture the initial URL as early as possible in Dart.
   if (kIsWeb) {
