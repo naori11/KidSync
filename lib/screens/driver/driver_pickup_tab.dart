@@ -747,8 +747,13 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           }
         });
         
-        // TODO: Add database cleanup for cancelled pickup record
-        // await _driverService.cancelPickup(student.studentDbId!, user.id);
+        // Call database cleanup for cancelled pickup record
+        await _driverService.cancelPickup(
+          studentId: student.studentDbId!,
+          driverId: user.id,
+          reason: 'Manual cancellation via driver app',
+          notes: 'Driver manually cancelled pickup operation'
+        );
 
         // Log pickup cancellation (HIGH PRIORITY - Transportation Safety & Compliance)
         try {
@@ -867,6 +872,8 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       }
     } catch (e) {
       _showConfirmationDialog('Error: $e', Colors.red);
+    } finally {
+      setState(() => _isProcessing = false);
     }
   }
 
@@ -894,6 +901,14 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
         setState(() {
           droppedOffStudents.removeWhere((s) => s.id == student.id);
         });
+
+        // Call database cleanup for cancelled dropoff record
+        await _driverService.cancelDropoff(
+          studentId: student.studentDbId!,
+          driverId: user.id,
+          reason: 'Manual cancellation via driver app',
+          notes: 'Driver manually cancelled dropoff operation'
+        );
 
         // Log dropoff cancellation (HIGH PRIORITY - Transportation Safety & Compliance)
         try {

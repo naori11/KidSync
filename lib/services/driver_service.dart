@@ -552,7 +552,7 @@ class DriverService {
           .from('pickup_dropoff_verifications')
           .update({
             'status': 'cancelled',
-            'notes': 'Cancelled by driver',
+            'parent_notes': 'Cancelled by driver',
             'updated_at': DateTime.now().toIso8601String(),
           })
           .eq('pickup_dropoff_log_id', logId)
@@ -567,33 +567,81 @@ class DriverService {
   /// Helper method to notify parents of cancellations
   Future<void> _notifyParentsCancellation(int studentId, String eventType, String reason) async {
     try {
-      // Get student information
+      // Get student and driver information
       final studentResponse = await supabase
           .from('students')
           .select('fname, lname')
           .eq('id', studentId)
           .maybeSingle();
 
+      final driverResponse = await supabase
+          .from('users')
+          .select('fname, lname')
+          .eq('id', supabase.auth.currentUser!.id)
+          .maybeSingle();
+
       if (studentResponse != null) {
         final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
+        final driverName = driverResponse != null 
+            ? '${driverResponse['fname']} ${driverResponse['lname']}'
+            : null;
         
-        // Create notification record for cancellation
-        await supabase.from('notifications').insert({
-          'user_id': null, // Will be sent to all parents of this student
-          'type': 'pickup_dropoff_cancellation',
-          'title': '${eventType == 'pickup' ? 'Pickup' : 'Dropoff'} Cancelled',
-          'message': '$studentName\'s ${eventType} has been cancelled. Reason: $reason',
-          'data': {
-            'student_id': studentId,
-            'student_name': studentName,
-            'event_type': eventType,
-            'reason': reason,
-            'cancelled_at': DateTime.now().toIso8601String(),
-          },
-          'created_at': DateTime.now().toIso8601String(),
-        });
-        
-        print('✅ Cancellation notification sent for $studentName $eventType');
+        // Try using the new RPC function first
+        try {
+          final result = await supabase.rpc('create_cancellation_notification', params: {
+            'p_student_id': studentId,
+            'p_student_name': studentName,
+            'p_event_type': eventType,
+            'p_reason': reason,
+            'p_driver_name': driverName,
+          });
+          
+          if (result == true) {
+            print('✅ Cancellation notification sent via RPC for $studentName $eventType');
+            return;
+          } else {
+            print('⚠️ RPC function returned false for cancellation notification');
+          }
+        } catch (rpcError) {
+          print('⚠️ RPC function failed for cancellation notification: $rpcError');
+        }
+
+        // Fallback to direct insert if RPC fails
+        try {
+          // Get all parents for this student
+          final parentResponse = await supabase
+              .from('parent_student')
+              .select('''
+                parents!inner(user_id)
+              ''')
+              .eq('student_id', studentId);
+
+          final List<Map<String, dynamic>> notifications = [];
+          final title = '${eventType == 'pickup' ? 'Pickup' : 'Dropoff'} Cancelled';
+          final message = '$studentName\'s $eventType has been cancelled. Reason: $reason${driverName != null ? '. Driver: $driverName' : ''}';
+
+          for (final parentData in parentResponse) {
+            final userId = parentData['parents']['user_id'];
+            if (userId != null) {
+              notifications.add({
+                'recipient_id': userId,
+                'title': title,
+                'message': message,
+                'type': 'pickup_dropoff_cancellation',
+                'student_id': studentId,
+                'is_read': false,
+                'created_at': DateTime.now().toIso8601String(),
+              });
+            }
+          }
+
+          if (notifications.isNotEmpty) {
+            await supabase.from('notifications').insert(notifications);
+            print('✅ Cancellation notification sent via direct insert for $studentName $eventType');
+          }
+        } catch (fallbackError) {
+          print('❌ Fallback cancellation notification failed: $fallbackError');
+        }
       }
     } catch (e) {
       print('Error notifying parents of cancellation: $e');
@@ -638,17 +686,34 @@ class DriverService {
       final startOfDay = DateTime(today.year, today.month, today.day);
       final endOfDay = startOfDay.add(const Duration(days: 1));
 
-      final response = await supabase
+      // Check for pickup record
+      final pickupResponse = await supabase
           .from('pickup_dropoff_logs')
-          .select('id')
+          .select('id, created_at')
           .eq('student_id', studentId)
           .eq('driver_id', driverId)
           .eq('event_type', 'pickup')
           .gte('created_at', startOfDay.toIso8601String())
           .lt('created_at', endOfDay.toIso8601String())
+          .order('created_at', ascending: false)
           .limit(1);
 
-      return response.isNotEmpty;
+      if (pickupResponse.isEmpty) return false;
+
+      // Check for cancellation record after the pickup
+      final pickupTime = pickupResponse.first['created_at'];
+      final cancellationResponse = await supabase
+          .from('pickup_dropoff_logs')
+          .select('id')
+          .eq('student_id', studentId)
+          .eq('driver_id', driverId)
+          .eq('event_type', 'pickup_cancelled')
+          .gte('created_at', pickupTime)
+          .lt('created_at', endOfDay.toIso8601String())
+          .limit(1);
+
+      // Return true only if picked up and not cancelled
+      return cancellationResponse.isEmpty;
     } catch (e) {
       print('Error checking pickup status: $e');
       return false;
@@ -662,17 +727,34 @@ class DriverService {
       final startOfDay = DateTime(today.year, today.month, today.day);
       final endOfDay = startOfDay.add(const Duration(days: 1));
 
-      final response = await supabase
+      // Check for dropoff record
+      final dropoffResponse = await supabase
           .from('pickup_dropoff_logs')
-          .select('id')
+          .select('id, created_at')
           .eq('student_id', studentId)
           .eq('driver_id', driverId)
           .eq('event_type', 'dropoff')
           .gte('created_at', startOfDay.toIso8601String())
           .lt('created_at', endOfDay.toIso8601String())
+          .order('created_at', ascending: false)
           .limit(1);
 
-      return response.isNotEmpty;
+      if (dropoffResponse.isEmpty) return false;
+
+      // Check for cancellation record after the dropoff
+      final dropoffTime = dropoffResponse.first['created_at'];
+      final cancellationResponse = await supabase
+          .from('pickup_dropoff_logs')
+          .select('id')
+          .eq('student_id', studentId)
+          .eq('driver_id', driverId)
+          .eq('event_type', 'dropoff_cancelled')
+          .gte('created_at', dropoffTime)
+          .lt('created_at', endOfDay.toIso8601String())
+          .limit(1);
+
+      // Return true only if dropped off and not cancelled
+      return cancellationResponse.isEmpty;
     } catch (e) {
       print('Error checking dropoff status: $e');
       return false;

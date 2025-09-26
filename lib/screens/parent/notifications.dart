@@ -538,6 +538,11 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
         iconColor = Colors.red;
         backgroundColor = Colors.red.withOpacity(0.1);
         break;
+      case 'pickup_dropoff_cancellation':
+        icon = Icons.cancel_outlined;
+        iconColor = Colors.orange;
+        backgroundColor = Colors.orange.withOpacity(0.1);
+        break;
       default:
         icon = Icons.info;
         iconColor = primaryGreen;
