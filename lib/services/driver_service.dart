@@ -333,9 +333,15 @@ class DriverService {
 
       if (studentResponse != null && driverResponse != null) {
         final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
-        final driverName = '${driverResponse['fname']} ${driverResponse['lname']}';
 
-        // Notification is handled by _notifyParents method below
+        // Send verification request notification to driver
+        await notificationService.sendVerificationRequestNotification(
+          driverId: driverId,
+          studentId: studentId,
+          studentName: studentName,
+          eventType: 'pickup',
+          eventTime: pickupTime,
+        );
       }
 
       // Notify parents (legacy method)
@@ -392,9 +398,15 @@ class DriverService {
 
       if (studentResponse != null && driverResponse != null) {
         final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
-        final driverName = '${driverResponse['fname']} ${driverResponse['lname']}';
 
-        // Notification is handled by _notifyParents method below
+        // Send verification request notification to driver
+        await notificationService.sendVerificationRequestNotification(
+          driverId: driverId,
+          studentId: studentId,
+          studentName: studentName,
+          eventType: 'dropoff',
+          eventTime: dropoffTime,
+        );
       }
 
       // Notify parents (legacy method)

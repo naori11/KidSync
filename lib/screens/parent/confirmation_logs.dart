@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/parent_audit_service.dart';
+import '../../services/verification_service.dart';
 
 class ConfirmationLogsScreen extends StatefulWidget {
   final Color primaryColor;
@@ -43,16 +44,66 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
   // Add this method to handle verification responses
   Future<void> _verifyEvent(ConfirmationLog log, String status, {String? notes}) async {
     try {
-      // Update verification status in database
-      await supabase
+      // Get current user and parent ID
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final parentResponse = await supabase
+          .from('parents')
+          .select('id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (parentResponse == null) {
+        throw Exception('Parent information not found');
+      }
+
+      final parentId = parentResponse['id'];
+
+      // Find the verification record for this log
+      final verificationResponse = await supabase
           .from('pickup_dropoff_verifications')
-          .upsert({
-            'pickup_dropoff_log_id': int.parse(log.id),
-            'student_id': int.parse(log.studentId),
-            'status': status,
-            'parent_response_time': DateTime.now().toIso8601String(),
-            'parent_notes': notes,
-          });
+          .select('id')
+          .eq('pickup_dropoff_log_id', int.parse(log.id))
+          .eq('parent_id', parentId)
+          .eq('status', 'pending')
+          .maybeSingle();
+
+      if (verificationResponse != null) {
+        // Use the verification service to handle confirmation/denial and send driver notifications
+        final verificationService = VerificationService();
+        bool success;
+        
+        if (status == 'confirmed') {
+          success = await verificationService.confirmVerification(
+            verificationResponse['id'],
+            parentNotes: notes,
+          );
+        } else {
+          success = await verificationService.denyVerification(
+            verificationResponse['id'],
+            parentNotes: notes,
+          );
+        }
+
+        if (!success) {
+          throw Exception('Failed to process verification through service');
+        }
+      } else {
+        // Fallback: Update verification status in database directly (for old records)
+        await supabase
+            .from('pickup_dropoff_verifications')
+            .upsert({
+              'pickup_dropoff_log_id': int.parse(log.id),
+              'student_id': int.parse(log.studentId),
+              'parent_id': parentId,
+              'status': status,
+              'parent_response_time': DateTime.now().toIso8601String(),
+              'parent_notes': notes,
+            });
+      }
 
       // Log the verification action
       await _auditService.logPickupDropoffVerification(

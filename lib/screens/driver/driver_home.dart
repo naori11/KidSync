@@ -4,9 +4,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'driver_dashboard_tab.dart';
 import 'driver_pickup_tab.dart';
 import 'driver_students_tab.dart';
-import 'driver_notifications_tab.dart';
+import 'driver_recent_activity.dart';
+import 'driver_notifications.dart';
 import 'driver_profile_tab.dart';
 import '../../services/driver_audit_service.dart';
+import '../../services/notification_service.dart';
 
 class DriverHomeScreen extends StatelessWidget {
   DriverHomeScreen({Key? key}) : super(key: key);
@@ -163,9 +165,12 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
   int selectedIndex = 0;
   bool showNotifications = false;
   bool showProfile = false;
+  int unreadNotificationCount = 0;
   late PageController _pageController;
   final DriverAuditService _driverAuditService = DriverAuditService();
+  final NotificationService _notificationService = NotificationService();
   StreamSubscription<AuthState>? _authSubscription;
+  Timer? _notificationTimer;
 
   @override
   void initState() {
@@ -173,6 +178,30 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
     _pageController = PageController(initialPage: 0);
     _setupAuthListener();
     _logDashboardAccess();
+    _loadNotificationCount();
+    // Set up periodic refresh for notification count
+    _notificationTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (mounted) {
+        _loadNotificationCount();
+      }
+    });
+  }
+
+  /// Load unread notification count for the driver
+  Future<void> _loadNotificationCount() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        final count = await _notificationService.getUnreadDriverNotificationCount(user.id);
+        if (mounted) {
+          setState(() {
+            unreadNotificationCount = count;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading notification count: $e');
+    }
   }
 
   void _setupAuthListener() {
@@ -208,7 +237,11 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
   void _toggleNotifications() {
     setState(() {
       showNotifications = !showNotifications;
-      if (showNotifications) showProfile = false;
+      if (showNotifications) {
+        showProfile = false;
+        // Refresh notification count when opening
+        _loadNotificationCount();
+      }
     });
   }
 
@@ -300,6 +333,7 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
 
   @override
   void dispose() {
+    _notificationTimer?.cancel();
     _authSubscription?.cancel();
     _pageController.dispose();
     super.dispose();
@@ -370,16 +404,30 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
                           ),
                           onPressed: _toggleNotifications,
                         ),
-                        if (showNotifications)
+                        if (unreadNotificationCount > 0)
                           Positioned(
-                            right: 0,
-                            top: 2,
+                            right: 4,
+                            top: 4,
                             child: Container(
-                              width: 8,
-                              height: 8,
+                              padding: const EdgeInsets.all(4),
                               decoration: const BoxDecoration(
                                 color: Color(0xFF19AE61),
                                 shape: BoxShape.circle,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 16,
+                                minHeight: 16,
+                              ),
+                              child: Text(
+                                unreadNotificationCount > 9 
+                                    ? '9+' 
+                                    : unreadNotificationCount.toString(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
                               ),
                             ),
                           ),
@@ -465,7 +513,8 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
               top: 60,
               right: 16,
               child: Container(
-                width: 300,
+                width: 400,
+                height: 500,
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFFFFF),
                   borderRadius: BorderRadius.circular(12),
@@ -529,7 +578,7 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
           isMobile: isMobile,
         );
       case 3:
-        return DriverNotificationsTab(
+        return DriverRecentActivity(
           primaryColor: widget.primaryColor,
           isMobile: isMobile,
         );

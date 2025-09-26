@@ -147,6 +147,24 @@ class VerificationService {
   /// This will only confirm the specific verification for the logged-in parent
   Future<bool> confirmVerification(int verificationId, {String? parentNotes}) async {
     try {
+      // Get verification details before updating
+      final verificationResponse = await supabase
+          .from('pickup_dropoff_verifications')
+          .select('''
+            *,
+            students!pickup_dropoff_verifications_student_id_fkey (
+              id, fname, lname
+            ),
+            drivers:users!pickup_dropoff_verifications_driver_id_fkey (
+              id, fname, lname
+            ),
+            parents!pickup_dropoff_verifications_parent_id_fkey (
+              id, fname, lname
+            )
+          ''')
+          .eq('id', verificationId)
+          .single();
+
       // Update only the specific verification record
       await supabase
           .from('pickup_dropoff_verifications')
@@ -156,6 +174,69 @@ class VerificationService {
             'parent_notes': parentNotes,
           })
           .eq('id', verificationId);
+
+      // Notify the driver about the confirmation
+      final student = verificationResponse['students'];
+      final driver = verificationResponse['drivers'];
+      final parent = verificationResponse['parents'];
+      
+      print('DEBUG: Attempting to send driver approval notification');
+      print('  - Student: ${student != null}');
+      print('  - Driver: ${driver != null}');
+      print('  - Parent: ${parent != null}');
+      
+      if (student != null && driver != null && parent != null) {
+        final studentName = '${student['fname']} ${student['lname']}';
+        final parentName = '${parent['fname']} ${parent['lname']}';
+        final eventType = verificationResponse['event_type'] ?? 'pickup';
+        final eventTime = DateTime.parse(verificationResponse['event_time']);
+
+        print('DEBUG: Sending $eventType approval notification');
+        print('  - Driver ID: ${driver['id']}');
+        print('  - Student ID: ${student['id']}');
+        print('  - Student Name: $studentName');
+        print('  - Parent Name: $parentName');
+        print('  - Event Time: $eventTime');
+        print('  - Notes: $parentNotes');
+
+        bool notificationSent = false;
+        try {
+          if (eventType == 'pickup') {
+            notificationSent = await notificationService.sendPickupApprovalNotification(
+              driverId: driver['id'],
+              studentId: student['id'],
+              studentName: studentName,
+              parentName: parentName,
+              approvalTime: eventTime,
+              isApproved: true,
+              notes: parentNotes,
+            );
+          } else {
+            notificationSent = await notificationService.sendDropoffApprovalNotification(
+              driverId: driver['id'],
+              studentId: student['id'],
+              studentName: studentName,
+              parentName: parentName,
+              approvalTime: eventTime,
+              isApproved: true,
+              notes: parentNotes,
+            );
+          }
+          
+          if (notificationSent) {
+            print('✅ Driver approval notification sent successfully');
+          } else {
+            print('❌ Driver approval notification failed to send (returned false)');
+          }
+        } catch (notificationError) {
+          print('❌ Error sending driver approval notification: $notificationError');
+        }
+      } else {
+        print('❌ Missing required data for driver approval notification');
+        if (student == null) print('  - Missing student data');
+        if (driver == null) print('  - Missing driver data');
+        if (parent == null) print('  - Missing parent data');
+      }
 
       return true;
     } catch (e) {
@@ -168,6 +249,24 @@ class VerificationService {
   /// This will only deny the specific verification for the logged-in parent
   Future<bool> denyVerification(int verificationId, {String? parentNotes}) async {
     try {
+      // Get verification details before updating
+      final verificationResponse = await supabase
+          .from('pickup_dropoff_verifications')
+          .select('''
+            *,
+            students!pickup_dropoff_verifications_student_id_fkey (
+              id, fname, lname
+            ),
+            drivers:users!pickup_dropoff_verifications_driver_id_fkey (
+              id, fname, lname
+            ),
+            parents!pickup_dropoff_verifications_parent_id_fkey (
+              id, fname, lname
+            )
+          ''')
+          .eq('id', verificationId)
+          .single();
+
       // Update only the specific verification record
       await supabase
           .from('pickup_dropoff_verifications')
@@ -177,6 +276,69 @@ class VerificationService {
             'parent_notes': parentNotes,
           })
           .eq('id', verificationId);
+
+      // Notify the driver about the denial
+      final student = verificationResponse['students'];
+      final driver = verificationResponse['drivers'];
+      final parent = verificationResponse['parents'];
+      
+      print('DEBUG: Attempting to send driver denial notification');
+      print('  - Student: ${student != null}');
+      print('  - Driver: ${driver != null}');
+      print('  - Parent: ${parent != null}');
+      
+      if (student != null && driver != null && parent != null) {
+        final studentName = '${student['fname']} ${student['lname']}';
+        final parentName = '${parent['fname']} ${parent['lname']}';
+        final eventType = verificationResponse['event_type'] ?? 'pickup';
+        final eventTime = DateTime.parse(verificationResponse['event_time']);
+
+        print('DEBUG: Sending $eventType denial notification');
+        print('  - Driver ID: ${driver['id']}');
+        print('  - Student ID: ${student['id']}');
+        print('  - Student Name: $studentName');
+        print('  - Parent Name: $parentName');
+        print('  - Event Time: $eventTime');
+        print('  - Notes: $parentNotes');
+
+        bool notificationSent = false;
+        try {
+          if (eventType == 'pickup') {
+            notificationSent = await notificationService.sendPickupApprovalNotification(
+              driverId: driver['id'],
+              studentId: student['id'],
+              studentName: studentName,
+              parentName: parentName,
+              approvalTime: eventTime,
+              isApproved: false,
+              notes: parentNotes,
+            );
+          } else {
+            notificationSent = await notificationService.sendDropoffApprovalNotification(
+              driverId: driver['id'],
+              studentId: student['id'],
+              studentName: studentName,
+              parentName: parentName,
+              approvalTime: eventTime,
+              isApproved: false,
+              notes: parentNotes,
+            );
+          }
+          
+          if (notificationSent) {
+            print('✅ Driver denial notification sent successfully');
+          } else {
+            print('❌ Driver denial notification failed to send (returned false)');
+          }
+        } catch (notificationError) {
+          print('❌ Error sending driver denial notification: $notificationError');
+        }
+      } else {
+        print('❌ Missing required data for driver denial notification');
+        if (student == null) print('  - Missing student data');
+        if (driver == null) print('  - Missing driver data');
+        if (parent == null) print('  - Missing parent data');
+      }
 
       return true;
     } catch (e) {

@@ -713,6 +713,100 @@ class NotificationService {
     }
   }
 
+  /// Test method to manually test pickup/dropoff approval notification creation
+  Future<bool> testApprovalNotificationSystem({
+    required String driverId,
+    required int studentId,
+    required String studentName,
+  }) async {
+    try {
+      print('DEBUG: Testing approval notification system');
+      print('  - Driver ID: $driverId');
+      print('  - Student ID: $studentId');
+      print('  - Student Name: $studentName');
+      
+      // Test pickup approval notification
+      print('\\nTesting pickup approval notification...');
+      final pickupApprovalResult = await sendPickupApprovalNotification(
+        driverId: driverId,
+        studentId: studentId,
+        studentName: studentName,
+        parentName: 'Test Parent',
+        approvalTime: DateTime.now(),
+        isApproved: true,
+        notes: 'Test approval from Flutter app',
+      );
+      
+      print('Pickup approval notification result: $pickupApprovalResult');
+      
+      // Test pickup decline notification
+      print('\\nTesting pickup decline notification...');
+      final pickupDeclineResult = await sendPickupApprovalNotification(
+        driverId: driverId,
+        studentId: studentId,
+        studentName: studentName,
+        parentName: 'Test Parent',
+        approvalTime: DateTime.now(),
+        isApproved: false,
+        notes: 'Test decline from Flutter app',
+      );
+      
+      print('Pickup decline notification result: $pickupDeclineResult');
+      
+      // Test dropoff approval notification
+      print('\\nTesting dropoff approval notification...');
+      final dropoffApprovalResult = await sendDropoffApprovalNotification(
+        driverId: driverId,
+        studentId: studentId,
+        studentName: studentName,
+        parentName: 'Test Parent',
+        approvalTime: DateTime.now(),
+        isApproved: true,
+        notes: 'Test approval from Flutter app',
+      );
+      
+      print('Dropoff approval notification result: $dropoffApprovalResult');
+      
+      // Test dropoff decline notification
+      print('\\nTesting dropoff decline notification...');
+      final dropoffDeclineResult = await sendDropoffApprovalNotification(
+        driverId: driverId,
+        studentId: studentId,
+        studentName: studentName,
+        parentName: 'Test Parent',
+        approvalTime: DateTime.now(),
+        isApproved: false,
+        notes: 'Test decline from Flutter app',
+      );
+      
+      print('Dropoff decline notification result: $dropoffDeclineResult');
+      
+      // Check if notifications were created in database
+      print('\\nChecking database for inserted notifications...');
+      final notifications = await supabase
+          .from('notifications')
+          .select('id, type, title, message, created_at')
+          .eq('recipient_id', driverId)
+          .eq('student_id', studentId)
+          .inFilter('type', ['pickup_approved', 'pickup_declined', 'dropoff_approved', 'dropoff_declined'])
+          .order('created_at', ascending: false)
+          .limit(10);
+          
+      print('DEBUG: Found ${notifications.length} approval/decline notifications for driver $driverId, student $studentId');
+      for (final notification in notifications) {
+        print('  - ${notification['type']}: ${notification['title']} (${notification['created_at']})');
+      }
+      
+      final allTestsPassed = pickupApprovalResult && pickupDeclineResult && dropoffApprovalResult && dropoffDeclineResult;
+      print('\\nAll notification tests passed: $allTestsPassed');
+      
+      return allTestsPassed;
+    } catch (e) {
+      print('DEBUG: Test approval notification system error: $e');
+      return false;
+    }
+  }
+
   /// Test method to manually test notification creation
   Future<bool> testNotificationSystem({
     required int studentId,
@@ -773,6 +867,320 @@ class NotificationService {
       }
     } catch (e) {
       print('DEBUG: Test notification system error: $e');
+      return false;
+    }
+  }
+
+  /// Get notifications for a driver filtered by date and type
+  Future<List<Map<String, dynamic>>> getDriverNotifications(
+    String driverId, {
+    bool todayOnly = false,
+    int limit = 50,
+  }) async {
+    try {
+      // Build query to get notifications for this driver
+      var query = supabase
+          .from('notifications')
+          .select('''
+            *,
+            students(fname, lname)
+          ''')
+          .eq('recipient_id', driverId);
+
+      // Filter by today if requested
+      if (todayOnly) {
+        final today = DateTime.now();
+        final todayStart = DateTime(today.year, today.month, today.day);
+        final todayEnd = todayStart.add(const Duration(days: 1));
+        
+        query = query
+            .gte('created_at', todayStart.toIso8601String())
+            .lt('created_at', todayEnd.toIso8601String());
+      }
+
+      final notifications = await query
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      return List<Map<String, dynamic>>.from(notifications);
+    } catch (e) {
+      print('Error getting driver notifications: $e');
+      return [];
+    }
+  }
+
+  /// Get unread notification count for a driver
+  Future<int> getUnreadDriverNotificationCount(String driverId) async {
+    try {
+      final response = await supabase
+          .from('notifications')
+          .select('id')
+          .eq('recipient_id', driverId)
+          .eq('is_read', false);
+
+      return response.length;
+    } catch (e) {
+      print('Error getting unread driver notification count: $e');
+      return 0;
+    }
+  }
+
+  /// Mark driver notifications as read
+  Future<bool> markDriverNotificationsAsRead(String driverId) async {
+    try {
+      await supabase
+          .from('notifications')
+          .update({
+            'is_read': true,
+            'read_at': DateTime.now().toIso8601String(),
+          })
+          .eq('recipient_id', driverId)
+          .eq('is_read', false);
+
+      return true;
+    } catch (e) {
+      print('Error marking driver notifications as read: $e');
+      return false;
+    }
+  }
+
+  /// Send pickup approval notification to driver
+  Future<bool> sendPickupApprovalNotification({
+    required String driverId,
+    required int studentId,
+    required String studentName,
+    required String parentName,
+    required DateTime approvalTime,
+    bool isApproved = true,
+    String? notes,
+  }) async {
+    try {
+      String title;
+      String message;
+      String notificationType;
+
+      if (isApproved) {
+        title = 'Pickup Approved';
+        message = '$parentName has approved the pickup of $studentName at ${_formatTime(approvalTime)}.';
+        notificationType = 'pickup_approved';
+      } else {
+        title = 'Pickup Declined';
+        message = '$parentName has declined the pickup of $studentName.';
+        notificationType = 'pickup_declined';
+      }
+
+      if (notes != null && notes.isNotEmpty) {
+        message += ' Notes: $notes';
+      }
+
+      print('DEBUG: Preparing to insert pickup notification');
+      print('  - Driver ID: $driverId');
+      print('  - Student ID: $studentId');
+      print('  - Type: $notificationType');
+      print('  - Title: $title');
+      print('  - Message: $message');
+
+      final notificationData = {
+        'recipient_id': driverId,
+        'title': title,
+        'message': message,
+        'type': notificationType,
+        'student_id': studentId,
+        'is_read': false,
+        'created_at': DateTime.now().toIso8601String(),
+      };
+
+      try {
+        final insertResult = await supabase.from('notifications').insert(notificationData);
+        
+        print('DEBUG: Notification insert result: $insertResult');
+        print('✅ Pickup approval notification inserted successfully via direct insert');
+        print('DEBUG: Pickup ${isApproved ? 'approval' : 'denial'} notification sent to driver $driverId for student $studentName');
+        
+        return true;
+      } catch (insertError) {
+        print('⚠️  Direct insert failed (likely RLS issue): $insertError');
+        print('DEBUG: Attempting RPC function fallback...');
+        
+        // Fallback to RPC function which bypasses RLS
+        try {
+          final rpcResult = await supabase.rpc('create_verification_notification', params: {
+            'p_recipient_id': driverId,
+            'p_title': title,
+            'p_message': message,
+            'p_type': notificationType,
+            'p_student_id': studentId,
+          });
+          
+          if (rpcResult == true) {
+            print('✅ Pickup approval notification sent successfully via RPC function');
+            print('DEBUG: RPC fallback successful for driver $driverId');
+            return true;
+          } else {
+            print('❌ RPC function returned false');
+            return false;
+          }
+        } catch (rpcError) {
+          print('❌ RPC function fallback also failed: $rpcError');
+          throw rpcError; // Re-throw the RPC error
+        }
+      }
+    } catch (e) {
+      print('❌ Error sending pickup approval notification to driver: $e');
+      print('Stack trace: ${StackTrace.current}');
+      return false;
+    }
+  }
+
+  /// Send dropoff approval notification to driver
+  Future<bool> sendDropoffApprovalNotification({
+    required String driverId,
+    required int studentId,
+    required String studentName,
+    required String parentName,
+    required DateTime approvalTime,
+    bool isApproved = true,
+    String? notes,
+  }) async {
+    try {
+      String title;
+      String message;
+      String notificationType;
+
+      if (isApproved) {
+        title = 'Dropoff Approved';
+        message = '$parentName has approved the dropoff of $studentName at ${_formatTime(approvalTime)}.';
+        notificationType = 'dropoff_approved';
+      } else {
+        title = 'Dropoff Declined';
+        message = '$parentName has declined the dropoff of $studentName.';
+        notificationType = 'dropoff_declined';
+      }
+
+      if (notes != null && notes.isNotEmpty) {
+        message += ' Notes: $notes';
+      }
+
+      print('DEBUG: Preparing to insert dropoff notification');
+      print('  - Driver ID: $driverId');
+      print('  - Student ID: $studentId');
+      print('  - Type: $notificationType');
+      print('  - Title: $title');
+      print('  - Message: $message');
+
+      final notificationData = {
+        'recipient_id': driverId,
+        'title': title,
+        'message': message,
+        'type': notificationType,
+        'student_id': studentId,
+        'is_read': false,
+        'created_at': DateTime.now().toIso8601String(),
+      };
+
+      try {
+        final insertResult = await supabase.from('notifications').insert(notificationData);
+        
+        print('DEBUG: Notification insert result: $insertResult');
+        print('✅ Dropoff approval notification inserted successfully via direct insert');
+        print('DEBUG: Dropoff ${isApproved ? 'approval' : 'denial'} notification sent to driver $driverId for student $studentName');
+        
+        return true;
+      } catch (insertError) {
+        print('⚠️  Direct insert failed (likely RLS issue): $insertError');
+        print('DEBUG: Attempting RPC function fallback...');
+        
+        // Fallback to RPC function which bypasses RLS
+        try {
+          final rpcResult = await supabase.rpc('create_verification_notification', params: {
+            'p_recipient_id': driverId,
+            'p_title': title,
+            'p_message': message,
+            'p_type': notificationType,
+            'p_student_id': studentId,
+          });
+          
+          if (rpcResult == true) {
+            print('✅ Dropoff approval notification sent successfully via RPC function');
+            print('DEBUG: RPC fallback successful for driver $driverId');
+            return true;
+          } else {
+            print('❌ RPC function returned false');
+            return false;
+          }
+        } catch (rpcError) {
+          print('❌ RPC function fallback also failed: $rpcError');
+          throw rpcError; // Re-throw the RPC error
+        }
+      }
+    } catch (e) {
+      print('❌ Error sending dropoff approval notification to driver: $e');
+      print('Stack trace: ${StackTrace.current}');
+      return false;
+    }
+  }
+
+  /// Send verification request notification to driver
+  Future<bool> sendVerificationRequestNotification({
+    required String driverId,
+    required int studentId,
+    required String studentName,
+    required String eventType, // 'pickup' or 'dropoff'
+    required DateTime eventTime,
+  }) async {
+    try {
+      String title = '${eventType[0].toUpperCase() + eventType.substring(1)} Verification Required';
+      String message = 'Please wait for parent verification of $studentName ${eventType} at ${_formatTime(eventTime)}.';
+      String notificationType = '${eventType}_verification';
+
+      await supabase.from('notifications').insert({
+        'recipient_id': driverId,
+        'title': title,
+        'message': message,
+        'type': notificationType,
+        'student_id': studentId,
+        'is_read': false,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      print('DEBUG: Verification request notification sent to driver $driverId for student $studentName');
+      return true;
+    } catch (e) {
+      print('Error sending verification request notification to driver: $e');
+      return false;
+    }
+  }
+
+  /// Send route assignment notification to driver
+  Future<bool> sendRouteAssignmentNotification({
+    required String driverId,
+    required List<String> studentNames,
+    required String routeType, // 'pickup' or 'dropoff'
+    String? routeNotes,
+  }) async {
+    try {
+      String title = 'New ${routeType[0].toUpperCase() + routeType.substring(1)} Route Assignment';
+      String message = 'You have been assigned to ${studentNames.length} students for $routeType: ${studentNames.join(', ')}.';
+      String notificationType = 'route_assignment';
+
+      if (routeNotes != null && routeNotes.isNotEmpty) {
+        message += ' Notes: $routeNotes';
+      }
+
+      await supabase.from('notifications').insert({
+        'recipient_id': driverId,
+        'title': title,
+        'message': message,
+        'type': notificationType,
+        'student_id': null, // Multiple students involved
+        'is_read': false,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      print('DEBUG: Route assignment notification sent to driver $driverId');
+      return true;
+    } catch (e) {
+      print('Error sending route assignment notification to driver: $e');
       return false;
     }
   }
