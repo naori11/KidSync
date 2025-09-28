@@ -2,17 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'screens/login_screen.dart';
-import 'screens/guard/guard_panel.dart';
-import 'screens/admin/admin_panel.dart';
-import 'screens/teacher/teacher_panel.dart';
-import 'screens/set_password_screen.dart';
+import 'screens/conditional_screens.dart';
 import 'screens/parent/parent_home.dart';
 import 'screens/driver/driver_panel.dart';
 import 'services/verification_reminder_service.dart';
 import 'utils/time_utils.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_strategy/url_strategy.dart';
-import 'dart:html' as html;
+import 'utils/html_import.dart' as html;
 import 'dart:async'; // For StreamSubscription
 
 // Global variable to store the initial URL, captured before Flutter app runs.
@@ -350,7 +347,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
         SetPasswordScreen.routeName: (_) => const SetPasswordScreen(),
         '#/set-password': (_) => const SetPasswordScreen(),
         '/admin': (_) => const AdminPanel(),
-        '/guard': (_) => GuardPanel(),
+        '/guard': (_) => const GuardPanel(),
         '/teacher': (_) => const TeacherPanel(),
         '/parent': (_) => const ParentHomeScreen(),
         '/driver': (_) => const DriverPanel(),
