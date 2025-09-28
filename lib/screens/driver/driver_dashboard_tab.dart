@@ -27,7 +27,6 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
   Timer? _refreshTimer;
 
   // Real-time data
-  Map<String, dynamic> driverInfo = {};
   Map<String, dynamic> todaysTasksData = {};
   List<Map<String, dynamic>> recentActivity = [];
   List<DriverAssignment> assignedStudents = [];
@@ -72,7 +71,6 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
 
     // Load all data concurrently
     final results = await Future.wait([
-      _loadDriverInfo(driverId),
       _loadTodaysTasksData(driverId),
       _loadRecentActivity(driverId),
       _loadAssignedStudents(driverId),
@@ -80,11 +78,10 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
     ]);
 
     setState(() {
-      driverInfo = results[0] as Map<String, dynamic>;
-      todaysTasksData = results[1] as Map<String, dynamic>;
-      recentActivity = results[2] as List<Map<String, dynamic>>;
-      assignedStudents = results[3] as List<DriverAssignment>;
-      taskStats = results[4] as Map<String, int>;
+      todaysTasksData = results[0] as Map<String, dynamic>;
+      recentActivity = results[1] as List<Map<String, dynamic>>;
+      assignedStudents = results[2] as List<DriverAssignment>;
+      taskStats = results[3] as Map<String, int>;
     });
   }
 
@@ -119,47 +116,6 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
       });
     } catch (e) {
       print('Error refreshing driver dashboard data: $e');
-    }
-  }
-
-  Future<Map<String, dynamic>> _loadDriverInfo(String driverId) async {
-    try {
-      final response =
-          await supabase
-              .from('users')
-              .select('fname, lname, contact_number, profile_image_url, plate_number')
-              .eq('id', driverId)
-              .eq('role', 'Driver')
-              .maybeSingle();
-
-      if (response != null) {
-        return {
-          'name':
-              '${response['fname'] ?? ''} ${response['lname'] ?? ''}'.trim(),
-          'phone': response['contact_number'] ?? 'No phone',
-          'profile_image_url': response['profile_image_url'],
-          'vehicle_number': 'BB-001', // From static data for now
-          'plate_number': response['plate_number'] ?? 'Not Set',
-        };
-      }
-
-      // Fallback to static data
-      return {
-        'name': StaticDriverData.driverInfo.name,
-        'phone': StaticDriverData.driverInfo.phoneNumber,
-        'profile_image_url': null,
-        'vehicle_number': StaticDriverData.driverInfo.vehicleNumber,
-        'plate_number': 'Not Set',
-      };
-    } catch (e) {
-      print('Error loading driver info: $e');
-      return {
-        'name': StaticDriverData.driverInfo.name,
-        'phone': StaticDriverData.driverInfo.phoneNumber,
-        'profile_image_url': null,
-        'vehicle_number': StaticDriverData.driverInfo.vehicleNumber,
-        'plate_number': 'Not Set',
-      };
     }
   }
 
@@ -226,7 +182,6 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
       }
 
       // Add null safety checks
-      final recentActivity = this.recentActivity;
       final todaysData = this.todaysTasksData;
       final assignedStudents = this.assignedStudents;
       
@@ -300,212 +255,26 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. Driver Profile Card - TOP PRIORITY
-          _buildDriverProfileCard(widget.primaryColor, widget.isMobile),
-          SizedBox(height: widget.isMobile ? 10 : 14),
-
-          // 2. Today's Tasks Card - REAL-TIME STATUS
+          // 1. Today's Tasks Card - REAL-TIME STATUS
           _buildTodaysTasksCard(widget.primaryColor, widget.isMobile),
           SizedBox(height: widget.isMobile ? 10 : 14),
 
-          // 3. Task Status Card - PROGRESS OVERVIEW
+          // 2. Task Status Card - PROGRESS OVERVIEW
           _buildTaskStatusCard(widget.primaryColor, widget.isMobile),
           SizedBox(height: widget.isMobile ? 10 : 14),
 
-          // 4. Recent Activity Card - moved to its own page
+          // 3. Recent Activity Card - moved to its own page
           const SizedBox.shrink(),
           SizedBox(height: widget.isMobile ? 10 : 14),
 
-          // 5. Assigned Students Card - REFERENCE INFORMATION
+          // 4. Assigned Students Card - REFERENCE INFORMATION
           _buildAssignedStudentsCard(widget.primaryColor, widget.isMobile),
         ],
       ),
     );
   }
 
-  Widget _buildDriverProfileCard(Color primaryColor, bool isMobile) {
-    const Color white = Color(0xFFFFFFFF);
-    const Color black = Color(0xFF000000);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
 
-    final driverName = driverInfo['name'] ?? 'Driver';
-    final driverPhone = driverInfo['phone'] ?? 'No phone';
-    final vehicleNumber = driverInfo['vehicle_number'] ?? 'N/A';
-    final plateNumber = driverInfo['plate_number'] ?? 'Not Set';
-    final profileImageUrl = driverInfo['profile_image_url'];
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      child: Card(
-        color: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 8,
-        shadowColor: Colors.black.withOpacity(0.15),
-        child: Container(
-          decoration: BoxDecoration(
-            color: white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: primaryColor.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: EdgeInsets.all(isMobile ? 12 : 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: greenWithOpacity,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        Icons.local_shipping,
-                        color: primaryColor,
-                        size: isMobile ? 16 : 18,
-                      ),
-                    ),
-                    SizedBox(width: isMobile ? 8 : 12),
-                    Text(
-                      'Driver Profile',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: isMobile ? 15 : 16,
-                        color: black,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: isMobile ? 12 : 16),
-                Container(
-                  padding: EdgeInsets.all(isMobile ? 12 : 16),
-                  decoration: BoxDecoration(
-                    color: white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: primaryColor.withOpacity(0.3),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                        spreadRadius: 0,
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: greenWithOpacity,
-                        radius: isMobile ? 24 : 30,
-                        backgroundImage:
-                            profileImageUrl != null &&
-                                    profileImageUrl!.isNotEmpty
-                                ? NetworkImage(profileImageUrl!)
-                                : null,
-                        onBackgroundImageError: (exception, stackTrace) {
-                          // Log error and show fallback
-                          print('Error loading profile image: $exception');
-                        },
-                        child:
-                            profileImageUrl == null || profileImageUrl!.isEmpty
-                                ? Icon(
-                                  Icons.person,
-                                  color: primaryColor,
-                                  size: isMobile ? 24 : 30,
-                                )
-                                : null,
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              driverName,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: isMobile ? 16 : 18,
-                                color: black,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.directions_car,
-                                  size: isMobile ? 14 : 16,
-                                  color: black.withOpacity(0.6),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Vehicle: $vehicleNumber',
-                                  style: TextStyle(
-                                    fontSize: isMobile ? 13 : 15,
-                                    color: black.withOpacity(0.6),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.confirmation_number,
-                                  size: isMobile ? 14 : 16,
-                                  color: black.withOpacity(0.6),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Plate: $plateNumber', // Placeholder
-                                  style: TextStyle(
-                                    fontSize: isMobile ? 13 : 15,
-                                    color: black.withOpacity(0.6),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.phone,
-                                  size: isMobile ? 14 : 16,
-                                  color: black.withOpacity(0.6),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  driverPhone,
-                                  style: TextStyle(
-                                    fontSize: isMobile ? 13 : 15,
-                                    color: black.withOpacity(0.6),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildTodaysTasksCard(Color primaryColor, bool isMobile) {
     const Color white = Color(0xFFFFFFFF);
