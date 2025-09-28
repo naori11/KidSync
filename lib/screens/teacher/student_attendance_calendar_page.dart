@@ -975,6 +975,8 @@ class _TeacherStudentAttendanceCalendarPageState
                                   : null,
                         ),
                         const SizedBox(width: 18),
+                        _compactAttendanceStats(),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -999,7 +1001,6 @@ class _TeacherStudentAttendanceCalendarPageState
                             ],
                           ),
                         ),
-                        _compactAttendanceStats(),
                         const SizedBox(width: 12),
                         _buildNotificationButton(),
                       ],
@@ -1110,27 +1111,42 @@ class _TeacherStudentAttendanceCalendarPageState
     double presentPct = (present / total) * 100;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FA),
-        borderRadius: BorderRadius.circular(8),
+        color: const Color(0xFF19AE61).withOpacity(0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF19AE61).withOpacity(0.25),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF19AE61).withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
-      child: Column(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             "${presentPct.round()}%",
             style: const TextStyle(
               color: Color(0xFF19AE61),
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+              letterSpacing: 0.2,
             ),
           ),
+          const SizedBox(width: 6),
           const Text(
             "Present",
             style: TextStyle(
               fontSize: 11,
-              color: Color(0xFF8F9BB3),
-              fontWeight: FontWeight.w500,
+              color: Color(0xFF19AE61),
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
             ),
           ),
         ],

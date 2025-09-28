@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../services/attendance_ticketing_service.dart';
 import '../widgets/custom_notification_modal.dart';
 import '../widgets/attendance_notification_button.dart';
@@ -172,13 +172,13 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
 
   Widget _buildNotifyButton() {
     return AttendanceActionButton(
-      text: 'Notify Parents',
+      text: 'Notify Parent',
       icon: Icons.send,
-      color: _canSendNotification ? Colors.orange : Colors.grey,
+      color: _canSendNotification ? const Color(0xFFF59E0B) : Colors.grey,
       onPressed: (_canSendNotification && !_isNotifyLoading) ? _showNotificationModal : null,
       isLoading: _isNotifyLoading,
-      width: 120,
-      height: 36,
+      width: 110,
+      height: 32,
     );
   }
 
@@ -186,11 +186,11 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
     return AttendanceActionButton(
       text: 'Mark Resolved',
       icon: Icons.check_circle,
-      color: _canMarkResolved ? Colors.green : Colors.grey,
+      color: _canMarkResolved ? const Color(0xFF10B981) : Colors.grey,
       onPressed: (_canMarkResolved && !_isResolveLoading) ? _markAsResolved : null,
       isLoading: _isResolveLoading,
-      width: 120,
-      height: 36,
+      width: 110,
+      height: 32,
     );
   }
 
@@ -214,23 +214,31 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: statusColor.withOpacity(0.3)),
+        color: statusColor.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: statusColor.withOpacity(0.25), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: statusColor.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(statusIcon, size: 12, color: statusColor),
-          const SizedBox(width: 4),
+          Icon(statusIcon, size: 14, color: statusColor),
+          const SizedBox(width: 6),
           Text(
             statusText,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
               color: statusColor,
+              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -241,34 +249,63 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return AttendanceActionButton(
-        text: 'Loading...',
-        icon: Icons.hourglass_empty,
-        color: Colors.grey,
-        isLoading: true,
-        width: 120,
-        height: 36,
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: AttendanceActionButton(
+          text: 'Loading...',
+          icon: Icons.hourglass_empty,
+          color: Colors.grey,
+          isLoading: true,
+          width: 110,
+          height: 32,
+        ),
       );
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Status indicator
-        _buildStatusIndicator(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Determine if we should use vertical layout for very small screens
+        final isVerySmall = constraints.maxWidth < 280;
         
-        if (_hasTicket && !_isResolved) const SizedBox(height: 4),
-        
-        // Action buttons
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildNotifyButton(),
-            const SizedBox(width: 8),
-            _buildResolveButton(),
-          ],
-        ),
-      ],
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Status indicator with improved positioning
+              if (_hasTicket) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  child: _buildStatusIndicator(),
+                ),
+              ],
+              
+              // Action buttons with responsive layout
+              if (isVerySmall)
+                // Vertical layout for very small screens
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildNotifyButton(),
+                    const SizedBox(height: 4),
+                    _buildResolveButton(),
+                  ],
+                )
+              else
+                // Horizontal layout for normal screens
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildNotifyButton(),
+                    const SizedBox(width: 6),
+                    _buildResolveButton(),
+                  ],
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

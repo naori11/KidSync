@@ -1704,7 +1704,7 @@ class _TeacherSectionAttendancePageState
                                               style: const TextStyle(
                                                 fontSize: 22,
                                                 fontWeight: FontWeight.bold,
-                                                color: Color(0xFF8F9BB3),
+                                                color: Color(0xFF2563EB),
                                               ),
                                             ),
                                             // Add unsaved changes indicator
@@ -1897,10 +1897,10 @@ class _TeacherSectionAttendancePageState
                                       ? "Attendance not open yet"
                                       : "Attendance is closed for this session",
                                   style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF2563EB),
-                                  ),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF2563EB),
+                              ),
                                 ),
                               ),
                               if (countdown != null) ...[
