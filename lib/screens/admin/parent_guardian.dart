@@ -2401,28 +2401,8 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                                         ),
                                       ),
                                     ),
-                                    if (parent['user_id'] != null) ...[
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.green[50],
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.green[200]!,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
                                   ],
                                 ),
-                                const SizedBox(height: 8),
-
-                                // Role badge - Enhanced
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 16,

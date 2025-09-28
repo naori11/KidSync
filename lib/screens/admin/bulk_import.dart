@@ -205,51 +205,6 @@ class _BulkImportPageState extends State<BulkImportPage> {
             ],
           ),
 
-          const SizedBox(height: 20),
-
-          // Instructions
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue[100]!),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Import Instructions',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.blue[700],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _buildBulletItem('Use the provided template format'),
-                _buildBulletItem('Ensure all required fields are filled'),
-                _buildBulletItem('Student names should be in format: "Surname, First Name, Middle Name, Suffix"'),
-                _buildBulletItem('Grade levels will be set from the file, sections will be empty for manual assignment'),
-                _buildBulletItem('At least one parent/guardian contact is required'),
-                _buildBulletItem('Potential duplicate students will be detected and you can choose to skip or import them'),
-                _buildBulletItem('A backup will be created automatically before import'),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -277,24 +232,6 @@ class _BulkImportPageState extends State<BulkImportPage> {
     );
   }
 
-  Widget _buildBulletItem(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.check_circle_outline, size: 16, color: Colors.blue),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(fontSize: 14, color: Colors.blue[800]),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
 
 
