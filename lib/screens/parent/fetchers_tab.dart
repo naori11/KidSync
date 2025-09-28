@@ -464,8 +464,8 @@ class _FetchersScreenState extends State<FetchersScreen> {
   }
 
   String? _validateIdNumber(String? value) {
-    if (_selectedIdType != null && (value == null || value.trim().isEmpty)) {
-      return 'ID number is required when ID type is selected';
+    if (value == null || value.trim().isEmpty) {
+      return 'ID number is required';
     }
     return null;
   }
@@ -599,7 +599,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                   hint: 'Select relationship',
                                   items: _relationships,
                                   onChanged: (value) => setState(() => _selectedRelationship = value),
-                                  validator: (value) => value == null ? 'Required' : null,
+                                  validator: (value) => value == null ? 'Relationship is required' : null,
                                 ),
                               ] else ...[
                                 Row(
@@ -621,7 +621,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                         hint: 'Select relationship',
                                         items: _relationships,
                                         onChanged: (value) => setState(() => _selectedRelationship = value),
-                                        validator: (value) => value == null ? 'Required' : null,
+                                        validator: (value) => value == null ? 'Relationship is required' : null,
                                       ),
                                     ),
                                   ],
@@ -677,15 +677,16 @@ class _FetchersScreenState extends State<FetchersScreen> {
                               if (widget.isMobile) ...[
                                 _buildDropdownField(
                                   value: _selectedIdType,
-                                  label: 'Valid ID Type',
+                                  label: 'Valid ID Type *',
                                   hint: 'Select ID type',
                                   items: _idTypes,
                                   onChanged: (value) => setState(() => _selectedIdType = value),
+                                  validator: (value) => value == null ? 'ID type is required' : null,
                                 ),
                                 SizedBox(height: 12),
                                 _buildTextFormField(
                                   controller: _idNumberController,
-                                  label: 'ID Number',
+                                  label: 'ID Number *',
                                   hint: 'Enter ID number',
                                   validator: _validateIdNumber,
                                 ),
@@ -695,17 +696,18 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                     Expanded(
                                       child: _buildDropdownField(
                                         value: _selectedIdType,
-                                        label: 'Valid ID Type',
+                                        label: 'Valid ID Type *',
                                         hint: 'Select ID type',
                                         items: _idTypes,
                                         onChanged: (value) => setState(() => _selectedIdType = value),
+                                        validator: (value) => value == null ? 'ID type is required' : null,
                                       ),
                                     ),
                                     SizedBox(width: 12),
                                     Expanded(
                                       child: _buildTextFormField(
                                         controller: _idNumberController,
-                                        label: 'ID Number',
+                                        label: 'ID Number *',
                                         hint: 'Enter ID number',
                                         validator: _validateIdNumber,
                                       ),
@@ -1010,6 +1012,14 @@ class _FetchersScreenState extends State<FetchersScreen> {
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: widget.primaryColor, width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.red, width: 1),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.red, width: 2),
             ),
             contentPadding: EdgeInsets.symmetric(
               horizontal: 12,
