@@ -37,10 +37,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
   String _roleFilter = 'All Roles';
   String _sortOption = 'Name (A-Z)';
 
-  // For pagination
-  int _currentPage = 1;
-  int _itemsPerPage = 5;
-  int _totalPages = 1;
+  // Responsive breakpoints
+  bool get isMobile => MediaQuery.of(context).size.width < 768;
+  bool get isTablet =>
+      MediaQuery.of(context).size.width >= 768 &&
+      MediaQuery.of(context).size.width < 1200;
+  bool get isDesktop => MediaQuery.of(context).size.width >= 1200;
+  bool get isSmallMobile => MediaQuery.of(context).size.width < 480;
 
   // For image uploads
   String? _selectedImagePath;
@@ -117,11 +120,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
     _fetchUsers();
   }
 
-  void _calculateTotalPages(List<Map<String, dynamic>> filteredUsers) {
-    _totalPages = (filteredUsers.length / _itemsPerPage).ceil();
-    if (_totalPages == 0) _totalPages = 1;
-    if (_currentPage > _totalPages) _currentPage = _totalPages;
-  }
 
   // Export users functionality
   Future<void> _exportUsers() async {
@@ -3067,20 +3065,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
       );
     }
 
-    // Calculate pages for pagination
-    _calculateTotalPages(filteredUsers);
-
-    // Get current page items
-    final int startIndex = (_currentPage - 1) * _itemsPerPage;
-    final int endIndex =
-        startIndex + _itemsPerPage > filteredUsers.length
-            ? filteredUsers.length
-            : startIndex + _itemsPerPage;
-
-    final List<Map<String, dynamic>> currentPageItems =
-        filteredUsers.length > startIndex
-            ? filteredUsers.sublist(startIndex, endIndex)
-            : [];
 
     // Get unique roles for filter dropdown
     final List<String> roleOptions = ['All Roles'];
@@ -3094,277 +3078,925 @@ class _UserManagementPageState extends State<UserManagementPage> {
     return Scaffold(
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Standardized Header
-            Row(
-              children: [
-                const Text(
-                  "User Management",
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A1A1A),
-                    letterSpacing: 0.5,
+            // Responsive Header
+            if (isMobile) ...[
+              // Mobile: Stacked layout
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "User Management",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.5,
+                    ),
                   ),
-                ),
-                const Spacer(),
-                // Standardized Search bar
-                Container(
-                  width: 260,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: const Color(0xFFE0E0E0)),
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
+                  const SizedBox(height: 16),
+                  // Mobile search bar
+                  Container(
+                    width: double.infinity,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: const Color(0xFFE0E0E0)),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search users...',
+                        hintStyle: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF9E9E9E),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: Color(0xFF2ECC71),
+                          size: 20,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 12.0,
+                          horizontal: 16.0,
+                        ),
+                      ),
+                      onChanged:
+                          (val) => setState(() {
+                            _searchQuery = val;
+                          }),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Mobile action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 44,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(
+                              Icons.add,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            label: Text(
+                              isSmallMobile ? "Add" : "Add New User",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2ECC71),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 2,
+                              shadowColor: Colors.black.withOpacity(0.1),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                            ),
+                            onPressed:
+                                isAdmin ? () => _addOrEditUser() : null,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 44,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(
+                            Icons.file_download_outlined,
+                            color: Color(0xFF2ECC71),
+                            size: 18,
+                          ),
+                          label: const Text(
+                            "Export",
+                            style: TextStyle(
+                              color: Color(0xFF2ECC71),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            side: const BorderSide(
+                              color: Color(0xFF2ECC71),
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 1,
+                            shadowColor: Colors.black.withOpacity(0.05),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                          ),
+                          onPressed: _exportUsers,
+                        ),
                       ),
                     ],
                   ),
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Search users...',
-                      hintStyle: TextStyle(fontSize: 14, color: Color(0xFF9E9E9E)),
-                      prefixIcon: Icon(
-                        Icons.search,
-                        color: Color(0xFF2ECC71),
-                        size: 20,
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(
-                        vertical: 12.0,
-                        horizontal: 16.0,
-                      ),
+                ],
+              ),
+            ] else ...[
+              // Desktop/Tablet: Horizontal layout
+              Row(
+                children: [
+                  const Text(
+                    "User Management",
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.5,
                     ),
-                    onChanged:
-                        (val) => setState(() {
-                          _searchQuery = val;
-                          _currentPage = 1;
-                        }),
                   ),
-                ),
-                const SizedBox(width: 12),
-                // Standardized Add New button
-                SizedBox(
-                  height: 44,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                    label: const Text(
-                      "Add New User",
-                      style: TextStyle(
+                  const Spacer(),
+                  // Responsive search bar
+                  Container(
+                    width: isTablet ? 240 : 260,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: const Color(0xFFE0E0E0)),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search users...',
+                        hintStyle: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF9E9E9E),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: Color(0xFF2ECC71),
+                          size: 20,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 12.0,
+                          horizontal: 16.0,
+                        ),
+                      ),
+                      onChanged:
+                          (val) => setState(() {
+                            _searchQuery = val;
+                          }),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Responsive Add New button
+                  SizedBox(
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(
+                        Icons.add,
                         color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        size: 18,
                       ),
+                      label: Text(
+                        isTablet ? "Add User" : "Add New User",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2ECC71),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 2,
+                        shadowColor: Colors.black.withOpacity(0.1),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isTablet ? 12 : 16,
+                          vertical: 10,
+                        ),
+                      ),
+                      onPressed: isAdmin ? () => _addOrEditUser() : null,
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2ECC71),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 2,
-                      shadowColor: Colors.black.withOpacity(0.1),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                    ),
-                    onPressed: isAdmin ? () => _addOrEditUser() : null,
                   ),
-                ),
-                const SizedBox(width: 12),
-                // Standardized Export button
-                SizedBox(
-                  height: 44,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(
-                      Icons.file_download_outlined,
-                      color: Color(0xFF2ECC71),
-                      size: 18,
-                    ),
-                    label: const Text(
-                      "Export",
-                      style: TextStyle(
+                  const SizedBox(width: 12),
+                  // Responsive Export button
+                  SizedBox(
+                    height: 44,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(
+                        Icons.file_download_outlined,
                         color: Color(0xFF2ECC71),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                        size: 18,
                       ),
+                      label: const Text(
+                        "Export",
+                        style: TextStyle(
+                          color: Color(0xFF2ECC71),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        side: const BorderSide(
+                          color: Color(0xFF2ECC71),
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 1,
+                        shadowColor: Colors.black.withOpacity(0.05),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                      ),
+                      onPressed: _exportUsers,
                     ),
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      side: const BorderSide(
-                        color: Color(0xFF2ECC71),
-                        width: 1.5,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 1,
-                      shadowColor: Colors.black.withOpacity(0.05),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                    ),
-                    onPressed: _exportUsers,
                   ),
-                ),
-              ],
-            ),
-            // Standardized Breadcrumb
-            const Padding(
-              padding: EdgeInsets.only(top: 8.0, bottom: 24.0),
+                ],
+              ),
+            ],
+
+            // Responsive Breadcrumb
+            Padding(
+              padding: EdgeInsets.only(
+                top: 8.0,
+                bottom: isMobile ? 16.0 : 24.0,
+              ),
               child: Text(
                 "Home / User Management",
-                style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
+                style: TextStyle(
+                  fontSize: isMobile ? 11 : 12,
+                  color: const Color(0xFF9E9E9E),
+                ),
               ),
             ),
 
-            // Filter row
+            // Responsive Filter row
             Container(
               padding: const EdgeInsets.only(bottom: 16.0),
               decoration: const BoxDecoration(
                 border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE))),
               ),
-              child: Row(
-                children: [
-                  // Role filter dropdown
-                  Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _roleFilter,
-                        icon: const Icon(Icons.keyboard_arrow_down),
-                        items:
-                            roleOptions.map((String item) {
-                              return DropdownMenuItem(
-                                value: item,
-                                child: Text(item),
-                              );
-                            }).toList(),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _roleFilter = newValue!;
-                            _currentPage = 1;
-                          });
-                        },
+              child:
+                  isMobile
+                      ? Column(
+                        children: [
+                          // Mobile: Stacked filters
+                          Container(
+                            width: double.infinity,
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _roleFilter,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    roleOptions.map((String item) {
+                                      return DropdownMenuItem(
+                                        value: item,
+                                        child: Text(item),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _roleFilter = newValue!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  height: 48,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16.0,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    border: Border.all(
+                                      color: const Color(0xFFE0E0E0),
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 1),
+                                      ),
+                                    ],
+                                  ),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<String>(
+                                      value: _sortOption,
+                                      icon: const Icon(Icons.keyboard_arrow_down),
+                                      items:
+                                          <String>[
+                                            'Name (A-Z)',
+                                            'Name (Z-A)',
+                                            'Role',
+                                          ].map<DropdownMenuItem<String>>((
+                                            String value,
+                                          ) {
+                                            return DropdownMenuItem<String>(
+                                              value: value,
+                                              child: Text("Sort by: $value"),
+                                            );
+                                          }).toList(),
+                                      onChanged: (String? newValue) {
+                                        setState(() {
+                                          _sortOption = newValue!;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF2ECC71,
+                                  ).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: const Color(
+                                      0xFF2ECC71,
+                                    ).withOpacity(0.3),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.people,
+                                      size: 16,
+                                      color: const Color(0xFF2ECC71),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Total: ${filteredUsers.length} users',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF2ECC71),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      )
+                      : Row(
+                        children: [
+                          // Desktop/Tablet: Horizontal filters
+                          Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _roleFilter,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    roleOptions.map((String item) {
+                                      return DropdownMenuItem(
+                                        value: item,
+                                        child: Text(item),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _roleFilter = newValue!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _sortOption,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    <String>[
+                                      'Name (A-Z)',
+                                      'Name (Z-A)',
+                                      'Role',
+                                    ].map<DropdownMenuItem<String>>((
+                                      String value,
+                                    ) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text("Sort by: $value"),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _sortOption = newValue!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF2ECC71,
+                              ).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(
+                                  0xFF2ECC71,
+                                ).withOpacity(0.3),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.people,
+                                  size: 16,
+                                  color: const Color(0xFF2ECC71),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Total: ${filteredUsers.length} users',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF2ECC71),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Sort by dropdown
-                  Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _sortOption,
-                        icon: const Icon(Icons.keyboard_arrow_down),
-                        items:
-                            <String>[
-                              'Name (A-Z)',
-                              'Name (Z-A)',
-                              'Role',
-                            ].map<DropdownMenuItem<String>>((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text("Sort by: $value"),
-                              );
-                            }).toList(),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _sortOption = newValue!;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ),
 
             const SizedBox(height: 16),
 
-            // Table content
+            // Responsive Table content
             if (isLoading)
               const Expanded(
                 child: Center(
                   child: CircularProgressIndicator(color: Color(0xFF2ECC71)),
                 ),
               )
-            else if (currentPageItems.isEmpty)
-              const Expanded(child: Center(child: Text("No users found.")))
             else
               Expanded(
                 child: Column(
                   children: [
-                    // Table
+                    // Responsive Table
                     Expanded(
-                      child: SingleChildScrollView(
-                        child: Container(
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            border: Border.all(color: const Color(0xFFEEEEEE)),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Table(
-                            border: TableBorder(
-                              horizontalInside: BorderSide(
-                                color: Colors.grey[200]!,
-                                width: 1,
+                      child:
+                          isMobile
+                              ? _buildMobileTable(filteredUsers)
+                              : _buildDesktopTable(filteredUsers),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Build mobile table view
+  Widget _buildMobileTable(List<Map<String, dynamic>> users) {
+    if (users.isEmpty) {
+      return const Center(child: Text("No users found."));
+    }
+
+    return SingleChildScrollView(
+      child: Column(
+        children: users.map((u) {
+          final role = u['role'] ?? '';
+          final userPrefix = _getUserIdPrefix(role);
+          final int userIndex =
+              this.users.indexWhere((item) => item['id'] == u['id']) + 1;
+          final String userId =
+              "$userPrefix${userIndex.toString().padLeft(3, '0')}";
+          final fullName =
+              "${u['fname'] ?? ''} ${u['lname'] ?? ''} ${u['suffix'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
+          final status = u['status'] ?? 'Active';
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE0E0E0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header row with profile image and name
+                Row(
+                  children: [
+                    // Profile Image
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(25),
+                        border: Border.all(
+                          color: const Color(0xFF2ECC71).withOpacity(0.3),
+                          width: 2,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: (u['profile_image_url'] != null &&
+                                u['profile_image_url'].toString().isNotEmpty)
+                            ? Image.network(
+                                u['profile_image_url'],
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Icon(
+                                    Icons.person,
+                                    size: 25,
+                                    color: Colors.grey,
+                                  );
+                                },
+                              )
+                            : const Icon(
+                                Icons.person,
+                                size: 25,
+                                color: Colors.grey,
                               ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            fullName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Color(0xFF1A1A1A),
                             ),
-                            columnWidths: const {
-                              0: FlexColumnWidth(0.7), // ID
-                              1: FlexColumnWidth(
-                                2.0,
-                              ), // Name + Image (increased width)
-                              2: FlexColumnWidth(0.9), // Role
-                              3: FlexColumnWidth(1.8), // Email
-                              4: FlexColumnWidth(1.2), // Phone
-                              5: FlexColumnWidth(0.8), // Status
-                              6: FlexColumnWidth(0.8), // Actions
-                            },
-                            defaultVerticalAlignment:
-                                TableCellVerticalAlignment.middle,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
                             children: [
-                              // Table header row
-                              TableRow(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[50],
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
                                 ),
-                                children: const [
-                                  TableHeaderCell(text: 'User ID'),
-                                  TableHeaderCell(text: 'Name'),
-                                  TableHeaderCell(text: 'Role'),
-                                  TableHeaderCell(text: 'Email'),
-                                  TableHeaderCell(text: 'Phone'),
-                                  TableHeaderCell(text: 'Status'),
-                                  TableHeaderCell(text: 'Actions'),
+                                decoration: BoxDecoration(
+                                  color: _getRoleColor(role).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      _getRoleIcon(role),
+                                      size: 12,
+                                      color: _getRoleColor(role),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      role,
+                                      style: TextStyle(
+                                        color: _getRoleColor(role),
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                userId,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF666666),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      onSelected: (value) async {
+                        if (value == 'edit') {
+                          _addOrEditUser(user: u);
+                        } else if (value == 'delete') {
+                          // Delete confirmation dialog
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Row(
+                                children: [
+                                  Icon(Icons.warning, color: Colors.red),
+                                  SizedBox(width: 8),
+                                  Text('Delete User'),
                                 ],
                               ),
+                              content: Text(
+                                'Are you sure you want to delete ${fullName}? This action cannot be undone.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx),
+                                  child: const Text('Cancel'),
+                                ),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                  ),
+                                  onPressed: () async {
+                                    Navigator.pop(ctx);
+                                    try {
+                                      await deleteUserViaEdgeFunction(
+                                        u['id'].toString(),
+                                      );
+                                      await _fetchUsers();
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'User deleted successfully!',
+                                            ),
+                                            backgroundColor: Color(0xFF2ECC71),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                            content: Text('Error: ${e.toString()}'),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  },
+                                  child: const Text(
+                                    'Delete',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit, size: 16, color: Color(0xFF2ECC71)),
+                              SizedBox(width: 8),
+                              Text('Edit'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete, size: 16, color: Colors.red),
+                              SizedBox(width: 8),
+                              Text('Delete', style: TextStyle(color: Colors.red)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Details
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Email',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF666666),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            u['email']?.toString() ?? 'N/A',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF1A1A1A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Phone',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF666666),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            u['contact_number']?.toString() ?? 'N/A',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF1A1A1A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
 
-                              // Table data rows
-                              ...currentPageItems.map((u) {
+  // Build desktop table view
+  Widget _buildDesktopTable(List<Map<String, dynamic>> users) {
+    final user = Supabase.instance.client.auth.currentUser;
+    final isAdmin = user?.userMetadata?['role'] == 'Admin';
+    
+    if (users.isEmpty) {
+      return const Center(child: Text("No users found."));
+    }
+
+    return SingleChildScrollView(
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFEEEEEE)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Table(
+          border: TableBorder(
+            horizontalInside: BorderSide(
+              color: Colors.grey[200]!,
+              width: 1,
+            ),
+          ),
+          columnWidths: const {
+            0: FlexColumnWidth(0.7), // ID
+            1: FlexColumnWidth(2.0), // Name + Image
+            2: FlexColumnWidth(0.9), // Role
+            3: FlexColumnWidth(1.8), // Email
+            4: FlexColumnWidth(1.2), // Phone
+            5: FlexColumnWidth(0.8), // Status
+            6: FlexColumnWidth(0.8), // Actions
+          },
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          children: [
+            // Table header row
+            TableRow(
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+              ),
+              children: const [
+                TableHeaderCell(text: 'User ID'),
+                TableHeaderCell(text: 'Name'),
+                TableHeaderCell(text: 'Role'),
+                TableHeaderCell(text: 'Email'),
+                TableHeaderCell(text: 'Phone'),
+                TableHeaderCell(text: 'Status'),
+                TableHeaderCell(text: 'Actions'),
+              ],
+            ),
+
+            // Table data rows
+            ...users.map((u) {
                                 final role = u['role'] ?? '';
                                 final userPrefix = _getUserIdPrefix(role);
                                 final int userIndex =
@@ -4093,321 +4725,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   ],
                                 );
                               }).toList(),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Pagination info and controls
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16.0),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey[200]!),
-                        ),
-                        child: Column(
-                          children: [
-                            // Items per page selector and info
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                // Items per page selector
-                                Row(
-                                  children: [
-                                    const Text(
-                                      'Show:',
-                                      style: TextStyle(
-                                        color: Color(0xFF666666),
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        border: Border.all(
-                                          color: Colors.grey[300]!,
-                                        ),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: DropdownButtonHideUnderline(
-                                        child: DropdownButton<int>(
-                                          value: _itemsPerPage,
-                                          items:
-                                              [5, 10, 25, 50, 100].map((
-                                                int value,
-                                              ) {
-                                                return DropdownMenuItem<int>(
-                                                  value: value,
-                                                  child: Text('$value entries'),
-                                                );
-                                              }).toList(),
-                                          onChanged: (int? newValue) {
-                                            setState(() {
-                                              _itemsPerPage = newValue!;
-                                              _currentPage =
-                                                  1; // Reset to first page
-                                            });
-                                          },
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            color: Color(0xFF666666),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-
-                                // Total entries info
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xFF2ECC71,
-                                    ).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: const Color(
-                                        0xFF2ECC71,
-                                      ).withOpacity(0.3),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.people,
-                                        size: 16,
-                                        color: const Color(0xFF2ECC71),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        'Total: ${filteredUsers.length} users',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF2ECC71),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Pagination info and controls
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                // "Showing x to y of z entries"
-                                Text(
-                                  'Showing ${currentPageItems.isEmpty ? 0 : startIndex + 1} to $endIndex of ${filteredUsers.length} entries',
-                                  style: const TextStyle(
-                                    color: Color(0xFF666666),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-
-                                // Enhanced pagination controls
-                                Row(
-                                  children: [
-                                    // First page button
-                                    IconButton(
-                                      icon: const Icon(Icons.first_page),
-                                      onPressed:
-                                          _currentPage > 1
-                                              ? () => setState(
-                                                () => _currentPage = 1,
-                                              )
-                                              : null,
-                                      color:
-                                          _currentPage > 1
-                                              ? const Color(0xFF666666)
-                                              : const Color(0xFFCCCCCC),
-                                      tooltip: 'First page',
-                                    ),
-
-                                    // Previous button
-                                    IconButton(
-                                      icon: const Icon(Icons.chevron_left),
-                                      onPressed:
-                                          _currentPage > 1
-                                              ? () =>
-                                                  setState(() => _currentPage--)
-                                              : null,
-                                      color:
-                                          _currentPage > 1
-                                              ? const Color(0xFF666666)
-                                              : const Color(0xFFCCCCCC),
-                                      tooltip: 'Previous page',
-                                    ),
-
-                                    // Page input field for quick navigation
-                                    Container(
-                                      width: 80,
-                                      height: 32,
-                                      margin: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                      ),
-                                      child: TextFormField(
-                                        initialValue: _currentPage.toString(),
-                                        textAlign: TextAlign.center,
-                                        keyboardType: TextInputType.number,
-                                        style: const TextStyle(fontSize: 14),
-                                        decoration: InputDecoration(
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                vertical: 8,
-                                              ),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            borderSide: BorderSide(
-                                              color: Colors.grey[300]!,
-                                            ),
-                                          ),
-                                          focusedBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            borderSide: const BorderSide(
-                                              color: Color(0xFF2ECC71),
-                                            ),
-                                          ),
-                                        ),
-                                        onFieldSubmitted: (value) {
-                                          final page = int.tryParse(value);
-                                          if (page != null &&
-                                              page >= 1 &&
-                                              page <= _totalPages) {
-                                            setState(() => _currentPage = page);
-                                          }
-                                        },
-                                      ),
-                                    ),
-
-                                    Text(
-                                      'of $_totalPages',
-                                      style: const TextStyle(
-                                        color: Color(0xFF666666),
-                                        fontSize: 13,
-                                      ),
-                                    ),
-
-                                    // Next button
-                                    IconButton(
-                                      icon: const Icon(Icons.chevron_right),
-                                      onPressed:
-                                          _currentPage < _totalPages
-                                              ? () =>
-                                                  setState(() => _currentPage++)
-                                              : null,
-                                      color:
-                                          _currentPage < _totalPages
-                                              ? const Color(0xFF666666)
-                                              : const Color(0xFFCCCCCC),
-                                      tooltip: 'Next page',
-                                    ),
-
-                                    // Last page button
-                                    IconButton(
-                                      icon: const Icon(Icons.last_page),
-                                      onPressed:
-                                          _currentPage < _totalPages
-                                              ? () => setState(
-                                                () =>
-                                                    _currentPage = _totalPages,
-                                              )
-                                              : null,
-                                      color:
-                                          _currentPage < _totalPages
-                                              ? const Color(0xFF666666)
-                                              : const Color(0xFFCCCCCC),
-                                      tooltip: 'Last page',
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-
-                            // Quick page jumper (for large datasets)
-                            if (_totalPages > 10) ...[
-                              const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text(
-                                    'Quick jump: ',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF666666),
-                                    ),
-                                  ),
-                                  ...List.generate(
-                                    (_totalPages / 10).ceil().clamp(1, 5),
-                                    (index) {
-                                      final pageGroup = (index + 1) * 10;
-                                      final actualPage =
-                                          pageGroup > _totalPages
-                                              ? _totalPages
-                                              : pageGroup;
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 2,
-                                        ),
-                                        child: TextButton(
-                                          onPressed:
-                                              () => setState(
-                                                () => _currentPage = actualPage,
-                                              ),
-                                          style: TextButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            minimumSize: Size.zero,
-                                            foregroundColor: const Color(
-                                              0xFF2ECC71,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '$actualPage',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ],
                           ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
+                    );
   }
 
   // Helper method to get role colors

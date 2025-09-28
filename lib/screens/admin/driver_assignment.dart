@@ -590,42 +590,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
               ),
             ),
 
-            // Stats
-            Row(
-              children: [
-                _buildStatCard(
-                  'Total Students',
-                  totalStudents.toString(),
-                  Icons.school,
-                  const Color(0xFF2ECC71),
-                ),
-                const SizedBox(width: 16),
-                _buildStatCard(
-                  'Active Drivers',
-                  activeDrivers.toString(),
-                  Icons.directions_bus,
-                  Colors.blue,
-                ),
-                const SizedBox(width: 16),
-                _buildStatCard(
-                  'Unassigned',
-                  unassignedStudents.toString(),
-                  Icons.warning,
-                  Colors.orange,
-                ),
-                const SizedBox(width: 16),
-                _buildStatCard(
-                  'Pending',
-                  pendingAssignments.toString(),
-                  Icons.schedule,
-                  Colors.purple,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            // View Tabs and Filters
+            // View Tabs and Filters with Stats Cards
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -642,23 +607,206 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
               ),
               child: Column(
                 children: [
-                  // View Tabs
-                  Row(
-                    children: [
-                      _buildViewTab(
-                        'assignments',
-                        'Assignment View',
-                        Icons.assignment,
-                      ),
-                      const SizedBox(width: 16),
-                      _buildViewTab('students', 'Students View', Icons.school),
-                      const SizedBox(width: 16),
-                      _buildViewTab(
-                        'drivers',
-                        'Drivers View',
-                        Icons.directions_bus,
-                      ),
-                    ],
+                  // View Tabs and Stats Cards Row
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isDesktop = constraints.maxWidth > 1200;
+                      final isTablet = constraints.maxWidth > 768 && constraints.maxWidth <= 1200;
+                      
+                      if (isDesktop) {
+                        return Row(
+                          children: [
+                            // View Tabs on the left
+                            Row(
+                              children: [
+                                _buildViewTab(
+                                  'assignments',
+                                  'Assignment View',
+                                  Icons.assignment,
+                                ),
+                                const SizedBox(width: 16),
+                                _buildViewTab('students', 'Students View', Icons.school),
+                                const SizedBox(width: 16),
+                                _buildViewTab(
+                                  'drivers',
+                                  'Drivers View',
+                                  Icons.directions_bus,
+                                ),
+                              ],
+                            ),
+                            const Spacer(),
+                            // Stats Cards on the right
+                            Row(
+                              children: [
+                                _buildCompactStatCard(
+                                  'Total Students',
+                                  totalStudents.toString(),
+                                  Icons.school,
+                                  const Color(0xFF2ECC71),
+                                ),
+                                const SizedBox(width: 12),
+                                _buildCompactStatCard(
+                                  'Active Drivers',
+                                  activeDrivers.toString(),
+                                  Icons.directions_bus,
+                                  Colors.blue,
+                                ),
+                                const SizedBox(width: 12),
+                                _buildCompactStatCard(
+                                  'Unassigned',
+                                  unassignedStudents.toString(),
+                                  Icons.warning,
+                                  Colors.orange,
+                                ),
+                                const SizedBox(width: 12),
+                                _buildCompactStatCard(
+                                  'Pending',
+                                  pendingAssignments.toString(),
+                                  Icons.schedule,
+                                  Colors.purple,
+                                ),
+                              ],
+                            ),
+                          ],
+                        );
+                      } else if (isTablet) {
+                        return Column(
+                          children: [
+                            // View Tabs
+                            Row(
+                              children: [
+                                _buildViewTab(
+                                  'assignments',
+                                  'Assignment View',
+                                  Icons.assignment,
+                                ),
+                                const SizedBox(width: 16),
+                                _buildViewTab('students', 'Students View', Icons.school),
+                                const SizedBox(width: 16),
+                                _buildViewTab(
+                                  'drivers',
+                                  'Drivers View',
+                                  Icons.directions_bus,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            // Stats Cards below tabs for tablet
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildCompactStatCard(
+                                    'Total Students',
+                                    totalStudents.toString(),
+                                    Icons.school,
+                                    const Color(0xFF2ECC71),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _buildCompactStatCard(
+                                    'Active Drivers',
+                                    activeDrivers.toString(),
+                                    Icons.directions_bus,
+                                    Colors.blue,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _buildCompactStatCard(
+                                    'Unassigned',
+                                    unassignedStudents.toString(),
+                                    Icons.warning,
+                                    Colors.orange,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _buildCompactStatCard(
+                                    'Pending',
+                                    pendingAssignments.toString(),
+                                    Icons.schedule,
+                                    Colors.purple,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        );
+                      } else {
+                        // Mobile layout
+                        return Column(
+                          children: [
+                            // View Tabs
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  _buildViewTab(
+                                    'assignments',
+                                    'Assignment View',
+                                    Icons.assignment,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  _buildViewTab('students', 'Students View', Icons.school),
+                                  const SizedBox(width: 12),
+                                  _buildViewTab(
+                                    'drivers',
+                                    'Drivers View',
+                                    Icons.directions_bus,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            // Stats Cards in 2x2 grid for mobile
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildCompactStatCard(
+                                    'Total Students',
+                                    totalStudents.toString(),
+                                    Icons.school,
+                                    const Color(0xFF2ECC71),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _buildCompactStatCard(
+                                    'Active Drivers',
+                                    activeDrivers.toString(),
+                                    Icons.directions_bus,
+                                    Colors.blue,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildCompactStatCard(
+                                    'Unassigned',
+                                    unassignedStudents.toString(),
+                                    Icons.warning,
+                                    Colors.orange,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _buildCompactStatCard(
+                                    'Pending',
+                                    pendingAssignments.toString(),
+                                    Icons.schedule,
+                                    Colors.purple,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(height: 20),
                   const Divider(height: 1),
@@ -674,14 +822,13 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
 
             // Content Area
             Expanded(
-              child:
-                  isLoading
-                      ? const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF2ECC71),
-                        ),
-                      )
-                      : _buildContent(),
+              child: isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF2ECC71),
+                      ),
+                    )
+                  : _buildContent(),
             ),
           ],
         ),
@@ -744,6 +891,182 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // New uniform stat card method that matches Driver View container style
+  Widget _buildUniformStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      height: 120, // Fixed height for uniformity
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Large stat card method that creates containers similar in size to Driver View
+  Widget _buildLargeStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      height: 180, // Much larger height for prominence
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Icon container
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon, color: color, size: 40),
+          ),
+          const SizedBox(height: 20),
+          // Value
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Title
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Compact stat card method for integration within the tabs container
+  Widget _buildCompactStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, color: color, size: 16),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

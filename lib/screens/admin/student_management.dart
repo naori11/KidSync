@@ -52,10 +52,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   bool get isDesktop => MediaQuery.of(context).size.width >= 1200;
   bool get isSmallMobile => MediaQuery.of(context).size.width < 480;
 
-  // For pagination
-  int _currentPage = 1;
-  int _itemsPerPage = 5;
-  int _totalPages = 1;
 
   // For image uploads
   String? _selectedImagePath;
@@ -180,11 +176,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     }
   }
 
-  void _calculateTotalPages(List<Map<String, dynamic>> filteredStudents) {
-    _totalPages = (filteredStudents.length / _itemsPerPage).ceil();
-    if (_totalPages == 0) _totalPages = 1;
-    if (_currentPage > _totalPages) _currentPage = _totalPages;
-  }
 
   Future<String?> _showRFIDScanDialog(
     BuildContext context, {
@@ -3092,20 +3083,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       }
     }
 
-    // Calculate pages for pagination
-    _calculateTotalPages(filteredStudents);
-
-    // Get current page items
-    final int startIndex = (_currentPage - 1) * _itemsPerPage;
-    final int endIndex =
-        startIndex + _itemsPerPage > filteredStudents.length
-            ? filteredStudents.length
-            : startIndex + _itemsPerPage;
-
-    final List<Map<String, dynamic>> currentPageItems =
-        filteredStudents.length > startIndex
-            ? filteredStudents.sublist(startIndex, endIndex)
-            : [];
 
     // Get unique class/grade levels for filter dropdown
     final List<String> classOptions = ['All Classes'];
@@ -3176,8 +3153,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       onChanged:
                           (val) => setState(() {
                             _searchQuery = val;
-                            _currentPage =
-                                1; // Reset to first page on new search
                           }),
                     ),
                   ),
@@ -3311,8 +3286,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       onChanged:
                           (val) => setState(() {
                             _searchQuery = val;
-                            _currentPage =
-                                1; // Reset to first page on new search
                           }),
                     ),
                   ),
@@ -3451,7 +3424,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                 onChanged: (String? newValue) {
                                   setState(() {
                                     _classFilter = newValue!;
-                                    _currentPage = 1;
                                   });
                                 },
                               ),
@@ -3498,58 +3470,99 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                 onChanged: (String? newValue) {
                                   setState(() {
                                     _statusFilter = newValue!;
-                                    _currentPage = 1;
                                   });
                                 },
                               ),
                             ),
                           ),
                           const SizedBox(height: 12),
-                          Container(
-                            width: double.infinity,
-                            height: 48,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              border: Border.all(
-                                color: const Color(0xFFE0E0E0),
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  height: 48,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16.0,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    border: Border.all(
+                                      color: const Color(0xFFE0E0E0),
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 1),
+                                      ),
+                                    ],
+                                  ),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<String>(
+                                      value: _sortOption,
+                                      icon: const Icon(Icons.keyboard_arrow_down),
+                                      items:
+                                          <String>[
+                                            'Name (A-Z)',
+                                            'Name (Z-A)',
+                                            'Date (Asc)',
+                                            'Date (Desc)',
+                                          ].map<DropdownMenuItem<String>>((
+                                            String value,
+                                          ) {
+                                            return DropdownMenuItem<String>(
+                                              value: value,
+                                              child: Text("Sort by: $value"),
+                                            );
+                                          }).toList(),
+                                      onChanged: (String? newValue) {
+                                        setState(() {
+                                          _sortOption = newValue!;
+                                        });
+                                      },
+                                    ),
+                                  ),
                                 ),
-                              ],
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                value: _sortOption,
-                                icon: const Icon(Icons.keyboard_arrow_down),
-                                items:
-                                    <String>[
-                                      'Name (A-Z)',
-                                      'Name (Z-A)',
-                                      'Date (Asc)',
-                                      'Date (Desc)',
-                                    ].map<DropdownMenuItem<String>>((
-                                      String value,
-                                    ) {
-                                      return DropdownMenuItem<String>(
-                                        value: value,
-                                        child: Text("Sort by: $value"),
-                                      );
-                                    }).toList(),
-                                onChanged: (String? newValue) {
-                                  setState(() {
-                                    _sortOption = newValue!;
-                                  });
-                                },
                               ),
-                            ),
+                              const SizedBox(width: 12),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF2ECC71,
+                                  ).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: const Color(
+                                      0xFF2ECC71,
+                                    ).withOpacity(0.3),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.people,
+                                      size: 16,
+                                      color: const Color(0xFF2ECC71),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Total: ${filteredStudents.length} students',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF2ECC71),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       )
@@ -3589,7 +3602,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                 onChanged: (String? newValue) {
                                   setState(() {
                                     _classFilter = newValue!;
-                                    _currentPage = 1;
                                   });
                                 },
                               ),
@@ -3635,7 +3647,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                 onChanged: (String? newValue) {
                                   setState(() {
                                     _statusFilter = newValue!;
-                                    _currentPage = 1;
                                   });
                                 },
                               ),
@@ -3685,6 +3696,43 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   });
                                 },
                               ),
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF2ECC71,
+                              ).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(
+                                  0xFF2ECC71,
+                                ).withOpacity(0.3),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.people,
+                                  size: 16,
+                                  color: const Color(0xFF2ECC71),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Total: ${filteredStudents.length} students',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF2ECC71),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -3785,371 +3833,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                     Expanded(
                       child:
                           isMobile
-                              ? _buildMobileTable(currentPageItems)
-                              : _buildDesktopTable(currentPageItems),
+                              ? _buildMobileTable(filteredStudents)
+                              : _buildDesktopTable(filteredStudents),
                     ),
 
-                    // Enhanced Pagination with more controls
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16.0),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey[200]!),
-                        ),
-                        child: Column(
-                          children: [
-                            // Items per page selector and info
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                // Items per page selector
-                                Row(
-                                  children: [
-                                    const Text(
-                                      'Show:',
-                                      style: TextStyle(
-                                        color: Color(0xFF666666),
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        border: Border.all(
-                                          color: Colors.grey[300]!,
-                                        ),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: DropdownButtonHideUnderline(
-                                        child: DropdownButton<int>(
-                                          value: _itemsPerPage,
-                                          items:
-                                              [5, 10, 25, 50, 100].map((
-                                                int value,
-                                              ) {
-                                                return DropdownMenuItem<int>(
-                                                  value: value,
-                                                  child: Text('$value entries'),
-                                                );
-                                              }).toList(),
-                                          onChanged: (int? newValue) {
-                                            setState(() {
-                                              _itemsPerPage = newValue!;
-                                              _currentPage =
-                                                  1; // Reset to first page
-                                            });
-                                          },
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            color: Color(0xFF666666),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-
-                                // Total entries info
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xFF2ECC71,
-                                    ).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: const Color(
-                                        0xFF2ECC71,
-                                      ).withOpacity(0.3),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.people,
-                                        size: 16,
-                                        color: const Color(0xFF2ECC71),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        'Total: ${filteredStudents.length} students',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF2ECC71),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Pagination info and controls
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                // "Showing x to y of z entries"
-                                Text(
-                                  'Showing ${currentPageItems.isEmpty ? 0 : startIndex + 1} to $endIndex of ${filteredStudents.length} entries',
-                                  style: const TextStyle(
-                                    color: Color(0xFF666666),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-
-                                // Enhanced responsive pagination controls
-                                Wrap(
-                                  alignment: WrapAlignment.center,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  spacing: 4,
-                                  runSpacing: 4,
-                                  children: [
-                                    // First page button - only show on larger screens or when needed
-                                    if (!isSmallMobile || _totalPages > 5)
-                                      Container(
-                                        constraints: const BoxConstraints(
-                                          minWidth: 36,
-                                          minHeight: 36,
-                                        ),
-                                        child: IconButton(
-                                          icon: Icon(
-                                            Icons.first_page,
-                                            size: isSmallMobile ? 18 : 20,
-                                          ),
-                                          onPressed:
-                                              _currentPage > 1
-                                                  ? () => setState(
-                                                    () => _currentPage = 1,
-                                                  )
-                                                  : null,
-                                          color:
-                                              _currentPage > 1
-                                                  ? const Color(0xFF666666)
-                                                  : const Color(0xFFCCCCCC),
-                                          tooltip: 'First page',
-                                          padding: EdgeInsets.all(
-                                            isSmallMobile ? 6 : 8,
-                                          ),
-                                        ),
-                                      ),
-
-                                    // Previous button
-                                    Container(
-                                      constraints: const BoxConstraints(
-                                        minWidth: 36,
-                                        minHeight: 36,
-                                      ),
-                                      child: IconButton(
-                                        icon: Icon(
-                                          Icons.chevron_left,
-                                          size: isSmallMobile ? 18 : 20,
-                                        ),
-                                        onPressed:
-                                            _currentPage > 1
-                                                ? () => setState(
-                                                  () => _currentPage--,
-                                                )
-                                                : null,
-                                        color:
-                                            _currentPage > 1
-                                                ? const Color(0xFF666666)
-                                                : const Color(0xFFCCCCCC),
-                                        tooltip: 'Previous page',
-                                        padding: EdgeInsets.all(
-                                          isSmallMobile ? 6 : 8,
-                                        ),
-                                      ),
-                                    ),
-
-                                    // Page input field for quick navigation
-                                    Container(
-                                      width: isSmallMobile ? 60 : 80,
-                                      height: 32,
-                                      margin: const EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                      ),
-                                      child: TextFormField(
-                                        initialValue: _currentPage.toString(),
-                                        textAlign: TextAlign.center,
-                                        keyboardType: TextInputType.number,
-                                        style: TextStyle(
-                                          fontSize: isSmallMobile ? 12 : 14,
-                                        ),
-                                        decoration: InputDecoration(
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                vertical: 8,
-                                              ),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            borderSide: BorderSide(
-                                              color: Colors.grey[300]!,
-                                            ),
-                                          ),
-                                          focusedBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            borderSide: const BorderSide(
-                                              color: Color(0xFF2ECC71),
-                                            ),
-                                          ),
-                                        ),
-                                        onFieldSubmitted: (value) {
-                                          final page = int.tryParse(value);
-                                          if (page != null &&
-                                              page >= 1 &&
-                                              page <= _totalPages) {
-                                            setState(() => _currentPage = page);
-                                          }
-                                        },
-                                      ),
-                                    ),
-
-                                    Text(
-                                      'of $_totalPages',
-                                      style: TextStyle(
-                                        color: const Color(0xFF666666),
-                                        fontSize: isSmallMobile ? 11 : 13,
-                                      ),
-                                    ),
-
-                                    // Next button
-                                    Container(
-                                      constraints: const BoxConstraints(
-                                        minWidth: 36,
-                                        minHeight: 36,
-                                      ),
-                                      child: IconButton(
-                                        icon: Icon(
-                                          Icons.chevron_right,
-                                          size: isSmallMobile ? 18 : 20,
-                                        ),
-                                        onPressed:
-                                            _currentPage < _totalPages
-                                                ? () => setState(
-                                                  () => _currentPage++,
-                                                )
-                                                : null,
-                                        color:
-                                            _currentPage < _totalPages
-                                                ? const Color(0xFF666666)
-                                                : const Color(0xFFCCCCCC),
-                                        tooltip: 'Next page',
-                                        padding: EdgeInsets.all(
-                                          isSmallMobile ? 6 : 8,
-                                        ),
-                                      ),
-                                    ),
-
-                                    // Last page button - only show on larger screens or when needed
-                                    if (!isSmallMobile || _totalPages > 5)
-                                      Container(
-                                        constraints: const BoxConstraints(
-                                          minWidth: 36,
-                                          minHeight: 36,
-                                        ),
-                                        child: IconButton(
-                                          icon: Icon(
-                                            Icons.last_page,
-                                            size: isSmallMobile ? 18 : 20,
-                                          ),
-                                          onPressed:
-                                              _currentPage < _totalPages
-                                                  ? () => setState(
-                                                    () =>
-                                                        _currentPage =
-                                                            _totalPages,
-                                                  )
-                                                  : null,
-                                          color:
-                                              _currentPage < _totalPages
-                                                  ? const Color(0xFF666666)
-                                                  : const Color(0xFFCCCCCC),
-                                          tooltip: 'Last page',
-                                          padding: EdgeInsets.all(
-                                            isSmallMobile ? 6 : 8,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            ),
-
-                            // Quick page jumper (for large datasets)
-                            if (_totalPages > 10) ...[
-                              const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text(
-                                    'Quick jump: ',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF666666),
-                                    ),
-                                  ),
-                                  ...List.generate(
-                                    (_totalPages / 10).ceil().clamp(1, 5),
-                                    (index) {
-                                      final pageGroup = (index + 1) * 10;
-                                      final actualPage =
-                                          pageGroup > _totalPages
-                                              ? _totalPages
-                                              : pageGroup;
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 2,
-                                        ),
-                                        child: TextButton(
-                                          onPressed:
-                                              () => setState(
-                                                () => _currentPage = actualPage,
-                                              ),
-                                          style: TextButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            minimumSize: Size.zero,
-                                            foregroundColor: const Color(
-                                              0xFF2ECC71,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '$actualPage',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
