@@ -494,6 +494,21 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
         iconColor = Colors.indigo;
         backgroundColor = Colors.indigo.withOpacity(0.1);
         break;
+      case 'pickup_skipped':
+        icon = Icons.event_busy;
+        iconColor = Colors.orange;
+        backgroundColor = Colors.orange.withOpacity(0.1);
+        break;
+      case 'pickup_cancelled':
+        icon = Icons.cancel;
+        iconColor = Colors.red;
+        backgroundColor = Colors.red.withOpacity(0.1);
+        break;
+      case 'dropoff_cancelled':
+        icon = Icons.cancel_outlined;
+        iconColor = Colors.orange;
+        backgroundColor = Colors.orange.withOpacity(0.1);
+        break;
       default:
         icon = Icons.info;
         iconColor = primaryColor;

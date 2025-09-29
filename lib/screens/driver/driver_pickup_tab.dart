@@ -26,6 +26,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
   List<Map<String, dynamic>> afternoonDropoffStudents = [];
   List<Student> pickedUpStudents = [];
   List<Student> droppedOffStudents = [];
+  List<Student> skippedPickupStudents = [];
   final DriverService _driverService = DriverService();
   final VerificationService _verificationService = VerificationService();
   final DriverAuditService _driverAuditService = DriverAuditService();
@@ -115,6 +116,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       // Clear current lists
       pickedUpStudents.clear();
       droppedOffStudents.clear();
+      skippedPickupStudents.clear();
 
       // Combine all students from both morning pickup and afternoon dropoff
       final allStudents = <Map<String, dynamic>>[];
@@ -143,6 +145,12 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           user.id,
         );
 
+        // Check if pickup was skipped
+        final wasPickupSkipped = await _wasStudentPickupSkippedToday(
+          studentId,
+          user.id,
+        );
+
         final studentModel = Student(
           id: studentId.toString(),
           name: '${student['fname']} ${student['lname']}',
@@ -151,7 +159,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           sectionName: student['sections']?['name'],
         );
 
-        if (wasPickedUp) {
+        if (wasPickupSkipped) {
+          // Add to skipped list
+          skippedPickupStudents.add(studentModel);
+        } else if (wasPickedUp) {
           final pickupTime = await _driverService.getStudentPickupTime(
             studentId,
             user.id,
@@ -186,7 +197,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
     }
   }
 
-  void _showPickupCancellationConfirmation(Student student) {
+  void _showSkipPickupConfirmation(Student student) {
     String selectedReason = 'Student not present';
     String customReason = '';
     bool useCustomReason = false;
@@ -199,6 +210,175 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       'Schedule change',
       'Vehicle issue',
       'Emergency situation',
+      'Student no longer needs pickup',
+      'Other'
+    ];
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) => AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+            scrollable: true,
+            title: Row(
+              children: [
+                Icon(Icons.event_busy, color: Colors.orange, size: 24),
+                const SizedBox(width: 8),
+                const Text(
+                  'Skip Pickup',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Please select a reason for skipping ${student.name}\'s pickup:',
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedReason,
+                  decoration: InputDecoration(
+                    labelText: 'Skip Reason',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  items: predefinedReasons.map((reason) => DropdownMenuItem(
+                    value: reason,
+                    child: Text(reason),
+                  )).toList(),
+                  onChanged: (value) {
+                    setModalState(() {
+                      selectedReason = value!;
+                      useCustomReason = value == 'Other';
+                      if (!useCustomReason) customReason = '';
+                    });
+                  },
+                ),
+                if (useCustomReason) ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    decoration: InputDecoration(
+                      labelText: 'Please specify',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    onChanged: (value) => customReason = value,
+                    maxLength: 100,
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'This will skip the pickup and notify parents. If student is also scheduled for dropoff, that will be cancelled too.',
+                          style: TextStyle(
+                            color: Colors.orange.shade700,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isProcessing ? null : () {
+                          final reason = useCustomReason && customReason.isNotEmpty 
+                              ? customReason 
+                              : selectedReason;
+                          Navigator.of(context).pop();
+                          _skipPickup(student, reason);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 4,
+                          shadowColor: Colors.orange.withOpacity(0.3),
+                        ),
+                        icon: _isProcessing 
+                            ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Icon(Icons.event_busy, color: Colors.white),
+                        label: Text(
+                          _isProcessing ? 'Skipping...' : 'Skip Pickup',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey[600],
+                          side: BorderSide(color: Colors.grey[400]!, width: 2),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        icon: Icon(Icons.close, color: Colors.grey[600]),
+                        label: Text(
+                          'Keep Pickup',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCancelPickupConfirmation(Student student) {
+    String selectedReason = 'Change of plans';
+    String customReason = '';
+    bool useCustomReason = false;
+    
+    final predefinedReasons = [
+      'Change of plans',
+      'Student no longer needs pickup',
+      'Parent pickup instead',
+      'Emergency situation',
+      'Schedule change',
+      'Vehicle issue',
       'Other'
     ];
 
@@ -278,7 +458,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'This will cancel the pickup and notify parents.',
+                          'This will cancel the completed pickup and notify parents. If student is also scheduled for dropoff, that will be cancelled too.',
                           style: TextStyle(
                             color: Colors.orange.shade700,
                             fontSize: 14,
@@ -314,7 +494,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                             ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                             : const Icon(Icons.cancel, color: Colors.white),
                         label: Text(
-                          _isProcessing ? 'Cancelling...' : 'Yes, Cancel',
+                          _isProcessing ? 'Cancelling...' : 'Cancel Pickup',
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -360,89 +540,226 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       context: context,
       barrierDismissible: true,
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-          scrollable: true,
-          title: Row(
-            children: [
-              Icon(Icons.directions_car, color: widget.primaryColor, size: 24),
-              const SizedBox(width: 8),
-              const Text(
-                'Confirm Pickup',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Are you sure you want to mark ${student.name} as picked up?',
-                style: const TextStyle(fontSize: 16),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        _confirmStudentPickup(student);
-                      },
-                      style: ElevatedButton.styleFrom(
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  decoration: BoxDecoration(
+                    color: widget.primaryColor.withOpacity(0.06),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
                         backgroundColor: widget.primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 4,
-                        shadowColor: widget.primaryColor.withOpacity(0.3),
+                        backgroundImage: _getStudentProfileImage(null),
+                        child: _getStudentProfileImage(null) == null
+                            ? Icon(Icons.directions_car, color: Colors.white)
+                            : null,
                       ),
-                      icon: const Icon(Icons.check, color: Colors.white),
-                      label: const Text(
-                        'Confirm Pick-up',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Confirm Pickup',
+                              style: TextStyle(
+                                color: widget.primaryColor,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              student.name,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey[600],
-                        side: BorderSide(color: Colors.grey[400]!, width: 2),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                ),
+
+                // Body
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Are you sure you want to mark ${student.name} as picked up?',
+                        style: const TextStyle(fontSize: 15, height: 1.4),
+                        textAlign: TextAlign.center,
                       ),
-                      icon: Icon(
-                        Icons.cancel,
-                        color: Colors.grey[600],
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                _confirmStudentPickup(student);
+                              },
+                              icon: const Icon(Icons.check, size: 18),
+                              label: const Text('Confirm Pick-up'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: widget.primaryColor,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                elevation: 4,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.grey[800],
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                side: BorderSide(color: Colors.grey.withOpacity(0.3)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      label: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAccidentalPickupCancellation(Student student) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.06),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: Colors.blue,
+                        backgroundImage: _getStudentProfileImage(null),
+                        child: _getStudentProfileImage(null) == null
+                            ? Icon(Icons.undo, color: Colors.white)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Cancel Pickup',
+                              style: TextStyle(
+                                color: Colors.blue,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              student.name,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'This will undo the pickup and remove the notification sent to parents.',
+                        style: const TextStyle(fontSize: 15, height: 1.4),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                _cancelAccidentalPickup(student);
+                              },
+                              icon: const Icon(Icons.undo, size: 18),
+                              label: const Text('Yes, Cancel'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                elevation: 4,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Keep Pickup', style: TextStyle(fontWeight: FontWeight.w600)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.blue.shade700,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                side: BorderSide(color: Colors.blue.withOpacity(0.25)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -632,86 +949,223 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       context: context,
       barrierDismissible: true,
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-          scrollable: true,
-          title: Row(
-            children: [
-              Icon(Icons.home, color: Colors.green, size: 24),
-              const SizedBox(width: 8),
-              const Text(
-                'Confirm Dropoff',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Are you sure you want to mark ${student.name} as dropped off?',
-                style: const TextStyle(fontSize: 16),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        _confirmStudentDropoff(student);
-                      },
-                      style: ElevatedButton.styleFrom(
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.06),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
                         backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        elevation: 4,
-                        shadowColor: Colors.green.withOpacity(0.3),
+                        backgroundImage: _getStudentProfileImage(null),
+                        child: _getStudentProfileImage(null) == null
+                            ? Icon(Icons.home, color: Colors.white)
+                            : null,
                       ),
-                      icon: const Icon(Icons.check, color: Colors.white),
-                      label: const Text(
-                        'Confirm Drop-off',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Confirm Dropoff',
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              student.name,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.green,
-                        side: BorderSide(color: Colors.green, width: 2),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Are you sure you want to mark ${student.name} as dropped off?',
+                        style: const TextStyle(fontSize: 15, height: 1.4),
+                        textAlign: TextAlign.center,
                       ),
-                      icon: Icon(Icons.home, color: Colors.green),
-                      label: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.green,
-                        ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                _confirmStudentDropoff(student);
+                              },
+                              icon: const Icon(Icons.check, size: 18),
+                              label: const Text('Confirm Drop-off'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                elevation: 4,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.green.shade700,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                side: BorderSide(color: Colors.green.withOpacity(0.25)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showCancelSkipConfirmation(Student student) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.06),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: Colors.blue,
+                        backgroundImage: _getStudentProfileImage(null),
+                        child: _getStudentProfileImage(null) == null
+                            ? Icon(Icons.undo, color: Colors.white)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Cancel Skip',
+                              style: TextStyle(
+                                color: Colors.blue,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              student.name,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'This will cancel the skip and restore ${student.name} to the pickup queue. Student will be available for pickup again.',
+                        style: const TextStyle(fontSize: 15, height: 1.4),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                _cancelSkippedPickup(student);
+                              },
+                              icon: const Icon(Icons.undo, size: 18),
+                              label: const Text('Cancel Skip'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                elevation: 4,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Keep Skip', style: TextStyle(fontWeight: FontWeight.w600)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.grey[600],
+                                side: BorderSide(color: Colors.grey[400]!, width: 2),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -733,142 +1187,101 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
 
     try {
       final user = Supabase.instance.client.auth.currentUser!;
-      final isCurrentlyPickedUp = pickedUpStudents.any(
-        (s) => s.id == student.id,
+      
+      // Record pickup in database
+      final pickupTime = DateTime.now();
+      final success = await _driverService.recordPickup(
+        studentId: student.studentDbId!,
+        driverId: user.id,
+        pickupTime: pickupTime,
+        notes: 'Picked up via driver app',
       );
 
-      if (isCurrentlyPickedUp) {
-        // Remove student from picked up list (cancel pickup)
-        setState(() {
-          pickedUpStudents.removeWhere((s) => s.id == student.id);
-          // Only remove from dropped off if they were actually dropped off
-          if (droppedOffStudents.any((s) => s.id == student.id)) {
-            droppedOffStudents.removeWhere((s) => s.id == student.id);
-          }
-        });
-        
-        // Call database cleanup for cancelled pickup record
-        await _driverService.cancelPickup(
-          studentId: student.studentDbId!,
-          driverId: user.id,
-          reason: 'Manual cancellation via driver app',
-          notes: 'Driver manually cancelled pickup operation'
+      if (success) {
+        // Add student to picked up list
+        final updatedStudent = student.copyWith(
+          isPickedUp: true,
+          pickupTime: pickupTime,
+          driverName: user.userMetadata?['fname'] ?? 'Driver',
         );
 
-        // Log pickup cancellation (HIGH PRIORITY - Transportation Safety & Compliance)
+        setState(() {
+          pickedUpStudents.add(updatedStudent);
+        });
+
+        // Log pickup operation (HIGH PRIORITY - Transportation Safety & Compliance)
         try {
-          await _driverAuditService.logPickupCancellation(
+          await _driverAuditService.logStudentPickup(
             studentId: student.studentDbId!.toString(),
             studentName: student.name,
-            reason: 'Manual cancellation via driver app',
+            pickupTime: pickupTime,
             driverId: user.id,
             driverName: user.userMetadata?['fname'] ?? 'Driver',
-            notes: 'Driver cancelled pickup operation',
+            verificationStatus: 'pending',
+            notes: 'Picked up via driver app',
           );
         } catch (auditError) {
-          print('Error logging pickup cancellation: $auditError');
+          print('Error logging pickup operation: $auditError');
         }
 
-        _showConfirmationDialog(
-          '${student.name} pickup cancelled',
-          Colors.orange,
-        );
-      } else {
-        // Record pickup in database
-        final pickupTime = DateTime.now();
-        final success = await _driverService.recordPickup(
-          studentId: student.studentDbId!,
-          driverId: user.id,
-          pickupTime: pickupTime,
-          notes: 'Picked up via driver app',
-        );
-
-        if (success) {
-          // Add student to picked up list
-          final updatedStudent = student.copyWith(
-            isPickedUp: true,
-            pickupTime: pickupTime,
-            driverName: user.userMetadata?['fname'] ?? 'Driver',
+        // Create verification request for parents
+        try {
+          await _verificationService.createVerificationRequest(
+            studentId: student.studentDbId!,
+            driverId: user.id,
+            eventType: 'pickup',
+            eventTime: pickupTime,
           );
 
-          setState(() {
-            pickedUpStudents.add(updatedStudent);
-          });
-
-          // Log pickup operation (HIGH PRIORITY - Transportation Safety & Compliance)
+          // Log verification request creation (HIGH PRIORITY - Parent Safety Verification)
           try {
-            await _driverAuditService.logStudentPickup(
+            await _driverAuditService.logVerificationRequestCreation(
               studentId: student.studentDbId!.toString(),
               studentName: student.name,
-              pickupTime: pickupTime,
-              driverId: user.id,
-              driverName: user.userMetadata?['fname'] ?? 'Driver',
-              verificationStatus: 'pending',
-              notes: 'Picked up via driver app',
-            );
-          } catch (auditError) {
-            print('Error logging pickup operation: $auditError');
-          }
-
-          // Create verification request for parents
-          try {
-            await _verificationService.createVerificationRequest(
-              studentId: student.studentDbId!,
-              driverId: user.id,
               eventType: 'pickup',
               eventTime: pickupTime,
+              driverId: user.id,
+              driverName: user.userMetadata?['fname'] ?? 'Driver',
+              parentNotificationStatus: 'sent',
+              verificationMethod: 'app_notification',
             );
-
-            // Log verification request creation (HIGH PRIORITY - Parent Safety Verification)
-            try {
-              await _driverAuditService.logVerificationRequestCreation(
-                studentId: student.studentDbId!.toString(),
-                studentName: student.name,
-                eventType: 'pickup',
-                eventTime: pickupTime,
-                driverId: user.id,
-                driverName: user.userMetadata?['fname'] ?? 'Driver',
-                parentNotificationStatus: 'sent',
-                verificationMethod: 'app_notification',
-              );
-            } catch (auditError) {
-              print('Error logging verification request: $auditError');
-            }
-
-            _showConfirmationDialog(
-              '✓ ${student.name} marked as picked up - Verification request sent to parents',
-              widget.primaryColor,
-            );
-          } catch (verificationError) {
-            print('Error creating verification request: $verificationError');
-            
-            // Log verification request failure
-            try {
-              await _driverAuditService.logVerificationRequestCreation(
-                studentId: student.studentDbId!.toString(),
-                studentName: student.name,
-                eventType: 'pickup',
-                eventTime: pickupTime,
-                driverId: user.id,
-                driverName: user.userMetadata?['fname'] ?? 'Driver',
-                parentNotificationStatus: 'failed',
-                verificationMethod: 'app_notification',
-              );
-            } catch (auditError) {
-              print('Error logging verification request failure: $auditError');
-            }
-            
-            _showConfirmationDialog(
-              '✓ ${student.name} marked as picked up - Warning: Could not send verification request',
-              Colors.orange,
-            );
+          } catch (auditError) {
+            print('Error logging verification request: $auditError');
           }
-        } else {
+
           _showConfirmationDialog(
-            'Error recording pickup for ${student.name}',
-            Colors.red,
+            '✓ ${student.name} marked as picked up - Verification request sent to parents',
+            widget.primaryColor,
+          );
+        } catch (verificationError) {
+          print('Error creating verification request: $verificationError');
+          
+          // Log verification request failure
+          try {
+            await _driverAuditService.logVerificationRequestCreation(
+              studentId: student.studentDbId!.toString(),
+              studentName: student.name,
+              eventType: 'pickup',
+              eventTime: pickupTime,
+              driverId: user.id,
+              driverName: user.userMetadata?['fname'] ?? 'Driver',
+              parentNotificationStatus: 'failed',
+              verificationMethod: 'app_notification',
+            );
+          } catch (auditError) {
+            print('Error logging verification request failure: $auditError');
+          }
+          
+          _showConfirmationDialog(
+            '✓ ${student.name} marked as picked up - Warning: Could not send verification request',
+            Colors.orange,
           );
         }
+      } else {
+        _showConfirmationDialog(
+          'Error recording pickup for ${student.name}',
+          Colors.red,
+        );
       }
     } catch (e) {
       _showConfirmationDialog('Error: $e', Colors.red);
@@ -1041,8 +1454,36 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
     return droppedOffStudents.any((s) => s.id == student.id);
   }
 
-  /// Cancel pickup with reason and database cleanup
-  Future<void> _cancelPickup(Student student, String reason) async {
+  bool _isStudentPickupSkipped(Student student) {
+    return skippedPickupStudents.any((s) => s.id == student.id);
+  }
+
+  /// Check if student pickup was skipped today by looking at pickup_dropoff_logs
+  Future<bool> _wasStudentPickupSkippedToday(int studentId, String driverId) async {
+    try {
+      final today = DateTime.now();
+      final startOfDay = DateTime(today.year, today.month, today.day);
+      final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
+
+      final response = await Supabase.instance.client
+          .from('pickup_dropoff_logs')
+          .select('id')
+          .eq('student_id', studentId)
+          .eq('driver_id', driverId)
+          .eq('event_type', 'pickup_skipped')  // Only look for active skips, not cancelled ones
+          .gte('created_at', startOfDay.toIso8601String())
+          .lt('created_at', endOfDay.toIso8601String())
+          .limit(1);
+
+      return response.isNotEmpty;
+    } catch (e) {
+      print('Error checking if pickup was skipped: $e');
+      return false;
+    }
+  }
+
+  /// Cancel skipped pickup (undo skip operation and restore student to waiting state)
+  Future<void> _cancelSkippedPickup(Student student) async {
     if (_isProcessing) return;
 
     setState(() => _isProcessing = true);
@@ -1051,19 +1492,306 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) throw 'User not authenticated';
 
-      // Call the database cancellation method
+      // Remove from skipped list
+      setState(() {
+        skippedPickupStudents.removeWhere((s) => s.id == student.id);
+      });
+
+      // Delete/cancel the skip record from the database so it doesn't persist after refresh
+      try {
+        final today = DateTime.now();
+        final startOfDay = DateTime(today.year, today.month, today.day);
+        final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
+
+        // First, let's check what records exist before deletion
+        final existingRecords = await Supabase.instance.client
+            .from('pickup_dropoff_logs')
+            .select('id, created_at, event_type')
+            .eq('student_id', student.studentDbId!)
+            .eq('driver_id', user.id)
+            .eq('event_type', 'pickup_skipped')
+            .gte('created_at', startOfDay.toIso8601String())
+            .lt('created_at', endOfDay.toIso8601String());
+
+        print('Found ${existingRecords.length} skip records to delete: $existingRecords');
+
+        if (existingRecords.isNotEmpty) {
+          // Delete using the specific IDs we found
+          final recordIds = existingRecords.map((record) => record['id']).toList();
+          
+          print('Attempting to delete records with IDs: $recordIds');
+          
+          final deleteResponse = await Supabase.instance.client
+              .from('pickup_dropoff_logs')
+              .delete()
+              .inFilter('id', recordIds);
+
+          print('Delete response: $deleteResponse');
+          print('Delete response type: ${deleteResponse.runtimeType}');
+          
+          // Verify deletion by checking if records still exist
+          final verificationRecords = await Supabase.instance.client
+              .from('pickup_dropoff_logs')
+              .select('id')
+              .inFilter('id', recordIds);
+              
+          print('Records remaining after delete: ${verificationRecords.length} - $verificationRecords');
+          
+          if (verificationRecords.isEmpty) {
+            print('✓ Successfully deleted ${recordIds.length} skip records for student ${student.studentDbId}');
+          } else {
+            print('⚠️ Delete command executed but ${verificationRecords.length} records still exist');
+            throw 'Records still exist after delete operation - possible RLS policy issue or database constraint violation';
+          }
+        } else {
+          print('No skip records found to delete for student ${student.studentDbId}');
+        }
+      } catch (dbError) {
+        print('Error handling skip record: $dbError');
+        _showConfirmationDialog('Database Error: $dbError', Colors.red);
+        return;
+      }
+
+      // Delete notifications for both parents and driver (same as cancel pickup)
+      try {
+        final today = DateTime.now();
+        final startOfDay = DateTime(today.year, today.month, today.day);
+        final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
+
+        // Delete parent notifications related to this skip
+        await Supabase.instance.client
+            .from('notifications')
+            .delete()
+            .eq('student_id', student.studentDbId!)
+            .inFilter('type', ['pickup_skipped', 'pickup_notification'])
+            .gte('created_at', startOfDay.toIso8601String())
+            .lt('created_at', endOfDay.toIso8601String());
+
+        // Delete driver notifications
+        await Supabase.instance.client
+            .from('notifications')
+            .delete()
+            .eq('recipient_id', user.id)
+            .eq('student_id', student.studentDbId!)
+            .inFilter('type', ['pickup_skipped', 'pickup_notification'])
+            .gte('created_at', startOfDay.toIso8601String())
+            .lt('created_at', endOfDay.toIso8601String());
+
+        print('Deleted skip-related notifications for student ${student.studentDbId}');
+      } catch (notificationError) {
+        print('Error deleting notifications: $notificationError');
+        // Continue even if notification deletion fails
+      }
+
+      // Log skip cancellation (HIGH PRIORITY - Transportation Safety & Compliance)
+      try {
+        await _driverAuditService.logPickupCancellation(
+          studentId: student.studentDbId!.toString(),
+          studentName: student.name,
+          reason: 'Skip cancelled - restored to waiting',
+          driverId: user.id,
+          driverName: user.userMetadata?['fname'] ?? 'Driver',
+          notes: 'Driver cancelled skip operation - skip record and notifications deleted, student restored to pickup queue',
+        );
+      } catch (auditError) {
+        print('Error logging skip cancellation: $auditError');
+      }
+
+      _showConfirmationDialog(
+        '✓ ${student.name} skip cancelled - Record and notifications removed',
+        Colors.blue,
+      );
+    } catch (e) {
+      _showConfirmationDialog('Error: $e', Colors.red);
+    } finally {
+      setState(() => _isProcessing = false);
+    }
+  }
+
+  /// Skip pickup (for students not yet picked up - doesn't require existing pickup record)
+  Future<void> _skipPickup(Student student, String reason) async {
+    if (_isProcessing) return;
+
+    setState(() => _isProcessing = true);
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) throw 'User not authenticated';
+      
+      // Check if student is also scheduled for driver dropoff
+      final isScheduledForDropoff = afternoonDropoffStudents.any(
+        (studentData) => studentData['students']['id'].toString() == student.id
+      );
+
+      // Create a skip record using direct database insertion
+      bool success = false;
+      try {
+        // Insert skip record directly into pickup_dropoff_logs
+        await Supabase.instance.client.from('pickup_dropoff_logs').insert({
+          'student_id': student.studentDbId!,
+          'driver_id': user.id,
+          'event_type': 'pickup_skipped', // Create our own skip event type
+          'notes': 'Pickup skipped - Reason: $reason',
+          'created_at': DateTime.now().toIso8601String(),
+        });
+        success = true;
+      } catch (dbError) {
+        print('Error creating skip record: $dbError');
+        // Continue with local state update even if database insert fails
+        success = true;
+      }
+
+      if (success) {
+        // Update local state
+        setState(() {
+          // Add to skipped list if not already there
+          if (!skippedPickupStudents.any((s) => s.id == student.id)) {
+            skippedPickupStudents.add(student);
+          }
+        });
+
+        // Send notification to parents (skip the verification request that's causing issues)
+        // Instead, send a direct notification
+        try {
+          // Get student information
+          final studentResponse = await Supabase.instance.client
+              .from('students')
+              .select('fname, mname, lname')
+              .eq('id', student.studentDbId!)
+              .single();
+
+          final studentName = '${studentResponse['fname']} ${studentResponse['mname'] ?? ''} ${studentResponse['lname']}'.trim();
+
+          // Get parent information
+          final parentResponse = await Supabase.instance.client
+              .from('parent_student')
+              .select('''
+                parents:parent_id(
+                  id,
+                  user_id,
+                  fname,
+                  lname
+                )
+              ''')
+              .eq('student_id', student.studentDbId!);
+
+          // Create notification for each parent
+          for (final parentData in parentResponse) {
+            final parent = parentData['parents'];
+            if (parent != null) {
+              await Supabase.instance.client.from('notifications').insert({
+                'recipient_id': parent['user_id'],
+                'title': 'Pickup Skipped',
+                'message': 'Your child $studentName\'s pickup has been skipped by the driver. Reason: $reason',
+                'type': 'pickup_skipped',
+                'is_read': false,
+                'created_at': DateTime.now().toIso8601String(),
+              });
+            }
+          }
+
+          print('Parent notifications sent for skipped pickup');
+        } catch (notificationError) {
+          print('Error sending parent notifications: $notificationError');
+          // Continue with skip operation even if notification fails
+        }
+
+        // Log pickup skip (HIGH PRIORITY - Transportation Safety & Compliance)
+        try {
+          await _driverAuditService.logPickupCancellation(
+            studentId: student.studentDbId!.toString(),
+            studentName: student.name,
+            reason: reason,
+            driverId: user.id,
+            driverName: user.userMetadata?['fname'] ?? 'Driver',
+            notes: 'Driver skipped scheduled pickup operation via app - no existing record',
+          );
+        } catch (auditError) {
+          print('Error logging pickup skip: $auditError');
+        }
+
+        // If student was also scheduled for dropoff, cancel that too
+        if (isScheduledForDropoff) {
+          try {
+            await _driverService.cancelDropoff(
+              studentId: student.studentDbId!,
+              driverId: user.id,
+              reason: 'Pickup skipped - dropoff automatically cancelled',
+              notes: 'Dropoff cancelled due to pickup being skipped',
+            );
+            
+            // Log dropoff cancellation too
+            await _driverAuditService.logDropoffCancellation(
+              studentId: student.studentDbId!.toString(),
+              studentName: student.name,
+              reason: 'Pickup skipped - dropoff automatically cancelled',
+              driverId: user.id,
+              driverName: user.userMetadata?['fname'] ?? 'Driver',
+              notes: 'Dropoff cancelled due to pickup being skipped',
+            );
+          } catch (dropoffError) {
+            print('Error cancelling related dropoff: $dropoffError');
+          }
+        }
+
+        final statusMessage = '✓ ${student.name} pickup skipped - Parents notified';
+        final statusMessageWithDropoff = isScheduledForDropoff
+            ? '$statusMessage\nDropoff also cancelled.'
+            : statusMessage;
+
+        _showConfirmationDialog(
+          statusMessageWithDropoff,
+          Colors.orange,
+        );
+      } else {
+        _showConfirmationDialog(
+          'Error skipping pickup for ${student.name}',
+          Colors.red,
+        );
+      }
+    } catch (e) {
+      _showConfirmationDialog('Error: $e', Colors.red);
+    } finally {
+      setState(() => _isProcessing = false);
+    }
+  }
+
+  /// Cancel pickup with reason (for picked up students - requires existing pickup record)
+  Future<void> _cancelPickup(Student student, String reason) async {
+    if (_isProcessing) return;
+
+    setState(() => _isProcessing = true);
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) throw 'User not authenticated';
+      
+      // Check if student is also scheduled for driver dropoff
+      final isScheduledForDropoff = afternoonDropoffStudents.any(
+        (studentData) => studentData['students']['id'].toString() == student.id
+      );
+
+      // Cancel the existing pickup record (this function should only be called for picked up students)
       final success = await _driverService.cancelPickup(
         studentId: student.studentDbId!,
         driverId: user.id,
         reason: reason,
-        notes: 'Cancelled via driver app',
+        notes: 'Pickup cancelled via driver app - existing record cancelled',
       );
 
       if (success) {
         setState(() {
-          // Remove from picked up list if they were picked up
-          if (pickedUpStudents.any((s) => s.id == student.id)) {
-            pickedUpStudents.removeWhere((s) => s.id == student.id);
+          // Remove from picked up list
+          pickedUpStudents.removeWhere((s) => s.id == student.id);
+          
+          // Also remove from dropped off list if they were dropped off
+          if (droppedOffStudents.any((s) => s.id == student.id)) {
+            droppedOffStudents.removeWhere((s) => s.id == student.id);
+          }
+          
+          // Add to skipped list if not already there
+          if (!skippedPickupStudents.any((s) => s.id == student.id)) {
+            skippedPickupStudents.add(student);
           }
         });
 
@@ -1075,14 +1803,43 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             reason: reason,
             driverId: user.id,
             driverName: user.userMetadata?['fname'] ?? 'Driver',
-            notes: 'Driver cancelled pickup operation via app',
+            notes: 'Driver cancelled completed pickup operation via app',
           );
         } catch (auditError) {
           print('Error logging pickup cancellation: $auditError');
         }
 
+        // If student was also scheduled for dropoff, cancel that too
+        if (isScheduledForDropoff) {
+          try {
+            await _driverService.cancelDropoff(
+              studentId: student.studentDbId!,
+              driverId: user.id,
+              reason: 'Pickup cancelled - dropoff automatically cancelled',
+              notes: 'Dropoff cancelled due to pickup cancellation',
+            );
+            
+            // Log dropoff cancellation too
+            await _driverAuditService.logDropoffCancellation(
+              studentId: student.studentDbId!.toString(),
+              studentName: student.name,
+              reason: 'Pickup cancelled - dropoff automatically cancelled',
+              driverId: user.id,
+              driverName: user.userMetadata?['fname'] ?? 'Driver',
+              notes: 'Dropoff cancelled due to pickup cancellation',
+            );
+          } catch (dropoffError) {
+            print('Error cancelling related dropoff: $dropoffError');
+          }
+        }
+
+        final statusMessage = '✓ ${student.name} pickup cancelled - Parents notified';
+        final statusMessageWithDropoff = isScheduledForDropoff
+            ? '$statusMessage\nDropoff also cancelled.'
+            : statusMessage;
+
         _showConfirmationDialog(
-          '✓ ${student.name} pickup cancelled - Parents notified',
+          statusMessageWithDropoff,
           Colors.orange,
         );
       } else {
@@ -1091,6 +1848,136 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           Colors.red,
         );
       }
+    } catch (e) {
+      _showConfirmationDialog('Error: $e', Colors.red);
+    } finally {
+      setState(() => _isProcessing = false);
+    }
+  }
+
+  /// Cancel accidental pickup (removes notification and undoes pickup)
+  Future<void> _cancelAccidentalPickup(Student student) async {
+    if (_isProcessing) return;
+
+    setState(() => _isProcessing = true);
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) throw 'User not authenticated';
+
+      // Remove from picked up list immediately
+      setState(() {
+        pickedUpStudents.removeWhere((s) => s.id == student.id);
+        // Also remove from dropped off if they were dropped off
+        if (droppedOffStudents.any((s) => s.id == student.id)) {
+          droppedOffStudents.removeWhere((s) => s.id == student.id);
+        }
+        // Also remove from skipped list if they were there
+        if (skippedPickupStudents.any((s) => s.id == student.id)) {
+          skippedPickupStudents.removeWhere((s) => s.id == student.id);
+        }
+      });
+
+      // Delete the pickup record from database (same as cancel skip)
+      try {
+        final today = DateTime.now();
+        final startOfDay = DateTime(today.year, today.month, today.day);
+        final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
+
+        // Find pickup records to delete
+        final existingRecords = await Supabase.instance.client
+            .from('pickup_dropoff_logs')
+            .select('id, created_at, event_type')
+            .eq('student_id', student.studentDbId!)
+            .eq('driver_id', user.id)
+            .eq('event_type', 'pickup')
+            .gte('created_at', startOfDay.toIso8601String())
+            .lt('created_at', endOfDay.toIso8601String());
+
+        print('Found ${existingRecords.length} pickup records to delete: $existingRecords');
+
+        if (existingRecords.isNotEmpty) {
+          final recordIds = existingRecords.map((record) => record['id']).toList();
+          
+          print('Attempting to delete pickup records with IDs: $recordIds');
+          
+          final deleteResponse = await Supabase.instance.client
+              .from('pickup_dropoff_logs')
+              .delete()
+              .inFilter('id', recordIds);
+
+          print('Delete response: $deleteResponse');
+          
+          // Verify deletion
+          final verificationRecords = await Supabase.instance.client
+              .from('pickup_dropoff_logs')
+              .select('id')
+              .inFilter('id', recordIds);
+              
+          if (verificationRecords.isEmpty) {
+            print('✓ Successfully deleted ${recordIds.length} pickup records for student ${student.studentDbId}');
+          } else {
+            print('⚠️ Delete command executed but ${verificationRecords.length} pickup records still exist');
+            throw 'Pickup records still exist after delete operation - possible RLS policy issue';
+          }
+        }
+      } catch (dbError) {
+        print('Error deleting pickup record: $dbError');
+        _showConfirmationDialog('Database Error: $dbError', Colors.red);
+        return;
+      }
+
+      // Delete notifications for both parents and driver
+      try {
+        final today = DateTime.now();
+        final startOfDay = DateTime(today.year, today.month, today.day);
+        final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
+
+        // Delete parent notifications related to this pickup
+        await Supabase.instance.client
+            .from('notifications')
+            .delete()
+            .eq('student_id', student.studentDbId!)
+            .inFilter('type', ['pickup_notification', 'verification_request'])
+            .gte('created_at', startOfDay.toIso8601String())
+            .lt('created_at', endOfDay.toIso8601String());
+
+        // Delete driver notifications
+        await Supabase.instance.client
+            .from('notifications')
+            .delete()
+            .eq('recipient_id', user.id)
+            .eq('student_id', student.studentDbId!)
+            .inFilter('type', ['pickup_completed', 'pickup_notification'])
+            .gte('created_at', startOfDay.toIso8601String())
+            .lt('created_at', endOfDay.toIso8601String());
+
+        print('Deleted pickup-related notifications for student ${student.studentDbId}');
+      } catch (notificationError) {
+        print('Error deleting notifications: $notificationError');
+        // Continue even if notification deletion fails
+      }
+
+
+
+      // Log accidental pickup cancellation (HIGH PRIORITY - Transportation Safety & Compliance)
+      try {
+        await _driverAuditService.logPickupCancellation(
+          studentId: student.studentDbId!.toString(),
+          studentName: student.name,
+          reason: 'Accidental pickup - driver error',
+          driverId: user.id,
+          driverName: user.userMetadata?['fname'] ?? 'Driver',
+          notes: 'Driver accidentally marked wrong student - pickup record and notifications deleted',
+        );
+      } catch (auditError) {
+        print('Error logging accidental pickup cancellation: $auditError');
+      }
+
+      _showConfirmationDialog(
+        '✓ ${student.name} pickup cancelled - Record and notifications removed',
+        Colors.blue,
+      );
     } catch (e) {
       _showConfirmationDialog('Error: $e', Colors.red);
     } finally {
@@ -1669,6 +2556,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
   }) {
     final isPickedUp = _isStudentPickedUp(student);
     final isDroppedOff = _isStudentDroppedOff(student);
+    final isPickupSkipped = _isStudentPickupSkipped(student);
     final pickedUpStudent = pickedUpStudents.firstWhere(
       (s) => s.id == student.id,
       orElse: () => student,
@@ -1686,6 +2574,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       statusColor = widget.primaryColor;
       statusIcon = Icons.directions_car;
       statusText = 'Picked Up';
+    } else if (isPickupSkipped) {
+      statusColor = Colors.orange;
+      statusIcon = Icons.event_busy;
+      statusText = 'Skipped';
     } else {
       statusColor = Colors.grey;
       statusIcon = Icons.person;
@@ -1741,14 +2633,17 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                     CircleAvatar(
                       backgroundColor: statusColor.withOpacity(0.1),
                       radius: 24,
-                      child: Text(
-                        student.name.split(' ').map((n) => n[0]).take(2).join(),
-                        style: TextStyle(
-                          color: statusColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
+                      backgroundImage: _getStudentProfileImage(studentData),
+                      child: _getStudentProfileImage(studentData) == null
+                          ? Text(
+                              student.name.split(' ').map((n) => n[0]).take(2).join(),
+                              style: TextStyle(
+                                color: statusColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            )
+                          : null,
                     ),
                     const SizedBox(width: 12),
 
@@ -2019,41 +2914,105 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                         ),
                       ),
                     ] else ...[
-                      // Morning Pickup Button
+                      // Morning Pickup Buttons
                       if (isMorningPickup) ...[
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed:
-                                !isDroppedOff
-                                    ? (isPickedUp
-                                        ? () => _showPickupCancellationConfirmation(student)
-                                        : () => _showPickupConfirmation(student))
-                                    : null,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  isPickedUp
-                                      ? Colors.orange.withOpacity(0.8)
-                                      : widget.primaryColor,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                        if (!isPickedUp && !isDroppedOff && !isPickupSkipped) ...[
+                          // Skip Pickup with Reason button (before pickup)
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _showSkipPickupConfirmation(student),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.orange,
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                side: BorderSide(color: Colors.orange.withOpacity(0.4), width: 1.5),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
-                              elevation: 2,
-                            ),
-                            icon: Icon(
-                              isPickedUp ? Icons.cancel : Icons.directions_car,
-                              size: 18,
-                            ),
-                            label: Text(
-                              isPickedUp ? 'Cancel Pickup' : 'Mark as Picked Up',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
+                              icon: Icon(Icons.event_busy, size: 16),
+                              label: Text(
+                                'Skip Pickup',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          // Mark as Picked Up button
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _showPickupConfirmation(student),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: widget.primaryColor,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 2,
+                              ),
+                              icon: Icon(Icons.directions_car, size: 18),
+                              label: Text(
+                                'Mark as Picked Up',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ] else if (isPickedUp && !isDroppedOff) ...[
+                          // Only Cancel Pickup (accidental) button after pickup
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _showAccidentalPickupCancellation(student),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 2,
+                              ),
+                              icon: Icon(Icons.undo, size: 16),
+                              label: Text(
+                                'Cancel Pickup',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ] else if (isPickupSkipped) ...[
+                          // Cancel Skip button for skipped pickup
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _showCancelSkipConfirmation(student),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 2,
+                              ),
+                              icon: Icon(Icons.undo, size: 16),
+                              label: Text(
+                                'Cancel Skip',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
 
                       // Afternoon Dropoff Button
@@ -2302,167 +3261,123 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       context: context,
       barrierDismissible: true,
       builder: (BuildContext context) {
-        return Center(
-          child: AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-            scrollable: true,
-            title: Row(
-              children: [
-                Icon(Icons.person, color: widget.primaryColor, size: 24),
-                const SizedBox(width: 8),
-                const Text(
-                  'Student Information',
-                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: FutureBuilder<Map<String, dynamic>>(
-                future: _getStudentDetails(student),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final studentDetails = snapshot.data ?? {};
-                  final parents =
-                      studentDetails['parents'] as List<dynamic>? ?? [];
-
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildInfoRow('Name', student.name),
-                      _buildInfoRow('Grade', student.grade),
-                      _buildInfoRow('Student ID', student.id),
-                      if (student.sectionName != null)
-                        _buildInfoRow('Section', student.sectionName!),
-
-                      // Contact Information Section
-                      if (parents.isNotEmpty) ...[
-                        const Divider(),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.contact_phone,
-                              color: widget.primaryColor,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Parent/Guardian Information',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                                color: widget.primaryColor,
-                              ),
-                            ),
-                          ],
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundColor: widget.primaryColor.withOpacity(0.9),
+                          backgroundImage: _getStudentProfileImage(null),
+                          child: _getStudentProfileImage(null) == null
+                              ? Text(
+                                  student.name.split(' ').map((n) => n[0]).take(2).join(),
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                )
+                              : null,
                         ),
-                        const SizedBox(height: 8),
-                        ...parents
-                            .map(
-                              (parent) => Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildInfoRow(
-                                    'Name',
-                                    '${parent['fname']} ${parent['lname']}',
-                                  ),
-                                  _buildInfoRow(
-                                    'Phone',
-                                    parent['phone'] ?? 'N/A',
-                                  ),
-                                  _buildInfoRow(
-                                    'Email',
-                                    parent['email'] ?? 'N/A',
-                                  ),
-                                  if (parents.length > 1)
-                                    const SizedBox(height: 8),
-                                ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                student.name,
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                               ),
-                            )
-                            .toList(),
-                      ],
-
-                      if (_isStudentPickedUp(student)) ...[
-                        const Divider(),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.directions_car,
-                              color: widget.primaryColor,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Pickup Details',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: widget.primaryColor,
+                              const SizedBox(height: 4),
+                              Text(
+                                '${student.grade}${student.sectionName != null ? ' • ${student.sectionName}' : ''}',
+                                style: TextStyle(color: Colors.grey[700]),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _buildInfoRow(
-                          'Pickup Time',
-                          DateFormat('h:mm a').format(
-                            pickedUpStudents
-                                .firstWhere((s) => s.id == student.id)
-                                .pickupTime!,
+                            ],
                           ),
                         ),
-                        _buildInfoRow(
-                          'Driver',
-                          Supabase
-                                  .instance
-                                  .client
-                                  .auth
-                                  .currentUser
-                                  ?.userMetadata?['fname'] ??
-                              'Driver',
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: Icon(Icons.close, color: Colors.grey[600]),
                         ),
                       ],
-                      if (_isStudentDroppedOff(student)) ...[
-                        const Divider(),
-                        Row(
+                    ),
+                    const SizedBox(height: 12),
+                    FutureBuilder<Map<String, dynamic>>(
+                      future: _getStudentDetails(student),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: CircularProgressIndicator(),
+                          ));
+                        }
+
+                        final studentDetails = snapshot.data ?? {};
+                        final parents = studentDetails['parents'] as List<dynamic>? ?? [];
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.home, color: Colors.green, size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Dropoff Details',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
+                            _buildInfoRow('Student ID', student.id),
+                            _buildInfoRow('Grade', student.grade),
+                            if (student.sectionName != null) _buildInfoRow('Section', student.sectionName!),
+                            const SizedBox(height: 8),
+                            if (parents.isNotEmpty) ...[
+                              const Divider(),
+                              const SizedBox(height: 8),
+                              Text('Parent / Guardian', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: widget.primaryColor)),
+                              const SizedBox(height: 8),
+                              ...parents.map((parent) => Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildInfoRow('Name', '${parent['fname']} ${parent['lname']}'),
+                                  _buildInfoRow('Phone', parent['phone'] ?? 'N/A'),
+                                  _buildInfoRow('Email', parent['email'] ?? 'N/A'),
+                                  const SizedBox(height: 8),
+                                ],
+                              )).toList(),
+                            ],
+                            if (_isStudentPickedUp(student) || _isStudentDroppedOff(student)) ...[
+                              const Divider(),
+                              const SizedBox(height: 8),
+                            ],
+                            if (_isStudentPickedUp(student)) _buildInfoRow('Pickup Time', DateFormat('h:mm a').format(pickedUpStudents.firstWhere((s) => s.id == student.id).pickupTime!)),
+                            if (_isStudentPickedUp(student)) _buildInfoRow('Driver', Supabase.instance.client.auth.currentUser?.userMetadata?['fname'] ?? 'Driver'),
+                            if (_isStudentDroppedOff(student)) _buildInfoRow('Dropoff Time', DateFormat('h:mm a').format(DateTime.now())),
+                            if (_isStudentDroppedOff(student)) _buildInfoRow('Status', 'Completed'),
+                            const SizedBox(height: 14),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () => Navigator.of(context).pop(),
+                                    child: const Text('Close', style: TextStyle(fontWeight: FontWeight.w600)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: widget.primaryColor,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 8),
-                        _buildInfoRow(
-                          'Dropoff Time',
-                          DateFormat('h:mm a').format(DateTime.now()),
-                        ),
-                        _buildInfoRow('Status', 'Completed'),
-                      ],
-                    ],
-                  );
-                },
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Close', style: TextStyle(fontSize: 16)),
-              ),
-            ],
           ),
         );
       },
@@ -2528,5 +3443,16 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
         ],
       ),
     );
+  }
+
+  // Helper method to get student profile image
+  NetworkImage? _getStudentProfileImage(Map<String, dynamic>? studentData) {
+    if (studentData == null) return null;
+    final student = studentData['students'];
+    final profileImageUrl = student?['profile_image_url'];
+    if (profileImageUrl != null && profileImageUrl.toString().isNotEmpty) {
+      return NetworkImage(profileImageUrl.toString());
+    }
+    return null;
   }
 }
