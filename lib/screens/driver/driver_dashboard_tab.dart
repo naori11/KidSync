@@ -267,8 +267,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
           const SizedBox.shrink(),
           SizedBox(height: widget.isMobile ? 10 : 14),
 
-          // 4. Assigned Students Card - REFERENCE INFORMATION
-          _buildAssignedStudentsCard(widget.primaryColor, widget.isMobile),
+          // Assigned Students section removed per request
         ],
       ),
     );
@@ -426,6 +425,10 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
           final time = task['pickup_time'] ?? task['dropoff_time'] ?? 'N/A';
           final address = task['pickup_address'] ?? student['address'] ?? 'N/A';
 
+          final profileImage = (student != null && student['profile_image_url'] != null && student['profile_image_url'].toString().isNotEmpty)
+              ? NetworkImage(student['profile_image_url'].toString())
+              : null;
+
           return Container(
             margin: EdgeInsets.only(bottom: 8),
             padding: EdgeInsets.all(isMobile ? 10 : 12),
@@ -439,11 +442,14 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
                 CircleAvatar(
                   backgroundColor: primaryColor.withOpacity(0.1),
                   radius: isMobile ? 16 : 20,
-                  child: Icon(
-                    Icons.person,
-                    color: primaryColor,
-                    size: isMobile ? 16 : 20,
-                  ),
+                  backgroundImage: profileImage,
+                  child: profileImage == null
+                      ? Icon(
+                          Icons.person,
+                          color: primaryColor,
+                          size: isMobile ? 16 : 20,
+                        )
+                      : null,
                 ),
                 SizedBox(width: 12),
                 Expanded(
@@ -809,181 +815,6 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
     );
   }
 
-  Widget _buildAssignedStudentsCard(Color primaryColor, bool isMobile) {
-    const Color white = Color(0xFFFFFFFF);
-    const Color black = Color(0xFF000000);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
+  
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      child: Card(
-        color: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 8,
-        shadowColor: Colors.black.withOpacity(0.15),
-        child: Container(
-          decoration: BoxDecoration(
-            color: white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: primaryColor.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: EdgeInsets.all(isMobile ? 12 : 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: greenWithOpacity,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        Icons.group,
-                        color: primaryColor,
-                        size: isMobile ? 16 : 18,
-                      ),
-                    ),
-                    SizedBox(width: isMobile ? 8 : 12),
-                    Text(
-                      'Assigned Students',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: isMobile ? 15 : 16,
-                        color: black,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: isMobile ? 12 : 16),
-                if (assignedStudents.isEmpty)
-                  Container(
-                    padding: EdgeInsets.all(isMobile ? 12 : 16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          color: Colors.grey[600],
-                          size: isMobile ? 16 : 18,
-                        ),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'No students assigned yet.',
-                            style: TextStyle(
-                              fontSize: isMobile ? 13 : 15,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  ...assignedStudents.take(5).map((assignment) {
-                    final student = assignment.student;
-                    if (student == null) return SizedBox.shrink();
-
-                    final studentName = '${student.fname} ${student.lname}';
-                    final gradeLevel = student.gradeLevel ?? 'N/A';
-                    final sectionName = student.section?.name ?? 'N/A';
-                    final pickupTime = assignment.pickupTime ?? 'N/A';
-
-                    return Container(
-                      margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
-                      padding: EdgeInsets.all(isMobile ? 10 : 12),
-                      decoration: BoxDecoration(
-                        color: primaryColor.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: primaryColor.withOpacity(0.2),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: greenWithOpacity,
-                            radius: isMobile ? 16 : 20,
-                            backgroundImage:
-                                student.profileImageUrl != null &&
-                                        student.profileImageUrl!.isNotEmpty
-                                    ? NetworkImage(student.profileImageUrl!)
-                                    : null,
-                            child:
-                                student.profileImageUrl == null ||
-                                        student.profileImageUrl!.isEmpty
-                                    ? Icon(
-                                      Icons.person,
-                                      color: primaryColor,
-                                      size: isMobile ? 16 : 20,
-                                    )
-                                    : null,
-                          ),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  studentName,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: isMobile ? 14 : 16,
-                                    color: black,
-                                  ),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  'Grade: $gradeLevel • Section: $sectionName',
-                                  style: TextStyle(
-                                    fontSize: isMobile ? 12 : 14,
-                                    color: black.withOpacity(0.7),
-                                  ),
-                                ),
-                                Text(
-                                  'Pickup Time: $pickupTime',
-                                  style: TextStyle(
-                                    fontSize: isMobile ? 12 : 14,
-                                    color: black.withOpacity(0.7),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                if (assignedStudents.length > 5)
-                  Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: Text(
-                      '... and ${assignedStudents.length - 5} more students',
-                      style: TextStyle(
-                        fontSize: isMobile ? 12 : 14,
-                        color: black.withOpacity(0.6),
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }

@@ -204,6 +204,25 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
     }
   }
 
+  /// Get driver profile image URL
+  Future<String?> _getDriverProfileImage() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return null;
+      
+      final response = await Supabase.instance.client
+          .from('users')
+          .select('profile_image_url')
+          .eq('id', user.id)
+          .maybeSingle();
+      
+      return response?['profile_image_url'];
+    } catch (e) {
+      print('Error getting driver profile image: $e');
+      return null;
+    }
+  }
+
   void _setupAuthListener() {
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen(
       (AuthState data) {
@@ -436,14 +455,25 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
                     const SizedBox(width: 16),
                     GestureDetector(
                       onTap: _toggleProfile,
-                      child: const CircleAvatar(
-                        backgroundColor: Color.fromRGBO(25, 174, 97, 0.171),
-                        radius: 16,
-                        child: Icon(
-                          Icons.person,
-                          color: Color(0xFF19AE61),
-                          size: 18,
-                        ),
+                      child: FutureBuilder<String?>(
+                        future: _getDriverProfileImage(),
+                        builder: (context, snapshot) {
+                          final profileImageUrl = snapshot.data;
+                          return CircleAvatar(
+                            backgroundColor: Color.fromRGBO(25, 174, 97, 0.171),
+                            radius: 16,
+                            backgroundImage: profileImageUrl != null && profileImageUrl.isNotEmpty
+                                ? NetworkImage(profileImageUrl)
+                                : null,
+                            child: profileImageUrl == null || profileImageUrl.isEmpty
+                                ? Icon(
+                                    Icons.person,
+                                    color: Color(0xFF19AE61),
+                                    size: 18,
+                                  )
+                                : null,
+                          );
+                        },
                       ),
                     ),
                   ],

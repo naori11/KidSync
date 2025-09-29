@@ -1,7 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../models/driver_models.dart';
-import '../utils/time_utils.dart';
 import 'notification_service.dart';
 import 'verification_service.dart';
 
@@ -161,6 +160,7 @@ class DriverService {
               lname,
               grade_level,
               address,
+              profile_image_url,
               sections(name, grade_level)
             )
           ''')

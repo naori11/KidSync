@@ -406,14 +406,17 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
               CircleAvatar(
                 backgroundColor: color.withOpacity(0.1),
                 radius: 24,
-                child: Text(
-                  '${student['fname'][0]}${student['lname'][0]}',
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
+                backgroundImage: _getStudentProfileImage(student),
+                child: _getStudentProfileImage(student) == null
+                    ? Text(
+                        '${student['fname'][0]}${student['lname'][0]}',
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      )
+                    : null,
               ),
               const SizedBox(width: 12),
 
@@ -716,14 +719,17 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
               CircleAvatar(
                 backgroundColor: widget.primaryColor.withOpacity(0.1),
                 radius: 24,
-                child: Text(
-                  '${student['fname'][0]}${student['lname'][0]}',
-                  style: TextStyle(
-                    color: widget.primaryColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
+                backgroundImage: _getStudentProfileImage(student),
+                child: _getStudentProfileImage(student) == null
+                    ? Text(
+                        '${student['fname'][0]}${student['lname'][0]}',
+                        style: TextStyle(
+                          color: widget.primaryColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      )
+                    : null,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -956,5 +962,14 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
         ],
       ),
     );
+  }
+
+  // Helper method to get student profile image
+  NetworkImage? _getStudentProfileImage(Map<String, dynamic> student) {
+    final profileImageUrl = student['profile_image_url'];
+    if (profileImageUrl != null && profileImageUrl.toString().isNotEmpty) {
+      return NetworkImage(profileImageUrl.toString());
+    }
+    return null;
   }
 }

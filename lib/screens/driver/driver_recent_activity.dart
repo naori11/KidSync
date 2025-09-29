@@ -360,6 +360,15 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
     );
   }
 
+  // Helper method to get student profile image
+  NetworkImage? _getStudentProfileImage(Map<String, dynamic> student) {
+    final profileImageUrl = student['profile_image_url'];
+    if (profileImageUrl != null && profileImageUrl.toString().isNotEmpty) {
+      return NetworkImage(profileImageUrl.toString());
+    }
+    return null;
+  }
+
   String _getEmptyMessage() {
     switch (_selectedFilter) {
       case 'pickup':
@@ -471,7 +480,10 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
                   CircleAvatar(
                     radius: 18,
                     backgroundColor: eventColor.withOpacity(0.1),
-                    child: Icon(eventIcon, color: eventColor, size: 18),
+                    backgroundImage: _getStudentProfileImage(student),
+                    child: _getStudentProfileImage(student) == null
+                        ? Icon(eventIcon, color: eventColor, size: 18)
+                        : null,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
