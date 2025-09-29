@@ -2318,7 +2318,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               'Morning Pickup',
               morningPickupStudents.length,
               Colors.blue,
-              Icons.upload,
+              Icons.arrow_upward,
             ),
             const SizedBox(height: 16),
             ...morningPickupStudents.map(
@@ -2339,7 +2339,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               'Afternoon Dropoff',
               afternoonDropoffStudents.length,
               Colors.green,
-              Icons.download,
+              Icons.arrow_downward,
             ),
             const SizedBox(height: 16),
             ...afternoonDropoffStudents.map(
