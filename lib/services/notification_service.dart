@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'push_notification_service.dart';
 
 class NotificationService {
   final supabase = Supabase.instance.client;
+  final PushNotificationService _pushService = PushNotificationService();
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
@@ -499,10 +501,10 @@ class NotificationService {
       });
       
       if (result == true) {
-        print('DEBUG: RFID notification sent successfully via RPC for student $studentId, action: $action');
+
         return true;
       } else {
-        print('DEBUG: RPC function returned false for RFID notification');
+
         return false;
       }
     } catch (rpcError) {
@@ -542,7 +544,7 @@ class NotificationService {
           message = '$studentName has left school and tapped out.';
           notificationType = 'rfid_exit';
         } else {
-          print('DEBUG: Invalid action type: $action');
+
           return false;
         }
 
@@ -571,7 +573,26 @@ class NotificationService {
         if (notifications.isNotEmpty) {
           try {
             await supabase.from('notifications').insert(notifications);
-            print('DEBUG: RFID notification sent successfully via direct insert for student $studentId, action: $action');
+
+            
+            // Send push notifications to each parent
+            for (final parentData in parentStudentResponse) {
+              final userId = parentData['parents']['user_id'];
+              if (userId != null) {
+                await _sendPushNotification(
+                  recipientId: userId,
+                  title: title,
+                  message: message,
+                  type: notificationType,
+                  studentId: studentId,
+                  extraData: {
+                    'guard_name': guardName ?? '',
+                    'action': action,
+                  },
+                );
+              }
+            }
+            
             return true;
           } catch (insertError) {
             print('Error inserting RFID notifications: $insertError');
@@ -597,7 +618,7 @@ class NotificationService {
     String? fetcherType, // 'authorized' or 'temporary'
   }) async {
     try {
-      print('DEBUG: Attempting to send pickup denial notification for student $studentId');
+
       
       // Try using the RPC function first (better for RLS)
       try {
@@ -611,17 +632,17 @@ class NotificationService {
         });
         
         if (result == true) {
-          print('DEBUG: Pickup denial notification sent successfully via RPC for student $studentId');
+
           return true;
         } else {
-          print('DEBUG: RPC function returned false for pickup denial notification');
+
         }
       } catch (rpcError) {
-        print('DEBUG: RPC function call failed: $rpcError');
+
       }
       
       // Fallback to direct insert if RPC fails or returns false
-      print('DEBUG: Falling back to direct insert for pickup denial notification');
+
       
       try {
         // Get all parents for this student
@@ -693,6 +714,27 @@ class NotificationService {
             final insertResult = await supabase.from('notifications').insert(notifications);
             print('DEBUG: Pickup denial notification sent successfully via direct insert for student $studentId');
             print('DEBUG: Insert result: $insertResult');
+            
+            // Send push notifications to each parent
+            for (final parentData in parentStudentResponse) {
+              final userId = parentData['parents']['user_id'];
+              if (userId != null) {
+                await _sendPushNotification(
+                  recipientId: userId,
+                  title: title,
+                  message: message,
+                  type: 'pickup_denied',
+                  studentId: studentId,
+                  extraData: {
+                    'guard_name': guardName ?? '',
+                    'fetcher_name': fetcherName ?? '',
+                    'fetcher_type': fetcherType ?? '',
+                    'deny_reason': denyReason,
+                  },
+                );
+              }
+            }
+            
             return true;
           } catch (insertError) {
             print('Error inserting pickup denial notifications: $insertError');
@@ -997,6 +1039,16 @@ class NotificationService {
         print('✅ Pickup approval notification inserted successfully via direct insert');
         print('DEBUG: Pickup ${isApproved ? 'approval' : 'denial'} notification sent to driver $driverId for student $studentName');
         
+        // Send push notification
+        await _sendPushNotification(
+          recipientId: driverId,
+          title: title,
+          message: message,
+          type: notificationType,
+          studentId: studentId,
+          extraData: {'parent_name': parentName},
+        );
+        
         return true;
       } catch (insertError) {
         print('⚠️  Direct insert failed (likely RLS issue): $insertError');
@@ -1015,6 +1067,17 @@ class NotificationService {
           if (rpcResult == true) {
             print('✅ Pickup approval notification sent successfully via RPC function');
             print('DEBUG: RPC fallback successful for driver $driverId');
+            
+            // Send push notification
+            await _sendPushNotification(
+              recipientId: driverId,
+              title: title,
+              message: message,
+              type: notificationType,
+              studentId: studentId,
+              extraData: {'parent_name': parentName},
+            );
+            
             return true;
           } else {
             print('❌ RPC function returned false');
@@ -1085,6 +1148,16 @@ class NotificationService {
         print('✅ Dropoff approval notification inserted successfully via direct insert');
         print('DEBUG: Dropoff ${isApproved ? 'approval' : 'denial'} notification sent to driver $driverId for student $studentName');
         
+        // Send push notification
+        await _sendPushNotification(
+          recipientId: driverId,
+          title: title,
+          message: message,
+          type: notificationType,
+          studentId: studentId,
+          extraData: {'parent_name': parentName},
+        );
+        
         return true;
       } catch (insertError) {
         print('⚠️  Direct insert failed (likely RLS issue): $insertError');
@@ -1135,13 +1208,24 @@ class NotificationService {
 
       await supabase.from('notifications').insert({
         'recipient_id': driverId,
+        'recipient_type': 'user',
         'title': title,
         'message': message,
         'type': notificationType,
         'student_id': studentId,
         'is_read': false,
+        'extra_data': {},
         'created_at': DateTime.now().toIso8601String(),
       });
+
+      // Send push notification
+      await _sendPushNotification(
+        recipientId: driverId,
+        title: title,
+        message: message,
+        type: notificationType,
+        extraData: {'student_id': studentId.toString()},
+      );
 
       print('DEBUG: Verification request notification sent to driver $driverId for student $studentName');
       return true;
@@ -1169,18 +1253,183 @@ class NotificationService {
 
       await supabase.from('notifications').insert({
         'recipient_id': driverId,
+        'recipient_type': 'user',
         'title': title,
         'message': message,
         'type': notificationType,
         'student_id': null, // Multiple students involved
         'is_read': false,
+        'extra_data': {},
         'created_at': DateTime.now().toIso8601String(),
       });
+
+      // Send push notification
+      await _sendPushNotification(
+        recipientId: driverId,
+        title: title,
+        message: message,
+        type: notificationType,
+        extraData: {
+          'student_names': studentNames.join(', '),
+          'route_type': routeType,
+          if (routeNotes != null) 'notes': routeNotes,
+        },
+      );
 
       print('DEBUG: Route assignment notification sent to driver $driverId');
       return true;
     } catch (e) {
       print('Error sending route assignment notification to driver: $e');
+      return false;
+    }
+  }
+
+  /// Send push notification after database notification is created
+  Future<void> _sendPushNotification({
+    required String recipientId,
+    required String title,
+    required String message,
+    required String type,
+    int? studentId,
+    Map<String, dynamic>? extraData,
+  }) async {
+    try {
+
+      
+      // Get FCM token for the recipient
+      final tokenResponse = await supabase
+          .from('user_fcm_tokens')
+          .select('fcm_token, platform')
+          .eq('user_id', recipientId)
+          .maybeSingle();
+
+
+
+      if (tokenResponse == null || tokenResponse['fcm_token'] == null) {
+
+        return;
+      }
+
+      final fcmToken = tokenResponse['fcm_token'];
+      final platform = tokenResponse['platform'];
+
+      // Prepare push notification payload
+      final payload = {
+        'to': fcmToken,
+        'notification': {
+          'title': title,
+          'body': message,
+          'sound': 'default',
+          if (platform == 'ios') 'badge': 1,
+        },
+        'data': {
+          'type': type,
+          'student_id': studentId?.toString() ?? '',
+          'recipient_id': recipientId,
+          'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+          ...?extraData,
+        },
+        if (platform == 'android') 'android': {
+          'notification': {
+            'channel_id': _getChannelId(type),
+            'color': '#19AE61', // KidSync primary green
+            'priority': 'high',
+            'visibility': 'public',
+          },
+        },
+      };
+
+      // Send via Firebase Cloud Functions or your backend FCM service
+      // This would typically call your backend API that has FCM server key
+      await _sendFCMMessage(payload);
+
+
+    } catch (e) {
+
+    }
+  }
+
+  /// Send FCM message via backend API
+  Future<void> _sendFCMMessage(Map<String, dynamic> payload) async {
+    try {
+
+      
+      await supabase.functions.invoke(
+        'send-push-notification',
+        body: payload,
+      );
+      
+
+    } catch (e) {
+
+      rethrow;
+    }
+  }
+
+  /// Get notification channel ID for FCM
+  String _getChannelId(String type) {
+    switch (type) {
+      case 'pickup':
+      case 'pickup_approved':
+      case 'pickup_denied':
+      case 'pickup_verification':
+        return 'pickup_channel';
+      case 'dropoff':
+      case 'dropoff_approved':
+      case 'dropoff_denied':
+      case 'dropoff_verification':
+        return 'dropoff_channel';
+      case 'attendance':
+      case 'rfid_entry':
+      case 'rfid_exit':
+        return 'attendance_channel';
+      case 'emergency':
+      case 'emergency_exit':
+        return 'emergency_channel';
+      default:
+        return 'general_channel';
+    }
+  }
+
+  /// Initialize push notifications for current user
+  Future<void> initializePushNotifications() async {
+    await _pushService.initialize();
+  }
+
+  /// Send a custom notification for testing purposes
+  Future<bool> sendCustomNotification({
+    required String recipientId,
+    required String title,
+    required String message,
+    required String type,
+    Map<String, dynamic>? extraData,
+  }) async {
+    try {
+      // Insert notification into database
+      await supabase.from('notifications').insert({
+        'recipient_id': recipientId,
+        'recipient_type': 'user',
+        'title': title,
+        'message': message,
+        'type': type,
+        'is_read': false,
+        'extra_data': extraData ?? {},
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      // Send push notification
+      await _sendPushNotification(
+        recipientId: recipientId,
+        title: title,
+        message: message,
+        type: type,
+        extraData: extraData,
+      );
+
+      print('✅ Custom notification sent successfully');
+      return true;
+    } catch (e) {
+      print('❌ Error sending custom notification: $e');
       return false;
     }
   }
@@ -1193,6 +1442,7 @@ class NotificationService {
     _pickupStatusController.close();
     _dropoffStatusController.close();
     _notificationController.close();
+    _pushService.dispose();
   }
 
   /// Unsubscribe from current student

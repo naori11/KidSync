@@ -42,20 +42,23 @@ class VerificationService {
           return false;
         }
 
-        // Verify student and driver exist with error handling
-        await supabase
+        // Get student and driver names for notification
+        final studentResponse = await supabase
             .from('students')
             .select('fname, lname')
             .eq('id', studentId)
             .single()
             .timeout(Duration(seconds: 10));
 
-        await supabase
+        final driverResponse = await supabase
             .from('users')
             .select('fname, lname')
             .eq('id', driverId)
             .single()
             .timeout(Duration(seconds: 10));
+
+        final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
+        final driverName = '${driverResponse['fname']} ${driverResponse['lname']}';
 
         // Create verification requests for each parent
         int successCount = 0;
@@ -63,6 +66,7 @@ class VerificationService {
           final parent = parentData['parents'];
           if (parent != null) {
             final parentId = parent['id'];
+            final parentUserId = parent['user_id'];
 
             try {
               // Check if a verification request already exists
@@ -88,6 +92,23 @@ class VerificationService {
                   'status': 'pending',
                   'created_at': TimeUtils.formatForDatabase(TimeUtils.nowPST()),
                 }).timeout(Duration(seconds: 10));
+
+                // Send verification request notification to parent using notification service method
+                if (parentUserId != null) {
+                  try {
+                    await notificationService.sendCustomNotification(
+                      recipientId: parentUserId,
+                      title: 'Verification Required',
+                      message: 'Please verify the $eventType of $studentName by $driverName at ${TimeUtils.formatTimeForDisplay(eventTime)}.',
+                      type: '${eventType}_verification_request',
+                      extraData: {'student_id': studentId.toString()},
+                    );
+                    
+                    print('✅ Verification request notification sent to parent $parentId');
+                  } catch (notificationError) {
+                    print('❌ Error sending notification to parent $parentId: $notificationError');
+                  }
+                }
                 
                 successCount++;
               } else {
@@ -148,6 +169,8 @@ class VerificationService {
   /// This will only confirm the specific verification for the logged-in parent
   Future<bool> confirmVerification(int verificationId, {String? parentNotes}) async {
     try {
+
+      
       // Get verification details before updating
       final verificationResponse = await supabase
           .from('pickup_dropoff_verifications')
@@ -165,6 +188,8 @@ class VerificationService {
           ''')
           .eq('id', verificationId)
           .single();
+
+
 
       // Update only the specific verification record
       await supabase
@@ -192,7 +217,7 @@ class VerificationService {
         final eventType = verificationResponse['event_type'] ?? 'pickup';
         final eventTime = DateTime.parse(verificationResponse['event_time']);
 
-        print('DEBUG: Sending $eventType approval notification');
+
         print('  - Driver ID: ${driver['id']}');
         print('  - Student ID: ${student['id']}');
         print('  - Student Name: $studentName');
@@ -203,6 +228,7 @@ class VerificationService {
         bool notificationSent = false;
         try {
           if (eventType == 'pickup') {
+
             notificationSent = await notificationService.sendPickupApprovalNotification(
               driverId: driver['id'],
               studentId: student['id'],
@@ -213,6 +239,7 @@ class VerificationService {
               notes: parentNotes,
             );
           } else {
+
             notificationSent = await notificationService.sendDropoffApprovalNotification(
               driverId: driver['id'],
               studentId: student['id'],

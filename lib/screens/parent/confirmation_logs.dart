@@ -71,23 +71,29 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
           .eq('status', 'pending')
           .maybeSingle();
 
+      print('🔍 DEBUG: Parent verification - Log ID: ${log.id}, Parent ID: $parentId, Status: $status');
+      print('🔍 DEBUG: Found verification record: ${verificationResponse != null ? verificationResponse['id'] : 'null'}');
+
       if (verificationResponse != null) {
         // Use the verification service to handle confirmation/denial and send driver notifications
         final verificationService = VerificationService();
         bool success;
         
         if (status == 'confirmed') {
+          print('🔍 DEBUG: Calling confirmVerification for ID ${verificationResponse['id']}');
           success = await verificationService.confirmVerification(
             verificationResponse['id'],
             parentNotes: notes,
           );
         } else {
+          print('🔍 DEBUG: Calling denyVerification for ID ${verificationResponse['id']}');
           success = await verificationService.denyVerification(
             verificationResponse['id'],
             parentNotes: notes,
           );
         }
 
+        print('🔍 DEBUG: Verification service returned: $success');
         if (!success) {
           throw Exception('Failed to process verification through service');
         }

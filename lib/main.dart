@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/data/latest.dart' as tz;
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'screens/conditional_screens.dart';
 import 'screens/parent/parent_home.dart';
 import 'screens/driver/driver_panel.dart';
 import 'services/verification_reminder_service.dart';
-import 'utils/time_utils.dart';
+import 'services/push_notification_service.dart';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_strategy/url_strategy.dart';
 import 'utils/html_import.dart' as html;
@@ -56,21 +59,26 @@ class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize Firebase
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('✅ Firebase initialized successfully');
+  } catch (e) {
+    print('❌ Firebase initialization failed: $e');
+    // Continue without Firebase for web-only environments
+  }
+
   // Initialize timezone data for proper PST handling
   tz.initializeTimeZones();
   
-  // Print debug info about current time setup
-  print('=== KIDSYNC TIME INITIALIZATION ===');
-  final timeDebugInfo = TimeUtils.getDebugTimeInfo();
-  timeDebugInfo.forEach((key, value) {
-    print('$key: $value');
-  });
-  print('=====================================');
+
 
   // Capture the initial URL as early as possible in Dart.
   if (kIsWeb) {
     initialUrlFromMain = html.window.location.href;
-    print("main.dart - main(): Captured initial full URL: $initialUrlFromMain");
+
   }
 
   setHashUrlStrategy();
@@ -80,6 +88,15 @@ Future<void> main() async {
     anonKey:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdWl0Z3BxcXVkaHFkY2J1aGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDk5OTUsImV4cCI6MjA2MzIyNTk5NX0.FuWUR1QHFiWzPwZa0HvW0yLhJfHHw0EhBLibA0t0Dsw',
   );
+
+  // Initialize Push Notifications AFTER Supabase (mobile platforms only)
+  if (!kIsWeb) {
+    try {
+      await PushNotificationService().initialize();
+    } catch (e) {
+      // Push notification initialization failed
+    }
+  }
 
   // Start the verification reminder service
   VerificationReminderService().startReminderService();
@@ -104,15 +121,11 @@ class _KidSyncAppState extends State<KidSyncApp> {
   @override
   void initState() {
     super.initState();
-    print(
-      "[DEBUG] _KidSyncAppState initState: Initial URL passed from main: ${widget.initialUrl}",
-    );
+
 
     // For invite flows with double hash pattern, navigate directly to set password screen
     if (kIsWeb && widget.initialUrl.contains('#/set-password#access_token=')) {
-      print(
-        "[DEBUG] Detected double hash pattern in URL - cleaning up routing",
-      );
+
 
       // Just navigate directly to set password screen
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -134,9 +147,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
       final session = data.session;
       final user = session?.user;
 
-      print(
-        "[DEBUG] Auth state changed: $authEvent, User: ${user?.email}, Session: ${session != null}",
-      );
+
 
       // Handle routing based on auth state
       _handleNavigation(session, user, authEvent, widget.initialUrl);
@@ -155,9 +166,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
       return;
     }
 
-    print(
-      "[DEBUG] _checkInitialSessionAfterDelay: Manually checking session as no onAuthStateChange event seemed to complete navigation yet.",
-    );
+
 
     // NEW CODE: Check for password reset code in session storage
     if (kIsWeb &&
@@ -283,6 +292,11 @@ class _KidSyncAppState extends State<KidSyncApp> {
         "[DEBUG] _handleNavigation: Session active (event: $event). Navigating based on role: $role",
       );
 
+      // Initialize push notifications for logged-in user (mobile only)
+      if (!kIsWeb && event == AuthChangeEvent.signedIn) {
+        _initializePushNotificationsForUser(user.id);
+      }
+
       switch (role) {
         case 'Admin':
           if (currentRouteName != '/admin')
@@ -320,6 +334,20 @@ class _KidSyncAppState extends State<KidSyncApp> {
 
       // ALWAYS navigate to login screen if no session, regardless of current screen
       navigator.pushReplacementNamed(LoginScreen.routeName);
+    }
+  }
+
+  // Initialize push notifications for logged-in user
+  Future<void> _initializePushNotificationsForUser(String userId) async {
+    try {
+
+      final pushService = PushNotificationService();
+      
+      // Refresh and store FCM token in database
+      await pushService.refreshFCMToken();
+      print("✅ FCM token stored for user: $userId");
+    } catch (e) {
+      print("❌ Failed to initialize push notifications for user: $e");
     }
   }
 

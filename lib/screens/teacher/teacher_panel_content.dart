@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../widgets/in_app_notification_widget.dart';
+import '../../services/notification_service.dart';
 import 'teacher_dashboard_page.dart';
 import 'class_list_page.dart';
 import 'attendance_taking_page.dart';
@@ -35,6 +37,18 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
       _TeacherNavItem("Dashboard", Icons.dashboard),
       _TeacherNavItem("Class list", Icons.list_alt),
     ];
+    _initializeNotifications();
+  }
+
+  /// Initialize push notifications for teacher
+  Future<void> _initializeNotifications() async {
+    try {
+      final notificationService = NotificationService();
+      await notificationService.initializePushNotifications();
+      print('✅ Notifications initialized for teacher');
+    } catch (e) {
+      print('❌ Error initializing notifications: $e');
+    }
   }
 
   void _showAttendancePage(int sectionId, String sectionName) {
@@ -259,7 +273,10 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return InAppNotificationWidget(
+      userRole: 'teacher',
+      primaryColor: const Color(0xFF19AE61),
+      child: Scaffold(
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -345,6 +362,7 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
           );
         },
       ),
+    ),
     );
   }
 }

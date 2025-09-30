@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/parent_models.dart';
 import '../../services/notification_service.dart';
+import '../../widgets/in_app_notification_widget.dart';
 
 import 'parent_dashboard_tab.dart';
 import 'pickup_dropoff_tab.dart';
@@ -177,6 +178,9 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
 
+    // Initialize notifications
+    _initializeNotifications();
+    
     // Load all data
     _loadUserProfile();
     _loadStudents();
@@ -250,6 +254,17 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     } catch (error) {
       print('Error loading students: $error');
       setState(() => isLoadingStudents = false);
+    }
+  }
+
+  // Add method to initialize notifications
+  Future<void> _initializeNotifications() async {
+    try {
+      final notificationService = NotificationService();
+      await notificationService.initializePushNotifications();
+      print('✅ Notifications initialized for parent');
+    } catch (e) {
+      print('❌ Error initializing notifications: $e');
     }
   }
 
@@ -1109,7 +1124,10 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     final isMobile = MediaQuery.of(context).size.width < 500;
     const Color white = Color(0xFFFFFFFF);
     const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
-    return Scaffold(
+    return InAppNotificationWidget(
+      userRole: 'parent',
+      primaryColor: widget.primaryColor,
+      child: Scaffold(
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: Stack(
         children: [
@@ -1521,6 +1539,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
             ),
         ],
       ),
+    ),
     );
   }
 

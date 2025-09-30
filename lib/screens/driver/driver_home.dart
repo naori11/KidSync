@@ -9,6 +9,8 @@ import 'driver_notifications.dart';
 import 'driver_profile_tab.dart';
 import '../../services/driver_audit_service.dart';
 import '../../services/notification_service.dart';
+import '../../widgets/in_app_notification_widget.dart';
+
 
 class DriverHomeScreen extends StatelessWidget {
   DriverHomeScreen({Key? key}) : super(key: key);
@@ -130,12 +132,16 @@ class DriverHomeScreen extends StatelessWidget {
       _NavItem('Students', Icons.group, 'students'),
       _NavItem('Recent Activity', Icons.update, 'activity'),
     ];
-    return _DriverHomeTabs(
-      navItems: navItems,
+    return InAppNotificationWidget(
+      userRole: 'driver',
       primaryColor: primaryGreen,
-      secondaryText: black.withOpacity(0.7),
-      logout: _logout,
-      showErrorDialog: _showErrorDialog,
+      child: _DriverHomeTabs(
+        navItems: navItems,
+        primaryColor: primaryGreen,
+        secondaryText: black.withOpacity(0.7),
+        logout: _logout,
+        showErrorDialog: _showErrorDialog,
+      ),
     );
   }
 }
@@ -176,6 +182,7 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 0);
+    _initializeNotifications();
     _setupAuthListener();
     _logDashboardAccess();
     _loadNotificationCount();
@@ -185,6 +192,16 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
         _loadNotificationCount();
       }
     });
+  }
+
+  /// Initialize push notifications for driver
+  Future<void> _initializeNotifications() async {
+    try {
+      await _notificationService.initializePushNotifications();
+      print('✅ Notifications initialized for driver');
+    } catch (e) {
+      print('❌ Error initializing notifications: $e');
+    }
   }
 
   /// Load unread notification count for the driver
@@ -587,6 +604,7 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
             ),
         ],
       ),
+
     );
   }
 
