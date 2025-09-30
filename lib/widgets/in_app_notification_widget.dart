@@ -38,6 +38,10 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
   OverlayEntry? _overlayEntry;
   Timer? _autoHideTimer;
   
+  // This field is updated by notification listeners but intentionally not
+  // displayed by this widget (we removed the global badge). Keep the field
+  // for other logic and to allow listeners to update it.
+  // ignore: unused_field
   int _unreadCount = 0;
 
   @override
@@ -466,27 +470,9 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
     return Stack(
       children: [
         widget.child,
-        // Show badge indicator in top-right corner
-        if (_unreadCount > 0)
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 10,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                _unreadCount > 99 ? '99+' : _unreadCount.toString(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
+        // Intentionally removed the global top-right unread badge so it
+        // doesn't overlap the user avatar. Individual screens can still
+        // render their own notification indicators next to the bell icon.
       ],
     );
   }
