@@ -118,19 +118,39 @@ class _KidSyncAppState extends State<KidSyncApp> {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _initialAuthCheckCompleted = false;
 
+  bool _resetCodeValid() {
+    if (!kIsWeb) return false;
+    try {
+      final ts = html.window.sessionStorage['kidsync_reset_ts'];
+      if (ts == null) return false;
+      final millis = int.tryParse(ts);
+      if (millis == null) return false;
+      final dt = DateTime.fromMillisecondsSinceEpoch(millis);
+      // treat older than 10 minutes as stale
+      return DateTime.now().difference(dt).inMinutes < 10;
+    } catch (e) {
+      return false;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    
 
 
     // For invite flows with double hash pattern, navigate directly to set password screen
-    if (kIsWeb && widget.initialUrl.contains('#/set-password#access_token=')) {
+  if (kIsWeb && widget.initialUrl.contains('#/set-password#access_token=') && _resetCodeValid()) {
 
 
       // Just navigate directly to set password screen
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           final navigator = _navigatorKey.currentState;
+          try {
+            // mark reset navigation as in-progress to avoid repeated pushes
+            if (kIsWeb) html.window.sessionStorage['kidsync_reset_in_progress'] = '1';
+          } catch (_) {}
           if (navigator != null) {
             navigator.pushReplacementNamed(SetPasswordScreen.routeName);
             return; // Skip the rest of the initialization
@@ -169,11 +189,22 @@ class _KidSyncAppState extends State<KidSyncApp> {
 
 
     // NEW CODE: Check for password reset code in session storage
-    if (kIsWeb &&
-        html.window.sessionStorage.containsKey('kidsync_reset_code')) {
+  if (kIsWeb &&
+    html.window.sessionStorage.containsKey('kidsync_reset_code') && _resetCodeValid()) {
+      // If a prior navigation to the reset screen is already in progress, don't navigate again
+      if (kIsWeb && html.window.sessionStorage.containsKey('kidsync_reset_in_progress')) {
+        print(
+          "[DEBUG] _checkInitialSessionAfterDelay: reset in progress flag set, skipping navigation",
+        );
+        _initialAuthCheckCompleted = true;
+        return;
+      }
       print(
         "[DEBUG] _checkInitialSessionAfterDelay: Found reset code in session storage, navigating to SetPasswordScreen",
       );
+      try {
+        html.window.sessionStorage['kidsync_reset_in_progress'] = '1';
+      } catch (_) {}
       final navigator = _navigatorKey.currentState;
       if (navigator != null) {
         navigator.pushReplacementNamed(SetPasswordScreen.routeName);
@@ -253,11 +284,19 @@ class _KidSyncAppState extends State<KidSyncApp> {
     );
 
     // NEW CODE: Check for reset code in session storage
-    if (kIsWeb &&
-        html.window.sessionStorage.containsKey('kidsync_reset_code')) {
+  if (kIsWeb &&
+    html.window.sessionStorage.containsKey('kidsync_reset_code') && _resetCodeValid()) {
       print(
         "[DEBUG] _handleNavigation: Found reset code in session storage, navigating to SetPasswordScreen",
       );
+      // Avoid repeatedly navigating if another navigation is already in progress
+      if (kIsWeb && html.window.sessionStorage.containsKey('kidsync_reset_in_progress')) {
+        print("[DEBUG] _handleNavigation: reset in-progress flag set, skipping navigation");
+        return;
+      }
+      try {
+        html.window.sessionStorage['kidsync_reset_in_progress'] = '1';
+      } catch (_) {}
       if (currentRouteName != SetPasswordScreen.routeName) {
         navigator.pushReplacementNamed(SetPasswordScreen.routeName);
       }

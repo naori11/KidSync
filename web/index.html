@@ -24,8 +24,11 @@
             if (email.indexOf('&') !== -1) email = email.split('&')[0];
             email = decodeURIComponent(email);
             window.sessionStorage.setItem('kidsync_reset_email', email);
+            // record a timestamp so the app can ignore stale codes
+            try { window.sessionStorage.setItem('kidsync_reset_ts', Date.now().toString()); } catch(e) {}
           }
           window.sessionStorage.setItem('kidsync_reset_code', code);
+          try { window.sessionStorage.setItem('kidsync_reset_ts', Date.now().toString()); } catch(e) {}
           var baseUrl = window.location.href.split('?')[0];
           window.history.replaceState({}, document.title, baseUrl);
         }
