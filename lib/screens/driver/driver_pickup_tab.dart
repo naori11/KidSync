@@ -5,6 +5,8 @@ import '../../models/driver_models.dart';
 import '../../services/driver_service.dart';
 import '../../services/verification_service.dart';
 import '../../services/driver_audit_service.dart';
+import '../../services/sms_gateway_service.dart';
+import 'package:kidsync/services/config.dart';
 import '../../utils/time_utils.dart';
 
 class DriverPickupTab extends StatefulWidget {
@@ -30,6 +32,12 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
   final DriverService _driverService = DriverService();
   final VerificationService _verificationService = VerificationService();
   final DriverAuditService _driverAuditService = DriverAuditService();
+  // NOTE: In production, do not hardcode credentials. Use secure storage.
+  final SmsGatewayService _smsService = SmsGatewayService(
+    username: 'ASTVXO',
+    password: 'm_cfb-t4kqx4wt',
+    supabaseFunctionUrl: SUPABASE_FUNCTIONS_BASE.isNotEmpty ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms' : null,
+  );
   bool _isLoading = true;
   bool _isProcessing = false;
   String? _error;
@@ -1233,6 +1241,58 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             eventTime: pickupTime,
           );
 
+          // Send SMS to parents via SMSGate cloud API (client-side)
+          try {
+            // Fetch parent phone numbers for this student
+            final parentRows = await Supabase.instance.client
+                .from('parent_student')
+                .select('parent_id')
+                .eq('student_id', student.studentDbId!);
+
+            final parentIds = <int>[];
+            for (final r in parentRows) {
+              final pid = r['parent_id'];
+              if (pid != null) parentIds.add(pid as int);
+            }
+            print('driver_pickup_tab: parentIds=$parentIds for student=${student.studentDbId}');
+
+            final phones = <String>[];
+            if (parentIds.isNotEmpty) {
+              final parents = await Supabase.instance.client
+                  .from('parents')
+                  .select('phone')
+                  .filter('id', 'in', '(${parentIds.join(',')})');
+              for (final p in parents) {
+                if (p['phone'] != null) phones.add(p['phone'] as String);
+              }
+              print('driver_pickup_tab: parent phones=$phones for student=${student.studentDbId}');
+            }
+
+            // Driver phone fallback
+            String? driverPhone;
+            final userRow = await Supabase.instance.client
+                .from('users')
+                .select('contact_number')
+                .eq('id', user.id)
+                .maybeSingle();
+            if (userRow != null && userRow['contact_number'] != null) {
+              driverPhone = userRow['contact_number'] as String;
+            }
+
+            if (phones.isNotEmpty) {
+              print('driver_pickup_tab: sending SMS to parents; driverPhone=$driverPhone');
+              final smsOk = await _smsService.sendSms(
+                recipients: phones,
+                message: 'Verification request: Your child ${student.name} was picked up by driver ${user.userMetadata?['fname'] ?? 'Driver'}.',
+              );
+              print('driver_pickup_tab: sms send result=$smsOk');
+            } else {
+              print('driver_pickup_tab: no parent phones found to send SMS for student=${student.studentDbId}');
+            }
+          } catch (smsError) {
+            print('SMS send failed: $smsError');
+          }
+
           // Log verification request creation (HIGH PRIORITY - Parent Safety Verification)
           try {
             await _driverAuditService.logVerificationRequestCreation(
@@ -1676,6 +1736,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               .eq('student_id', student.studentDbId!);
 
           // Create notification for each parent
+          final List<String> parentPhones = [];
           for (final parentData in parentResponse) {
             final parent = parentData['parents'];
             if (parent != null) {
@@ -1687,10 +1748,23 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                 'is_read': false,
                 'created_at': DateTime.now().toIso8601String(),
               });
+
+              try {
+                final phone = parent['phone']?.toString() ?? '';
+                if (phone.isNotEmpty) parentPhones.add(phone);
+              } catch (_) {}
             }
           }
 
-          print('Parent notifications sent for skipped pickup');
+          // Send SMS to parents (non-blocking)
+          if (parentPhones.isNotEmpty) {
+            _smsService.sendSms(
+              recipients: parentPhones,
+              message: 'Your child $studentName\'s pickup has been skipped by the driver. Reason: $reason',
+            );
+          }
+
+          print('Parent notifications (and SMS enqueued) for skipped pickup');
         } catch (notificationError) {
           print('Error sending parent notifications: $notificationError');
           // Continue with skip operation even if notification fails

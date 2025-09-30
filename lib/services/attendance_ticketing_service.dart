@@ -1,10 +1,17 @@
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'teacher_audit_service.dart';
+import 'sms_gateway_service.dart';
+import 'config.dart';
 
 class AttendanceTicketingService {
   final supabase = Supabase.instance.client;
   final teacherAuditService = TeacherAuditService();
+  final SmsGatewayService smsService = SmsGatewayService(
+    supabaseFunctionUrl: SUPABASE_FUNCTIONS_BASE.isNotEmpty ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms' : null,
+    username: '',
+    password: '',
+  );
   
   static final AttendanceTicketingService _instance = AttendanceTicketingService._internal();
   factory AttendanceTicketingService() => _instance;
@@ -161,6 +168,22 @@ class AttendanceTicketingService {
           if (insertResults.isEmpty) {
             throw Exception('No notifications were created');
           }
+          // Collect parent phones and send SMS (non-blocking)
+          final List<String> parentPhones = [];
+          for (final parentData in parentStudentResponse) {
+            try {
+              final phone = parentData['parents']['phone']?.toString() ?? '';
+              if (phone.isNotEmpty) parentPhones.add(phone);
+            } catch (_) {}
+          }
+          if (parentPhones.isNotEmpty) {
+            final smsMsg = message;
+            try {
+              print('AttendanceTicketingService: enqueuing SMS for attendance ticket -> recipients=${parentPhones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
+            } catch (_) {}
+            // Enqueue SMS without awaiting
+            smsService.sendSms(recipients: parentPhones, message: smsMsg);
+          }
         } catch (insertError) {
           
           if (insertError.toString().contains('Only teachers can create')) {
@@ -238,6 +261,30 @@ class AttendanceTicketingService {
       };
 
       await supabase.from('notifications').insert(resolutionTicket);
+
+      // Send SMS to parents notifying resolution
+      try {
+        final parentStudentResponse = await supabase
+            .from('parent_student')
+            .select('parent_id, parents!inner(user_id, phone)')
+            .eq('student_id', studentId);
+
+        final List<String> parentPhones = [];
+        for (final p in parentStudentResponse) {
+          try {
+            final phone = p['parents']['phone']?.toString() ?? '';
+            if (phone.isNotEmpty) parentPhones.add(phone);
+          } catch (_) {}
+        }
+
+        if (parentPhones.isNotEmpty) {
+            final smsMsg = 'Attendance concern for $studentId has been resolved. ${resolutionNotes ?? ''}';
+            try {
+              print('AttendanceTicketingService: enqueuing SMS for ticket resolved -> recipients=${parentPhones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
+            } catch (_) {}
+            smsService.sendSms(recipients: parentPhones, message: smsMsg);
+        }
+      } catch (_) {}
 
       // Create a resolution marker to reset consecutive absences
       final now = DateTime.now();

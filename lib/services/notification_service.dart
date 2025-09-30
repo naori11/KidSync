@@ -1,10 +1,17 @@
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'push_notification_service.dart';
+import 'sms_gateway_service.dart';
+import 'config.dart';
 
 class NotificationService {
   final supabase = Supabase.instance.client;
   final PushNotificationService _pushService = PushNotificationService();
+  final SmsGatewayService smsService = SmsGatewayService(
+    supabaseFunctionUrl: SUPABASE_FUNCTIONS_BASE.isNotEmpty ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms' : null,
+    username: '',
+    password: '',
+  );
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
@@ -501,10 +508,35 @@ class NotificationService {
       });
       
       if (result == true) {
+        // RPC succeeded in creating notifications server-side.
+        // Attempt to fetch parent phone numbers so we can enqueue SMS from the client as well.
+        try {
+          final parentPhoneRows = await supabase
+              .from('parent_student')
+              .select('parents!inner(phone)')
+              .eq('student_id', studentId);
+          final List<String> phones = [];
+          for (final r in parentPhoneRows) {
+            try {
+              final phone = r['parents']?['phone']?.toString() ?? '';
+              if (phone.isNotEmpty) phones.add(phone);
+            } catch (_) {}
+          }
+          if (phones.isNotEmpty) {
+            final smsMsg = action == 'entry'
+                ? '$studentName has arrived at school and tapped in.'
+                : '$studentName has left school and tapped out.';
+            try {
+              print('NotificationService: RPC created RFID notification; enqueuing SMS -> recipients=${phones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
+            } catch (_) {}
+            smsService.sendSms(recipients: phones, message: smsMsg);
+          }
+        } catch (e) {
+          print('NotificationService: failed to enqueue SMS after RPC create_rfid_notification: $e');
+        }
 
         return true;
       } else {
-
         return false;
       }
     } catch (rpcError) {
@@ -574,7 +606,22 @@ class NotificationService {
           try {
             await supabase.from('notifications').insert(notifications);
 
-            
+            // Collect parent phones and enqueue SMS (non-blocking)
+            final List<String> parentPhones = [];
+            for (final parentData in parentStudentResponse) {
+              try {
+                final phone = parentData['parents']['phone']?.toString() ?? '';
+                if (phone.isNotEmpty) parentPhones.add(phone);
+              } catch (_) {}
+            }
+            if (parentPhones.isNotEmpty) {
+              final smsMsg = message + (guardName != null ? ' Verified by: $guardName' : '');
+              try {
+                print('NotificationService: enqueuing SMS for RFID tap -> recipients=${parentPhones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
+              } catch (_) {}
+              smsService.sendSms(recipients: parentPhones, message: smsMsg);
+            }
+
             // Send push notifications to each parent
             for (final parentData in parentStudentResponse) {
               final userId = parentData['parents']['user_id'];
@@ -592,7 +639,7 @@ class NotificationService {
                 );
               }
             }
-            
+
             return true;
           } catch (insertError) {
             print('Error inserting RFID notifications: $insertError');
@@ -632,6 +679,29 @@ class NotificationService {
         });
         
         if (result == true) {
+          // RPC succeeded; attempt to enqueue SMS from client for visibility/debugging
+          try {
+            final parentPhoneRows = await supabase
+                .from('parent_student')
+                .select('parents!inner(phone)')
+                .eq('student_id', studentId);
+            final List<String> phones = [];
+            for (final r in parentPhoneRows) {
+              try {
+                final phone = r['parents']?['phone']?.toString() ?? '';
+                if (phone.isNotEmpty) phones.add(phone);
+              } catch (_) {}
+            }
+            if (phones.isNotEmpty) {
+              final smsMsg = 'Your pickup request for $studentName has been denied. Reason: $denyReason';
+              try {
+                print('NotificationService: RPC created pickup_denial notification; enqueuing SMS -> recipients=${phones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
+              } catch (_) {}
+              smsService.sendSms(recipients: phones, message: smsMsg);
+            }
+          } catch (e) {
+            print('NotificationService: failed to enqueue SMS after RPC create_pickup_denial_notification: $e');
+          }
 
           return true;
         } else {
@@ -711,10 +781,26 @@ class NotificationService {
         if (notifications.isNotEmpty) {
           try {
             // Insert notifications directly as fallback
-            final insertResult = await supabase.from('notifications').insert(notifications);
+            await supabase.from('notifications').insert(notifications);
             print('DEBUG: Pickup denial notification sent successfully via direct insert for student $studentId');
-            print('DEBUG: Insert result: $insertResult');
-            
+
+            // Collect parent phones and send SMS (non-blocking)
+            final List<String> parentPhones = [];
+            for (final parentData in parentStudentResponse) {
+              try {
+                final phone = parentData['parents']['phone']?.toString() ?? '';
+                if (phone.isNotEmpty) parentPhones.add(phone);
+              } catch (_) {}
+            }
+            if (parentPhones.isNotEmpty) {
+                final smsMsg = message;
+                try {
+                  print('NotificationService: enqueuing SMS for pickup denial -> recipients=${parentPhones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
+                } catch (_) {}
+                // Enqueue SMS without await to avoid blocking
+                smsService.sendSms(recipients: parentPhones, message: smsMsg);
+            }
+
             // Send push notifications to each parent
             for (final parentData in parentStudentResponse) {
               final userId = parentData['parents']['user_id'];
@@ -734,7 +820,7 @@ class NotificationService {
                 );
               }
             }
-            
+
             return true;
           } catch (insertError) {
             print('Error inserting pickup denial notifications: $insertError');
@@ -1048,6 +1134,8 @@ class NotificationService {
           studentId: studentId,
           extraData: {'parent_name': parentName},
         );
+
+        // If this notification is tied to a student/parent flow and parentPhones available elsewhere, consider sending SMS from caller.
         
         return true;
       } catch (insertError) {
@@ -1157,7 +1245,7 @@ class NotificationService {
           studentId: studentId,
           extraData: {'parent_name': parentName},
         );
-        
+        // No parent SMS here (driver-facing notification). Parent SMS is handled at parent-notify code paths.
         return true;
       } catch (insertError) {
         print('⚠️  Direct insert failed (likely RLS issue): $insertError');
@@ -1226,7 +1314,7 @@ class NotificationService {
         type: notificationType,
         extraData: {'student_id': studentId.toString()},
       );
-
+      // Driver-facing notification; parent SMS should be triggered in parent flows, not here.
       print('DEBUG: Verification request notification sent to driver $driverId for student $studentName');
       return true;
     } catch (e) {
@@ -1275,7 +1363,7 @@ class NotificationService {
           if (routeNotes != null) 'notes': routeNotes,
         },
       );
-
+      // Driver-facing notification; no parent SMS needed here.
       print('DEBUG: Route assignment notification sent to driver $driverId');
       return true;
     } catch (e) {

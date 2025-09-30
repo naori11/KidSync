@@ -2442,7 +2442,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
   // Simulate RFID scan for testing
   void simulateRFIDScan() {
-    _fetchStudentByRFID('d9e0c801', scanner: 'entry');
+    _fetchStudentByRFID('1a5562cd', scanner: 'entry');
   }
 
   @override
@@ -2538,7 +2538,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                       ),
                     ),
                     TextButton.icon(
-                      onPressed: () => _fetchStudentByRFID('d9e0c801', scanner: 'exit'),
+                      onPressed: () => _fetchStudentByRFID('1a5562cd', scanner: 'exit'),
                       icon: Icon(Icons.credit_card, size: 16),
                       label: Text('Test Exit Scan', style: TextStyle(fontSize: 14)),
                       style: TextButton.styleFrom(

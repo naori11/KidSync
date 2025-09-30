@@ -1,9 +1,16 @@
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/time_utils.dart';
+import 'sms_gateway_service.dart';
+import 'config.dart';
 
 class AttendanceMonitoringService {
   final supabase = Supabase.instance.client;
+  final SmsGatewayService smsService = SmsGatewayService(
+    supabaseFunctionUrl: SUPABASE_FUNCTIONS_BASE.isNotEmpty ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms' : null,
+    username: '',
+    password: '',
+  );
   
   static final AttendanceMonitoringService _instance = AttendanceMonitoringService._internal();
   factory AttendanceMonitoringService() => _instance;
@@ -22,7 +29,7 @@ class AttendanceMonitoringService {
   }) async {
     try {
       final now = TimeUtils.nowPST();
-      final defaultStartDate = startDate ?? DateTime(now.year, now.month - 1, now.day); // Last month
+      final defaultStartDate = startDate ?? DateTime(now.year, now.month - 1, now.day);
       final defaultEndDate = endDate ?? now;
 
       final startDateStr = TimeUtils.formatDateForQuery(defaultStartDate);
@@ -30,12 +37,10 @@ class AttendanceMonitoringService {
 
       // Check if parent notification has been sent for this student
       final notificationHistory = await getAttendanceNotificationHistory(studentId);
-      bool hasParentNotificationSent = notificationHistory.any((notification) => 
-        ['attendance_alert', 'attendance_ticket', 'system_log_attendance_alert', 'system_log_ticket_ticket_created']
-            .contains(notification['type'])
-      );
-      
-      // Get the most recent notification date
+      bool hasParentNotificationSent = notificationHistory.any((notification) =>
+          ['attendance_alert', 'attendance_ticket', 'system_log_attendance_alert', 'system_log_ticket_ticket_created']
+              .contains(notification['type']));
+
       DateTime? lastNotificationDate;
       if (hasParentNotificationSent) {
         final recentNotification = notificationHistory.firstWhere(
@@ -43,57 +48,51 @@ class AttendanceMonitoringService {
               .contains(notification['type']),
           orElse: () => <String, dynamic>{},
         );
-        if (recentNotification.isNotEmpty) {
-          lastNotificationDate = DateTime.tryParse(recentNotification['created_at'] ?? '');
+        if (recentNotification.isNotEmpty && recentNotification['created_at'] != null) {
+          lastNotificationDate = DateTime.tryParse(recentNotification['created_at']);
         }
       }
 
-      // Load class schedule information from section_teachers table
+      // Determine class schedule info from section_teachers
       final assignmentRows = await supabase
           .from('section_teachers')
-          .select('days, start_time, end_time, assigned_at, subject')
+          .select('days, start_time, end_time, assigned_at')
           .eq('section_id', sectionId)
           .order('assigned_at', ascending: true);
 
-      // Parse class schedule
       List<String> classDays = [];
       String? classEndTime;
-      
-      if (assignmentRows.isNotEmpty) {
+  final assignmentList = List.from(assignmentRows as List);
+      if (assignmentList.isNotEmpty) {
         final Set<String> unionDays = {};
         final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         final todayAbbrev = weekDays[now.weekday - 1];
 
-        // Collect union of days across all assignment rows
-        for (final a in assignmentRows) {
-          final daysList =
-              a['days'] is List
-                  ? (a['days'] as List).cast<String>()
-                  : (a['days']?.toString() ?? '')
-                      .split(',')
-                      .map((e) => e.trim())
-                      .where((e) => e.isNotEmpty)
-                      .toList();
+        for (final a in assignmentList) {
+          final daysList = a['days'] is List
+              ? (a['days'] as List).cast<String>()
+              : (a['days']?.toString() ?? '')
+                  .split(',')
+                  .map((e) => e.trim())
+                  .where((e) => e.isNotEmpty)
+                  .toList();
           unionDays.addAll(daysList);
         }
         classDays = unionDays.toList();
 
-        // Prefer rows that include today; if none, consider all rows
-        final todays = assignmentRows.where((a) {
-          final daysList =
-              a['days'] is List
-                  ? (a['days'] as List).cast<String>()
-                  : (a['days']?.toString() ?? '')
-                      .split(',')
-                      .map((e) => e.trim())
-                      .where((e) => e.isNotEmpty)
-                      .toList();
+        final todays = assignmentList.where((a) {
+          final daysList = a['days'] is List
+              ? (a['days'] as List).cast<String>()
+              : (a['days']?.toString() ?? '')
+                  .split(',')
+                  .map((e) => e.trim())
+                  .where((e) => e.isNotEmpty)
+                  .toList();
           return daysList.contains(todayAbbrev);
         }).toList();
 
-        final rowsToConsider = todays.isNotEmpty ? todays : assignmentRows;
+        final rowsToConsider = todays.isNotEmpty ? todays : assignmentList;
 
-        // Determine latest end_time among considered rows
         DateTime? latest;
         String? latestStr;
         for (final r in rowsToConsider) {
@@ -116,6 +115,7 @@ class AttendanceMonitoringService {
         classEndTime = latestStr;
       }
 
+      // Fetch attendance records
       final records = await supabase
           .from('section_attendance')
           .select('date, status, notes, marked_at')
@@ -125,11 +125,11 @@ class AttendanceMonitoringService {
           .lte('date', endDateStr)
           .order('date', ascending: false);
 
-      // Create a map of existing attendance records for quick lookup
       Map<String, Map<String, dynamic>> attendanceMap = {};
-      for (final record in records) {
-        final date = record['date'] as String;
-        attendanceMap[date] = record;
+  final recordsList = List.from(records as List);
+      for (final record in recordsList) {
+        final date = record['date']?.toString() ?? '';
+        if (date.isNotEmpty) attendanceMap[date] = Map<String, dynamic>.from(record);
       }
 
       int totalDays = 0;
@@ -139,25 +139,20 @@ class AttendanceMonitoringService {
       int excusedDays = 0;
       List<Map<String, dynamic>> recentAbsences = [];
 
-      // Helper function to check if a date is a class day
       bool isClassDay(DateTime date) {
         final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         final abbrev = weekDays[date.weekday - 1];
         return classDays.contains(abbrev);
       }
 
-      // Process each day in the date range
       DateTime currentDate = defaultStartDate;
       while (currentDate.isBefore(defaultEndDate.add(const Duration(days: 1)))) {
-        if (isClassDay(currentDate)) {
+        if (classDays.isEmpty || isClassDay(currentDate)) {
           final dateStr = "${currentDate.year.toString().padLeft(4, '0')}-${currentDate.month.toString().padLeft(2, '0')}-${currentDate.day.toString().padLeft(2, '0')}";
-          
           if (attendanceMap.containsKey(dateStr)) {
-            // Process existing attendance record
             final record = attendanceMap[dateStr]!;
             totalDays++;
             final status = record['status'] ?? 'Absent';
-            
             switch (status) {
               case 'Present':
                 presentDays++;
@@ -175,18 +170,12 @@ class AttendanceMonitoringService {
                 break;
             }
           } else {
-            // No attendance record - check if this should count as absent
-            final isToday = currentDate.year == now.year && 
-                          currentDate.month == now.month && 
-                          currentDate.day == now.day;
+            final isToday = currentDate.year == now.year && currentDate.month == now.month && currentDate.day == now.day;
             final isPastDate = currentDate.isBefore(now);
-            
-            // Count as absent if it's a past date or today after class time
             bool shouldMarkAbsent = false;
             if (isPastDate) {
               shouldMarkAbsent = true;
             } else if (isToday && classEndTime != null) {
-              // Check if current time is after class end time
               final parts = classEndTime.split(':');
               if (parts.length >= 2) {
                 final hour = int.tryParse(parts[0]);
@@ -197,11 +186,9 @@ class AttendanceMonitoringService {
                 }
               }
             }
-            
             if (shouldMarkAbsent) {
               totalDays++;
               absentDays++;
-              // Create a mock record for recent absences tracking
               recentAbsences.add({
                 'date': dateStr,
                 'status': 'Absent',
@@ -214,14 +201,13 @@ class AttendanceMonitoringService {
         currentDate = currentDate.add(const Duration(days: 1));
       }
 
-      // Count consecutive absences (from most recent date)
+      // Count consecutive absences
       int consecutiveAbsences = 0;
       DateTime checkDate = now;
       while (checkDate.isAfter(defaultStartDate.subtract(const Duration(days: 1)))) {
-        if (isClassDay(checkDate)) {
+        if (classDays.isEmpty || isClassDay(checkDate)) {
           final dateStr = "${checkDate.year.toString().padLeft(4, '0')}-${checkDate.month.toString().padLeft(2, '0')}-${checkDate.day.toString().padLeft(2, '0')}";
-          
-          // Check if there's a resolution marker on this date
+          // Resolution marker check
           final resolutionMarker = await supabase
               .from('scan_records')
               .select('id')
@@ -230,23 +216,15 @@ class AttendanceMonitoringService {
               .gte('scan_time', '${dateStr}T00:00:00')
               .lt('scan_time', '${dateStr}T23:59:59')
               .maybeSingle();
-          
-          if (resolutionMarker != null) {
-            // Found a resolution marker - this breaks the consecutive absence chain
-            break;
-          }
-          
+          if (resolutionMarker != null) break;
+
           bool isAbsent = false;
           if (attendanceMap.containsKey(dateStr)) {
             final status = attendanceMap[dateStr]!['status'] ?? 'Absent';
             isAbsent = (status == 'Absent');
           } else {
-            // Check if this missing record should count as absent
-            final isToday = checkDate.year == now.year && 
-                          checkDate.month == now.month && 
-                          checkDate.day == now.day;
+            final isToday = checkDate.year == now.year && checkDate.month == now.month && checkDate.day == now.day;
             final isPastDate = checkDate.isBefore(now);
-            
             if (isPastDate) {
               isAbsent = true;
             } else if (isToday && classEndTime != null) {
@@ -261,75 +239,49 @@ class AttendanceMonitoringService {
               }
             }
           }
-          
+
           if (isAbsent) {
             consecutiveAbsences++;
           } else {
-            // If there's a present/late/excused record, check if it was after a notification was sent
             if (hasParentNotificationSent && lastNotificationDate != null) {
-              final recordDate = checkDate;
-              if (recordDate.isAfter(lastNotificationDate)) {
-                // Student attended after notification was sent, stop counting consecutive absences
-                break;
-              }
+              if (checkDate.isAfter(lastNotificationDate)) break;
             } else {
-              // No notification sent yet, or attendance record without notification context
-              break; // Stop counting when we find a non-absent day
+              break;
             }
           }
         }
         checkDate = checkDate.subtract(const Duration(days: 1));
       }
 
-      // Determine if this is still an urgent issue considering notification status
       bool isUrgentIssue = false;
       if (!hasParentNotificationSent) {
-        // No notification sent yet - use original logic
         isUrgentIssue = absentDays >= PARENT_NOTIFICATION_THRESHOLD || consecutiveAbsences >= 3;
-      } else {
-        // Notification was sent - check if there have been new absences since then
-        if (lastNotificationDate != null) {
-          int absencesAfterNotification = 0;
-          int consecutiveAbsencesAfterNotification = 0;
-          
-          // Count absences that occurred after the notification was sent
-          for (final absence in recentAbsences) {
-            final absenceDate = DateTime.tryParse(absence['date'] ?? '');
-            if (absenceDate != null && absenceDate.isAfter(lastNotificationDate)) {
-              absencesAfterNotification++;
-            }
-          }
-          
-          // Check for consecutive absences after notification
-          DateTime checkDateAfterNotification = now;
-          while (checkDateAfterNotification.isAfter(lastNotificationDate)) {
-            if (isClassDay(checkDateAfterNotification)) {
-              final dateStr = "${checkDateAfterNotification.year.toString().padLeft(4, '0')}-${checkDateAfterNotification.month.toString().padLeft(2, '0')}-${checkDateAfterNotification.day.toString().padLeft(2, '0')}";
-              
-              bool isAbsentAfter = false;
-              if (attendanceMap.containsKey(dateStr)) {
-                final status = attendanceMap[dateStr]!['status'] ?? 'Absent';
-                isAbsentAfter = (status == 'Absent');
-              } else {
-                // Check if this missing record should count as absent
-                final isPastDate = checkDateAfterNotification.isBefore(now);
-                if (isPastDate) {
-                  isAbsentAfter = true;
-                }
-              }
-              
-              if (isAbsentAfter) {
-                consecutiveAbsencesAfterNotification++;
-              } else {
-                break; // Attended, so no consecutive absences
-              }
-            }
-            checkDateAfterNotification = checkDateAfterNotification.subtract(const Duration(days: 1));
-          }
-          
-          // Still urgent if there are new significant absences after notification
-          isUrgentIssue = absencesAfterNotification >= 3 || consecutiveAbsencesAfterNotification >= 2;
+      } else if (lastNotificationDate != null) {
+        int absencesAfterNotification = 0;
+        int consecutiveAfter = 0;
+        for (final absence in recentAbsences) {
+          final absenceDate = DateTime.tryParse(absence['date'] ?? '');
+          if (absenceDate != null && absenceDate.isAfter(lastNotificationDate)) absencesAfterNotification++;
         }
+        DateTime checkAfter = now;
+        while (checkAfter.isAfter(lastNotificationDate)) {
+          if (classDays.isEmpty || isClassDay(checkAfter)) {
+            final dateStr = "${checkAfter.year.toString().padLeft(4, '0')}-${checkAfter.month.toString().padLeft(2, '0')}-${checkAfter.day.toString().padLeft(2, '0')}";
+            bool isAbsentAfter = false;
+            if (attendanceMap.containsKey(dateStr)) {
+              isAbsentAfter = (attendanceMap[dateStr]!['status'] ?? 'Absent') == 'Absent';
+            } else if (checkAfter.isBefore(now)) {
+              isAbsentAfter = true;
+            }
+            if (isAbsentAfter) {
+              consecutiveAfter++;
+            } else {
+              break;
+            }
+          }
+          checkAfter = checkAfter.subtract(const Duration(days: 1));
+        }
+        isUrgentIssue = absencesAfterNotification >= 3 || consecutiveAfter >= 2;
       }
 
       return {
@@ -340,7 +292,7 @@ class AttendanceMonitoringService {
         'excusedDays': excusedDays,
         'consecutiveAbsences': consecutiveAbsences,
         'attendanceRate': totalDays > 0 ? (presentDays / totalDays * 100).round() : 0,
-        'recentAbsences': recentAbsences.take(10).toList(), // Last 10 absences
+        'recentAbsences': recentAbsences.take(10).toList(),
         'needsTeacherAlert': consecutiveAbsences >= 3,
         'hasParentNotificationSent': hasParentNotificationSent,
         'lastNotificationDate': lastNotificationDate?.toIso8601String(),
@@ -358,8 +310,6 @@ class AttendanceMonitoringService {
         'attendanceRate': 0,
         'recentAbsences': [],
         'needsTeacherAlert': false,
-
-
         'hasParentNotificationSent': false,
         'lastNotificationDate': null,
         'isUrgentIssue': false,
@@ -470,7 +420,8 @@ class AttendanceMonitoringService {
             parents!inner(
               user_id,
               fname,
-              lname
+              lname,
+              phone
             )
           ''')
           .eq('student_id', studentId);
@@ -492,8 +443,9 @@ class AttendanceMonitoringService {
       message += 'Please contact $teacherName ($sectionName) to discuss this matter. ';
       message += 'Regular attendance is important for academic success.';
 
-      // Send notification to each parent
+      // Send notification to each parent and collect phone numbers for SMS
       final List<Map<String, dynamic>> notifications = [];
+      final List<String> parentPhones = [];
       for (final parentData in parentStudentResponse) {
         final userId = parentData['parents']['user_id'];
         if (userId != null) {
@@ -507,11 +459,15 @@ class AttendanceMonitoringService {
             'created_at': DateTime.now().toIso8601String(),
           });
         }
+
+        try {
+          final phone = parentData['parents']['phone']?.toString() ?? '';
+          if (phone.isNotEmpty) parentPhones.add(phone);
+        } catch (_) {}
       }
 
       if (notifications.isNotEmpty) {
         await supabase.from('notifications').insert(notifications);
-        
         // Log the notification using existing notifications table
         await _logNotificationInDatabase(
           studentId: studentId,
@@ -526,7 +482,16 @@ class AttendanceMonitoringService {
           },
           sentBy: teacherId,
         );
-        
+
+        // Send SMS to parents (async, non-blocking)
+        if (parentPhones.isNotEmpty) {
+          final smsMessage = message; // already suitable for SMS
+          try {
+            print('AttendanceMonitoringService: enqueuing SMS for absence alert -> recipients=${parentPhones.length}, preview="${smsMessage.substring(0, smsMessage.length > 80 ? 80 : smsMessage.length)}"');
+          } catch (_) {}
+          smsService.sendSms(recipients: parentPhones, message: smsMessage);
+        }
+
         print('Parent absence notification sent for student $studentId');
         return true;
       }
@@ -903,6 +868,27 @@ class AttendanceMonitoringService {
 
       if (notifications.isNotEmpty) {
         await supabase.from('notifications').insert(notifications);
+
+        // Attempt to enqueue SMS to parents (non-blocking)
+        try {
+          final List<String> parentPhones = [];
+          for (final parentData in parentStudentResponse) {
+            try {
+              final phone = parentData['parents']?['phone']?.toString() ?? '';
+              if (phone.isNotEmpty) parentPhones.add(phone);
+            } catch (_) {}
+          }
+          if (parentPhones.isNotEmpty) {
+            final smsMsg = message;
+            try {
+              print('AttendanceMonitoringService: enqueuing SMS for follow-up -> recipients=${parentPhones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
+            } catch (_) {}
+            smsService.sendSms(recipients: parentPhones, message: smsMsg);
+          }
+        } catch (e) {
+          print('SMS enqueue error (attendance_monitoring._sendFollowUpNotification): $e');
+        }
+
         return true;
       }
 
@@ -1128,6 +1114,23 @@ class AttendanceMonitoringService {
           sentBy: teacherId,
         );
         
+        // Enqueue SMS to parents if phone numbers are present (non-blocking)
+        try {
+          final List<String> parentPhones = [];
+          for (final parentData in parentStudentResponse) {
+            try {
+              final phone = parentData['parents']?['phone']?.toString() ?? '';
+              if (phone.isNotEmpty) parentPhones.add(phone);
+            } catch (_) {}
+          }
+          if (parentPhones.isNotEmpty) {
+            final smsMsg = message;
+            smsService.sendSms(recipients: parentPhones, message: smsMsg);
+          }
+        } catch (e) {
+          print('SMS enqueue error (attendance_monitoring.sendCustomParentNotification): $e');
+        }
+
         print('Custom parent notification sent for student $studentId');
         return true;
       }

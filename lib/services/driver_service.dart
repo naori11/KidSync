@@ -3,11 +3,20 @@ import 'package:intl/intl.dart';
 import '../models/driver_models.dart';
 import 'notification_service.dart';
 import 'verification_service.dart';
+import 'sms_gateway_service.dart';
+import 'config.dart';
 
 class DriverService {
   final supabase = Supabase.instance.client;
   final notificationService = NotificationService();
   final verificationService = VerificationService();
+  // SMS service configured to call the server-side Edge Function which proxies to the
+  // SMS provider. Username/password are unused when supabaseFunctionUrl is set.
+  final SmsGatewayService smsService = SmsGatewayService(
+    supabaseFunctionUrl: SUPABASE_FUNCTIONS_BASE.isNotEmpty ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms' : null,
+    username: '',
+    password: '',
+  );
 
   /// Get driver assignments for the current driver
   Future<List<DriverAssignment>> getDriverAssignments(String driverId) async {
@@ -598,6 +607,29 @@ class DriverService {
           
           if (result == true) {
             print('✅ Cancellation notification sent via RPC for $studentName $eventType');
+            // RPC created notification server-side; attempt to enqueue SMS from client as well
+            try {
+              final parentPhoneRows = await supabase
+                  .from('parent_student')
+                  .select('parents!inner(phone)')
+                  .eq('student_id', studentId);
+              final List<String> phones = [];
+              for (final r in parentPhoneRows) {
+                try {
+                  final phone = r['parents']?['phone']?.toString() ?? '';
+                  if (phone.isNotEmpty) phones.add(phone);
+                } catch (_) {}
+              }
+              if (phones.isNotEmpty) {
+                final smsMsg = '$studentName\'s $eventType has been cancelled. Reason: $reason${driverName != null ? '. Driver: $driverName' : ''}';
+                try {
+                  print('DriverService: RPC created cancellation notification; enqueuing SMS -> recipients=${phones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
+                } catch (_) {}
+                smsService.sendSms(recipients: phones, message: smsMsg);
+              }
+            } catch (e) {
+              print('DriverService: failed to enqueue SMS after RPC create_cancellation_notification: $e');
+            }
             return;
           } else {
             print('⚠️ RPC function returned false for cancellation notification');
@@ -638,6 +670,23 @@ class DriverService {
           if (notifications.isNotEmpty) {
             await supabase.from('notifications').insert(notifications);
             print('✅ Cancellation notification sent via direct insert for $studentName $eventType');
+
+            // Collect parent phones and enqueue SMS (non-blocking)
+            try {
+              final List<String> parentPhones = [];
+              for (final parentData in parentResponse) {
+                try {
+                  final phone = parentData['parents']?['phone']?.toString() ?? '';
+                  if (phone.isNotEmpty) parentPhones.add(phone);
+                } catch (_) {}
+              }
+              if (parentPhones.isNotEmpty) {
+                final smsMsg = message;
+                smsService.sendSms(recipients: parentPhones, message: smsMsg);
+              }
+            } catch (e) {
+              print('SMS enqueue error (driver_service._notifyParentsCancellation): $e');
+            }
           }
         } catch (fallbackError) {
           print('❌ Fallback cancellation notification failed: $fallbackError');
@@ -825,7 +874,8 @@ class DriverService {
 
       final driverName = '${driverResponse['fname']} ${driverResponse['lname']}'.trim();
 
-      // Create notification records for each parent
+      // Create notification records for each parent, and collect phone numbers for SMS
+      final List<String> parentPhones = [];
       for (final parentData in parentResponse) {
         final parent = parentData['parents'];
         if (parent != null) {
@@ -838,7 +888,22 @@ class DriverService {
             'created_at': DateTime.now().toIso8601String(),
             'is_read': false,
           });
+
+          // Collect phone if available
+          try {
+            final phone = parent['phone']?.toString() ?? '';
+            if (phone.isNotEmpty) parentPhones.add(phone);
+          } catch (_) {}
         }
+      }
+
+      // Enqueue SMS to parents (non-blocking, service will queue & retry)
+      if (parentPhones.isNotEmpty) {
+        final smsMessage = '$studentName has been ${eventType == 'pickup' ? 'picked up' : 'dropped off'} by $driverName at ${_formatTime(eventTime)}';
+        try {
+          print('DriverService: enqueuing SMS for ${eventType} notify -> recipients=${parentPhones.length}, preview="${smsMessage.substring(0, smsMessage.length > 80 ? 80 : smsMessage.length)}"');
+        } catch (_) {}
+        smsService.sendSms(recipients: parentPhones, message: smsMessage);
       }
     } catch (e) {
       print('Error notifying parents: $e');

@@ -92,6 +92,7 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
             teacherName: widget.teacherName,
             sectionName: widget.sectionName,
             teacherId: widget.teacherId,
+            // no senderPhone parameter - SMS payload must only contain phoneNumbers and textMessage
           );
           
           // Reload ticket status after sending notification (with small delay to ensure DB commit)

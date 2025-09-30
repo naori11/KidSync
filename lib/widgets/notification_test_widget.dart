@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/push_notification_service.dart';
+import '../services/sms_gateway_service.dart';
+import 'package:kidsync/services/config.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class NotificationTestWidget extends StatefulWidget {
@@ -17,6 +19,12 @@ class NotificationTestWidget extends StatefulWidget {
 class _NotificationTestWidgetState extends State<NotificationTestWidget> {
   final PushNotificationService _pushService = PushNotificationService();
   final supabase = Supabase.instance.client;
+  // NOTE: In real usage do not hardcode credentials. Use secure storage.
+  final SmsGatewayService _smsService = SmsGatewayService(
+    username: 'ASTVXO',
+    password: 'm_cfb-t4kqx4wt',
+    supabaseFunctionUrl: SUPABASE_FUNCTIONS_BASE.isNotEmpty ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms' : null,
+  );
   
   String _status = 'Ready to test notifications';
   bool _isLoading = false;
@@ -105,6 +113,11 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
                 'Test Database',
                 Icons.storage,
                 _testDatabaseConnection,
+              ),
+              _buildTestButton(
+                'Test SMS via SMSGate',
+                Icons.send,
+                _testSmsGate,
               ),
             ],
           ),
@@ -248,6 +261,88 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _testSmsGate() async {
+    setState(() {
+      _isLoading = true;
+      _status = 'Sending test SMS via SMSGate...';
+    });
+
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        setState(() {
+          _status = '❌ No authenticated user found';
+        });
+        return;
+      }
+
+      String? phone;
+
+      // First try to find a parent record linked to this user
+      final parentRes = await supabase
+          .from('parents')
+          .select('phone')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle();
+
+      if (parentRes != null) {
+        final parentMap = parentRes;
+        if (parentMap['phone'] != null) {
+          phone = parentMap['phone'] as String;
+        }
+      }
+
+      // Fallback: use users.contact_number
+      if (phone == null) {
+        final userRes = await supabase
+            .from('users')
+            .select('contact_number')
+            .eq('id', user.id)
+            .limit(1)
+            .maybeSingle();
+        if (userRes != null) {
+          final userMap = userRes;
+          if (userMap['contact_number'] != null) {
+            phone = userMap['contact_number'] as String;
+          }
+        }
+      }
+
+      if (phone == null || phone.trim().isEmpty) {
+        setState(() {
+          _status = '❌ No phone number found for current user';
+        });
+        return;
+      }
+
+      // Ensure E.164 format if needed by your gateway (assume stored in schema already)
+      print('notification_test_widget: sending test SMS to phone=$phone');
+      final success = await _smsService.sendSms(
+        recipients: [phone],
+        message: 'KidSync test SMS from user ${user.email ?? user.id}',
+      );
+      print('notification_test_widget: sms send result=$success');
+      setState(() {
+        _status = success ? '✅ SMS queued to $phone' : '❌ SMS failed to queue/send';
+      });
+    } catch (e) {
+      setState(() {
+        _status = '❌ SMS test failed: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _smsService.dispose();
+    super.dispose();
   }
 }
 
