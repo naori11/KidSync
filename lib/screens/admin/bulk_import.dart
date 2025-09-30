@@ -1940,7 +1940,7 @@ class _BulkImportPageState extends State<BulkImportPage> {
                 'grade_level': record['student_grade'],
                 'gender': record['student_gender'],
                 'address': record['student_address'],
-                'status': 'Active',
+                'status': 'active',
                 'section_id': null, // Section will be manually assigned later
               })
               .select()
@@ -1968,14 +1968,13 @@ class _BulkImportPageState extends State<BulkImportPage> {
             continue;
           }
 
-          // Check if parent with same email already exists
-          final existingParent =
-              await supabase
-                  .from('parents')
-                  .select('id, user_id')
-                  .eq('email', email)
-                  .eq('status', 'Active')
-                  .maybeSingle();
+      // Check if parent with same email already exists
+          final existingParent = await supabase
+            .from('parents')
+            .select('id, user_id')
+            .eq('email', email)
+            .eq('status', 'active')
+            .maybeSingle();
 
           int parentId;
           if (existingParent != null) {
@@ -1993,25 +1992,41 @@ class _BulkImportPageState extends State<BulkImportPage> {
                 phone: phone ?? '',
               );
 
-              final parentInsert =
-                  await supabase
-                      .from('parents')
-                      .insert({
-                        'fname': record['${parentType}_fname'],
-                        'mname': record['${parentType}_mname'],
-                        'lname': record['${parentType}_lname'],
-                        'phone': phone,
-                        'email': email,
-                        'address': record['${parentType}_address'],
-                        'status': 'Active',
-                        'user_id': userId,
-                      })
-                      .select()
-                      .single();
+              try {
+                final parentInsert = await supabase
+                    .from('parents')
+                    .insert({
+                      'fname': record['${parentType}_fname'],
+                      'mname': record['${parentType}_mname'],
+                      'lname': record['${parentType}_lname'],
+                      'phone': phone,
+                      'email': email,
+                      'address': record['${parentType}_address'],
+                      'status': 'active',
+                      'user_id': userId,
+                    })
+                    .select()
+                    .single();
 
-              parentId = parentInsert['id'];
-              importStats['parents_created'] =
-                  (importStats['parents_created'] ?? 0) + 1;
+                parentId = parentInsert['id'];
+                importStats['parents_created'] =
+                    (importStats['parents_created'] ?? 0) + 1;
+              } catch (parentInsertError) {
+                // If parent row creation failed but user was already created, attempt cleanup
+                print('Failed to insert parent row for $parentType (email: $email): $parentInsertError');
+                try {
+                  final delRes = await supabase.functions.invoke(
+                    'delete_user',
+                    body: {'id': userId},
+                  );
+                  print('Cleanup: delete_user result for $userId -> status: ${delRes.status}');
+                } catch (cleanupError) {
+                  print('Cleanup failed for created user $userId: $cleanupError');
+                }
+
+                // Skip adding this parent to createdParents list
+                continue; // Continue with other parents
+              }
             } catch (parentError) {
               print('Failed to create parent $parentType: $parentError');
               continue; // Skip this parent but continue with others

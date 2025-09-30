@@ -54,7 +54,8 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
               created_at
             )
           ''')
-          .eq('status', 'active');
+          // Accept both 'Active' and 'active' values (case variants)
+          .filter('status', 'in', '(Active,active)');
 
       if (parentsResponse.isEmpty) {
         setState(() {
@@ -1080,8 +1081,9 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
     // Calculate statistics
     final totalParents = parentsData.length;
-    final activeParents = parentsData.where((p) => p['status'] == 'active').length;
-    final inactiveParents = parentsData.where((p) => p['status'] == 'inactive').length;
+  // Count statuses case-insensitively to accept both 'Active' and 'active'
+  final activeParents = parentsData.where((p) => (p['status']?.toString().toLowerCase() ?? '') == 'active').length;
+  final inactiveParents = parentsData.where((p) => (p['status']?.toString().toLowerCase() ?? '') == 'inactive').length;
     final totalStudentsAssigned = parentsData.fold<int>(
       0, (sum, parent) => sum + (parent['student_count'] as int? ?? 0),
     );
