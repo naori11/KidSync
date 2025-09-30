@@ -27,6 +27,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   String? _resetCode;
   String? _resetEmail;
   String? _previousUserEmail;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -160,18 +161,23 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   }
 
   Future<void> _onSetPassword() async {
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
-      final newPassword = _passwordController.text;
+    final newPassword = _passwordController.text;
 
-      try {
-        // Password Reset Flow
-        if (_resetCode != null) {
-          print("SetPasswordScreen: Processing password reset with code");
+    // Prevent double submits when UI already shows the form
+    if (_isSubmitting) return;
+
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Password Reset Flow
+      if (_resetCode != null) {
+        print("SetPasswordScreen: Processing password reset with code");
+        try {
           final response = await Supabase.instance.client.auth.verifyOTP(
             token: _resetCode!,
             type: OtpType.recovery,
@@ -195,29 +201,37 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               _passwordSetSuccess("Your password has been reset successfully!");
               return;
             } else {
-              throw Exception("User email not found in OTP response");
+              _showError("User email not found in OTP response.");
+              return;
             }
           } else {
-            throw Exception(
-              "Failed to verify the recovery code (maybe expired/invalid)",
-            );
+            _showError(
+                "Failed to verify the recovery code. It may be expired or invalid.");
+            return;
           }
+        } catch (e) {
+          _showError("Recovery verification failed: $e");
+          return;
         }
+      }
 
-        // Invite (access_token) Flow
-        if (_userEmail != null &&
-            _accessToken != null &&
-            _refreshToken != null) {
-          print(
-            "SetPasswordScreen: Setting password via token for $_userEmail",
-          );
+      // Invite (access_token) Flow
+      if (_userEmail != null && _accessToken != null && _refreshToken != null) {
+        print("SetPasswordScreen: Setting password via token for $_userEmail");
+        try {
           final response = await Supabase.instance.client.auth.setSession(
             _refreshToken!,
           );
           if (response.session != null) {
             final tokenUser = response.user;
             if (tokenUser?.email != _userEmail) {
-              throw Exception("Token email doesn't match expected user!");
+              // Clear tokens to avoid repeated failures
+              if (kIsWeb) {
+                html.window.sessionStorage.remove('supabase_access_token');
+                html.window.sessionStorage.remove('supabase_refresh_token');
+              }
+              _showError("Token email doesn't match expected user.");
+              return;
             }
             await Supabase.instance.client.auth.updateUser(
               UserAttributes(password: newPassword),
@@ -225,10 +239,23 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             _passwordSetSuccess("Your account has been set up successfully!");
             return;
           } else {
-            throw Exception("Could not establish session with token");
+            _showError("Could not establish a session from the invite token.");
+            return;
           }
-        } else if (_isAuthenticated && _userEmail != null) {
-          // Authenticated user changing password
+        } catch (e) {
+          // If token flow fails, clear stored tokens to avoid stale state
+          if (kIsWeb) {
+            html.window.sessionStorage.remove('supabase_access_token');
+            html.window.sessionStorage.remove('supabase_refresh_token');
+          }
+          _showError("Invite token processing failed: $e");
+          return;
+        }
+      }
+
+      // Authenticated user changing password
+      if (_isAuthenticated && _userEmail != null) {
+        try {
           print(
             "SetPasswordScreen: User is authenticated, directly updating password for $_userEmail",
           );
@@ -236,22 +263,34 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             UserAttributes(password: newPassword),
           );
           _passwordSetSuccess("Your password has been updated successfully!");
-        } else {
-          setState(() {
-            _isLoading = false;
-            _errorMessage =
-                "Missing authentication details. Please try again or contact your administrator.";
-          });
+          return;
+        } catch (e) {
+          _showError("Failed to update password: $e");
+          return;
         }
-      } catch (e) {
-        print("SetPasswordScreen: Error setting password: $e");
-        if (!mounted) return;
+      }
+
+      _showError(
+          "Missing authentication details. Please try again or contact your administrator.");
+    } finally {
+      if (mounted) {
         setState(() {
-          _isLoading = false;
-          _errorMessage = "Error setting password: $e";
+          _isSubmitting = false;
         });
       }
     }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    print("SetPasswordScreen: $_errorMessage");
+    setState(() {
+      _isLoading = false;
+      _errorMessage = message;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red.shade700),
+    );
   }
 
   void _passwordSetSuccess(String message) {
@@ -540,33 +579,62 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _onSetPassword,
+                        onPressed: _isSubmitting ? null : _onSetPassword,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
+                          backgroundColor:
+                              _isSubmitting ? Colors.grey : Colors.green,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 15),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(4),
                           ),
                         ),
-                        child: Text(
-                          _resetCode != null
-                              ? "Reset Password"
-                              : (_accessToken != null
-                                  ? "Create Account"
-                                  : "Update Password"),
-                          style: const TextStyle(fontSize: 16),
-                        ),
+                        child: _isSubmitting
+                            ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor:
+                                          AlwaysStoppedAnimation<Color>(
+                                              Colors.white),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    _resetCode != null
+                                        ? "Resetting..."
+                                        : (_accessToken != null
+                                            ? "Creating..."
+                                            : "Updating..."),
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                ],
+                              )
+                            : Text(
+                                _resetCode != null
+                                    ? "Reset Password"
+                                    : (_accessToken != null
+                                        ? "Create Account"
+                                        : "Update Password"),
+                                style: const TextStyle(fontSize: 16),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 16),
                     TextButton(
-                      onPressed:
-                          () => Navigator.of(
-                            context,
-                          ).pushReplacementNamed(LoginScreen.routeName),
+                      onPressed: _isSubmitting
+                          ? null
+                          : () => Navigator.of(
+                                context,
+                              ).pushReplacementNamed(LoginScreen.routeName),
                       style: TextButton.styleFrom(
-                        foregroundColor: Colors.green,
+                        foregroundColor:
+                            _isSubmitting ? Colors.grey : Colors.green,
                       ),
                       child: const Text("Cancel and go to login"),
                     ),
