@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../widgets/in_app_notification_widget.dart';
+import '../../services/notification_service.dart';
 import 'teacher_dashboard_page.dart';
 import 'class_list_page.dart';
 import 'attendance_taking_page.dart';
@@ -35,6 +37,18 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
       _TeacherNavItem("Dashboard", Icons.dashboard),
       _TeacherNavItem("Class list", Icons.list_alt),
     ];
+    _initializeNotifications();
+  }
+
+  /// Initialize push notifications for teacher
+  Future<void> _initializeNotifications() async {
+    try {
+      final notificationService = NotificationService();
+      await notificationService.initializePushNotifications();
+      print('✅ Notifications initialized for teacher');
+    } catch (e) {
+      print('❌ Error initializing notifications: $e');
+    }
   }
 
   void _showAttendancePage(int sectionId, String sectionName) {
@@ -91,7 +105,7 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
     }
   }
 
-  Widget _buildNavItem(_TeacherNavItem item, int index) {
+  Widget _buildNavItem(_TeacherNavItem item, int index, bool isMobile) {
     final bool isSelected = selectedIndex == index && subPage == null;
     return InkWell(
       onTap: () async {
@@ -153,30 +167,42 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
           color: isSelected ? const Color(0xFF2ECC71) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              item.icon,
-              color: isSelected ? Colors.white : Colors.grey[600],
-              size: 20,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                item.label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isSelected ? Colors.white : Colors.grey[800],
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                ),
-              ),
-            ),
-          ],
+        margin: EdgeInsets.symmetric(
+          horizontal: isMobile ? 4 : 8,
+          vertical: isMobile ? 2 : 4,
         ),
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 8 : 16,
+          vertical: isMobile ? 8 : 12,
+        ),
+        child: isMobile
+            ? Icon(
+                item.icon,
+                color: isSelected ? Colors.white : Colors.grey[600],
+                size: 18,
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    item.icon,
+                    color: isSelected ? Colors.white : Colors.grey[600],
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      item.label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isSelected ? Colors.white : Colors.grey[800],
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -218,7 +244,20 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
     // Main nav items
     switch (index) {
       case 0:
-        return const TeacherDashboardPage();
+        return TeacherDashboardPage(
+          onOpenClassList: () {
+            // Navigate via the panel: select "Class list" and reset subpage state
+            setState(() {
+              selectedIndex = 1;
+              subPage = null;
+              selectedSectionId = null;
+              selectedSectionName = null;
+              selectedStudentId = null;
+              selectedStudentName = null;
+            });
+          },
+          onOpenAttendance: _showAttendancePage,
+        );
       case 1:
         return TeacherClassListPage(
           onViewAttendance: _showAttendancePage,
@@ -234,62 +273,96 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return InAppNotificationWidget(
+      userRole: 'teacher',
+      primaryColor: const Color(0xFF19AE61),
+      child: Scaffold(
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
-      body: Row(
-        children: [
-          // Sidebar Navigation
-          Container(
-            width: 180,
-            color: Colors.white,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // App title
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
-                  child: const Text(
-                    "KidSync",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isTablet = constraints.maxWidth >= 768;
+          final isMobile = constraints.maxWidth < 768;
+          // ignore: unused_local_variable\n          final isLargeScreen = constraints.maxWidth >= 1200; // Used for future features
+          
+          return Row(
+            children: [
+              // Sidebar Navigation
+              LayoutBuilder(
+                builder: (context, sidebarConstraints) {
+                  double sidebarWidth;
+                  if (isMobile) {
+                    sidebarWidth = constraints.maxWidth * 0.25; // 25% on mobile
+                    sidebarWidth = sidebarWidth.clamp(60.0, 120.0);
+                  } else if (isTablet) {
+                    sidebarWidth = constraints.maxWidth * 0.2; // 20% on tablet
+                    sidebarWidth = sidebarWidth.clamp(150.0, 200.0);
+                  } else {
+                    sidebarWidth = constraints.maxWidth * 0.15; // 15% on desktop
+                    sidebarWidth = sidebarWidth.clamp(180.0, 250.0);
+                  }
+                  
+                  return Container(
+                    width: sidebarWidth,
+                    color: Colors.white,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // App title
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            isMobile ? 8 : 16,
+                            isMobile ? 16 : 24,
+                            isMobile ? 8 : 16,
+                            isMobile ? 20 : 32,
+                          ),
+                          child: Text(
+                            isMobile ? "KS" : "KidSync",
+                            style: TextStyle(
+                              fontSize: isMobile ? 16 : (isTablet ? 18 : 20),
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                        // Navigation items
+                        Expanded(
+                          child: ListView.builder(
+                            itemCount: navItems.length,
+                            padding: EdgeInsets.zero,
+                            itemBuilder: (context, index) {
+                              final item = navItems[index];
+                              if (item.label == "Logout" && index > 0) {
+                                return Column(
+                                  children: [
+                                    SizedBox(height: isMobile ? 8 : 16),
+                                    _buildNavItem(item, index, isMobile),
+                                  ],
+                                );
+                              }
+                              return _buildNavItem(item, index, isMobile);
+                            },
+                          ),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.only(bottom: isMobile ? 12.0 : 24.0),
+                          child: _buildNavItem(
+                            _TeacherNavItem("Logout", Icons.logout),
+                            navItems.length,
+                            isMobile,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-                // Navigation items
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: navItems.length,
-                    padding: EdgeInsets.zero,
-                    itemBuilder: (context, index) {
-                      final item = navItems[index];
-                      if (item.label == "Logout" && index > 0) {
-                        return Column(
-                          children: [
-                            const SizedBox(height: 16),
-                            _buildNavItem(item, index),
-                          ],
-                        );
-                      }
-                      return _buildNavItem(item, index);
-                    },
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24.0),
-                  child: _buildNavItem(
-                    _TeacherNavItem("Logout", Icons.logout),
-                    navItems.length,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Main Content
-          Expanded(child: _getContentForIndex(selectedIndex)),
-        ],
+                  );
+                },
+              ),
+              // Main Content
+              Expanded(child: _getContentForIndex(selectedIndex)),
+            ],
+          );
+        },
       ),
+    ),
     );
   }
 }

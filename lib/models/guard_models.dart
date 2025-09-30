@@ -82,68 +82,70 @@ class Student {
   }
 }
 
-// Fetcher class to include database fields
+// Update or ensure your Fetcher class looks like this:
 class Fetcher {
   final int id;
   final String name;
-  final String contact;
-  final String address;
   final String relationship;
-  final bool isPrimary;
+  final String contact;
+  final String email;
+  final String address;
   final String imageUrl;
+  final bool isPrimary;
 
   Fetcher({
     required this.id,
     required this.name,
-    required this.contact,
-    required this.address,
     required this.relationship,
-    required this.isPrimary,
+    required this.contact,
+    required this.email,
+    required this.address,
     required this.imageUrl,
+    required this.isPrimary,
   });
 
+  // Factory constructor for creating from parent data
   factory Fetcher.fromParentData(
     Map<String, dynamic> parentData,
     Map<String, dynamic> relationshipData,
   ) {
-    final fname = parentData['fname'] ?? '';
-    final mname = parentData['mname'] ?? '';
-    final lname = parentData['lname'] ?? '';
-    final fullName = '$fname $mname $lname'.trim().replaceAll(
-      RegExp(r'\s+'),
-      ' ',
-    );
-
-    // Extract profile image URL from nested users data - Fixed approach
-    String profileImageUrl = '';
-    try {
-      // The users data comes as an array from the join
-      if (parentData['users'] != null) {
-        if (parentData['users'] is List &&
-            (parentData['users'] as List).isNotEmpty) {
-          final userData = (parentData['users'] as List)[0];
-          if (userData is Map<String, dynamic>) {
-            profileImageUrl = userData['profile_image_url'] ?? '';
-          }
-        } else if (parentData['users'] is Map<String, dynamic>) {
-          // Sometimes it might come as a direct object
-          profileImageUrl = parentData['users']['profile_image_url'] ?? '';
-        }
-      }
-    } catch (e) {
-      print('Error extracting profile image URL: $e');
-      profileImageUrl = '';
-    }
-
     return Fetcher(
       id: parentData['id'],
-      name: fullName,
-      contact: parentData['phone'] ?? parentData['email'] ?? 'No contact',
-      address: parentData['address'] ?? 'No address provided',
-      relationship: relationshipData['relationship_type'] ?? 'Guardian',
+      name: '${parentData['fname']} ${parentData['mname'] ?? ''} ${parentData['lname']}'.trim(),
+      relationship: relationshipData['relationship_type'] ?? 'Parent',
+      contact: parentData['phone'] ?? '',
+      email: parentData['email'] ?? '',
+      address: parentData['address'] ?? '',
+      imageUrl: '', // Will be set separately if needed
       isPrimary: relationshipData['is_primary'] ?? false,
-      imageUrl: profileImageUrl,
     );
+  }
+
+  // Factory constructor from JSON (if needed for other uses)
+  factory Fetcher.fromJson(Map<String, dynamic> json) {
+    return Fetcher(
+      id: json['id'],
+      name: json['name'] ?? '',
+      relationship: json['relationship'] ?? '',
+      contact: json['contact'] ?? '',
+      email: json['email'] ?? '',
+      address: json['address'] ?? '',
+      imageUrl: json['imageUrl'] ?? '',
+      isPrimary: json['isPrimary'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'relationship': relationship,
+      'contact': contact,
+      'email': email,
+      'address': address,
+      'imageUrl': imageUrl,
+      'isPrimary': isPrimary,
+    };
   }
 }
 
@@ -154,7 +156,12 @@ class Activity {
   final String gradeClass;
   final String status;
   final String reason;
-  final DateTime timestamp;
+  final String verifiedBy;
+  final String action;
+  final String? tempFetcherName;
+  final String? tempFetcherRelationship;
+  final String? tempFetcherPin;
+  final DateTime? timestamp;
 
   Activity({
     required this.time,
@@ -162,73 +169,125 @@ class Activity {
     required this.gradeClass,
     required this.status,
     required this.reason,
-    required this.timestamp,
+    required this.verifiedBy,
+    required this.action,
+    this.tempFetcherName,
+    this.tempFetcherRelationship,
+    this.tempFetcherPin,
+    this.timestamp,
   });
 
   factory Activity.fromJson(Map<String, dynamic> json) {
-    final scanTime = DateTime.parse(json['scan_time']);
+    // Parse temporary fetcher data from verified_by field
+    String? tempName;
+    String? tempRelationship;
+    String? tempPin;
+    
+    final verifiedBy = json['verified_by'] ?? '';
+    if (verifiedBy.contains('Temporary Fetcher:')) {
+      // Extract temporary fetcher name
+      final nameMatch = RegExp(r'Temporary Fetcher: ([^,\n]+)').firstMatch(verifiedBy);
+      tempName = nameMatch?.group(1)?.trim();
+    }
+    
+    // Parse from notes field for additional details
+    final notes = json['notes'] ?? '';
+    if (notes.contains('Temporary fetcher verification')) {
+      // Extract PIN
+      final pinMatch = RegExp(r'PIN: (\d+)').firstMatch(notes);
+      tempPin = pinMatch?.group(1);
+      
+      // Extract relationship
+      final relationshipMatch = RegExp(r'Relationship: ([^,\n]+)').firstMatch(notes);
+      tempRelationship = relationshipMatch?.group(1)?.trim();
+    }
+
+    // Parse student information
     final student = json['students'];
+    final studentName = student != null
+        ? '${student['fname']} ${student['mname'] ?? ''} ${student['lname']}'.trim()
+        : 'Unknown Student';
 
-    // Build grade/class information
-    String gradeClass = '';
-    if (student != null) {
-      final gradeLevel = student['grade_level']?.toString() ?? '';
-      final sectionId = student['section_id'];
-      if (gradeLevel.isNotEmpty) {
-        gradeClass = gradeLevel;
-        if (sectionId != null) {
-          gradeClass += ' - Section $sectionId';
-        }
-      }
-    }
+    final gradeLevel = student?['grade_level'] ?? '';
+    final gradeClass = gradeLevel.isNotEmpty ? gradeLevel : 'Unknown Class';
 
-    // Build student name
-    String studentName = 'Unknown';
-    if (student != null) {
-      final fname = student['fname'] ?? '';
-      final mname = student['mname'] ?? '';
-      final lname = student['lname'] ?? '';
-      studentName = '$fname ${mname.isNotEmpty ? '$mname ' : ''}$lname'.trim();
-    }
+    // Format time
+    final scanTime = DateTime.parse(json['scan_time']);
+    final timeFormatted = 
+        "${scanTime.hour.toString().padLeft(2, '0')}:${scanTime.minute.toString().padLeft(2, '0')}";
 
-    // Determine status based on action and status fields
-    String statusMessage;
-    final action = (json['action'] ?? '').toString().toLowerCase();
-    final dbStatus = (json['status'] ?? '').toString().toLowerCase();
-
-    switch (action) {
+    // Map action to status
+    String status;
+    switch (json['action']) {
       case 'entry':
-        statusMessage = "Entry Recorded";
+        status = 'Entry Recorded';
         break;
       case 'exit':
-        // For exit actions, check the status field or verified_by to determine if approved
-        if (dbStatus.contains('checked out') ||
-            json['verified_by'] == 'parent') {
-          statusMessage = "Pickup Approved";
-        } else {
-          statusMessage = "Checked Out";
-        }
+        status = 'Checked Out';
         break;
       case 'denied':
-        statusMessage = "Pickup Denied";
-        break;
-      case 'approved':
-        statusMessage = "Pickup Approved";
+        status = 'Pickup Denied';
         break;
       default:
-        statusMessage = "Activity";
-        break;
+        status = json['status'] ?? 'Unknown';
     }
 
     return Activity(
-      time:
-          "${scanTime.hour.toString().padLeft(2, '0')}:${scanTime.minute.toString().padLeft(2, '0')}",
+      time: timeFormatted,
       studentName: studentName,
       gradeClass: gradeClass,
-      status: statusMessage,
-      reason: json['notes'] ?? '',
+      status: status,
+      reason: notes,
+      verifiedBy: verifiedBy,
+      action: json['action'] ?? '',
+      tempFetcherName: tempName,
+      tempFetcherRelationship: tempRelationship,
+      tempFetcherPin: tempPin,
       timestamp: scanTime,
     );
+  }
+
+  bool get isTemporaryFetcher => tempFetcherName != null;
+  
+  // Add detection methods for special exit types
+  bool get isEarlyDismissal {
+    return reason.contains('Early dismissal exit') || 
+           reason.contains('Early dismissal override');
+  }
+  
+  bool get isVeryEarlyDismissal {
+    return reason.contains('Very early dismissal override');
+  }
+  
+  bool get isEmergencyExit {
+    return reason.contains('Emergency exit');
+  }
+  
+  // Get the specific dismissal/exit type for display
+  String get exitType {
+    if (isVeryEarlyDismissal) return 'Very Early';
+    if (isEarlyDismissal) return 'Early Dismissal';
+    if (isEmergencyExit) return 'Emergency';
+    if (isTemporaryFetcher) return 'Temp Fetcher';
+    return 'Regular';
+  }
+  
+  // Get dismissal reason if available
+  String? get dismissalReason {
+    if (isEarlyDismissal || isVeryEarlyDismissal) {
+      final reasonMatch = RegExp(r'Reason: (.+)$', multiLine: true).firstMatch(reason);
+      return reasonMatch?.group(1)?.trim();
+    }
+    return null;
+  }
+  
+  // Get emergency exit teacher if available
+  String? get emergencyExitTeacher {
+    if (isEmergencyExit) {
+      final teacherMatch = RegExp(r'Approved by teacher: (.+)$', multiLine: true).firstMatch(reason);
+      return teacherMatch?.group(1)?.trim();
+    }
+    return null;
   }
 }
 

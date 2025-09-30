@@ -1,13 +1,73 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dart:math';
-import '../../models/driver_models.dart';
+import '../../models/parent_models.dart';
+import '../../services/notification_service.dart';
+import '../../widgets/in_app_notification_widget.dart';
+
+import 'parent_dashboard_tab.dart';
+import 'pickup_dropoff_tab.dart';
+import 'fetchers_tab.dart';
+import 'confirmation_logs.dart';
+import 'notifications.dart';
 
 class _NavItem {
   final String label;
   final IconData icon;
   final String route;
   _NavItem(this.label, this.icon, this.route);
+}
+
+// Add Student model for the selector
+class Student {
+  final int id;
+  final String firstName;
+  final String middleName;
+  final String lastName;
+  final String gradeLevel;
+  final String section; // This will hold the section name or id
+  final String? profileImageUrl;
+
+  Student({
+    required this.id,
+    required this.firstName,
+    required this.middleName,
+    required this.lastName,
+    required this.gradeLevel,
+    required this.section,
+    this.profileImageUrl,
+  });
+
+  String get fullName {
+    String name = firstName;
+    if (middleName.isNotEmpty) name += ' $middleName';
+    if (lastName.isNotEmpty) name += ' $lastName';
+    return name.trim();
+  }
+
+  String get initials {
+    String initials = firstName.isNotEmpty ? firstName[0] : '';
+    if (lastName.isNotEmpty) initials += lastName[0];
+    return initials.toUpperCase();
+  }
+
+  factory Student.fromJson(Map<String, dynamic> json) {
+    return Student(
+      id: json['student_id'] ?? json['id'],
+      firstName: json['students']?['fname'] ?? json['fname'] ?? '',
+      middleName: json['students']?['mname'] ?? json['mname'] ?? '',
+      lastName: json['students']?['lname'] ?? json['lname'] ?? '',
+      gradeLevel: json['students']?['grade_level'] ?? json['grade_level'] ?? '',
+      // Prefer the joined section name if available, otherwise fall back to id
+      section:
+          json['students']?['sections']?['name'] ??
+          json['students']?['section_id']?.toString() ??
+          json['section_id']?.toString() ??
+          '',
+      profileImageUrl:
+          json['students']?['profile_image_url'] ?? json['profile_image_url'],
+    );
+  }
 }
 
 class ParentHomeScreen extends StatelessWidget {
@@ -36,7 +96,7 @@ class ParentHomeScreen extends StatelessWidget {
       _NavItem('Dashboard', Icons.dashboard, 'dashboard'),
       _NavItem('Pick-up/Drop-off', Icons.directions_car, 'pickup'),
       _NavItem('Fetchers', Icons.group, 'fetchers'),
-      // Removed Notifications from bottom nav
+      _NavItem('Confirmation Logs', Icons.history, 'logs'),
     ];
     return _ParentHomeTabs(
       navItems: navItems,
@@ -74,10 +134,32 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  late PageController _pageController;
+
+  List<AuthorizedFetcher> dashboardFetchers = [];
+  bool isDashboardLoading = true;
+  final supabase = Supabase.instance.client;
+
+  // Add these new properties for user data
+  String userName = 'Loading...';
+  String userEmail = 'Loading...';
+  String? profileImageUrl;
+  bool isLoadingProfile = true;
+
+  // Add student selector properties
+  List<Student> parentStudents = [];
+  Student? selectedStudent;
+  bool isLoadingStudents = true;
+
+  // Add notification properties
+  final NotificationService _notificationService = NotificationService();
+  int unreadNotificationCount = 0;
+  bool isLoadingNotifications = false;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: 0);
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -95,15 +177,281 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     ).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
+
+    // Initialize notifications
+    _initializeNotifications();
+    
+    // Load all data
+    _loadUserProfile();
+    _loadStudents();
   }
 
   @override
   void dispose() {
+    _pageController.dispose();
     _animationController.dispose();
     _fadeController.dispose();
     super.dispose();
   }
 
+  // Add method to load all students for this parent
+  Future<void> _loadStudents() async {
+    try {
+      setState(() => isLoadingStudents = true);
+
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        setState(() => isLoadingStudents = false);
+        return;
+      }
+
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('status', 'active')
+              .maybeSingle();
+
+      if (parentResponse == null) {
+        setState(() => isLoadingStudents = false);
+        return;
+      }
+
+      final parentId = parentResponse['id'];
+
+      // Get all students for this parent - FIXED QUERY
+      final studentResponse = await supabase
+          .from('parent_student')
+          .select('''
+          student_id,
+          students!inner(
+            id, fname, mname, lname, grade_level, section_id,
+            profile_image_url,
+            sections!inner(name)
+          )
+        ''')
+          .eq('parent_id', parentId);
+
+      if (studentResponse.isNotEmpty) {
+        final students =
+            studentResponse.map((data) => Student.fromJson(data)).toList();
+
+        setState(() {
+          parentStudents = students;
+          selectedStudent = students.isNotEmpty ? students.first : null;
+          isLoadingStudents = false;
+        });
+
+        // Load dashboard data for the selected student
+        if (selectedStudent != null) {
+          _loadDashboardFetchers();
+          _loadNotificationCount();
+        }
+      } else {
+        setState(() => isLoadingStudents = false);
+      }
+    } catch (error) {
+      print('Error loading students: $error');
+      setState(() => isLoadingStudents = false);
+    }
+  }
+
+  // Add method to initialize notifications
+  Future<void> _initializeNotifications() async {
+    try {
+      final notificationService = NotificationService();
+      await notificationService.initializePushNotifications();
+      print('✅ Notifications initialized for parent');
+    } catch (e) {
+      print('❌ Error initializing notifications: $e');
+    }
+  }
+
+  // Add method to switch students
+  void _switchToStudent(Student student) async {
+    setState(() {
+      selectedStudent = student;
+    });
+    
+    // Reload dashboard data for the new student
+    _loadDashboardFetchers();
+    _loadNotificationCount();
+  }
+
+  // Add method to load notification count
+  Future<void> _loadNotificationCount() async {
+    if (selectedStudent == null) return;
+
+    try {
+      setState(() => isLoadingNotifications = true);
+
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('id')
+              .eq('user_id', user.id)
+              .maybeSingle();
+
+      if (parentResponse != null) {
+        final parentId = parentResponse['id'];
+        final count = await _notificationService.getUnreadNotificationCount(
+          parentId,
+          studentId: selectedStudent!.id,
+        );
+
+        setState(() {
+          unreadNotificationCount = count;
+        });
+      }
+    } catch (e) {
+      print('Error loading notification count: $e');
+    } finally {
+      setState(() => isLoadingNotifications = false);
+    }
+  }
+
+  // Add this new method to load user profile
+  Future<void> _loadUserProfile() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        setState(() => isLoadingProfile = false);
+        return;
+      }
+
+      final response =
+          await supabase
+              .from('users')
+              .select('fname, mname, lname, email, profile_image_url')
+              .eq('id', user.id)
+              .maybeSingle();
+
+      if (response != null) {
+        String firstName = response['fname'] ?? '';
+        String middleName = response['mname'] ?? '';
+        String lastName = response['lname'] ?? '';
+
+        // Construct full name
+        String fullName = '';
+        if (firstName.isNotEmpty) fullName += firstName;
+        if (middleName.isNotEmpty) fullName += ' $middleName';
+        if (lastName.isNotEmpty) fullName += ' $lastName';
+
+        // Fallback to email username if no name is available
+        if (fullName.trim().isEmpty) {
+          final emailParts = (response['email'] ?? user.email ?? '').split('@');
+          fullName = emailParts.isNotEmpty ? emailParts[0] : 'User';
+        }
+
+        setState(() {
+          userName = fullName.trim();
+          userEmail = response['email'] ?? user.email ?? '';
+          profileImageUrl = response['profile_image_url'];
+          isLoadingProfile = false;
+        });
+      } else {
+        // Fallback to auth user data if no record in users table
+        setState(() {
+          userName =
+              user.userMetadata?['full_name'] ??
+              user.email?.split('@')[0] ??
+              'User';
+          userEmail = user.email ?? '';
+          isLoadingProfile = false;
+        });
+      }
+    } catch (error) {
+      print('Error loading user profile: $error');
+      // Fallback to auth user data on error
+      final user = supabase.auth.currentUser;
+      setState(() {
+        userName =
+            user?.userMetadata?['full_name'] ??
+            user?.email?.split('@')[0] ??
+            'User';
+        userEmail = user?.email ?? '';
+        isLoadingProfile = false;
+      });
+    }
+  }
+
+  Future<void> _loadDashboardFetchers() async {
+    if (selectedStudent == null) return;
+
+    try {
+      setState(() => isDashboardLoading = true);
+
+      // Updated query to include profile images and remove role filter if needed
+      final fetchersResponse = await supabase
+          .from('parent_student')
+          .select('''
+            relationship_type,
+            is_primary,
+            parents!inner(
+              id, fname, mname, lname, phone, email, status, user_id,
+              users!inner(
+                profile_image_url, role
+              )
+            )
+          ''')
+          .eq('student_id', selectedStudent!.id)
+          .eq('parents.status', 'active')
+          .eq(
+            'parents.users.role',
+            'Parent',
+          ) // Only get parents with Parent role
+          .limit(3);
+
+      final List<AuthorizedFetcher> fetchers =
+          fetchersResponse
+              .map((data) => AuthorizedFetcher.fromJson(data))
+              .toList();
+
+      setState(() {
+        dashboardFetchers = fetchers;
+        isDashboardLoading = false;
+      });
+    } catch (error) {
+      print('Error loading dashboard fetchers: $error');
+      setState(() => isDashboardLoading = false);
+    }
+  }
+
+  void _navigateToNotifications() async {
+    if (selectedStudent == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please select a student first'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Show notifications as modal overlay
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (BuildContext context) {
+        return ParentNotificationsModal(selectedStudent: selectedStudent!);
+      },
+    );
+
+    // Always refresh notification count when modal is closed
+    // Add a small delay to ensure any new notifications are processed
+    Future.delayed(Duration(milliseconds: 500), () {
+      if (mounted) {
+        _loadNotificationCount();
+      }
+    });
+  }
+
+  // ignore: unused_element
   void _toggleNotifications() {
     setState(() {
       showNotifications = !showNotifications;
@@ -130,6 +478,513 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
         _animationController.reverse();
       }
     });
+  }
+
+  // Add method to show student selector with beautiful dropdown animation
+  void _showStudentSelector() {
+    if (parentStudents.length <= 1) return; // Don't show if only one student
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.black54,
+      transitionDuration: Duration(milliseconds: 300),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Container();
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: Offset(0, -1),
+            end: Offset(0, 0),
+          ).animate(
+            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+          ),
+          child: FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: Curves.easeIn),
+            child: _buildStudentDropdown(),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStudentDropdown() {
+    return Material(
+      color: Colors.transparent,
+      child: SafeArea(
+        child: Container(
+          margin: EdgeInsets.symmetric(horizontal: 20, vertical: 60),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 20,
+                offset: Offset(0, 10),
+                spreadRadius: 0,
+              ),
+              BoxShadow(
+                color: widget.primaryColor.withOpacity(0.1),
+                blurRadius: 30,
+                offset: Offset(0, 5),
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header with gradient background
+              Container(
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      widget.primaryColor.withOpacity(0.1),
+                      widget.primaryColor.withOpacity(0.05),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: widget.primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.school_outlined,
+                        color: widget.primaryColor,
+                        size: 24,
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Select Student',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF000000),
+                            ),
+                          ),
+                          Text(
+                            'Choose which student to view',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF000000).withOpacity(0.6),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.close,
+                          color: Color(0xFF000000).withOpacity(0.6),
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Student list with staggered animation
+              Container(
+                constraints: BoxConstraints(maxHeight: 400),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    children:
+                        parentStudents.asMap().entries.map((entry) {
+                          int index = entry.key;
+                          Student student = entry.value;
+
+                          return TweenAnimationBuilder<double>(
+                            duration: Duration(
+                              milliseconds: 400 + (index * 100),
+                            ),
+                            tween: Tween(begin: 0.0, end: 1.0),
+                            curve: Curves.easeOutBack,
+                            builder: (context, value, child) {
+                              return Transform.translate(
+                                offset: Offset(30 * (1 - value), 0),
+                                child: Opacity(opacity: value, child: child),
+                              );
+                            },
+                            child: Container(
+                              margin: EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    selectedStudent?.id == student.id
+                                        ? widget.primaryColor.withOpacity(0.08)
+                                        : Colors.transparent,
+                                borderRadius: BorderRadius.circular(16),
+                                border:
+                                    selectedStudent?.id == student.id
+                                        ? Border.all(
+                                          color: widget.primaryColor
+                                              .withOpacity(0.3),
+                                          width: 1,
+                                        )
+                                        : null,
+                              ),
+                              child: ListTile(
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                leading: Hero(
+                                  tag: 'student_avatar_${student.id}',
+                                  child: Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(24),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: widget.primaryColor
+                                              .withOpacity(0.2),
+                                          blurRadius: 8,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child:
+                                        (student.profileImageUrl != null &&
+                                                student
+                                                    .profileImageUrl!
+                                                    .isNotEmpty)
+                                            ? ClipOval(
+                                              child: Image.network(
+                                                student.profileImageUrl!,
+                                                width: 48,
+                                                height: 48,
+                                                fit: BoxFit.cover,
+                                                errorBuilder:
+                                                    (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) => Container(
+                                                      decoration: BoxDecoration(
+                                                        color: widget
+                                                            .primaryColor
+                                                            .withOpacity(0.1),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              24,
+                                                            ),
+                                                      ),
+                                                      alignment:
+                                                          Alignment.center,
+                                                      child: Text(
+                                                        student.initials,
+                                                        style: TextStyle(
+                                                          color:
+                                                              widget
+                                                                  .primaryColor,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 16,
+                                                        ),
+                                                      ),
+                                                    ),
+                                              ),
+                                            )
+                                            : Container(
+                                              decoration: BoxDecoration(
+                                                color: widget.primaryColor
+                                                    .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(24),
+                                              ),
+                                              alignment: Alignment.center,
+                                              child: Text(
+                                                student.initials,
+                                                style: TextStyle(
+                                                  color: widget.primaryColor,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                            ),
+                                  ),
+                                ),
+                                title: Text(
+                                  student.fullName,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    color: Color(0xFF000000),
+                                  ),
+                                ),
+                                subtitle: Container(
+                                  padding: EdgeInsets.only(top: 4),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: widget.primaryColor
+                                              .withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          student.gradeLevel,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                            color: widget.primaryColor,
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        student.section,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Color(
+                                            0xFF000000,
+                                          ).withOpacity(0.6),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                trailing:
+                                    selectedStudent?.id == student.id
+                                        ? Container(
+                                          padding: EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: widget.primaryColor,
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            Icons.check,
+                                            color: Colors.white,
+                                            size: 16,
+                                          ),
+                                        )
+                                        : Container(
+                                          padding: EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            Icons.arrow_forward_ios,
+                                            color: Colors.grey,
+                                            size: 12,
+                                          ),
+                                        ),
+                                onTap: () {
+                                  // Add haptic feedback
+                                  HapticFeedback.lightImpact();
+                                  Navigator.pop(context);
+                                  _switchToStudent(student);
+                                },
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Add method to build student selector widget
+  Widget _buildStudentSelector(bool isMobile) {
+    if (isLoadingStudents) {
+      return Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: widget.primaryColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: widget.primaryColor,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (parentStudents.isEmpty || selectedStudent == null) {
+      return SizedBox.shrink(); // Hide if no students
+    }
+
+    // Show single student icon if only one student
+    if (parentStudents.length == 1) {
+      return Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: widget.primaryColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: widget.primaryColor.withOpacity(0.3)),
+        ),
+        child: Center(
+          child: CircleAvatar(
+            radius: 12,
+            backgroundColor: widget.primaryColor.withOpacity(0.2),
+            backgroundImage:
+                (selectedStudent!.profileImageUrl != null &&
+                        selectedStudent!.profileImageUrl!.isNotEmpty)
+                    ? NetworkImage(selectedStudent!.profileImageUrl!)
+                    : null,
+            child:
+                (selectedStudent!.profileImageUrl == null ||
+                        selectedStudent!.profileImageUrl!.isEmpty)
+                    ? Text(
+                      selectedStudent!.initials,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: widget.primaryColor,
+                      ),
+                    )
+                    : null,
+          ),
+        ),
+      );
+    }
+
+    // Show clickable dropdown selector for multiple students
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        _showStudentSelector();
+      },
+      child: TweenAnimationBuilder<double>(
+        duration: Duration(milliseconds: 200),
+        tween: Tween(begin: 1.0, end: 1.0),
+        builder: (context, scale, child) {
+          return Transform.scale(
+            scale: scale,
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: widget.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: widget.primaryColor.withOpacity(0.3)),
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.primaryColor.withOpacity(0.1),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  Center(
+                    child: Hero(
+                      tag: 'selected_student_avatar_${selectedStudent!.id}',
+                      child: CircleAvatar(
+                        radius: 10,
+                        backgroundColor: widget.primaryColor.withOpacity(0.2),
+                        backgroundImage:
+                            (selectedStudent!.profileImageUrl != null &&
+                                    selectedStudent!
+                                        .profileImageUrl!
+                                        .isNotEmpty)
+                                ? NetworkImage(
+                                  selectedStudent!.profileImageUrl!,
+                                )
+                                : null,
+                        child:
+                            (selectedStudent!.profileImageUrl == null ||
+                                    selectedStudent!.profileImageUrl!.isEmpty)
+                                ? Text(
+                                  selectedStudent!.initials,
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold,
+                                    color: widget.primaryColor,
+                                  ),
+                                )
+                                : null,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: widget.primaryColor,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.white, width: 1),
+                        boxShadow: [
+                          BoxShadow(
+                            color: widget.primaryColor.withOpacity(0.3),
+                            blurRadius: 2,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 8,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _showLogoutConfirmation(BuildContext context) async {
@@ -190,6 +1045,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     );
   }
 
+  // ignore: unused_element
   Widget _fetcherRow(
     String name,
     String role,
@@ -268,7 +1124,10 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     final isMobile = MediaQuery.of(context).size.width < 500;
     const Color white = Color(0xFFFFFFFF);
     const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
-    return Scaffold(
+    return InAppNotificationWidget(
+      userRole: 'parent',
+      primaryColor: widget.primaryColor,
+      child: Scaffold(
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: Stack(
         children: [
@@ -276,7 +1135,23 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
             children: [
               // Top Bar
               Container(
-                color: white,
+                decoration: BoxDecoration(
+                  color: white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF000000).withOpacity(0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                      spreadRadius: 2,
+                    ),
+                    BoxShadow(
+                      color: widget.primaryColor.withOpacity(0.08),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
@@ -294,40 +1169,69 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                             ),
                       ),
                     ),
+                    SizedBox(width: 12),
+                    // Panel Name
+                    Text(
+                      widget.navItems[selectedIndex].label,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF000000),
+                      ),
+                    ),
+
+                    SizedBox(width: 16),
+                    // Student Selector
+                    _buildStudentSelector(isMobile),
+
                     Spacer(),
                     // Notification Bell
                     GestureDetector(
-                      onTap: _toggleNotifications,
+                      onTap: () => _navigateToNotifications(),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color:
-                              showNotifications
-                                  ? greenWithOpacity
-                                  : Colors.transparent,
+                          color: Colors.transparent,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Stack(
                           children: [
                             Icon(
-                              Icons.notifications_none,
+                              unreadNotificationCount > 0
+                                  ? Icons.notifications
+                                  : Icons.notifications_none,
                               color: const Color(0xFF000000),
                               size: 28,
                             ),
-                            // Example badge
-                            Positioned(
-                              right: 0,
-                              top: 2,
-                              child: Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: widget.primaryColor,
-                                  shape: BoxShape.circle,
+                            // Notification count badge
+                            if (unreadNotificationCount > 0)
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Container(
+                                  padding: EdgeInsets.all(4),
+                                  constraints: BoxConstraints(
+                                    minWidth: 16,
+                                    minHeight: 16,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    unreadNotificationCount > 99
+                                        ? '99+'
+                                        : unreadNotificationCount.toString(),
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
                                 ),
                               ),
-                            ),
                           ],
                         ),
                       ),
@@ -348,11 +1252,18 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                         child: CircleAvatar(
                           backgroundColor: greenWithOpacity,
                           radius: 16,
-                          child: Icon(
-                            Icons.person,
-                            color: widget.primaryColor,
-                            size: 18,
-                          ),
+                          backgroundImage:
+                              profileImageUrl != null
+                                  ? NetworkImage(profileImageUrl!)
+                                  : null,
+                          child:
+                              profileImageUrl == null
+                                  ? Icon(
+                                    Icons.person,
+                                    color: widget.primaryColor,
+                                    size: 18,
+                                  )
+                                  : null,
                         ),
                       ),
                     ),
@@ -361,31 +1272,53 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
               ),
               // Main Content
               Expanded(
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    child: _buildTabContent(
-                      selectedIndex,
-                      widget.primaryColor,
-                      isMobile,
-                    ),
-                  ),
+                child: PageView.builder(
+                  controller: _pageController,
+                  onPageChanged: (index) {
+                    setState(() => selectedIndex = index);
+                  },
+                  itemCount: widget.navItems.length,
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      child: _buildTabContent(
+                        index,
+                        widget.primaryColor,
+                        isMobile,
+                      ),
+                    );
+                  },
                 ),
               ),
               // Bottom Navigation Bar
               Container(
-                color: white,
+                decoration: BoxDecoration(
+                  color: white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF000000).withOpacity(0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, -4),
+                      spreadRadius: 2,
+                    ),
+                    BoxShadow(
+                      color: widget.primaryColor.withOpacity(0.08),
+                      blurRadius: 6,
+                      offset: const Offset(0, -2),
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
                 padding: EdgeInsets.only(top: 8, bottom: 8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: List.generate(3, (i) {
-                    // Only 3 icons now
+                  children: List.generate(4, (i) {
                     final item = widget.navItems[i];
                     final bool selected = i == selectedIndex;
                     return AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
+                        horizontal: 8,
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
@@ -399,10 +1332,15 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                               selected
                                   ? widget.primaryColor
                                   : const Color(0xFF000000).withOpacity(0.6),
-                          size: 28,
+                          size: 24,
                         ),
                         onPressed: () {
                           setState(() => selectedIndex = i);
+                          _pageController.animateToPage(
+                            i,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
                         },
                       ),
                     );
@@ -411,7 +1349,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
               ),
             ],
           ),
-          // Notification Popover
+          // Notification and Profile Popovers
           if (showNotifications)
             Positioned(
               top: 56,
@@ -451,7 +1389,6 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                             ),
                           ),
                           const SizedBox(height: 12),
-                          // Example notifications
                           ...List.generate(
                             3,
                             (i) => Padding(
@@ -472,7 +1409,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
-                                      'Notification message # {i + 1}',
+                                      'Notification message ${i + 1}',
                                       style: TextStyle(
                                         fontSize: 14,
                                         color: const Color(0xFF000000),
@@ -483,7 +1420,6 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                               ),
                             ),
                           ),
-                          SizedBox(width: isMobile ? 4 : 8),
                         ],
                       ),
                     ),
@@ -491,7 +1427,6 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                 ),
               ),
             ),
-          // Profile Popover
           if (showProfile)
             Positioned(
               top: 56,
@@ -527,34 +1462,48 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
                               CircleAvatar(
                                 backgroundColor: greenWithOpacity,
                                 radius: 20,
-                                child: Icon(
-                                  Icons.person,
-                                  color: widget.primaryColor,
-                                  size: 22,
-                                ),
+                                backgroundImage:
+                                    profileImageUrl != null
+                                        ? NetworkImage(profileImageUrl!)
+                                        : null,
+                                child:
+                                    profileImageUrl == null
+                                        ? Icon(
+                                          Icons.person,
+                                          color: widget.primaryColor,
+                                          size: 22,
+                                        )
+                                        : null,
                               ),
                               const SizedBox(width: 12),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Parent Name',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: const Color(0xFF000000),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      isLoadingProfile
+                                          ? 'Loading...'
+                                          : userName,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFF000000),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                  Text(
-                                    'parent@email.com',
-                                    style: TextStyle(
-                                      color: const Color(
-                                        0xFF000000,
-                                      ).withOpacity(0.6),
-                                      fontSize: 13,
+                                    Text(
+                                      isLoadingProfile
+                                          ? 'Loading...'
+                                          : userEmail,
+                                      style: TextStyle(
+                                        color: const Color(
+                                          0xFF000000,
+                                        ).withOpacity(0.6),
+                                        fontSize: 13,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ],
                           ),
@@ -590,3077 +1539,66 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
             ),
         ],
       ),
+    ),
     );
   }
 
   Widget _buildTabContent(int index, Color primaryColor, bool isMobile) {
-    const Color white = Color(0xFFFFFFFF);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
-    switch (index) {
-      case 0:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    // Don't render tab content if no student is selected
+    if (selectedStudent == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Notification Card (larger, responsive)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              child: Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 8,
-                shadowColor: primaryColor.withOpacity(0.3),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.15),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                        spreadRadius: 2,
-                      ),
-                      BoxShadow(
-                        color: const Color(0xFF000000).withOpacity(0.05),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.all(
-                      isMobile ? 16 : 32,
-                    ), // Responsive padding
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: greenWithOpacity,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Icon(
-                                Icons.local_shipping,
-                                color: widget.primaryColor,
-                                size: isMobile ? 16 : 18,
-                              ),
-                            ),
-                            SizedBox(width: isMobile ? 8 : 12),
-                            Text(
-                              'Pick-up Status',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: isMobile ? 15 : 16,
-                                color: const Color(0xFF000000),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.circle,
-                              color: widget.primaryColor,
-                              size: 14,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Waiting for Pick-up',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                color: widget.primaryColor,
-                                fontSize: isMobile ? 14 : 15,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.access_time,
-                              size: 16,
-                              color: const Color(0xFF000000).withOpacity(0.6),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Today, 3:30 PM',
-                              style: TextStyle(
-                                color: const Color(0xFF000000).withOpacity(0.7),
-                                fontSize: isMobile ? 12 : 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: isMobile ? 12 : 24),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor:
-                                      primaryColor, // Green for primary button
-                                  foregroundColor: Colors.white, // White text
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  padding: EdgeInsets.symmetric(
-                                    vertical: isMobile ? 10 : 16,
-                                  ),
-                                  textStyle: TextStyle(
-                                    fontSize: isMobile ? 13 : 15,
-                                  ),
-                                  elevation: 2,
-                                ),
-                                icon: const Icon(Icons.check, size: 18),
-                                label: const Text('Confirm Pick-up'),
-                                onPressed: () {},
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor:
-                                      primaryColor, // Green for outlined button text
-                                  side: BorderSide(
-                                    color: primaryColor,
-                                  ), // Green border
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  padding: EdgeInsets.symmetric(
-                                    vertical: isMobile ? 10 : 16,
-                                  ),
-                                  textStyle: TextStyle(
-                                    fontSize: isMobile ? 13 : 15,
-                                  ),
-                                ),
-                                icon: const Icon(
-                                  Icons.directions_car,
-                                  size: 18,
-                                ),
-                                label: const Text('Confirm Drop-off'),
-                                onPressed: () {},
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+            Icon(
+              Icons.person_search,
+              size: 64,
+              color: primaryColor.withOpacity(0.5),
             ),
-            SizedBox(height: isMobile ? 10 : 14),
-            // Driver Information Card
-            _buildDriverInfoCard(primaryColor, isMobile),
-            SizedBox(height: isMobile ? 10 : 14),
-            // Pickup Summary Card
-            _buildPickupSummaryCard(primaryColor, isMobile),
-            SizedBox(height: isMobile ? 10 : 14),
-            // Today's Schedule Card
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              child: Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 6,
-                shadowColor: primaryColor.withOpacity(0.2),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.all(isMobile ? 12 : 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: greenWithOpacity,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Icon(
-                                Icons.calendar_today,
-                                color: widget.primaryColor,
-                                size: isMobile ? 16 : 18,
-                              ),
-                            ),
-                            SizedBox(width: isMobile ? 8 : 12),
-                            Text(
-                              "Today's Schedule",
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: isMobile ? 15 : 16,
-                                color: const Color(0xFF000000),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: isMobile ? 8 : 12),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.radio_button_checked,
-                              size: 18,
-                              color: const Color(0xFF000000).withOpacity(0.6),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '8:00 AM',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                fontSize: isMobile ? 13 : 15,
-                                color: const Color(0xFF000000),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Drop-off',
-                              style: TextStyle(
-                                color: const Color(0xFF000000).withOpacity(0.6),
-                                fontSize: isMobile ? 12 : 14,
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              'Completed',
-                              style: TextStyle(
-                                color: widget.primaryColor,
-                                fontWeight: FontWeight.w600,
-                                fontSize: isMobile ? 13 : 15,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: isMobile ? 4 : 8),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.radio_button_checked,
-                              size: 18,
-                              color: const Color(0xFF000000).withOpacity(0.6),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '3:30 PM',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                fontSize: isMobile ? 13 : 15,
-                                color: const Color(0xFF000000),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Pick-up',
-                              style: TextStyle(
-                                color: const Color(0xFF000000).withOpacity(0.6),
-                                fontSize: isMobile ? 12 : 14,
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              'Pending',
-                              style: TextStyle(
-                                color: widget.primaryColor,
-                                fontWeight: FontWeight.w600,
-                                fontSize: isMobile ? 13 : 15,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(height: isMobile ? 10 : 14),
-            // Authorized Fetchers Card
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              child: Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 6,
-                shadowColor: primaryColor.withOpacity(0.2),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.all(isMobile ? 12 : 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: greenWithOpacity,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Icon(
-                                Icons.verified_user,
-                                color: widget.primaryColor,
-                                size: isMobile ? 16 : 18,
-                              ),
-                            ),
-                            SizedBox(width: isMobile ? 8 : 12),
-                            Text(
-                              'Authorized Fetchers',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: isMobile ? 15 : 16,
-                                color: const Color(0xFF000000),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: isMobile ? 6 : 10),
-                        _fetcherRow(
-                          'John Smith',
-                          'Father',
-                          true,
-                          primaryColor,
-                          isMobile,
-                        ),
-                        _fetcherRow(
-                          'Sarah Johnson',
-                          'Grandmother',
-                          true,
-                          primaryColor,
-                          isMobile,
-                        ),
-                        _fetcherRow(
-                          'Mike Wilson',
-                          'Driver',
-                          false,
-                          primaryColor,
-                          isMobile,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+            SizedBox(height: 16),
+            Text(
+              isLoadingStudents ? 'Loading students...' : 'No students found',
+              style: TextStyle(
+                fontSize: 18,
+                color: Color(0xFF000000).withOpacity(0.6),
               ),
             ),
           ],
+        ),
+      );
+    }
+
+    switch (index) {
+      case 0:
+        // Pass selected student to ParentDashboardTab
+        return ParentDashboardTab(
+          primaryColor: primaryColor,
+          isMobile: isMobile,
+          selectedStudentId: selectedStudent!.id,
         );
       case 1:
-        return _PickupDropoffTab(
-          primaryColor: widget.primaryColor,
+        // Pass selected student to PickupDropoffScreen
+        return PickupDropoffScreen(
+          primaryColor: primaryColor,
           isMobile: isMobile,
+          selectedStudentId: selectedStudent!.id,
         );
       case 2:
-        return _FetchersTab(
-          primaryColor: widget.primaryColor,
+        // Pass selected student to FetchersScreen
+        return FetchersScreen(
+          primaryColor: primaryColor,
           isMobile: isMobile,
+          selectedStudentId: selectedStudent!.id,
         );
       case 3:
-        return _NotificationsTab(primaryColor: widget.primaryColor);
+        // Pass selected student to ConfirmationLogsScreen
+        return ConfirmationLogsScreen(
+          primaryColor: primaryColor,
+          isMobile: isMobile,
+          selectedStudentId: selectedStudent!.id,
+        );
       default:
         return const SizedBox.shrink();
     }
-  }
-}
-
-class _NotificationsTab extends StatelessWidget {
-  final Color primaryColor;
-  const _NotificationsTab({required this.primaryColor, Key? key})
-    : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 500;
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 6,
-      shadowColor: primaryColor.withOpacity(0.2),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: primaryColor.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(isMobile ? 16 : 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.notifications,
-                    color: primaryColor,
-                    size: isMobile ? 20 : 24,
-                  ),
-                  SizedBox(width: isMobile ? 6 : 8),
-                  Text(
-                    'Notifications',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: isMobile ? 16 : 18,
-                      color: const Color(0xFF000000),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: isMobile ? 14 : 24),
-              _notificationRow(
-                'Student arrived safely at school',
-                '2h ago',
-                isMobile,
-              ),
-              _notificationRow(
-                'Pick-up will be at 3:30 PM today',
-                '1h ago',
-                isMobile,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _notificationRow(String message, String time, bool isMobile) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: isMobile ? 6 : 10),
-      child: Row(
-        children: [
-          Icon(
-            Icons.notifications,
-            color: const Color(0xFF000000).withOpacity(0.3),
-            size: isMobile ? 18 : 22,
-          ),
-          SizedBox(width: isMobile ? 8 : 12),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                fontSize: isMobile ? 13 : 15,
-                color: const Color(0xFF000000),
-              ),
-            ),
-          ),
-          SizedBox(width: isMobile ? 6 : 8),
-          Text(
-            time,
-            style: TextStyle(
-              color: const Color(0xFF000000).withOpacity(0.6),
-              fontSize: isMobile ? 10 : 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PickupDropoffTab extends StatefulWidget {
-  final Color primaryColor;
-  final bool isMobile;
-
-  const _PickupDropoffTab({
-    required this.primaryColor,
-    required this.isMobile,
-    Key? key,
-  }) : super(key: key);
-
-  @override
-  State<_PickupDropoffTab> createState() => _PickupDropoffTabState();
-}
-
-class _PickupDropoffTabState extends State<_PickupDropoffTab> {
-  String _selectedDropoffMode = 'driver'; // 'driver' or 'parent'
-  String _selectedPickupMode = 'driver'; // 'driver' or 'parent'
-  bool _hasDroppedOff = false;
-  bool _hasPickedUp = false;
-
-  // Advanced scheduling variables
-  bool _showAdvancedScheduling = false;
-  Map<String, Map<String, String>> _weeklySchedule = {
-    'Monday': {'dropoff': 'driver', 'pickup': 'driver'},
-    'Tuesday': {'dropoff': 'driver', 'pickup': 'driver'},
-    'Wednesday': {'dropoff': 'driver', 'pickup': 'driver'},
-    'Thursday': {'dropoff': 'driver', 'pickup': 'driver'},
-    'Friday': {'dropoff': 'driver', 'pickup': 'driver'},
-  };
-  bool _hasUnassignedDays = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkForUnassignedDays();
-  }
-
-  void _checkForUnassignedDays() {
-    DateTime now = DateTime.now();
-
-    // Check if tomorrow or next few days are unassigned
-    bool hasUnassigned = false;
-    for (int i = 1; i <= 3; i++) {
-      DateTime futureDate = now.add(Duration(days: i));
-      String dayName = _getDayName(futureDate.weekday);
-      if (_weeklySchedule[dayName] == null ||
-          _weeklySchedule[dayName]!['dropoff'] == null ||
-          _weeklySchedule[dayName]!['pickup'] == null) {
-        hasUnassigned = true;
-        break;
-      }
-    }
-
-    setState(() {
-      _hasUnassignedDays = hasUnassigned;
-    });
-  }
-
-  String _getDayName(int weekday) {
-    switch (weekday) {
-      case 1:
-        return 'Monday';
-      case 2:
-        return 'Tuesday';
-      case 3:
-        return 'Wednesday';
-      case 4:
-        return 'Thursday';
-      case 5:
-        return 'Friday';
-      default:
-        return '';
-    }
-  }
-
-  Widget _buildDayScheduler(String day) {
-    const Color white = Color(0xFFFFFFFF);
-    const Color black = Color(0xFF000000);
-
-    return Container(
-      margin: EdgeInsets.only(bottom: widget.isMobile ? 12 : 16),
-      padding: EdgeInsets.all(widget.isMobile ? 12 : 16),
-      decoration: BoxDecoration(
-        color: white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: widget.primaryColor.withOpacity(0.2),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: widget.primaryColor.withOpacity(0.1),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            day,
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: widget.isMobile ? 15 : 17,
-              color: black,
-            ),
-          ),
-          SizedBox(height: widget.isMobile ? 12 : 16),
-
-          // Drop-off Options
-          Text(
-            'Drop-off (8:00 AM)',
-            style: TextStyle(
-              fontWeight: FontWeight.w500,
-              fontSize: widget.isMobile ? 13 : 15,
-              color: black.withOpacity(0.8),
-            ),
-          ),
-          SizedBox(height: widget.isMobile ? 8 : 10),
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _weeklySchedule[day]!['dropoff'] = 'driver';
-                    });
-                  },
-                  child: Container(
-                    padding: EdgeInsets.symmetric(
-                      vertical: widget.isMobile ? 8 : 10,
-                      horizontal: widget.isMobile ? 12 : 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          _weeklySchedule[day]!['dropoff'] == 'driver'
-                              ? widget.primaryColor.withOpacity(0.1)
-                              : white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color:
-                            _weeklySchedule[day]!['dropoff'] == 'driver'
-                                ? widget.primaryColor
-                                : black.withOpacity(0.2),
-                        width:
-                            _weeklySchedule[day]!['dropoff'] == 'driver'
-                                ? 2
-                                : 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.local_shipping,
-                          color:
-                              _weeklySchedule[day]!['dropoff'] == 'driver'
-                                  ? widget.primaryColor
-                                  : black.withOpacity(0.6),
-                          size: widget.isMobile ? 16 : 18,
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Driver',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: widget.isMobile ? 12 : 14,
-                            color:
-                                _weeklySchedule[day]!['dropoff'] == 'driver'
-                                    ? widget.primaryColor
-                                    : black,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 8),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _weeklySchedule[day]!['dropoff'] = 'parent';
-                    });
-                  },
-                  child: Container(
-                    padding: EdgeInsets.symmetric(
-                      vertical: widget.isMobile ? 8 : 10,
-                      horizontal: widget.isMobile ? 12 : 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          _weeklySchedule[day]!['dropoff'] == 'parent'
-                              ? widget.primaryColor.withOpacity(0.1)
-                              : white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color:
-                            _weeklySchedule[day]!['dropoff'] == 'parent'
-                                ? widget.primaryColor
-                                : black.withOpacity(0.2),
-                        width:
-                            _weeklySchedule[day]!['dropoff'] == 'parent'
-                                ? 2
-                                : 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.person,
-                          color:
-                              _weeklySchedule[day]!['dropoff'] == 'parent'
-                                  ? widget.primaryColor
-                                  : black.withOpacity(0.6),
-                          size: widget.isMobile ? 16 : 18,
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Parent',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: widget.isMobile ? 12 : 14,
-                            color:
-                                _weeklySchedule[day]!['dropoff'] == 'parent'
-                                    ? widget.primaryColor
-                                    : black,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          SizedBox(height: widget.isMobile ? 12 : 16),
-
-          // Pick-up Options
-          Text(
-            'Pick-up (3:30 PM)',
-            style: TextStyle(
-              fontWeight: FontWeight.w500,
-              fontSize: widget.isMobile ? 13 : 15,
-              color: black.withOpacity(0.8),
-            ),
-          ),
-          SizedBox(height: widget.isMobile ? 8 : 10),
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _weeklySchedule[day]!['pickup'] = 'driver';
-                    });
-                  },
-                  child: Container(
-                    padding: EdgeInsets.symmetric(
-                      vertical: widget.isMobile ? 8 : 10,
-                      horizontal: widget.isMobile ? 12 : 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          _weeklySchedule[day]!['pickup'] == 'driver'
-                              ? widget.primaryColor.withOpacity(0.1)
-                              : white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color:
-                            _weeklySchedule[day]!['pickup'] == 'driver'
-                                ? widget.primaryColor
-                                : black.withOpacity(0.2),
-                        width:
-                            _weeklySchedule[day]!['pickup'] == 'driver' ? 2 : 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.local_shipping,
-                          color:
-                              _weeklySchedule[day]!['pickup'] == 'driver'
-                                  ? widget.primaryColor
-                                  : black.withOpacity(0.6),
-                          size: widget.isMobile ? 16 : 18,
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Driver',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: widget.isMobile ? 12 : 14,
-                            color:
-                                _weeklySchedule[day]!['pickup'] == 'driver'
-                                    ? widget.primaryColor
-                                    : black,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 8),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _weeklySchedule[day]!['pickup'] = 'parent';
-                    });
-                  },
-                  child: Container(
-                    padding: EdgeInsets.symmetric(
-                      vertical: widget.isMobile ? 8 : 10,
-                      horizontal: widget.isMobile ? 12 : 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          _weeklySchedule[day]!['pickup'] == 'parent'
-                              ? widget.primaryColor.withOpacity(0.1)
-                              : white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color:
-                            _weeklySchedule[day]!['pickup'] == 'parent'
-                                ? widget.primaryColor
-                                : black.withOpacity(0.2),
-                        width:
-                            _weeklySchedule[day]!['pickup'] == 'parent' ? 2 : 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.person,
-                          color:
-                              _weeklySchedule[day]!['pickup'] == 'parent'
-                                  ? widget.primaryColor
-                                  : black.withOpacity(0.6),
-                          size: widget.isMobile ? 16 : 18,
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Parent',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: widget.isMobile ? 12 : 14,
-                            color:
-                                _weeklySchedule[day]!['pickup'] == 'parent'
-                                    ? widget.primaryColor
-                                    : black,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const Color black = Color(0xFF000000);
-    const Color white = Color(0xFFFFFFFF);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Today's Pickup/Dropoff Status
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          child: Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 8,
-            shadowColor: widget.primaryColor.withOpacity(0.3),
-            child: Container(
-              decoration: BoxDecoration(
-                color: white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.primaryColor.withOpacity(0.15),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                    spreadRadius: 2,
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFF000000).withOpacity(0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: greenWithOpacity,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Icon(
-                            Icons.schedule,
-                            color: widget.primaryColor,
-                            size: widget.isMobile ? 16 : 18,
-                          ),
-                        ),
-                        SizedBox(width: widget.isMobile ? 8 : 12),
-                        Text(
-                          'Today\'s Schedule',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: widget.isMobile ? 15 : 16,
-                            color: black,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: widget.isMobile ? 16 : 20),
-                    _buildScheduleItem(
-                      '8:00 AM',
-                      'Drop-off',
-                      _hasDroppedOff
-                          ? 'Completed by ${_selectedDropoffMode == 'driver' ? 'Driver' : 'Parent'}'
-                          : 'Pending',
-                      _hasDroppedOff,
-                      widget.isMobile,
-                      widget.primaryColor,
-                      black,
-                    ),
-                    SizedBox(height: widget.isMobile ? 8 : 12),
-                    _buildScheduleItem(
-                      '3:30 PM',
-                      'Pick-up',
-                      _hasPickedUp
-                          ? 'Completed by ${_selectedPickupMode == 'driver' ? 'Driver' : 'Parent'}'
-                          : 'Pending',
-                      _hasPickedUp,
-                      widget.isMobile,
-                      widget.primaryColor,
-                      black,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        SizedBox(height: widget.isMobile ? 12 : 16),
-
-        // Unassigned Days Alert
-        if (_hasUnassignedDays)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            child: Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 6,
-              shadowColor: Colors.orange.withOpacity(0.3),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.orange, width: 2),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Icon(
-                              Icons.warning_amber,
-                              color: Colors.orange,
-                              size: widget.isMobile ? 16 : 18,
-                            ),
-                          ),
-                          SizedBox(width: widget.isMobile ? 8 : 12),
-                          Expanded(
-                            child: Text(
-                              'Upcoming Days Need Assignment',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: widget.isMobile ? 15 : 16,
-                                color: Colors.orange.shade800,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: widget.isMobile ? 12 : 16),
-                      Text(
-                        'You have upcoming school days without pickup/dropoff assignments. Please schedule them to avoid last-minute confusion.',
-                        style: TextStyle(
-                          fontSize: widget.isMobile ? 13 : 15,
-                          color: Colors.orange.shade700,
-                        ),
-                      ),
-                      SizedBox(height: widget.isMobile ? 12 : 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                            foregroundColor: white,
-                            padding: EdgeInsets.symmetric(
-                              vertical: widget.isMobile ? 12 : 16,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 2,
-                          ),
-                          icon: Icon(
-                            Icons.calendar_month,
-                            size: widget.isMobile ? 18 : 20,
-                          ),
-                          label: Text(
-                            'Schedule Future Days',
-                            style: TextStyle(
-                              fontSize: widget.isMobile ? 14 : 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _showAdvancedScheduling = true;
-                            });
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-        if (_hasUnassignedDays) SizedBox(height: widget.isMobile ? 12 : 16),
-
-        // Advanced Scheduling Panel
-        if (_showAdvancedScheduling)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            child: Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 8,
-              shadowColor: widget.primaryColor.withOpacity(0.3),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.primaryColor.withOpacity(0.15),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: greenWithOpacity,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Icon(
-                              Icons.event_note,
-                              color: widget.primaryColor,
-                              size: widget.isMobile ? 16 : 18,
-                            ),
-                          ),
-                          SizedBox(width: widget.isMobile ? 8 : 12),
-                          Expanded(
-                            child: Text(
-                              'Weekly Schedule Planner',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: widget.isMobile ? 15 : 16,
-                                color: black,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              Icons.close,
-                              color: black.withOpacity(0.6),
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _showAdvancedScheduling = false;
-                              });
-                            },
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: widget.isMobile ? 16 : 20),
-                      Text(
-                        'Set default arrangements for each day of the week:',
-                        style: TextStyle(
-                          fontSize: widget.isMobile ? 13 : 15,
-                          color: black.withOpacity(0.7),
-                        ),
-                      ),
-                      SizedBox(height: widget.isMobile ? 16 : 20),
-                      ..._weeklySchedule.keys
-                          .map((day) => _buildDayScheduler(day))
-                          .toList(),
-                      SizedBox(height: widget.isMobile ? 20 : 24),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: widget.primaryColor,
-                                side: BorderSide(color: widget.primaryColor),
-                                padding: EdgeInsets.symmetric(
-                                  vertical: widget.isMobile ? 12 : 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              icon: Icon(
-                                Icons.auto_awesome,
-                                size: widget.isMobile ? 18 : 20,
-                              ),
-                              label: Text(
-                                'Set All to Driver',
-                                style: TextStyle(
-                                  fontSize: widget.isMobile ? 14 : 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  for (String day in _weeklySchedule.keys) {
-                                    _weeklySchedule[day] = {
-                                      'dropoff': 'driver',
-                                      'pickup': 'driver',
-                                    };
-                                  }
-                                });
-                              },
-                            ),
-                          ),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: widget.primaryColor,
-                                foregroundColor: white,
-                                padding: EdgeInsets.symmetric(
-                                  vertical: widget.isMobile ? 12 : 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                elevation: 2,
-                              ),
-                              icon: Icon(
-                                Icons.save,
-                                size: widget.isMobile ? 18 : 20,
-                              ),
-                              label: Text(
-                                'Save Schedule',
-                                style: TextStyle(
-                                  fontSize: widget.isMobile ? 14 : 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _showAdvancedScheduling = false;
-                                  _hasUnassignedDays = false;
-                                });
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Weekly schedule saved successfully!',
-                                    ),
-                                    backgroundColor: widget.primaryColor,
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-        if (_showAdvancedScheduling)
-          SizedBox(height: widget.isMobile ? 12 : 16),
-
-        // Quick Schedule Button
-        if (!_showAdvancedScheduling && !_hasUnassignedDays)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            child: Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 4,
-              shadowColor: widget.primaryColor.withOpacity(0.2),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () {
-                  setState(() {
-                    _showAdvancedScheduling = true;
-                  });
-                },
-                child: Container(
-                  padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: greenWithOpacity,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.schedule,
-                          color: widget.primaryColor,
-                          size: widget.isMobile ? 20 : 24,
-                        ),
-                      ),
-                      SizedBox(width: widget.isMobile ? 12 : 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Advanced Scheduling',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: widget.isMobile ? 15 : 16,
-                                color: black,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Plan your weekly pickup & dropoff schedule',
-                              style: TextStyle(
-                                fontSize: widget.isMobile ? 12 : 14,
-                                color: black.withOpacity(0.6),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        Icons.arrow_forward_ios,
-                        color: widget.primaryColor,
-                        size: widget.isMobile ? 16 : 18,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-        if (!_showAdvancedScheduling && !_hasUnassignedDays)
-          SizedBox(height: widget.isMobile ? 12 : 16),
-
-        // Drop-off Selection and Action
-        if (!_hasDroppedOff)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            child: Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 6,
-              shadowColor: widget.primaryColor.withOpacity(0.2),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.primaryColor.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: greenWithOpacity,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Icon(
-                              Icons.school,
-                              color: widget.primaryColor,
-                              size: widget.isMobile ? 16 : 18,
-                            ),
-                          ),
-                          SizedBox(width: widget.isMobile ? 8 : 12),
-                          Text(
-                            'Morning Drop-off Options',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: widget.isMobile ? 15 : 16,
-                              color: black,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: widget.isMobile ? 12 : 16),
-                      Text(
-                        'Who will drop off your child today?',
-                        style: TextStyle(
-                          fontSize: widget.isMobile ? 13 : 15,
-                          color: black.withOpacity(0.7),
-                        ),
-                      ),
-                      SizedBox(height: widget.isMobile ? 12 : 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedDropoffMode = 'driver';
-                                });
-                              },
-                              child: Container(
-                                padding: EdgeInsets.all(
-                                  widget.isMobile ? 12 : 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  color:
-                                      _selectedDropoffMode == 'driver'
-                                          ? widget.primaryColor.withOpacity(0.1)
-                                          : white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color:
-                                        _selectedDropoffMode == 'driver'
-                                            ? widget.primaryColor
-                                            : black.withOpacity(0.2),
-                                    width:
-                                        _selectedDropoffMode == 'driver'
-                                            ? 2
-                                            : 1,
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.local_shipping,
-                                      color:
-                                          _selectedDropoffMode == 'driver'
-                                              ? widget.primaryColor
-                                              : black.withOpacity(0.6),
-                                      size: widget.isMobile ? 24 : 30,
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      'Driver Drop-off',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: widget.isMobile ? 13 : 15,
-                                        color:
-                                            _selectedDropoffMode == 'driver'
-                                                ? widget.primaryColor
-                                                : black,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedDropoffMode = 'parent';
-                                });
-                              },
-                              child: Container(
-                                padding: EdgeInsets.all(
-                                  widget.isMobile ? 12 : 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  color:
-                                      _selectedDropoffMode == 'parent'
-                                          ? widget.primaryColor.withOpacity(0.1)
-                                          : white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color:
-                                        _selectedDropoffMode == 'parent'
-                                            ? widget.primaryColor
-                                            : black.withOpacity(0.2),
-                                    width:
-                                        _selectedDropoffMode == 'parent'
-                                            ? 2
-                                            : 1,
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.person,
-                                      color:
-                                          _selectedDropoffMode == 'parent'
-                                              ? widget.primaryColor
-                                              : black.withOpacity(0.6),
-                                      size: widget.isMobile ? 24 : 30,
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      'Parent Drop-off',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: widget.isMobile ? 13 : 15,
-                                        color:
-                                            _selectedDropoffMode == 'parent'
-                                                ? widget.primaryColor
-                                                : black,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: widget.isMobile ? 16 : 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: widget.primaryColor,
-                            foregroundColor: white,
-                            padding: EdgeInsets.symmetric(
-                              vertical: widget.isMobile ? 12 : 16,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 2,
-                          ),
-                          icon: Icon(
-                            Icons.check_circle,
-                            size: widget.isMobile ? 18 : 20,
-                          ),
-                          label: Text(
-                            'Confirm Drop-off by ${_selectedDropoffMode == 'driver' ? 'Driver' : 'Me'}',
-                            style: TextStyle(
-                              fontSize: widget.isMobile ? 14 : 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _hasDroppedOff = true;
-                            });
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Drop-off confirmed! ${_selectedDropoffMode == 'driver' ? 'Driver will handle the drop-off' : 'You will drop off your child'}',
-                                ),
-                                backgroundColor: widget.primaryColor,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-        if (!_hasDroppedOff) SizedBox(height: widget.isMobile ? 12 : 16),
-
-        // Pick-up Selection and Action
-        if (!_hasPickedUp)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            child: Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 6,
-              shadowColor: widget.primaryColor.withOpacity(0.2),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.primaryColor.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: greenWithOpacity,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Icon(
-                              Icons.home,
-                              color: widget.primaryColor,
-                              size: widget.isMobile ? 16 : 18,
-                            ),
-                          ),
-                          SizedBox(width: widget.isMobile ? 8 : 12),
-                          Text(
-                            'Afternoon Pick-up Options',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: widget.isMobile ? 15 : 16,
-                              color: black,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: widget.isMobile ? 12 : 16),
-                      Text(
-                        'Who will pick up your child today?',
-                        style: TextStyle(
-                          fontSize: widget.isMobile ? 13 : 15,
-                          color: black.withOpacity(0.7),
-                        ),
-                      ),
-                      SizedBox(height: widget.isMobile ? 12 : 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedPickupMode = 'driver';
-                                });
-                              },
-                              child: Container(
-                                padding: EdgeInsets.all(
-                                  widget.isMobile ? 12 : 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  color:
-                                      _selectedPickupMode == 'driver'
-                                          ? widget.primaryColor.withOpacity(0.1)
-                                          : white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color:
-                                        _selectedPickupMode == 'driver'
-                                            ? widget.primaryColor
-                                            : black.withOpacity(0.2),
-                                    width:
-                                        _selectedPickupMode == 'driver' ? 2 : 1,
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.local_shipping,
-                                      color:
-                                          _selectedPickupMode == 'driver'
-                                              ? widget.primaryColor
-                                              : black.withOpacity(0.6),
-                                      size: widget.isMobile ? 24 : 30,
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      'Driver Pick-up',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: widget.isMobile ? 13 : 15,
-                                        color:
-                                            _selectedPickupMode == 'driver'
-                                                ? widget.primaryColor
-                                                : black,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedPickupMode = 'parent';
-                                });
-                              },
-                              child: Container(
-                                padding: EdgeInsets.all(
-                                  widget.isMobile ? 12 : 16,
-                                ),
-                                decoration: BoxDecoration(
-                                  color:
-                                      _selectedPickupMode == 'parent'
-                                          ? widget.primaryColor.withOpacity(0.1)
-                                          : white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color:
-                                        _selectedPickupMode == 'parent'
-                                            ? widget.primaryColor
-                                            : black.withOpacity(0.2),
-                                    width:
-                                        _selectedPickupMode == 'parent' ? 2 : 1,
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.person,
-                                      color:
-                                          _selectedPickupMode == 'parent'
-                                              ? widget.primaryColor
-                                              : black.withOpacity(0.6),
-                                      size: widget.isMobile ? 24 : 30,
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      'Parent Pick-up',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: widget.isMobile ? 13 : 15,
-                                        color:
-                                            _selectedPickupMode == 'parent'
-                                                ? widget.primaryColor
-                                                : black,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: widget.isMobile ? 16 : 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: widget.primaryColor,
-                            foregroundColor: white,
-                            padding: EdgeInsets.symmetric(
-                              vertical: widget.isMobile ? 12 : 16,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 2,
-                          ),
-                          icon: Icon(
-                            Icons.check_circle,
-                            size: widget.isMobile ? 18 : 20,
-                          ),
-                          label: Text(
-                            'Confirm Pick-up by ${_selectedPickupMode == 'driver' ? 'Driver' : 'Me'}',
-                            style: TextStyle(
-                              fontSize: widget.isMobile ? 14 : 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _hasPickedUp = true;
-                            });
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Pick-up confirmed! ${_selectedPickupMode == 'driver' ? 'Driver will handle the pick-up' : 'You will pick up your child'}',
-                                ),
-                                backgroundColor: widget.primaryColor,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-        if (!_hasPickedUp) SizedBox(height: widget.isMobile ? 12 : 16),
-
-        // Reset Options (if both completed)
-        if (_hasDroppedOff && _hasPickedUp)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            child: Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 6,
-              shadowColor: widget.primaryColor.withOpacity(0.2),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.primaryColor.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.celebration,
-                        color: widget.primaryColor,
-                        size: widget.isMobile ? 32 : 40,
-                      ),
-                      SizedBox(height: 12),
-                      Text(
-                        'All Done for Today!',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: widget.isMobile ? 16 : 18,
-                          color: widget.primaryColor,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Both drop-off and pick-up have been completed.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: widget.isMobile ? 13 : 15,
-                          color: black.withOpacity(0.7),
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: widget.primaryColor,
-                          side: BorderSide(color: widget.primaryColor),
-                          padding: EdgeInsets.symmetric(
-                            vertical: widget.isMobile ? 12 : 16,
-                            horizontal: widget.isMobile ? 16 : 20,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        icon: Icon(
-                          Icons.refresh,
-                          size: widget.isMobile ? 18 : 20,
-                        ),
-                        label: Text(
-                          'Reset for Tomorrow',
-                          style: TextStyle(
-                            fontSize: widget.isMobile ? 14 : 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _hasDroppedOff = false;
-                            _hasPickedUp = false;
-                            _selectedDropoffMode = 'driver';
-                            _selectedPickupMode = 'driver';
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Schedule reset for tomorrow'),
-                              backgroundColor: widget.primaryColor,
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildScheduleItem(
-    String time,
-    String action,
-    String status,
-    bool completed,
-    bool isMobile,
-    Color primaryColor,
-    Color black,
-  ) {
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 12 : 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFFFF),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: completed ? primaryColor : primaryColor.withOpacity(0.3),
-          width: completed ? 2 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: primaryColor.withOpacity(0.1),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: completed ? primaryColor : black.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              completed ? Icons.check_circle : Icons.schedule,
-              color:
-                  completed ? const Color(0xFFFFFFFF) : black.withOpacity(0.6),
-              size: isMobile ? 16 : 18,
-            ),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$time - $action',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: isMobile ? 14 : 16,
-                    color: black,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  status,
-                  style: TextStyle(
-                    fontSize: isMobile ? 12 : 14,
-                    color: completed ? primaryColor : black.withOpacity(0.6),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FetchersTab extends StatefulWidget {
-  final Color primaryColor;
-  final bool isMobile;
-
-  const _FetchersTab({
-    required this.primaryColor,
-    required this.isMobile,
-    Key? key,
-  }) : super(key: key);
-
-  @override
-  State<_FetchersTab> createState() => _FetchersTabState();
-}
-
-class _FetchersTabState extends State<_FetchersTab> {
-  final TextEditingController _fetcherNameController = TextEditingController();
-  String _currentPin = '8472';
-  String? _currentFetcherName;
-
-  String _generatePin() {
-    final random = Random();
-    return (1000 + random.nextInt(9000)).toString();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const Color black = Color(0xFF000000);
-    const Color white = Color(0xFFFFFFFF);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.6);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Add Temporary Fetcher
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          child: Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 8,
-            shadowColor: widget.primaryColor.withOpacity(0.3),
-            child: Container(
-              decoration: BoxDecoration(
-                color: white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.primaryColor.withOpacity(0.15),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                    spreadRadius: 2,
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFF000000).withOpacity(0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: greenWithOpacity,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Icon(
-                            Icons.person_add_alt_1,
-                            color: widget.primaryColor,
-                            size: widget.isMobile ? 16 : 18,
-                          ),
-                        ),
-                        SizedBox(width: widget.isMobile ? 8 : 12),
-                        Text(
-                          'Add Temporary Fetcher',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: widget.isMobile ? 15 : 16,
-                            color: black,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: widget.isMobile ? 16 : 20),
-                    Container(
-                      padding: EdgeInsets.all(widget.isMobile ? 12 : 16),
-                      decoration: BoxDecoration(
-                        color: greenWithOpacity,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: widget.primaryColor.withOpacity(0.3),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Temporary Access',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: widget.isMobile ? 14 : 16,
-                              color: widget.primaryColor,
-                            ),
-                          ),
-                          SizedBox(height: widget.isMobile ? 8 : 10),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Fetcher Name',
-                                style: TextStyle(
-                                  fontSize: widget.isMobile ? 13 : 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: black,
-                                ),
-                              ),
-                              SizedBox(height: widget.isMobile ? 6 : 8),
-                              TextField(
-                                controller: _fetcherNameController,
-                                decoration: InputDecoration(
-                                  hintText: 'Enter full name',
-                                  filled: true,
-                                  fillColor: white,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(
-                                      color: widget.primaryColor.withOpacity(
-                                        0.2,
-                                      ),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    borderSide: BorderSide(
-                                      color: widget.primaryColor,
-                                      width: 2,
-                                    ),
-                                  ),
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: widget.isMobile ? 12 : 16,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: widget.isMobile ? 12 : 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: widget.primaryColor,
-                                foregroundColor: white,
-                                padding: EdgeInsets.symmetric(
-                                  vertical: widget.isMobile ? 12 : 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                elevation: 2,
-                              ),
-                              icon: Icon(
-                                Icons.security,
-                                size: widget.isMobile ? 18 : 20,
-                              ),
-                              label: Text(
-                                'Generate Secure PIN',
-                                style: TextStyle(
-                                  fontSize: widget.isMobile ? 14 : 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              onPressed: () {
-                                if (_fetcherNameController.text
-                                    .trim()
-                                    .isNotEmpty) {
-                                  setState(() {
-                                    _currentFetcherName =
-                                        _fetcherNameController.text.trim();
-                                    _currentPin = _generatePin();
-                                  });
-                                  showDialog(
-                                    context: context,
-                                    builder: (BuildContext context) {
-                                      return AlertDialog(
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                        ),
-                                        title: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.check_circle,
-                                              color: widget.primaryColor,
-                                              size: 24,
-                                            ),
-                                            SizedBox(width: 8),
-                                            Text(
-                                              'PIN Generated',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: black,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        content: Text(
-                                          'PIN generated successfully for ${_currentFetcherName}',
-                                          style: TextStyle(
-                                            color: black.withOpacity(0.7),
-                                          ),
-                                        ),
-                                        actions: [
-                                          ElevatedButton(
-                                            onPressed:
-                                                () =>
-                                                    Navigator.of(context).pop(),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  widget.primaryColor,
-                                              foregroundColor: white,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                            ),
-                                            child: Text('OK'),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  );
-                                } else {
-                                  // Show error in center with better styling
-                                  showDialog(
-                                    context: context,
-                                    builder: (BuildContext context) {
-                                      return AlertDialog(
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                        ),
-                                        title: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.error_outline,
-                                              color: Colors.red,
-                                              size: 24,
-                                            ),
-                                            SizedBox(width: 8),
-                                            Text(
-                                              'Input Required',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: black,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        content: Text(
-                                          'Please enter a fetcher name to generate a PIN.',
-                                          style: TextStyle(
-                                            color: black.withOpacity(0.7),
-                                          ),
-                                        ),
-                                        actions: [
-                                          ElevatedButton(
-                                            onPressed:
-                                                () =>
-                                                    Navigator.of(context).pop(),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  widget.primaryColor,
-                                              foregroundColor: white,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                            ),
-                                            child: Text('OK'),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  );
-                                }
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        SizedBox(height: widget.isMobile ? 12 : 16),
-
-        // Current Temporary Fetcher PIN
-        if (_currentFetcherName != null)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            child: Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 8,
-              shadowColor: widget.primaryColor.withOpacity(0.3),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.primaryColor.withOpacity(0.15),
-                      blurRadius: 12,
-                      offset: const Offset(0, 6),
-                      spreadRadius: 2,
-                    ),
-                    BoxShadow(
-                      color: const Color(0xFF000000).withOpacity(0.05),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: greenWithOpacity,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Icon(
-                              Icons.person_pin,
-                              color: widget.primaryColor,
-                              size: widget.isMobile ? 16 : 18,
-                            ),
-                          ),
-                          SizedBox(width: widget.isMobile ? 8 : 12),
-                          Text(
-                            'Active Temporary Access',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: widget.isMobile ? 15 : 16,
-                              color: black,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: widget.isMobile ? 16 : 20),
-                      Container(
-                        padding: EdgeInsets.all(widget.isMobile ? 16 : 20),
-                        decoration: BoxDecoration(
-                          color: greenWithOpacity,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: widget.primaryColor,
-                            width: 2,
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              _currentFetcherName!,
-                              style: TextStyle(
-                                fontSize: widget.isMobile ? 16 : 18,
-                                fontWeight: FontWeight.w600,
-                                color: black,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'PIN Code',
-                              style: TextStyle(
-                                fontSize: widget.isMobile ? 14 : 16,
-                                fontWeight: FontWeight.w600,
-                                color: black,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: widget.isMobile ? 20 : 24,
-                                vertical: widget.isMobile ? 12 : 16,
-                              ),
-                              decoration: BoxDecoration(
-                                color: white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: widget.primaryColor,
-                                  width: 1,
-                                ),
-                              ),
-                              child: Text(
-                                _currentPin,
-                                style: TextStyle(
-                                  fontSize: widget.isMobile ? 24 : 32,
-                                  fontWeight: FontWeight.bold,
-                                  color: widget.primaryColor,
-                                  letterSpacing: 4,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Valid for today only',
-                              style: TextStyle(
-                                fontSize: widget.isMobile ? 12 : 14,
-                                color: black.withOpacity(0.6),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: widget.isMobile ? 16 : 20),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: widget.primaryColor,
-                                foregroundColor: white,
-                                padding: EdgeInsets.symmetric(
-                                  vertical: widget.isMobile ? 12 : 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              icon: Icon(
-                                Icons.copy,
-                                size: widget.isMobile ? 18 : 20,
-                              ),
-                              label: Text(
-                                'Copy PIN',
-                                style: TextStyle(
-                                  fontSize: widget.isMobile ? 14 : 16,
-                                ),
-                              ),
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('PIN copied to clipboard'),
-                                    backgroundColor: widget.primaryColor,
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: widget.primaryColor,
-                                side: BorderSide(color: widget.primaryColor),
-                                padding: EdgeInsets.symmetric(
-                                  vertical: widget.isMobile ? 12 : 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              icon: Icon(
-                                Icons.refresh,
-                                size: widget.isMobile ? 18 : 20,
-                              ),
-                              label: Text(
-                                'Regenerate',
-                                style: TextStyle(
-                                  fontSize: widget.isMobile ? 14 : 16,
-                                ),
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _currentPin = _generatePin();
-                                });
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('New PIN generated'),
-                                    backgroundColor: widget.primaryColor,
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-        SizedBox(height: widget.isMobile ? 12 : 16),
-
-        // Authorized Fetchers List
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          child: Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 6,
-            shadowColor: widget.primaryColor.withOpacity(0.2),
-            child: Container(
-              decoration: BoxDecoration(
-                color: white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.primaryColor.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(widget.isMobile ? 16 : 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: greenWithOpacity,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Icon(
-                            Icons.verified_user,
-                            color: widget.primaryColor,
-                            size: widget.isMobile ? 16 : 18,
-                          ),
-                        ),
-                        SizedBox(width: widget.isMobile ? 8 : 12),
-                        Text(
-                          'Authorized Fetchers',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: widget.isMobile ? 15 : 16,
-                            color: black,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: widget.isMobile ? 12 : 16),
-                    _buildFetcherItem(
-                      'John Smith',
-                      'Father',
-                      true,
-                      widget.isMobile,
-                      widget.primaryColor,
-                      black,
-                      greenWithOpacity,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildFetcherItem(
-                      'Sarah Johnson',
-                      'Grandmother',
-                      true,
-                      widget.isMobile,
-                      widget.primaryColor,
-                      black,
-                      greenWithOpacity,
-                    ),
-                    const SizedBox(height: 8),
-                    _buildFetcherItem(
-                      'Mike Wilson',
-                      'Driver',
-                      false,
-                      widget.isMobile,
-                      widget.primaryColor,
-                      black,
-                      greenWithOpacity,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFetcherItem(
-    String name,
-    String role,
-    bool active,
-    bool isMobile,
-    Color primaryColor,
-    Color black,
-    Color greenWithOpacity,
-  ) {
-    return Container(
-      margin: EdgeInsets.only(bottom: isMobile ? 8 : 12),
-      padding: EdgeInsets.all(isMobile ? 12 : 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFFFF),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: primaryColor.withOpacity(0.3), width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: primaryColor.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: active ? primaryColor : black.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: CircleAvatar(
-              backgroundColor: greenWithOpacity,
-              radius: isMobile ? 16 : 20,
-              child: Icon(
-                Icons.person,
-                color: primaryColor,
-                size: isMobile ? 18 : 22,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: isMobile ? 15 : 17,
-                    color: black,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  role,
-                  style: TextStyle(
-                    color: black.withOpacity(0.6),
-                    fontSize: isMobile ? 13 : 15,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      active ? Icons.check_circle : Icons.circle_outlined,
-                      color: active ? primaryColor : black.withOpacity(0.4),
-                      size: isMobile ? 14 : 16,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      active ? 'Active' : 'Inactive',
-                      style: TextStyle(
-                        color: active ? primaryColor : black.withOpacity(0.6),
-                        fontSize: isMobile ? 12 : 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color:
-                  active
-                      ? primaryColor.withOpacity(0.1)
-                      : black.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              active ? Icons.security : Icons.security_outlined,
-              color: active ? primaryColor : black.withOpacity(0.4),
-              size: isMobile ? 16 : 18,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Extension methods for _ParentHomeTabsState
-extension ParentHomeTabsExtension on _ParentHomeTabsState {
-  Widget _buildDriverInfoCard(Color primaryColor, bool isMobile) {
-    const Color white = Color(0xFFFFFFFF);
-    const Color black = Color(0xFF000000);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
-    final driverInfo = StaticDriverData.driverInfo;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 6,
-        shadowColor: primaryColor.withOpacity(0.2),
-        child: Container(
-          decoration: BoxDecoration(
-            color: white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: primaryColor.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: EdgeInsets.all(isMobile ? 12 : 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: greenWithOpacity,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        Icons.local_shipping,
-                        color: primaryColor,
-                        size: isMobile ? 16 : 18,
-                      ),
-                    ),
-                    SizedBox(width: isMobile ? 8 : 12),
-                    Text(
-                      'Your Driver',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: isMobile ? 15 : 16,
-                        color: black,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: isMobile ? 12 : 16),
-                Container(
-                  padding: EdgeInsets.all(isMobile ? 12 : 16),
-                  decoration: BoxDecoration(
-                    color: white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: primaryColor.withOpacity(0.3),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                        spreadRadius: 0,
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: greenWithOpacity,
-                        radius: isMobile ? 24 : 30,
-                        child: Icon(
-                          Icons.person,
-                          color: primaryColor,
-                          size: isMobile ? 24 : 30,
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              driverInfo.name,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: isMobile ? 16 : 18,
-                                color: black,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.directions_car,
-                                  size: isMobile ? 14 : 16,
-                                  color: black.withOpacity(0.6),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Vehicle: ${driverInfo.vehicleNumber}',
-                                  style: TextStyle(
-                                    fontSize: isMobile ? 13 : 15,
-                                    color: black.withOpacity(0.6),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.phone,
-                                  size: isMobile ? 14 : 16,
-                                  color: black.withOpacity(0.6),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  driverInfo.phoneNumber,
-                                  style: TextStyle(
-                                    fontSize: isMobile ? 13 : 15,
-                                    color: black.withOpacity(0.6),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: primaryColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: isMobile ? 12 : 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          foregroundColor: white,
-                          padding: EdgeInsets.symmetric(
-                            vertical: isMobile ? 10 : 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 2,
-                        ),
-                        icon: Icon(Icons.phone, size: isMobile ? 16 : 18),
-                        label: Text(
-                          'Call Driver',
-                          style: TextStyle(fontSize: isMobile ? 13 : 15),
-                        ),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Calling ${driverInfo.name}...'),
-                              backgroundColor: primaryColor,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: primaryColor,
-                          side: BorderSide(color: primaryColor),
-                          padding: EdgeInsets.symmetric(
-                            vertical: isMobile ? 10 : 14,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        icon: Icon(Icons.message, size: isMobile ? 16 : 18),
-                        label: Text(
-                          'Message',
-                          style: TextStyle(fontSize: isMobile ? 13 : 15),
-                        ),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Opening message to ${driverInfo.name}...',
-                              ),
-                              backgroundColor: primaryColor,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPickupSummaryCard(Color primaryColor, bool isMobile) {
-    const Color white = Color(0xFFFFFFFF);
-    const Color black = Color(0xFF000000);
-    const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.1);
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 6,
-        shadowColor: primaryColor.withOpacity(0.2),
-        child: Container(
-          decoration: BoxDecoration(
-            color: white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: primaryColor.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: EdgeInsets.all(isMobile ? 12 : 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: greenWithOpacity,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        Icons.assignment_turned_in,
-                        color: primaryColor,
-                        size: isMobile ? 16 : 18,
-                      ),
-                    ),
-                    SizedBox(width: isMobile ? 8 : 12),
-                    Text(
-                      'Today\'s Pickup Summary',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: isMobile ? 15 : 16,
-                        color: black,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: isMobile ? 12 : 16),
-                _buildSummaryItem(
-                  Icons.school,
-                  'Drop-off',
-                  '8:00 AM - Arrived safely at school',
-                  'Driver: John Smith verified arrival',
-                  true,
-                  primaryColor,
-                  black,
-                  isMobile,
-                ),
-                const SizedBox(height: 8),
-                _buildSummaryItem(
-                  Icons.schedule,
-                  'Current Status',
-                  '2:15 PM - Present in Story Time class',
-                  'Last scanned at classroom entrance',
-                  true,
-                  primaryColor,
-                  black,
-                  isMobile,
-                ),
-                const SizedBox(height: 8),
-                _buildSummaryItem(
-                  Icons.directions_car,
-                  'Pickup',
-                  '3:30 PM - Scheduled pickup time',
-                  'Driver: John Smith will pick up',
-                  false,
-                  primaryColor,
-                  black,
-                  isMobile,
-                ),
-                SizedBox(height: isMobile ? 12 : 16),
-                Container(
-                  padding: EdgeInsets.all(isMobile ? 10 : 12),
-                  decoration: BoxDecoration(
-                    color: greenWithOpacity,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: primaryColor.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.info,
-                        color: primaryColor,
-                        size: isMobile ? 16 : 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Real-time updates will appear here when your child is picked up',
-                          style: TextStyle(
-                            fontSize: isMobile ? 12 : 14,
-                            color: black.withOpacity(0.7),
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSummaryItem(
-    IconData icon,
-    String title,
-    String time,
-    String description,
-    bool completed,
-    Color primaryColor,
-    Color black,
-    bool isMobile,
-  ) {
-    const Color white = Color(0xFFFFFFFF);
-
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 10 : 12),
-      decoration: BoxDecoration(
-        color: white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: primaryColor.withOpacity(0.1), width: 1),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: completed ? primaryColor : black.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              completed ? Icons.check : icon,
-              color: completed ? white : black.withOpacity(0.6),
-              size: isMobile ? 14 : 16,
-            ),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: isMobile ? 13 : 15,
-                    color: black,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  time,
-                  style: TextStyle(
-                    fontSize: isMobile ? 12 : 14,
-                    color: completed ? primaryColor : black.withOpacity(0.6),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: isMobile ? 11 : 13,
-                    color: black.withOpacity(0.6),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

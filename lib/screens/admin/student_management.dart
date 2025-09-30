@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kidsync/widgets/role_protection.dart';
+import 'package:kidsync/services/audit_log_service.dart';
 import 'package:intl/intl.dart';
 import 'package:web_socket_channel/html.dart';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
-import 'dart:typed_data';
-import 'dart:html' as html; // Add this for web file handling
+import 'dart:html' as html;
+import 'package:excel/excel.dart' as excel_lib;
 
 class StudentManagementPageAdmin extends StatelessWidget {
   const StudentManagementPageAdmin({super.key});
@@ -30,6 +31,7 @@ class StudentManagementPage extends StatefulWidget {
 
 class _StudentManagementPageState extends State<StudentManagementPage> {
   final supabase = Supabase.instance.client;
+  final auditLogService = AuditLogService();
   List<Map<String, dynamic>> students = [];
   List<Map<String, dynamic>> sections = [];
   bool isLoading = false;
@@ -42,10 +44,14 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   bool _selectAll = false;
   Uint8List? _selectedImageBytes;
 
-  // For pagination
-  int _currentPage = 1;
-  int _itemsPerPage = 5;
-  int _totalPages = 1;
+  // Responsive breakpoints
+  bool get isMobile => MediaQuery.of(context).size.width < 768;
+  bool get isTablet =>
+      MediaQuery.of(context).size.width >= 768 &&
+      MediaQuery.of(context).size.width < 1200;
+  bool get isDesktop => MediaQuery.of(context).size.width >= 1200;
+  bool get isSmallMobile => MediaQuery.of(context).size.width < 480;
+
 
   // For image uploads
   String? _selectedImagePath;
@@ -72,22 +78,104 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
   Future<void> _fetchStudents() async {
     setState(() => isLoading = true);
-    // Fetch students with joined section info
+    // Fetch students with joined section info and parent information
     final response = await supabase
         .from('students')
-        .select('*, sections(id, name, grade_level)')
+        .select('''
+          *, 
+          sections(id, name, grade_level),
+          parent_student(
+            relationship_type,
+            is_primary,
+            parents(
+              id,
+              fname,
+              mname,
+              lname,
+              phone,
+              email,
+              address,
+              status
+            )
+          )
+        ''')
         .order('lname', ascending: true);
+
+    // Process the data to automatically set primary parent if only one exists
+    final processedStudents = List<Map<String, dynamic>>.from(response);
+    for (var student in processedStudents) {
+      if (student['parent_student'] != null) {
+        final parentStudentList = student['parent_student'] as List;
+
+        // If there's only one parent/guardian, automatically mark them as primary
+        if (parentStudentList.length == 1) {
+          parentStudentList[0]['is_primary'] = true;
+        } else if (parentStudentList.length > 1) {
+          // Check if there's already a primary parent marked
+          final hasPrimary = parentStudentList.any(
+            (ps) => ps['is_primary'] == true,
+          );
+
+          // If no primary parent is marked, make the first one primary
+          if (!hasPrimary) {
+            parentStudentList[0]['is_primary'] = true;
+          }
+        }
+      }
+    }
+
     setState(() {
-      students = List<Map<String, dynamic>>.from(response);
+      students = processedStudents;
       isLoading = false;
     });
   }
 
-  void _calculateTotalPages(List<Map<String, dynamic>> filteredStudents) {
-    _totalPages = (filteredStudents.length / _itemsPerPage).ceil();
-    if (_totalPages == 0) _totalPages = 1;
-    if (_currentPage > _totalPages) _currentPage = _totalPages;
+  /// Ensures that a student has a primary parent/guardian
+  /// If there's only one parent, they become primary automatically
+  /// If there are multiple parents but none marked as primary, the first one becomes primary
+  Future<void> _ensurePrimaryParent(int studentId) async {
+    try {
+      // Get current parent-student relationships
+      final parentStudentResponse = await supabase
+          .from('parent_student')
+          .select('id, parent_id, is_primary')
+          .eq('student_id', studentId);
+
+      final relationships = List<Map<String, dynamic>>.from(
+        parentStudentResponse,
+      );
+
+      if (relationships.isEmpty) {
+        return; // No parents to process
+      }
+
+      if (relationships.length == 1) {
+        // Only one parent - ensure they're marked as primary
+        final relationshipId = relationships[0]['id'];
+        await supabase
+            .from('parent_student')
+            .update({'is_primary': true})
+            .eq('id', relationshipId);
+      } else {
+        // Multiple parents - check if any is marked as primary
+        final hasPrimary = relationships.any(
+          (rel) => rel['is_primary'] == true,
+        );
+
+        if (!hasPrimary) {
+          // No primary parent marked - make the first one primary
+          final firstRelationshipId = relationships[0]['id'];
+          await supabase
+              .from('parent_student')
+              .update({'is_primary': true})
+              .eq('id', firstRelationshipId);
+        }
+      }
+    } catch (e) {
+      print('Error ensuring primary parent for student $studentId: $e');
+    }
   }
+
 
   Future<String?> _showRFIDScanDialog(
     BuildContext context, {
@@ -438,6 +526,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     final lnameController = TextEditingController(
       text: student?['lname']?.toString() ?? '',
     );
+    final suffixController = TextEditingController(
+      text: student?['suffix']?.toString() ?? '',
+    );
     final addressController = TextEditingController(
       text: student?['address']?.toString() ?? '',
     );
@@ -485,7 +576,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
     // Grade level options (integers to match database)
     final gradeOptions = [
-      'Preschool',
+      'Pre-K1',
+      'Pre-K2',
       'Kinder',
       'Grade 1',
       'Grade 2',
@@ -500,14 +592,29 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 20,
+              shadowColor: Colors.black.withOpacity(0.2),
               title: Row(
                 children: [
                   Icon(
                     student == null ? Icons.person_add : Icons.edit,
                     color: const Color(0xFF2ECC71),
+                    size: 24,
                   ),
-                  const SizedBox(width: 8),
-                  Text(student == null ? 'Add New Student' : 'Edit Student'),
+                  const SizedBox(width: 12),
+                  Text(
+                    student == null ? 'Add New Student' : 'Edit Student',
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
                 ],
               ),
               content: Container(
@@ -574,6 +681,17 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                 textCapitalization: TextCapitalization.words,
                               ),
                             ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: suffixController,
+                                decoration: _buildInputDecoration(
+                                  'Suffix',
+                                  Icons.person_pin,
+                                ),
+                                textCapitalization: TextCapitalization.words,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -592,13 +710,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                     genderOptions.contains(selectedGender)
                                         ? selectedGender
                                         : null,
-                                items:
-                                    genderOptions.map((gender) {
-                                      return DropdownMenuItem(
-                                        value: gender,
-                                        child: Text(gender),
-                                      );
-                                    }).toList(),
+                                items: _buildStringDropdownItems(
+                                  genderOptions,
+                                  'No gender options available',
+                                ),
                                 onChanged: (value) {
                                   setDialogState(() {
                                     selectedGender = value;
@@ -708,13 +823,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                     gradeOptions.contains(selectedGradeLevel)
                                         ? selectedGradeLevel
                                         : null,
-                                items:
-                                    gradeOptions.map((grade) {
-                                      return DropdownMenuItem(
-                                        value: grade,
-                                        child: Text(grade),
-                                      );
-                                    }).toList(),
+                                items: _buildStringDropdownItems(
+                                  gradeOptions,
+                                  'No grade levels available',
+                                ),
                                 onChanged: (value) {
                                   setDialogState(() {
                                     selectedGradeLevel = value;
@@ -739,23 +851,43 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   isRequired: true,
                                 ),
                                 value: selectedSectionId,
-                                items:
-                                    sections
-                                        .where(
-                                          (s) =>
-                                              selectedGradeLevel == null ||
-                                              s['grade_level'] ==
-                                                  selectedGradeLevel,
-                                        )
-                                        .map((section) {
-                                          return DropdownMenuItem<int>(
-                                            value: section['id'],
-                                            child: Text(
-                                              '${section['name']} (${section['grade_level']})',
-                                            ),
-                                          );
-                                        })
-                                        .toList(),
+                                items: () {
+                                  final filteredSections = sections
+                                      .where(
+                                        (s) =>
+                                            selectedGradeLevel == null ||
+                                            s['grade_level'] ==
+                                                selectedGradeLevel,
+                                      )
+                                      .toList();
+                                  
+                                  if (filteredSections.isEmpty) {
+                                    return [
+                                      DropdownMenuItem<int>(
+                                        value: null,
+                                        enabled: false,
+                                        child: Text(
+                                          selectedGradeLevel == null 
+                                              ? 'Please select grade level first'
+                                              : 'No sections available for this grade',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      ),
+                                    ];
+                                  }
+                                  
+                                  return filteredSections.map((section) {
+                                    return DropdownMenuItem<int>(
+                                      value: section['id'],
+                                      child: Text(
+                                        '${section['name']} (${section['grade_level']})',
+                                      ),
+                                    );
+                                  }).toList();
+                                }(),
                                 onChanged: (value) {
                                   setDialogState(() {
                                     selectedSectionId = value;
@@ -1255,15 +1387,33 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF666666),
+                    ),
+                  ),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2ECC71),
                     foregroundColor: Colors.white,
+                    elevation: 4,
+                    shadowColor: const Color(0xFF2ECC71).withOpacity(0.3),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
+                      horizontal: 28,
+                      vertical: 14,
                     ),
                   ),
                   onPressed: () async {
@@ -1345,6 +1495,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                     ? null
                                     : mnameController.text.trim(),
                             'lname': lnameController.text.trim(),
+                            'suffix':
+                                suffixController.text.trim().isEmpty
+                                    ? null
+                                    : suffixController.text.trim(),
                             'gender': selectedGender,
                             'address': addressController.text.trim(),
                             'birthday':
@@ -1417,6 +1571,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   ? null
                                   : mnameController.text.trim(),
                           'lname': lnameController.text.trim(),
+                          'suffix':
+                              suffixController.text.trim().isEmpty
+                                  ? null
+                                  : suffixController.text.trim(),
                           'gender': selectedGender,
                           'address': addressController.text.trim(),
                           'birthday':
@@ -1444,9 +1602,52 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                 .from('students')
                                 .update(payload)
                                 .eq('id', response['id']);
+
+                            // Log student creation with actual ID
+                            try {
+                              final studentName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                              await auditLogService.logStudentCreation(
+                                studentId: response['id'].toString(),
+                                studentName: studentName,
+                                studentData: {
+                                  'fname': fnameController.text.trim(),
+                                  'lname': lnameController.text.trim(),
+                                  'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                  'address': addressController.text.trim(),
+                                  'gender': selectedGender,
+                                  'grade_level': selectedGradeLevel,
+                                  'section_id': selectedSectionId,
+                                  'birthday': birthdayController.text.trim().isEmpty ? null : birthdayController.text.trim(),
+                                  'profile_image_url': imageUrl,
+                                },
+                              );
+                            } catch (e) {
+                              print('Error logging student creation audit event: $e');
+                            }
                           } else {
                             // No image, just insert normally
-                            await supabase.from('students').insert(payload);
+                            final response = await supabase.from('students').insert(payload).select('id').single();
+
+                            // Log student creation with actual ID
+                            try {
+                              final studentName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                              await auditLogService.logStudentCreation(
+                                studentId: response['id'].toString(),
+                                studentName: studentName,
+                                studentData: {
+                                  'fname': fnameController.text.trim(),
+                                  'lname': lnameController.text.trim(),
+                                  'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                  'address': addressController.text.trim(),
+                                  'gender': selectedGender,
+                                  'grade_level': selectedGradeLevel,
+                                  'section_id': selectedSectionId,
+                                  'birthday': birthdayController.text.trim().isEmpty ? null : birthdayController.text.trim(),
+                                },
+                              );
+                            } catch (e) {
+                              print('Error logging student creation audit event: $e');
+                            }
                           }
                         } else {
                           // Update existing student
@@ -1454,6 +1655,39 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                               .from('students')
                               .update(payload)
                               .eq('id', student['id']);
+
+                          // Log student update
+                          try {
+                            final studentName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                            await auditLogService.logStudentUpdate(
+                              studentId: student['id'].toString(),
+                              studentName: studentName,
+                              oldValues: {
+                                'fname': student['fname'],
+                                'lname': student['lname'],
+                                'mname': student['mname'],
+                                'address': student['address'],
+                                'gender': student['gender'],
+                                'grade_level': student['grade_level'],
+                                'section_id': student['section_id'],
+                                'birthday': student['birthday'],
+                                'profile_image_url': student['profile_image_url'],
+                              },
+                              newValues: {
+                                'fname': fnameController.text.trim(),
+                                'lname': lnameController.text.trim(),
+                                'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                'address': addressController.text.trim(),
+                                'gender': selectedGender,
+                                'grade_level': selectedGradeLevel,
+                                'section_id': selectedSectionId,
+                                'birthday': birthdayController.text.trim().isEmpty ? null : birthdayController.text.trim(),
+                                'profile_image_url': imageUrl,
+                              },
+                            );
+                          } catch (e) {
+                            print('Error logging student update audit event: $e');
+                          }
                         }
 
                         // Reset state variables
@@ -1520,9 +1754,15 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(student == null ? Icons.add : Icons.save, size: 16),
-                      const SizedBox(width: 8),
-                      Text(student == null ? 'Add Student' : 'Update Student'),
+                      Icon(student == null ? Icons.add : Icons.save, size: 18),
+                      const SizedBox(width: 10),
+                      Text(
+                        student == null ? 'Add Student' : 'Update Student',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1537,6 +1777,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     fnameController.dispose();
     mnameController.dispose();
     lnameController.dispose();
+    suffixController.dispose();
     addressController.dispose();
     birthdayController.dispose();
   }
@@ -1643,17 +1884,21 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   }
 
   void _exportSelectedStudents() {
+    if (_selectedStudents.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No students selected for export'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final selectedData =
         students.where((s) => _selectedStudents.contains(s['id'])).toList();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Exporting ${selectedData.length} selected students...'),
-        backgroundColor: const Color(0xFF2ECC71),
-      ),
-    );
-
-    // TODO: Implement actual export functionality
+    _exportToExcel(selectedData, 'Selected_Students_Export');
   }
 
   void _showBulkEditDialog() {
@@ -1825,26 +2070,38 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
   // Helper method to build section headers
   Widget _buildSectionHeader(String title) {
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 20,
-          decoration: BoxDecoration(
-            color: const Color(0xFF2ECC71),
-            borderRadius: BorderRadius.circular(2),
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2ECC71).withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: const Color(0xFF2ECC71).withOpacity(0.2),
+          width: 1,
         ),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF333333),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 24,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2ECC71),
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: 12),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A1A),
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1856,34 +2113,109 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   }) {
     return InputDecoration(
       labelText: isRequired ? '$label *' : label,
-      prefixIcon: Icon(icon, size: 20),
+      prefixIcon: Icon(icon, size: 22, color: const Color(0xFF2ECC71)),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide(color: Colors.grey[300]!),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Color(0xFF2ECC71), width: 2),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Colors.red, width: 1),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.red, width: 2),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Color(0xFF2ECC71), width: 2),
       ),
       filled: true,
-      fillColor: Colors.grey[50],
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      labelStyle: const TextStyle(
+        color: Color(0xFF555555),
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+      ),
     );
   }
 
-  Future<void> _deleteStudent(int id) async {
+  // Helper function to build dropdown items with empty state handling
+  List<DropdownMenuItem<T>> _buildDropdownItems<T>(
+    List<Map<String, dynamic>> items,
+    String valueField,
+    String displayField,
+    String emptyMessage,
+  ) {
+    if (items.isEmpty) {
+      return [
+        DropdownMenuItem<T>(
+          value: null,
+          enabled: false,
+          child: Text(
+            emptyMessage,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ];
+    }
+    return items.map((item) {
+      return DropdownMenuItem<T>(
+        value: item[valueField] as T,
+        child: Text(item[displayField]),
+      );
+    }).toList();
+  }
+
+  // Helper function to build string dropdown items with empty state handling
+  List<DropdownMenuItem<String>> _buildStringDropdownItems(
+    List<String> items,
+    String emptyMessage,
+  ) {
+    if (items.isEmpty) {
+      return [
+        DropdownMenuItem<String>(
+          value: null,
+          enabled: false,
+          child: Text(
+            emptyMessage,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ];
+    }
+    return items.map((item) {
+      return DropdownMenuItem<String>(
+        value: item,
+        child: Text(item),
+      );
+    }).toList();
+  }
+
+  Future<void> _deleteStudent(int id, {Map<String, dynamic>? studentData}) async {
     try {
       await supabase.from('students').delete().eq('id', id);
       _fetchStudents();
+
+      // Log audit event for student deletion
+      try {
+        if (studentData != null) {
+          final studentName = '${studentData['fname'] ?? ''} ${studentData['lname'] ?? ''}'.trim();
+          await auditLogService.logStudentDeletion(
+            studentId: id.toString(),
+            studentName: studentName,
+          );
+        }
+      } catch (auditError) {
+        print('Failed to log audit event: $auditError');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1921,13 +2253,572 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     }
   }
 
+  Future<bool> _showDeleteConfirmDialog(String studentName) async {
+    return await showDialog<bool>(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 20,
+                shadowColor: Colors.black.withOpacity(0.2),
+                title: const Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.red, size: 24),
+                    SizedBox(width: 12),
+                    Text(
+                      'Confirm Delete',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1A1A1A),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                content: Text(
+                  'Are you sure you want to delete the student "$studentName"? This action cannot be undone.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Delete'),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+  }
+
   void _exportData() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Export functionality would be implemented here'),
-        behavior: SnackBarBehavior.floating,
-      ),
+    // Apply current filters to determine what data to export
+    var filteredStudents =
+        students.where((s) {
+          final name = "${s['fname']} ${s['lname']}".toLowerCase();
+          final classMatch =
+              _classFilter == 'All Classes' ||
+              s['grade_level']?.toString() == _classFilter;
+          final statusMatch =
+              _statusFilter == 'All Status' ||
+              (s['status'] ?? 'Active') == _statusFilter;
+
+          return name.contains(_searchQuery.toLowerCase()) &&
+              classMatch &&
+              statusMatch;
+        }).toList();
+
+    if (filteredStudents.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No students match the current filters'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    _exportToExcel(filteredStudents, 'Students_Export');
+  }
+
+  Future<void> _exportToExcel(
+    List<Map<String, dynamic>> studentsToExport,
+    String baseFileName,
+  ) async {
+    try {
+      // Create Excel workbook with explicit constructor
+      var excel = excel_lib.Excel.createExcel();
+
+      // Get all sheet names and delete them
+      final existingSheets = List<String>.from(excel.sheets.keys);
+      for (String sheetName in existingSheets) {
+        excel.delete(sheetName);
+      }
+
+      // Create Students sheet and populate it
+      var studentsSheet = excel['Students'];
+      _createStudentsSheet(studentsSheet, studentsToExport);
+
+      // Create Summary sheet and populate it
+      var summarySheet = excel['Summary'];
+      _createSummarySheet(summarySheet, studentsToExport);
+
+      // Clean up: Remove any default sheets
+      final defaultSheetNames = ['Sheet1', 'Sheet', 'Worksheet'];
+      for (String defaultName in defaultSheetNames) {
+        if (excel.sheets.containsKey(defaultName)) {
+          excel.delete(defaultName);
+        }
+      }
+
+      // Set default sheet
+      excel.setDefaultSheet('Students');
+
+      // IMPORTANT: use encode() (does NOT auto-download) instead of save()
+      List<int>? fileBytes = excel.encode();
+      if (fileBytes == null) {
+        throw Exception('Failed to generate Excel file');
+      }
+
+      final timestamp = DateTime.now().toIso8601String().split('T')[0];
+      final fileName = '${baseFileName}_${timestamp}.xlsx';
+
+      // Manually download the generated bytes via Blob (web)
+      final blob = html.Blob([
+        fileBytes,
+      ], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor =
+          html.AnchorElement(href: url)
+            ..setAttribute('download', fileName)
+            ..style.display = 'none';
+
+      html.document.body?.children.add(anchor);
+      anchor.click();
+      html.document.body?.children.remove(anchor);
+      html.Url.revokeObjectUrl(url);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Excel file exported successfully: $fileName'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _createStudentsSheet(
+    excel_lib.Sheet sheet,
+    List<Map<String, dynamic>> studentsData,
+  ) {
+    // Check if any student has a secondary parent
+    final hasSecondaryParents = studentsData.any((student) {
+      if (student['parent_student'] != null) {
+        final parentStudentList = student['parent_student'] as List;
+        return parentStudentList.any((ps) => ps['is_primary'] == false);
+      }
+      return false;
+    });
+
+    // Set column headers - Enhanced with more parent information
+    List<String> headers = [
+      'First Name',
+      'Middle Name',
+      'Last Name',
+      'Suffix',
+      'Gender',
+      'Birthday',
+      'Grade Level',
+      'Section',
+      'Student Address',
+      'Student Status',
+      'RFID UID',
+      'Primary Parent Name',
+      'Primary Parent Phone',
+      'Primary Parent Email',
+      'Primary Parent Address',
+      'Parent Relationship',
+    ];
+
+    // Add secondary parent columns only if there are secondary parents
+    if (hasSecondaryParents) {
+      headers.addAll([
+        'Secondary Parent Name',
+        'Secondary Parent Phone',
+        'Secondary Parent Email',
+        'Secondary Parent Address',
+        'Secondary Parent Relationship',
+      ]);
+    }
+
+    // Add final column
+    headers.add('Date Added');
+
+    // Add headers to first row
+    for (int i = 0; i < headers.length; i++) {
+      var cell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0),
+      );
+      cell.value = excel_lib.TextCellValue(headers[i]);
+      cell.cellStyle = excel_lib.CellStyle(bold: true);
+    }
+
+    // Add student data
+    for (int rowIndex = 0; rowIndex < studentsData.length; rowIndex++) {
+      final student = studentsData[rowIndex];
+
+      // Extract parent information
+      Map<String, dynamic>? primaryParent;
+      Map<String, dynamic>? secondaryParent;
+      String primaryRelationship = '';
+      String secondaryRelationship = '';
+
+      // Handle the parent_student relationship data
+      if (student['parent_student'] != null) {
+        final parentStudentList = student['parent_student'] as List;
+
+        for (var ps in parentStudentList) {
+          final parentData = ps['parents'];
+          final isPrimary = ps['is_primary'] == true;
+          final relationshipType =
+              ps['relationship_type']?.toString() ?? 'parent';
+
+          if (isPrimary && primaryParent == null) {
+            primaryParent = parentData;
+            primaryRelationship = relationshipType;
+          } else if (!isPrimary && secondaryParent == null) {
+            secondaryParent = parentData;
+            secondaryRelationship = relationshipType;
+          }
+        }
+      }
+
+      // Format section name
+      String sectionName = '';
+      if (student['sections'] != null) {
+        final section = student['sections'];
+        sectionName = '${section['name']} (${section['grade_level']})';
+      }
+
+      // Format primary parent name
+      String primaryParentName = '';
+      if (primaryParent != null) {
+        final fname = primaryParent['fname']?.toString() ?? '';
+        final mname = primaryParent['mname']?.toString() ?? '';
+        final lname = primaryParent['lname']?.toString() ?? '';
+        primaryParentName =
+            '$fname ${mname.isNotEmpty ? '$mname ' : ''}$lname'.trim();
+      }
+
+      // Format secondary parent name
+      String secondaryParentName = '';
+      if (secondaryParent != null) {
+        final fname = secondaryParent['fname']?.toString() ?? '';
+        final mname = secondaryParent['mname']?.toString() ?? '';
+        final lname = secondaryParent['lname']?.toString() ?? '';
+        secondaryParentName =
+            '$fname ${mname.isNotEmpty ? '$mname ' : ''}$lname'.trim();
+      }
+
+      // Format birthday
+      String formattedBirthday = '';
+      if (student['birthday'] != null) {
+        try {
+          final birthday = DateTime.parse(student['birthday'].toString());
+          formattedBirthday = DateFormat('yyyy-MM-dd').format(birthday);
+        } catch (e) {
+          formattedBirthday = student['birthday'].toString();
+        }
+      }
+
+      // Create data row - conditional based on secondary parent existence
+      List<String> dataRow = [
+        student['fname']?.toString() ?? '',
+        student['mname']?.toString() ?? '',
+        student['lname']?.toString() ?? '',
+        student['suffix']?.toString() ?? '',
+        student['gender']?.toString() ?? '',
+        formattedBirthday,
+        student['grade_level']?.toString() ?? '',
+        sectionName,
+        student['address']?.toString() ?? '',
+        student['status']?.toString() ?? 'Active',
+        student['rfid_uid']?.toString() ?? '',
+        primaryParentName,
+        primaryParent?['phone']?.toString() ?? '',
+        primaryParent?['email']?.toString() ?? '',
+        primaryParent?['address']?.toString() ?? '',
+        primaryRelationship.toUpperCase(),
+      ];
+
+      // Add secondary parent data only if secondary parents exist
+      if (hasSecondaryParents) {
+        dataRow.addAll([
+          secondaryParentName,
+          secondaryParent?['phone']?.toString() ?? '',
+          secondaryParent?['email']?.toString() ?? '',
+          secondaryParent?['address']?.toString() ?? '',
+          secondaryRelationship.toUpperCase(),
+        ]);
+      }
+
+      // Add final column
+      dataRow.add(
+        student['created_at'] != null
+            ? DateTime.parse(
+              student['created_at'].toString(),
+            ).toLocal().toString().split(' ')[0]
+            : '',
+      );
+
+      for (int colIndex = 0; colIndex < dataRow.length; colIndex++) {
+        var cell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: colIndex,
+            rowIndex: rowIndex + 1,
+          ),
+        );
+        cell.value = excel_lib.TextCellValue(dataRow[colIndex]);
+      }
+    }
+
+    // Auto-fit columns (approximate) - adjusted for dynamic columns
+    for (int i = 0; i < headers.length; i++) {
+      final header = headers[i];
+      if (header.contains('Address')) {
+        // Address columns
+        sheet.setColumnWidth(i, 25.0);
+      } else if (header.contains('Name')) {
+        // Name columns
+        sheet.setColumnWidth(i, 20.0);
+      } else {
+        sheet.setColumnWidth(i, 15.0);
+      }
+    }
+  }
+
+  void _createSummarySheet(
+    excel_lib.Sheet sheet,
+    List<Map<String, dynamic>> studentsData,
+  ) {
+    // Get current user info
+    final user = Supabase.instance.client.auth.currentUser;
+    final userName =
+        user?.userMetadata?['fname'] != null &&
+                user?.userMetadata?['lname'] != null
+            ? '${user?.userMetadata?['fname']} ${user?.userMetadata?['lname']}'
+            : user?.email ?? 'Unknown User';
+
+    // Calculate statistics
+    final totalStudents = studentsData.length;
+    final activeStudents =
+        studentsData.where((s) => (s['status'] ?? 'Active') == 'Active').length;
+    final inactiveStudents = totalStudents - activeStudents;
+
+    // Count by grade level
+    final gradeStats = <String, int>{};
+    for (var student in studentsData) {
+      final grade = student['grade_level']?.toString() ?? 'Unknown';
+      gradeStats[grade] = (gradeStats[grade] ?? 0) + 1;
+    }
+
+    // Calculate parent statistics
+    int studentsWithPrimaryParent = 0;
+    int studentsWithSecondaryParent = 0;
+    int studentsWithNoParent = 0;
+    int studentsWithRFID = 0;
+    final parentRelationshipTypes = <String, int>{};
+
+    for (var student in studentsData) {
+      // Check RFID
+      if (student['rfid_uid'] != null &&
+          student['rfid_uid'].toString().isNotEmpty) {
+        studentsWithRFID++;
+      }
+
+      // Check parent relationships
+      bool hasPrimary = false;
+      bool hasSecondary = false;
+
+      if (student['parent_student'] != null) {
+        final parentStudentList = student['parent_student'] as List;
+
+        for (var ps in parentStudentList) {
+          final isPrimary = ps['is_primary'] == true;
+          final relationshipType =
+              ps['relationship_type']?.toString() ?? 'parent';
+
+          // Count relationship types
+          parentRelationshipTypes[relationshipType] =
+              (parentRelationshipTypes[relationshipType] ?? 0) + 1;
+
+          if (isPrimary) {
+            hasPrimary = true;
+          } else {
+            hasSecondary = true;
+          }
+        }
+      }
+
+      if (hasPrimary) studentsWithPrimaryParent++;
+      if (hasSecondary) studentsWithSecondaryParent++;
+      if (!hasPrimary && !hasSecondary) studentsWithNoParent++;
+    }
+
+    int rowIndex = 0;
+
+    // Title
+    var titleCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
     );
+    titleCell.value = excel_lib.TextCellValue('Student Export Summary');
+    titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 16);
+    rowIndex += 2;
+
+    // Export details
+    final exportData = [
+      ['Export Date:', DateTime.now().toLocal().toString().split('.')[0]],
+      ['Generated By:', userName],
+      ['Total Students:', totalStudents.toString()],
+      ['Active Students:', activeStudents.toString()],
+      ['Inactive Students:', inactiveStudents.toString()],
+      ['Students with RFID:', studentsWithRFID.toString()],
+    ];
+
+    for (var row in exportData) {
+      var labelCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
+      labelCell.value = excel_lib.TextCellValue(row[0]);
+      labelCell.cellStyle = excel_lib.CellStyle(bold: true);
+
+      var valueCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
+      valueCell.value = excel_lib.TextCellValue(row[1]);
+
+      rowIndex++;
+    }
+
+    rowIndex++; // Empty row
+
+    // Parent statistics
+    var parentHeaderCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    parentHeaderCell.value = excel_lib.TextCellValue('Parent Information:');
+    parentHeaderCell.cellStyle = excel_lib.CellStyle(bold: true);
+    rowIndex++;
+
+    final parentData = [
+      ['Students with Primary Parent:', studentsWithPrimaryParent.toString()],
+      [
+        'Students with Secondary Parent:',
+        studentsWithSecondaryParent.toString(),
+      ],
+      ['Students with No Parent Info:', studentsWithNoParent.toString()],
+    ];
+
+    for (var row in parentData) {
+      var labelCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
+      labelCell.value = excel_lib.TextCellValue(row[0]);
+
+      var valueCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
+      valueCell.value = excel_lib.TextCellValue(row[1]);
+
+      rowIndex++;
+    }
+
+    rowIndex++; // Empty row
+
+    // Parent relationship types
+    if (parentRelationshipTypes.isNotEmpty) {
+      var relationshipHeaderCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
+      relationshipHeaderCell.value = excel_lib.TextCellValue(
+        'Parent Relationship Types:',
+      );
+      relationshipHeaderCell.cellStyle = excel_lib.CellStyle(bold: true);
+      rowIndex++;
+
+      for (var entry in parentRelationshipTypes.entries) {
+        var typeCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: 0,
+            rowIndex: rowIndex,
+          ),
+        );
+        typeCell.value = excel_lib.TextCellValue('${entry.key.toUpperCase()}:');
+
+        var countCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: 1,
+            rowIndex: rowIndex,
+          ),
+        );
+        countCell.value = excel_lib.TextCellValue(entry.value.toString());
+
+        rowIndex++;
+      }
+
+      rowIndex++; // Empty row
+    }
+
+    // Grade distribution
+    var gradeHeaderCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    gradeHeaderCell.value = excel_lib.TextCellValue('Grade Distribution:');
+    gradeHeaderCell.cellStyle = excel_lib.CellStyle(bold: true);
+    rowIndex++;
+
+    for (var entry in gradeStats.entries) {
+      var gradeCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
+      gradeCell.value = excel_lib.TextCellValue('${entry.key}:');
+
+      var countCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
+      countCell.value = excel_lib.TextCellValue(entry.value.toString());
+
+      rowIndex++;
+    }
+
+    // Set column widths
+    sheet.setColumnWidth(0, 25.0);
+    sheet.setColumnWidth(1, 15.0);
   }
 
   // Image picker function
@@ -2124,7 +3015,12 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     // Apply filters
     var filteredStudents =
         students.where((s) {
-          final name = "${s['fname']} ${s['lname']}".toLowerCase();
+          final String fname = s['fname'] ?? '';
+          final String lname = s['lname'] ?? '';
+          final String suffix = s['suffix'] ?? '';
+          final name = suffix.isNotEmpty 
+              ? "$fname $lname $suffix" 
+              : "$fname $lname";
           final classMatch =
               _classFilter == 'All Classes' ||
               s['grade_level']?.toString() == _classFilter;
@@ -2132,7 +3028,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               _statusFilter == 'All Status' ||
               (s['status'] ?? 'Active') == _statusFilter;
 
-          return name.contains(_searchQuery.toLowerCase()) &&
+          return name.toLowerCase().contains(_searchQuery.toLowerCase()) &&
               classMatch &&
               statusMatch;
         }).toList();
@@ -2140,15 +3036,43 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     // Apply sorting
     if (_sortOption == 'Name (A-Z)') {
       filteredStudents.sort(
-        (a, b) => "${a['fname'] ?? ''} ${a['lname'] ?? ''}".compareTo(
-          "${b['fname'] ?? ''} ${b['lname'] ?? ''}",
-        ),
+        (a, b) {
+          final String aFname = a['fname'] ?? '';
+          final String aLname = a['lname'] ?? '';
+          final String aSuffix = a['suffix'] ?? '';
+          final String aFullName = aSuffix.isNotEmpty 
+              ? "$aFname $aLname $aSuffix" 
+              : "$aFname $aLname";
+          
+          final String bFname = b['fname'] ?? '';
+          final String bLname = b['lname'] ?? '';
+          final String bSuffix = b['suffix'] ?? '';
+          final String bFullName = bSuffix.isNotEmpty 
+              ? "$bFname $bLname $bSuffix" 
+              : "$bFname $bLname";
+              
+          return aFullName.compareTo(bFullName);
+        },
       );
     } else if (_sortOption == 'Name (Z-A)') {
       filteredStudents.sort(
-        (a, b) => "${b['fname'] ?? ''} ${b['lname'] ?? ''}".compareTo(
-          "${a['fname'] ?? ''} ${a['lname'] ?? ''}",
-        ),
+        (a, b) {
+          final String aFname = a['fname'] ?? '';
+          final String aLname = a['lname'] ?? '';
+          final String aSuffix = a['suffix'] ?? '';
+          final String aFullName = aSuffix.isNotEmpty 
+              ? "$aFname $aLname $aSuffix" 
+              : "$aFname $aLname";
+          
+          final String bFname = b['fname'] ?? '';
+          final String bLname = b['lname'] ?? '';
+          final String bSuffix = b['suffix'] ?? '';
+          final String bFullName = bSuffix.isNotEmpty 
+              ? "$bFname $bLname $bSuffix" 
+              : "$bFname $bLname";
+              
+          return bFullName.compareTo(aFullName);
+        },
       );
     } else if (_sortOption.contains('Date')) {
       filteredStudents.sort(
@@ -2159,20 +3083,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       }
     }
 
-    // Calculate pages for pagination
-    _calculateTotalPages(filteredStudents);
-
-    // Get current page items
-    final int startIndex = (_currentPage - 1) * _itemsPerPage;
-    final int endIndex =
-        startIndex + _itemsPerPage > filteredStudents.length
-            ? filteredStudents.length
-            : startIndex + _itemsPerPage;
-
-    final List<Map<String, dynamic>> currentPageItems =
-        filteredStudents.length > startIndex
-            ? filteredStudents.sublist(startIndex, endIndex)
-            : [];
 
     // Get unique class/grade levels for filter dropdown
     final List<String> classOptions = ['All Classes'];
@@ -2186,204 +3096,647 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     return Scaffold(
       backgroundColor: const Color.fromARGB(10, 78, 241, 157),
       body: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with breadcrumb
-            Row(
-              children: [
-                const Text(
-                  "Student Management",
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
-                  ),
-                ),
-                const Spacer(),
-                // Search bar
-                Container(
-                  width: 240,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: const Color(0xFFE0E0E0)),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Search students...',
-                      prefixIcon: Icon(Icons.search, color: Color(0xFF9E9E9E)),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 10.0),
+            // Responsive Header
+            if (isMobile) ...[
+              // Mobile: Stacked layout
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Student Management",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.5,
                     ),
-                    onChanged:
-                        (val) => setState(() {
-                          _searchQuery = val;
-                          _currentPage = 1; // Reset to first page on new search
-                        }),
                   ),
-                ),
-                const SizedBox(width: 16),
-                // Add New Student button
-                SizedBox(
-                  height: 40,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add, color: Colors.white),
-                    label: const Text(
-                      "Add New Student",
-                      style: TextStyle(color: Colors.white),
+                  const SizedBox(height: 16),
+                  // Mobile search bar
+                  Container(
+                    width: double.infinity,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: const Color(0xFFE0E0E0)),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2ECC71),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search students...',
+                        hintStyle: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF9E9E9E),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: Color(0xFF2ECC71),
+                          size: 20,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 12.0,
+                          horizontal: 16.0,
+                        ),
                       ),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      onChanged:
+                          (val) => setState(() {
+                            _searchQuery = val;
+                          }),
                     ),
-                    onPressed: isAdmin ? () => _addOrEditStudent() : null,
                   ),
-                ),
-                const SizedBox(width: 16),
-                // Export button
-                SizedBox(
-                  height: 40,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(
-                      Icons.file_download_outlined,
-                      color: Color(0xFF333333),
-                    ),
-                    label: const Text(
-                      "Export",
-                      style: TextStyle(color: Color(0xFF333333)),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFFE0E0E0)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
+                  const SizedBox(height: 12),
+                  // Mobile action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 44,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(
+                              Icons.add,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            label: Text(
+                              isSmallMobile ? "Add" : "Add New Student",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2ECC71),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 2,
+                              shadowColor: Colors.black.withOpacity(0.1),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                            ),
+                            onPressed:
+                                isAdmin ? () => _addOrEditStudent() : null,
+                          ),
+                        ),
                       ),
-                    ),
-                    onPressed: _exportData,
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 44,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(
+                            Icons.file_download_outlined,
+                            color: Color(0xFF2ECC71),
+                            size: 18,
+                          ),
+                          label: const Text(
+                            "Export",
+                            style: TextStyle(
+                              color: Color(0xFF2ECC71),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            side: const BorderSide(
+                              color: Color(0xFF2ECC71),
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 1,
+                            shadowColor: Colors.black.withOpacity(0.05),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                          ),
+                          onPressed: _exportData,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ] else ...[
+              // Desktop/Tablet: Horizontal layout
+              Row(
+                children: [
+                  const Text(
+                    "Student Management",
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const Spacer(),
+                  // Responsive search bar
+                  Container(
+                    width: isTablet ? 240 : 260,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: const Color(0xFFE0E0E0)),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search students...',
+                        hintStyle: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF9E9E9E),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: Color(0xFF2ECC71),
+                          size: 20,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 12.0,
+                          horizontal: 16.0,
+                        ),
+                      ),
+                      onChanged:
+                          (val) => setState(() {
+                            _searchQuery = val;
+                          }),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Responsive Add New button
+                  SizedBox(
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(
+                        Icons.add,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      label: Text(
+                        isTablet ? "Add Student" : "Add New Student",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2ECC71),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 2,
+                        shadowColor: Colors.black.withOpacity(0.1),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isTablet ? 12 : 16,
+                          vertical: 10,
+                        ),
+                      ),
+                      onPressed: isAdmin ? () => _addOrEditStudent() : null,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Responsive Export button
+                  SizedBox(
+                    height: 44,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(
+                        Icons.file_download_outlined,
+                        color: Color(0xFF2ECC71),
+                        size: 18,
+                      ),
+                      label: const Text(
+                        "Export",
+                        style: TextStyle(
+                          color: Color(0xFF2ECC71),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        side: const BorderSide(
+                          color: Color(0xFF2ECC71),
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 1,
+                        shadowColor: Colors.black.withOpacity(0.05),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                      ),
+                      onPressed: _exportData,
+                    ),
+                  ),
+                ],
+              ),
+            ],
 
-            // Breadcrumb / subtitle
-            const Padding(
-              padding: EdgeInsets.only(top: 4.0, bottom: 20.0),
+            // Responsive Breadcrumb
+            Padding(
+              padding: EdgeInsets.only(
+                top: 8.0,
+                bottom: isMobile ? 16.0 : 24.0,
+              ),
               child: Text(
                 "Home / Student Management",
-                style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
+                style: TextStyle(
+                  fontSize: isMobile ? 11 : 12,
+                  color: const Color(0xFF9E9E9E),
+                ),
               ),
             ),
 
-            // Filter row
+            // Responsive Filter row
             Container(
               padding: const EdgeInsets.only(bottom: 16.0),
               decoration: const BoxDecoration(
                 border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE))),
               ),
-              child: Row(
-                children: [
-                  // Class filter dropdown
-                  Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _classFilter,
-                        icon: const Icon(Icons.keyboard_arrow_down),
-                        items:
-                            classOptions.map((String item) {
-                              return DropdownMenuItem(
-                                value: item,
-                                child: Text(item),
-                              );
-                            }).toList(),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _classFilter = newValue!;
-                            _currentPage = 1;
-                          });
-                        },
+              child:
+                  isMobile
+                      ? Column(
+                        children: [
+                          // Mobile: Stacked filters
+                          Container(
+                            width: double.infinity,
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _classFilter,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    classOptions.map((String item) {
+                                      return DropdownMenuItem(
+                                        value: item,
+                                        child: Text(item),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _classFilter = newValue!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _statusFilter,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    <String>[
+                                      'All Status',
+                                      'Active',
+                                      'Inactive',
+                                    ].map<DropdownMenuItem<String>>((
+                                      String value,
+                                    ) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text(value),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _statusFilter = newValue!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  height: 48,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16.0,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    border: Border.all(
+                                      color: const Color(0xFFE0E0E0),
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 1),
+                                      ),
+                                    ],
+                                  ),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<String>(
+                                      value: _sortOption,
+                                      icon: const Icon(Icons.keyboard_arrow_down),
+                                      items:
+                                          <String>[
+                                            'Name (A-Z)',
+                                            'Name (Z-A)',
+                                            'Date (Asc)',
+                                            'Date (Desc)',
+                                          ].map<DropdownMenuItem<String>>((
+                                            String value,
+                                          ) {
+                                            return DropdownMenuItem<String>(
+                                              value: value,
+                                              child: Text("Sort by: $value"),
+                                            );
+                                          }).toList(),
+                                      onChanged: (String? newValue) {
+                                        setState(() {
+                                          _sortOption = newValue!;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFF2ECC71,
+                                  ).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: const Color(
+                                      0xFF2ECC71,
+                                    ).withOpacity(0.3),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.people,
+                                      size: 16,
+                                      color: const Color(0xFF2ECC71),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Total: ${filteredStudents.length} students',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF2ECC71),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      )
+                      : Row(
+                        children: [
+                          // Desktop/Tablet: Horizontal filters
+                          Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _classFilter,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    classOptions.map((String item) {
+                                      return DropdownMenuItem(
+                                        value: item,
+                                        child: Text(item),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _classFilter = newValue!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _statusFilter,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    <String>[
+                                      'All Status',
+                                      'Active',
+                                      'Inactive',
+                                    ].map<DropdownMenuItem<String>>((
+                                      String value,
+                                    ) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text(value),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _statusFilter = newValue!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xFFE0E0E0),
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _sortOption,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                items:
+                                    <String>[
+                                      'Name (A-Z)',
+                                      'Name (Z-A)',
+                                      'Date (Asc)',
+                                      'Date (Desc)',
+                                    ].map<DropdownMenuItem<String>>((
+                                      String value,
+                                    ) {
+                                      return DropdownMenuItem<String>(
+                                        value: value,
+                                        child: Text("Sort by: $value"),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? newValue) {
+                                  setState(() {
+                                    _sortOption = newValue!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF2ECC71,
+                              ).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(
+                                  0xFF2ECC71,
+                                ).withOpacity(0.3),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.people,
+                                  size: 16,
+                                  color: const Color(0xFF2ECC71),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Total: ${filteredStudents.length} students',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF2ECC71),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Status filter dropdown
-                  Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _statusFilter,
-                        icon: const Icon(Icons.keyboard_arrow_down),
-                        items:
-                            <String>[
-                              'All Status',
-                              'Active',
-                              'Inactive',
-                            ].map<DropdownMenuItem<String>>((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text(value),
-                              );
-                            }).toList(),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _statusFilter = newValue!;
-                            _currentPage = 1;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Sort by dropdown
-                  Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFE0E0E0)),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _sortOption,
-                        icon: const Icon(Icons.keyboard_arrow_down),
-                        items:
-                            <String>[
-                              'Name (A-Z)',
-                              'Name (Z-A)',
-                              'Date (Asc)',
-                              'Date (Desc)',
-                            ].map<DropdownMenuItem<String>>((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text("Sort by: $value"),
-                              );
-                            }).toList(),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _sortOption = newValue!;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ),
 
             const SizedBox(height: 16),
@@ -2465,7 +3818,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               ),
             ],
 
-            // Table content
+            // Responsive Table content
             if (isLoading || isLoadingSections)
               const Expanded(
                 child: Center(
@@ -2476,1038 +3829,14 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               Expanded(
                 child: Column(
                   children: [
-                    // Table
+                    // Responsive Table
                     Expanded(
-                      child: SingleChildScrollView(
-                        child: Container(
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: const Color(0xFFEEEEEE)),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child:
-                          // Replace your entire Table widget (around line 2080) with this corrected version:
-                          Table(
-                            border: TableBorder(
-                              horizontalInside: BorderSide(
-                                color: Colors.grey[200]!,
-                                width: 1,
-                              ),
-                            ),
-                            columnWidths: const {
-                              0: FlexColumnWidth(0.5), // Checkbox
-                              1: FlexColumnWidth(0.8), // Student ID
-                              2: FlexColumnWidth(2.0), // Name + Image
-                              3: FlexColumnWidth(1.0), // Class
-                              4: FlexColumnWidth(0.8), // Gender
-                              5: FlexColumnWidth(1.2), // Contact
-                              6: FlexColumnWidth(1.4), // Email
-                              7: FlexColumnWidth(1.0), // Enrollment
-                              8: FlexColumnWidth(0.8), // Status
-                              9: FlexColumnWidth(0.6), // Actions
-                            },
-                            defaultVerticalAlignment:
-                                TableCellVerticalAlignment.middle,
-                            children: [
-                              // Table header row
-                              TableRow(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[50],
-                                ),
-                                children: [
-                                  // Select all checkbox
-                                  TableCell(
-                                    child: Container(
-                                      padding: const EdgeInsets.all(16),
-                                      child: Checkbox(
-                                        value: _selectAll,
-                                        onChanged:
-                                            (value) => _toggleSelectAll(
-                                              currentPageItems,
-                                            ),
-                                        activeColor: const Color(0xFF2ECC71),
-                                      ),
-                                    ),
-                                  ),
-                                  const TableHeaderCell(text: 'Student ID'),
-                                  const TableHeaderCell(text: 'Student Name'),
-                                  const TableHeaderCell(text: 'Class'),
-                                  const TableHeaderCell(text: 'Gender'),
-                                  const TableHeaderCell(text: 'Contact Number'),
-                                  const TableHeaderCell(text: 'Email'),
-                                  const TableHeaderCell(
-                                    text: 'Enrollment Date',
-                                  ),
-                                  const TableHeaderCell(text: 'Status'),
-                                  const TableHeaderCell(text: 'Actions'),
-                                ],
-                              ),
-
-                              // Table data rows - CORRECTED STRUCTURE
-                              ...currentPageItems.map((student) {
-                                final fullName =
-                                    "${student['fname'] ?? ''} ${student['lname'] ?? ''}";
-                                final String studentId =
-                                    "STU${student['id'].toString().padLeft(3, '0')}";
-                                final section = student['sections'];
-                                final String className =
-                                    section != null
-                                        ? "${section['name']} (${section['grade_level']})"
-                                        : "N/A";
-                                final enrollmentDate =
-                                    student['created_at'] != null
-                                        ? DateFormat('yyyy-MM-dd').format(
-                                          DateTime.parse(student['created_at']),
-                                        )
-                                        : "N/A";
-                                final status = student['status'] ?? 'Active';
-                                final profileImageUrl =
-                                    student['profile_image_url']?.toString();
-
-                                return TableRow(
-                                  decoration: BoxDecoration(
-                                    color:
-                                        _selectedStudents.contains(
-                                              student['id'],
-                                            )
-                                            ? const Color(
-                                              0xFF2ECC71,
-                                            ).withOpacity(0.1)
-                                            : Colors.white,
-                                  ),
-                                  children: [
-                                    // 1. Selection checkbox
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(16),
-                                        child: Checkbox(
-                                          value: _selectedStudents.contains(
-                                            student['id'],
-                                          ),
-                                          onChanged:
-                                              (value) =>
-                                                  _toggleStudentSelection(
-                                                    student['id'],
-                                                    currentPageItems,
-                                                  ),
-                                          activeColor: const Color(0xFF2ECC71),
-                                        ),
-                                      ),
-                                    ),
-
-                                    // 2. Student ID
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Text(
-                                          studentId,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                            color: Color(0xFF555555),
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    // 3. Student name WITH PROFILE IMAGE
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Row(
-                                          children: [
-                                            // Profile Image
-                                            Container(
-                                              width: 40,
-                                              height: 40,
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                                border: Border.all(
-                                                  color: const Color(
-                                                    0xFF2ECC71,
-                                                  ).withOpacity(0.3),
-                                                  width: 2,
-                                                ),
-                                              ),
-                                              child: ClipOval(
-                                                child:
-                                                    (student['profile_image_url'] !=
-                                                                null &&
-                                                            student['profile_image_url']
-                                                                .toString()
-                                                                .isNotEmpty)
-                                                        ? Image.network(
-                                                          student['profile_image_url'],
-                                                          width: 40,
-                                                          height: 40,
-                                                          fit: BoxFit.cover,
-                                                          loadingBuilder: (
-                                                            context,
-                                                            child,
-                                                            loadingProgress,
-                                                          ) {
-                                                            if (loadingProgress ==
-                                                                null)
-                                                              return child;
-                                                            return Container(
-                                                              width: 40,
-                                                              height: 40,
-                                                              color:
-                                                                  Colors
-                                                                      .grey[200],
-                                                              child: const Center(
-                                                                child: SizedBox(
-                                                                  width: 16,
-                                                                  height: 16,
-                                                                  child: CircularProgressIndicator(
-                                                                    strokeWidth:
-                                                                        2,
-                                                                    color: Color(
-                                                                      0xFF2ECC71,
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                            );
-                                                          },
-                                                          errorBuilder: (
-                                                            context,
-                                                            error,
-                                                            stackTrace,
-                                                          ) {
-                                                            return const Icon(
-                                                              Icons.person,
-                                                              size: 20,
-                                                              color:
-                                                                  Colors.grey,
-                                                            );
-                                                          },
-                                                        )
-                                                        : const Icon(
-                                                          Icons.person,
-                                                          size: 20,
-                                                          color: Colors.grey,
-                                                        ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            // Student Name
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  Text(
-                                                    fullName,
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color: Color(0xFF333333),
-                                                      fontSize: 14,
-                                                    ),
-                                                  ),
-                                                  if (student['rfid_uid'] !=
-                                                          null &&
-                                                      student['rfid_uid']
-                                                          .toString()
-                                                          .isNotEmpty) ...[
-                                                    const SizedBox(height: 2),
-                                                    Row(
-                                                      children: [
-                                                        Icon(
-                                                          Icons.contactless,
-                                                          size: 12,
-                                                          color:
-                                                              Colors.green[600],
-                                                        ),
-                                                        const SizedBox(
-                                                          width: 4,
-                                                        ),
-                                                        Text(
-                                                          'RFID: ${student['rfid_uid'].toString().substring(0, 8)}...',
-                                                          style: TextStyle(
-                                                            fontSize: 11,
-                                                            color:
-                                                                Colors
-                                                                    .green[600],
-                                                            fontWeight:
-                                                                FontWeight.w500,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ],
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-
-                                    // 4. Class
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(
-                                              0xFF2ECC71,
-                                            ).withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            className,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF2ECC71),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    // 5. Gender
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              student['gender'] == 'Male'
-                                                  ? Icons.male
-                                                  : student['gender'] ==
-                                                      'Female'
-                                                  ? Icons.female
-                                                  : Icons.person,
-                                              size: 16,
-                                              color:
-                                                  student['gender'] == 'Male'
-                                                      ? Colors.blue[600]
-                                                      : student['gender'] ==
-                                                          'Female'
-                                                      ? Colors.pink[600]
-                                                      : Colors.grey[600],
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              student['gender'] ?? 'N/A',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-
-                                    // 6. Contact number
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child:
-                                            student['contact_number'] != null &&
-                                                    student['contact_number']
-                                                        .toString()
-                                                        .isNotEmpty
-                                                ? Row(
-                                                  children: [
-                                                    Icon(
-                                                      Icons.phone,
-                                                      size: 14,
-                                                      color: Colors.grey[600],
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Text(
-                                                      student['contact_number'],
-                                                      style: const TextStyle(
-                                                        fontSize: 13,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                )
-                                                : Text(
-                                                  'N/A',
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                    color: Colors.grey[500],
-                                                    fontStyle: FontStyle.italic,
-                                                  ),
-                                                ),
-                                      ),
-                                    ),
-
-                                    // 7. Email
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child:
-                                            student['email'] != null &&
-                                                    student['email']
-                                                        .toString()
-                                                        .isNotEmpty
-                                                ? Row(
-                                                  children: [
-                                                    Icon(
-                                                      Icons.email,
-                                                      size: 14,
-                                                      color: Colors.grey[600],
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Expanded(
-                                                      child: Text(
-                                                        student['email'],
-                                                        style: const TextStyle(
-                                                          fontSize: 13,
-                                                        ),
-                                                        overflow:
-                                                            TextOverflow
-                                                                .ellipsis,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                )
-                                                : Text(
-                                                  'N/A',
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                    color: Colors.grey[500],
-                                                    fontStyle: FontStyle.italic,
-                                                  ),
-                                                ),
-                                      ),
-                                    ),
-
-                                    // 8. Enrollment date
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              enrollmentDate,
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                            if (enrollmentDate != 'N/A') ...[
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                _getTimeAgo(enrollmentDate),
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-
-                                    // 9. Status
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color:
-                                                status == 'Active'
-                                                    ? const Color(0xFFE8F5E9)
-                                                    : const Color(0xFFFFEBEE),
-                                            borderRadius: BorderRadius.circular(
-                                              16,
-                                            ),
-                                            border: Border.all(
-                                              color:
-                                                  status == 'Active'
-                                                      ? const Color(0xFF4CAF50)
-                                                      : const Color(0xFFE57373),
-                                              width: 1,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Container(
-                                                width: 6,
-                                                height: 6,
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      status == 'Active'
-                                                          ? const Color(
-                                                            0xFF4CAF50,
-                                                          )
-                                                          : const Color(
-                                                            0xFFE57373,
-                                                          ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(3),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                status,
-                                                style: TextStyle(
-                                                  color:
-                                                      status == 'Active'
-                                                          ? const Color(
-                                                            0xFF2E7D32,
-                                                          )
-                                                          : const Color(
-                                                            0xFFC62828,
-                                                          ),
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    // 10. Actions
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Center(
-                                        child: PopupMenuButton<String>(
-                                          icon: Icon(
-                                            Icons.more_vert,
-                                            color: Colors.grey[600],
-                                          ),
-                                          iconSize: 20,
-                                          onSelected: (value) {
-                                            if (value == 'edit') {
-                                              _addOrEditStudent(
-                                                student: student,
-                                              );
-                                            } else if (value == 'delete') {
-                                              showDialog(
-                                                context: context,
-                                                builder:
-                                                    (ctx) => AlertDialog(
-                                                      title: const Row(
-                                                        children: [
-                                                          Icon(
-                                                            Icons.warning,
-                                                            color: Colors.red,
-                                                          ),
-                                                          SizedBox(width: 8),
-                                                          Text(
-                                                            'Confirm Delete',
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      content: Column(
-                                                        mainAxisSize:
-                                                            MainAxisSize.min,
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          Text(
-                                                            'Are you sure you want to delete ${student['fname']} ${student['lname']}?',
-                                                            style:
-                                                                const TextStyle(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w500,
-                                                                ),
-                                                          ),
-                                                          const SizedBox(
-                                                            height: 8,
-                                                          ),
-                                                          const Text(
-                                                            'This action cannot be undone and will permanently remove:',
-                                                            style: TextStyle(
-                                                              fontSize: 13,
-                                                            ),
-                                                          ),
-                                                          const SizedBox(
-                                                            height: 8,
-                                                          ),
-                                                          Padding(
-                                                            padding:
-                                                                const EdgeInsets.only(
-                                                                  left: 16,
-                                                                ),
-                                                            child: Column(
-                                                              crossAxisAlignment:
-                                                                  CrossAxisAlignment
-                                                                      .start,
-                                                              children: [
-                                                                const Text(
-                                                                  '• Student profile and data',
-                                                                  style:
-                                                                      TextStyle(
-                                                                        fontSize:
-                                                                            12,
-                                                                      ),
-                                                                ),
-                                                                const Text(
-                                                                  '• Attendance records',
-                                                                  style:
-                                                                      TextStyle(
-                                                                        fontSize:
-                                                                            12,
-                                                                      ),
-                                                                ),
-                                                                const Text(
-                                                                  '• Profile image',
-                                                                  style:
-                                                                      TextStyle(
-                                                                        fontSize:
-                                                                            12,
-                                                                      ),
-                                                                ),
-                                                                if (student['rfid_uid'] !=
-                                                                    null)
-                                                                  const Text(
-                                                                    '• RFID card assignment',
-                                                                    style: TextStyle(
-                                                                      fontSize:
-                                                                          12,
-                                                                    ),
-                                                                  ),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      actions: [
-                                                        TextButton(
-                                                          onPressed:
-                                                              () =>
-                                                                  Navigator.pop(
-                                                                    ctx,
-                                                                  ),
-                                                          child: const Text(
-                                                            'Cancel',
-                                                          ),
-                                                        ),
-                                                        ElevatedButton(
-                                                          style:
-                                                              ElevatedButton.styleFrom(
-                                                                backgroundColor:
-                                                                    Colors.red,
-                                                                foregroundColor:
-                                                                    Colors
-                                                                        .white,
-                                                              ),
-                                                          onPressed: () {
-                                                            Navigator.pop(ctx);
-                                                            _deleteStudent(
-                                                              student['id'],
-                                                            );
-                                                          },
-                                                          child: const Text(
-                                                            'Delete Student',
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                              );
-                                            }
-                                          },
-                                          itemBuilder:
-                                              (context) => [
-                                                const PopupMenuItem(
-                                                  value: 'edit',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(
-                                                        Icons.edit,
-                                                        size: 16,
-                                                        color: Color(
-                                                          0xFF2ECC71,
-                                                        ),
-                                                      ),
-                                                      SizedBox(width: 8),
-                                                      Text('Edit Student'),
-                                                    ],
-                                                  ),
-                                                ),
-                                                if (isAdmin)
-                                                  const PopupMenuItem(
-                                                    value: 'delete',
-                                                    child: Row(
-                                                      children: [
-                                                        Icon(
-                                                          Icons.delete,
-                                                          size: 16,
-                                                          color: Colors.red,
-                                                        ),
-                                                        SizedBox(width: 8),
-                                                        Text(
-                                                          'Delete Student',
-                                                          style: TextStyle(
-                                                            color: Colors.red,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                              ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
-                            ],
-                          ),
-                        ),
-                      ),
+                      child:
+                          isMobile
+                              ? _buildMobileTable(filteredStudents)
+                              : _buildDesktopTable(filteredStudents),
                     ),
 
-                    // Enhanced Pagination with more controls
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16.0),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey[200]!),
-                        ),
-                        child: Column(
-                          children: [
-                            // Items per page selector and info
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                // Items per page selector
-                                Row(
-                                  children: [
-                                    const Text(
-                                      'Show:',
-                                      style: TextStyle(
-                                        color: Color(0xFF666666),
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        border: Border.all(
-                                          color: Colors.grey[300]!,
-                                        ),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: DropdownButtonHideUnderline(
-                                        child: DropdownButton<int>(
-                                          value: _itemsPerPage,
-                                          items:
-                                              [5, 10, 25, 50, 100].map((
-                                                int value,
-                                              ) {
-                                                return DropdownMenuItem<int>(
-                                                  value: value,
-                                                  child: Text('$value entries'),
-                                                );
-                                              }).toList(),
-                                          onChanged: (int? newValue) {
-                                            setState(() {
-                                              _itemsPerPage = newValue!;
-                                              _currentPage =
-                                                  1; // Reset to first page
-                                            });
-                                          },
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            color: Color(0xFF666666),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-
-                                // Total entries info
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xFF2ECC71,
-                                    ).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: const Color(
-                                        0xFF2ECC71,
-                                      ).withOpacity(0.3),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.people,
-                                        size: 16,
-                                        color: const Color(0xFF2ECC71),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        'Total: ${filteredStudents.length} students',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF2ECC71),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Pagination info and controls
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                // "Showing x to y of z entries"
-                                Text(
-                                  'Showing ${currentPageItems.isEmpty ? 0 : startIndex + 1} to $endIndex of ${filteredStudents.length} entries',
-                                  style: const TextStyle(
-                                    color: Color(0xFF666666),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-
-                                // Enhanced pagination controls
-                                Row(
-                                  children: [
-                                    // First page button
-                                    IconButton(
-                                      icon: const Icon(Icons.first_page),
-                                      onPressed:
-                                          _currentPage > 1
-                                              ? () => setState(
-                                                () => _currentPage = 1,
-                                              )
-                                              : null,
-                                      color:
-                                          _currentPage > 1
-                                              ? const Color(0xFF666666)
-                                              : const Color(0xFFCCCCCC),
-                                      tooltip: 'First page',
-                                    ),
-
-                                    // Previous button
-                                    IconButton(
-                                      icon: const Icon(Icons.chevron_left),
-                                      onPressed:
-                                          _currentPage > 1
-                                              ? () =>
-                                                  setState(() => _currentPage--)
-                                              : null,
-                                      color:
-                                          _currentPage > 1
-                                              ? const Color(0xFF666666)
-                                              : const Color(0xFFCCCCCC),
-                                      tooltip: 'Previous page',
-                                    ),
-
-                                    // Page input field for quick navigation
-                                    Container(
-                                      width: 80,
-                                      height: 32,
-                                      margin: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                      ),
-                                      child: TextFormField(
-                                        initialValue: _currentPage.toString(),
-                                        textAlign: TextAlign.center,
-                                        keyboardType: TextInputType.number,
-                                        style: const TextStyle(fontSize: 14),
-                                        decoration: InputDecoration(
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                vertical: 8,
-                                              ),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            borderSide: BorderSide(
-                                              color: Colors.grey[300]!,
-                                            ),
-                                          ),
-                                          focusedBorder: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            borderSide: const BorderSide(
-                                              color: Color(0xFF2ECC71),
-                                            ),
-                                          ),
-                                        ),
-                                        onFieldSubmitted: (value) {
-                                          final page = int.tryParse(value);
-                                          if (page != null &&
-                                              page >= 1 &&
-                                              page <= _totalPages) {
-                                            setState(() => _currentPage = page);
-                                          }
-                                        },
-                                      ),
-                                    ),
-
-                                    Text(
-                                      'of $_totalPages',
-                                      style: const TextStyle(
-                                        color: Color(0xFF666666),
-                                        fontSize: 13,
-                                      ),
-                                    ),
-
-                                    // Next button
-                                    IconButton(
-                                      icon: const Icon(Icons.chevron_right),
-                                      onPressed:
-                                          _currentPage < _totalPages
-                                              ? () =>
-                                                  setState(() => _currentPage++)
-                                              : null,
-                                      color:
-                                          _currentPage < _totalPages
-                                              ? const Color(0xFF666666)
-                                              : const Color(0xFFCCCCCC),
-                                      tooltip: 'Next page',
-                                    ),
-
-                                    // Last page button
-                                    IconButton(
-                                      icon: const Icon(Icons.last_page),
-                                      onPressed:
-                                          _currentPage < _totalPages
-                                              ? () => setState(
-                                                () =>
-                                                    _currentPage = _totalPages,
-                                              )
-                                              : null,
-                                      color:
-                                          _currentPage < _totalPages
-                                              ? const Color(0xFF666666)
-                                              : const Color(0xFFCCCCCC),
-                                      tooltip: 'Last page',
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-
-                            // Quick page jumper (for large datasets)
-                            if (_totalPages > 10) ...[
-                              const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text(
-                                    'Quick jump: ',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF666666),
-                                    ),
-                                  ),
-                                  ...List.generate(
-                                    (_totalPages / 10).ceil().clamp(1, 5),
-                                    (index) {
-                                      final pageGroup = (index + 1) * 10;
-                                      final actualPage =
-                                          pageGroup > _totalPages
-                                              ? _totalPages
-                                              : pageGroup;
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 2,
-                                        ),
-                                        child: TextButton(
-                                          onPressed:
-                                              () => setState(
-                                                () => _currentPage = actualPage,
-                                              ),
-                                          style: TextButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            minimumSize: Size.zero,
-                                            foregroundColor: const Color(
-                                              0xFF2ECC71,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '$actualPage',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -3516,25 +3845,985 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       ),
     );
   }
+
+  // Mobile table layout
+  Widget _buildMobileTable(List<Map<String, dynamic>> currentPageItems) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEEEEEE)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Mobile table header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F9FA),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+              border: Border(
+                bottom: BorderSide(color: const Color(0xFFE0E0E0), width: 2),
+              ),
+            ),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: _selectAll,
+                  onChanged: (value) => _toggleSelectAll(currentPageItems),
+                  activeColor: const Color(0xFF2ECC71),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Students',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${currentPageItems.length} student${currentPageItems.length == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Mobile table content - card layout
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: currentPageItems.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final student = currentPageItems[index];
+                final String fname = student['fname'] ?? '';
+                final String lname = student['lname'] ?? '';
+                final String suffix = student['suffix'] ?? '';
+                final fullName = suffix.isNotEmpty 
+                    ? "$fname $lname $suffix" 
+                    : "$fname $lname";
+                final String studentId =
+                    "STU${student['id'].toString().padLeft(3, '0')}";
+                final section = student['sections'];
+                final String className =
+                    section != null
+                        ? "${section['name']} (${section['grade_level']})"
+                        : "N/A";
+                final enrollmentDate =
+                    student['created_at'] != null
+                        ? DateFormat(
+                          'yyyy-MM-dd',
+                        ).format(DateTime.parse(student['created_at']))
+                        : "N/A";
+                final status = student['status'] ?? 'Active';
+
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color:
+                        _selectedStudents.contains(student['id'])
+                            ? const Color(0xFF2ECC71).withOpacity(0.1)
+                            : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[200]!),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Student header with checkbox and ID
+                      Row(
+                        children: [
+                          Checkbox(
+                            value: _selectedStudents.contains(student['id']),
+                            onChanged:
+                                (value) => _toggleStudentSelection(
+                                  student['id'],
+                                  currentPageItems,
+                                ),
+                            activeColor: const Color(0xFF2ECC71),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2ECC71).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              studentId,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF2ECC71),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  status == 'Active'
+                                      ? const Color(0xFFE8F5E9)
+                                      : const Color(0xFFFFEBEE),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color:
+                                    status == 'Active'
+                                        ? const Color(0xFF4CAF50)
+                                        : const Color(0xFFE57373),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color:
+                                        status == 'Active'
+                                            ? const Color(0xFF4CAF50)
+                                            : const Color(0xFFE57373),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  status,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color:
+                                        status == 'Active'
+                                            ? const Color(0xFF2E7D32)
+                                            : const Color(0xFFC62828),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Student profile image and name
+                      Row(
+                        children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(
+                                color: const Color(0xFF2ECC71).withOpacity(0.4),
+                                width: 3,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xFF2ECC71,
+                                  ).withOpacity(0.15),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child:
+                                  (student['profile_image_url'] != null &&
+                                          student['profile_image_url']
+                                              .toString()
+                                              .isNotEmpty)
+                                      ? Image.network(
+                                        student['profile_image_url'],
+                                        width: 40,
+                                        height: 40,
+                                        fit: BoxFit.cover,
+                                        loadingBuilder: (
+                                          context,
+                                          child,
+                                          loadingProgress,
+                                        ) {
+                                          if (loadingProgress == null)
+                                            return child;
+                                          return Container(
+                                            width: 40,
+                                            height: 40,
+                                            color: Colors.grey[200],
+                                            child: const Center(
+                                              child: SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Color(0xFF2ECC71),
+                                                    ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        errorBuilder: (
+                                          context,
+                                          error,
+                                          stackTrace,
+                                        ) {
+                                          return const Icon(
+                                            Icons.person,
+                                            size: 20,
+                                            color: Colors.grey,
+                                          );
+                                        },
+                                      )
+                                      : const Icon(
+                                        Icons.person,
+                                        size: 20,
+                                        color: Colors.grey,
+                                      ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  fullName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1A1A1A),
+                                    fontSize: 16,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                                if (student['rfid_uid'] != null &&
+                                    student['rfid_uid']
+                                        .toString()
+                                        .isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.contactless,
+                                        size: 12,
+                                        color: Colors.green[600],
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'RFID',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: const Color(0xFF2ECC71),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Student details
+                      _buildMobileDetailRow('Class', className, Icons.class_),
+                      _buildMobileDetailRow(
+                        'Gender',
+                        student['gender'] ?? 'N/A',
+                        student['gender'] == 'Male' ? Icons.male : Icons.female,
+                      ),
+                      _buildMobileDetailRow(
+                        'Contact',
+                        student['contact_number'] ?? 'N/A',
+                        Icons.phone,
+                      ),
+                      _buildMobileDetailRow(
+                        'Email',
+                        student['email'] ?? 'N/A',
+                        Icons.email,
+                      ),
+                      _buildMobileDetailRow(
+                        'Enrollment',
+                        enrollmentDate,
+                        Icons.calendar_today,
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Action buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.edit, size: 16),
+                              label: const Text(
+                                "Edit",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2ECC71),
+                                foregroundColor: Colors.white,
+                                elevation: 2,
+                                shadowColor: Colors.black.withOpacity(0.1),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed:
+                                  () => _addOrEditStudent(student: student),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.delete, size: 16),
+                              label: const Text(
+                                "Delete",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                side: const BorderSide(
+                                  color: Colors.red,
+                                  width: 1.5,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: () async {
+                                final confirm = await _showDeleteConfirmDialog(
+                                  student['fname'],
+                                );
+                                if (confirm) {
+                                  await _deleteStudent(student['id'], studentData: student);
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Desktop table layout
+  Widget _buildDesktopTable(List<Map<String, dynamic>> currentPageItems) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFEEEEEE)),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Table(
+        border: TableBorder(
+          horizontalInside: BorderSide(color: Colors.grey[200]!, width: 1),
+        ),
+        columnWidths: {
+          0: const FlexColumnWidth(0.5), // Checkbox
+          1: const FlexColumnWidth(0.8), // Student ID
+          2: const FlexColumnWidth(2.0), // Name + Image
+          3: const FlexColumnWidth(1.0), // Class
+          4: FlexColumnWidth(isTablet ? 0.6 : 0.8), // Gender - responsive
+          5: const FlexColumnWidth(1.0), // Enrollment
+          6: FlexColumnWidth(isTablet ? 0.6 : 0.8), // Status - responsive
+          7: const FlexColumnWidth(0.6), // Actions
+        },
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        children: [
+          // Table header row
+          TableRow(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F9FA),
+              border: Border(
+                bottom: BorderSide(color: const Color(0xFFE0E0E0), width: 2),
+              ),
+            ),
+            children: [
+              // Select all checkbox
+              TableCell(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Checkbox(
+                    value: _selectAll,
+                    onChanged: (value) => _toggleSelectAll(currentPageItems),
+                    activeColor: const Color(0xFF2ECC71),
+                  ),
+                ),
+              ),
+              const TableHeaderCell(text: 'Student ID'),
+              const TableHeaderCell(text: 'Student Name'),
+              const TableHeaderCell(text: 'Class'),
+              const TableHeaderCell(text: 'Gender'),
+              const TableHeaderCell(text: 'Enrollment Date'),
+              const TableHeaderCell(
+                text: 'Status',
+                alignment: Alignment.center,
+              ),
+              const TableHeaderCell(text: 'Actions'),
+            ],
+          ),
+
+          // Table data rows
+          ...currentPageItems.map((student) {
+            final String fname = student['fname'] ?? '';
+            final String lname = student['lname'] ?? '';
+            final String suffix = student['suffix'] ?? '';
+            final fullName = suffix.isNotEmpty 
+                ? "$fname $lname $suffix" 
+                : "$fname $lname";
+            final String studentId =
+                "STU${student['id'].toString().padLeft(3, '0')}";
+            final section = student['sections'];
+            final String className =
+                section != null
+                    ? "${section['name']} (${section['grade_level']})"
+                    : "N/A";
+            final enrollmentDate =
+                student['created_at'] != null
+                    ? DateFormat(
+                      'yyyy-MM-dd',
+                    ).format(DateTime.parse(student['created_at']))
+                    : "N/A";
+            final status = student['status'] ?? 'Active';
+
+            return TableRow(
+              decoration: BoxDecoration(
+                color:
+                    _selectedStudents.contains(student['id'])
+                        ? const Color(0xFF2ECC71).withOpacity(0.1)
+                        : Colors.white,
+              ),
+              children: [
+                // 1. Selection checkbox
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Checkbox(
+                      value: _selectedStudents.contains(student['id']),
+                      onChanged:
+                          (value) => _toggleStudentSelection(
+                            student['id'],
+                            currentPageItems,
+                          ),
+                      activeColor: const Color(0xFF2ECC71),
+                    ),
+                  ),
+                ),
+
+                // 2. Student ID
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      studentId,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF555555),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 3. Student name WITH PROFILE IMAGE
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        // Profile Image
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(28),
+                            border: Border.all(
+                              color: const Color(0xFF2ECC71).withOpacity(0.4),
+                              width: 3,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFF2ECC71,
+                                ).withOpacity(0.15),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child:
+                                (student['profile_image_url'] != null &&
+                                        student['profile_image_url']
+                                            .toString()
+                                            .isNotEmpty)
+                                    ? Image.network(
+                                      student['profile_image_url'],
+                                      width: 40,
+                                      height: 40,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (
+                                        context,
+                                        child,
+                                        loadingProgress,
+                                      ) {
+                                        if (loadingProgress == null)
+                                          return child;
+                                        return Container(
+                                          width: 40,
+                                          height: 40,
+                                          color: Colors.grey[200],
+                                          child: const Center(
+                                            child: SizedBox(
+                                              width: 16,
+                                              height: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Color(0xFF2ECC71),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      errorBuilder: (
+                                        context,
+                                        error,
+                                        stackTrace,
+                                      ) {
+                                        return const Icon(
+                                          Icons.person,
+                                          size: 20,
+                                          color: Colors.grey,
+                                        );
+                                      },
+                                    )
+                                    : const Icon(
+                                      Icons.person,
+                                      size: 20,
+                                      color: Colors.grey,
+                                    ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // Student Name
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                fullName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1A1A1A),
+                                  fontSize: 18,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                              if (student['rfid_uid'] != null &&
+                                  student['rfid_uid']
+                                      .toString()
+                                      .isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.contactless,
+                                      size: 12,
+                                      color: Colors.green[600],
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'RFID',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: const Color(0xFF2ECC71),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 4. Class
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2ECC71).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFF2ECC71).withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        className,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF2ECC71),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 5. Gender
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Icon(
+                          student['gender'] == 'Male'
+                              ? Icons.male
+                              : student['gender'] == 'Female'
+                              ? Icons.female
+                              : Icons.person,
+                          size: 16,
+                          color:
+                              student['gender'] == 'Male'
+                                  ? Colors.blue[600]
+                                  : student['gender'] == 'Female'
+                                  ? Colors.pink[600]
+                                  : Colors.grey[600],
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            student['gender'] ?? 'N/A',
+                            style: const TextStyle(fontSize: 13),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 6. Enrollment date
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          enrollmentDate,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF555555),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _getTimeAgo(student['created_at']),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // 6. Status
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.center,
+                    padding: EdgeInsets.all(isTablet ? 8 : 16),
+                    child: Container(
+                      constraints: BoxConstraints(
+                        minWidth: isTablet ? 24 : 80,
+                        maxWidth: isTablet ? 80 : 120,
+                      ),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isTablet ? 8 : 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            status == 'Active'
+                                ? const Color(0xFFE8F5E9)
+                                : const Color(0xFFFFEBEE),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color:
+                              status == 'Active'
+                                  ? const Color(0xFF4CAF50)
+                                  : const Color(0xFFE57373),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color:
+                                  status == 'Active'
+                                      ? const Color(0xFF4CAF50)
+                                      : const Color(0xFFE57373),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          if (!isTablet) ...[
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                status,
+                                style: TextStyle(
+                                  color:
+                                      status == 'Active'
+                                          ? const Color(0xFF2E7D32)
+                                          : const Color(0xFFC62828),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 7. Actions
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.middle,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.all(16),
+                    child: PopupMenuButton<String>(
+                      icon: Icon(
+                        Icons.more_vert,
+                        color: Colors.grey[600],
+                        size: 20,
+                      ),
+                      tooltip: 'More options',
+                      onSelected: (value) async {
+                        if (value == 'edit') {
+                          await _addOrEditStudent(student: student);
+                        } else if (value == 'delete') {
+                          final confirm = await _showDeleteConfirmDialog(
+                            student['fname'],
+                          );
+                          if (confirm) {
+                            await _deleteStudent(student['id'], studentData: student);
+                          }
+                        }
+                      },
+                      itemBuilder:
+                          (context) => [
+                            const PopupMenuItem(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.edit,
+                                    size: 18,
+                                    color: Color(0xFF2ECC71),
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    'Edit Student',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.delete,
+                                    size: 18,
+                                    color: Colors.red,
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    'Delete Student',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+  // Helper method for mobile detail rows
+  Widget _buildMobileDetailRow(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.grey[600]),
+          const SizedBox(width: 8),
+          Text(
+            '$label: ',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF1A1A1A),
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // Custom header cell for table
 class TableHeaderCell extends StatelessWidget {
   final String text;
+  final Alignment alignment;
 
-  const TableHeaderCell({super.key, required this.text});
+  const TableHeaderCell({
+    super.key,
+    required this.text,
+    this.alignment = Alignment.centerLeft,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      alignment: alignment,
       child: Text(
         text,
         style: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 13,
-          color: Color(0xFF666666),
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
+          color: Color(0xFF1A1A1A),
+          letterSpacing: 0.3,
         ),
       ),
     );

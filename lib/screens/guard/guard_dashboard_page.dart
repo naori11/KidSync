@@ -12,6 +12,7 @@ class _DashboardPageState extends State<DashboardPage> {
   final supabase = Supabase.instance.client;
   String? guardId;
   String? guardName;
+  String? profileImageUrl;
   bool isLoading = false;
 
   @override
@@ -35,7 +36,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final guardData =
         await supabase
             .from('users')
-            .select('fname, lname')
+            .select('fname, lname, profile_image_url')
             .eq('id', guardId!)
             .maybeSingle();
 
@@ -43,6 +44,8 @@ class _DashboardPageState extends State<DashboardPage> {
         guardData != null
             ? '${guardData['fname'] ?? ''} ${guardData['lname'] ?? ''}'.trim()
             : user?.email ?? 'Guard';
+
+    profileImageUrl = guardData?['profile_image_url'];
 
     setState(() => isLoading = false);
   }
@@ -63,16 +66,23 @@ class _DashboardPageState extends State<DashboardPage> {
           CircleAvatar(
             backgroundColor: Colors.blue[100],
             radius: 23,
-            child: Text(
-              (guardName != null && guardName!.isNotEmpty)
-                  ? guardName![0].toUpperCase()
-                  : 'G',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 24,
-                color: Color(0xFF2563EB),
-              ),
-            ),
+            backgroundImage:
+                profileImageUrl != null && profileImageUrl!.isNotEmpty
+                    ? NetworkImage(profileImageUrl!)
+                    : null,
+            child:
+                profileImageUrl == null || profileImageUrl!.isEmpty
+                    ? Text(
+                      (guardName != null && guardName!.isNotEmpty)
+                          ? guardName![0].toUpperCase()
+                          : 'A',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 24,
+                        color: Color(0xFF2563EB),
+                      ),
+                    )
+                    : null,
           ),
           const SizedBox(width: 15),
           Expanded(

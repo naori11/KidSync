@@ -1,24 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'screens/login_screen.dart';
-import 'screens/guard/guard_panel.dart';
-import 'screens/admin/admin_panel.dart';
-import 'screens/teacher/teacher_panel.dart';
-import 'screens/teacher/teacher_panel_content.dart';
-import 'screens/set_password_screen.dart';
+import 'screens/conditional_screens.dart';
 import 'screens/parent/parent_home.dart';
-import 'screens/parent/notifications.dart';
-import 'screens/parent/child_status.dart';
-import 'screens/parent/pickup_confirmation.dart';
-import 'screens/parent/fetcher_code_generator.dart';
-import 'screens/parent/profile.dart';
-import 'screens/parent/parent_login.dart';
-import 'screens/parent/static_pickup_status_demo.dart';
 import 'screens/driver/driver_panel.dart';
+import 'services/verification_reminder_service.dart';
+import 'services/push_notification_service.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_strategy/url_strategy.dart';
-import 'dart:html' as html;
+import 'utils/html_import.dart' as html;
 import 'dart:async'; // For StreamSubscription
 
 // Global variable to store the initial URL, captured before Flutter app runs.
@@ -65,10 +59,26 @@ class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize Firebase
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('✅ Firebase initialized successfully');
+  } catch (e) {
+    print('❌ Firebase initialization failed: $e');
+    // Continue without Firebase for web-only environments
+  }
+
+  // Initialize timezone data for proper PST handling
+  tz.initializeTimeZones();
+  
+
+
   // Capture the initial URL as early as possible in Dart.
   if (kIsWeb) {
     initialUrlFromMain = html.window.location.href;
-    print("main.dart - main(): Captured initial full URL: $initialUrlFromMain");
+
   }
 
   setHashUrlStrategy();
@@ -78,6 +88,18 @@ Future<void> main() async {
     anonKey:
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdWl0Z3BxcXVkaHFkY2J1aGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDk5OTUsImV4cCI6MjA2MzIyNTk5NX0.FuWUR1QHFiWzPwZa0HvW0yLhJfHHw0EhBLibA0t0Dsw',
   );
+
+  // Initialize Push Notifications AFTER Supabase (mobile platforms only)
+  if (!kIsWeb) {
+    try {
+      await PushNotificationService().initialize();
+    } catch (e) {
+      // Push notification initialization failed
+    }
+  }
+
+  // Start the verification reminder service
+  VerificationReminderService().startReminderService();
 
   runApp(KidSyncApp(initialUrl: initialUrlFromMain)); // Pass initialUrl
 }
@@ -95,25 +117,40 @@ class _KidSyncAppState extends State<KidSyncApp> {
   StreamSubscription<AuthState>? _authSubscription;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _initialAuthCheckCompleted = false;
-  bool _hasHandledInviteToken = false;
+
+  bool _resetCodeValid() {
+    if (!kIsWeb) return false;
+    try {
+      final ts = html.window.sessionStorage['kidsync_reset_ts'];
+      if (ts == null) return false;
+      final millis = int.tryParse(ts);
+      if (millis == null) return false;
+      final dt = DateTime.fromMillisecondsSinceEpoch(millis);
+      // treat older than 10 minutes as stale
+      return DateTime.now().difference(dt).inMinutes < 10;
+    } catch (e) {
+      return false;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    print(
-      "[DEBUG] _KidSyncAppState initState: Initial URL passed from main: ${widget.initialUrl}",
-    );
+    
+
 
     // For invite flows with double hash pattern, navigate directly to set password screen
-    if (kIsWeb && widget.initialUrl.contains('#/set-password#access_token=')) {
-      print(
-        "[DEBUG] Detected double hash pattern in URL - cleaning up routing",
-      );
+  if (kIsWeb && widget.initialUrl.contains('#/set-password#access_token=') && _resetCodeValid()) {
+
 
       // Just navigate directly to set password screen
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           final navigator = _navigatorKey.currentState;
+          try {
+            // mark reset navigation as in-progress to avoid repeated pushes
+            if (kIsWeb) html.window.sessionStorage['kidsync_reset_in_progress'] = '1';
+          } catch (_) {}
           if (navigator != null) {
             navigator.pushReplacementNamed(SetPasswordScreen.routeName);
             return; // Skip the rest of the initialization
@@ -130,9 +167,7 @@ class _KidSyncAppState extends State<KidSyncApp> {
       final session = data.session;
       final user = session?.user;
 
-      print(
-        "[DEBUG] Auth state changed: $authEvent, User: ${user?.email}, Session: ${session != null}",
-      );
+
 
       // Handle routing based on auth state
       _handleNavigation(session, user, authEvent, widget.initialUrl);
@@ -151,16 +186,25 @@ class _KidSyncAppState extends State<KidSyncApp> {
       return;
     }
 
-    print(
-      "[DEBUG] _checkInitialSessionAfterDelay: Manually checking session as no onAuthStateChange event seemed to complete navigation yet.",
-    );
+
 
     // NEW CODE: Check for password reset code in session storage
-    if (kIsWeb &&
-        html.window.sessionStorage.containsKey('kidsync_reset_code')) {
+  if (kIsWeb &&
+    html.window.sessionStorage.containsKey('kidsync_reset_code') && _resetCodeValid()) {
+      // If a prior navigation to the reset screen is already in progress, don't navigate again
+      if (kIsWeb && html.window.sessionStorage.containsKey('kidsync_reset_in_progress')) {
+        print(
+          "[DEBUG] _checkInitialSessionAfterDelay: reset in progress flag set, skipping navigation",
+        );
+        _initialAuthCheckCompleted = true;
+        return;
+      }
       print(
         "[DEBUG] _checkInitialSessionAfterDelay: Found reset code in session storage, navigating to SetPasswordScreen",
       );
+      try {
+        html.window.sessionStorage['kidsync_reset_in_progress'] = '1';
+      } catch (_) {}
       final navigator = _navigatorKey.currentState;
       if (navigator != null) {
         navigator.pushReplacementNamed(SetPasswordScreen.routeName);
@@ -240,11 +284,19 @@ class _KidSyncAppState extends State<KidSyncApp> {
     );
 
     // NEW CODE: Check for reset code in session storage
-    if (kIsWeb &&
-        html.window.sessionStorage.containsKey('kidsync_reset_code')) {
+  if (kIsWeb &&
+    html.window.sessionStorage.containsKey('kidsync_reset_code') && _resetCodeValid()) {
       print(
         "[DEBUG] _handleNavigation: Found reset code in session storage, navigating to SetPasswordScreen",
       );
+      // Avoid repeatedly navigating if another navigation is already in progress
+      if (kIsWeb && html.window.sessionStorage.containsKey('kidsync_reset_in_progress')) {
+        print("[DEBUG] _handleNavigation: reset in-progress flag set, skipping navigation");
+        return;
+      }
+      try {
+        html.window.sessionStorage['kidsync_reset_in_progress'] = '1';
+      } catch (_) {}
       if (currentRouteName != SetPasswordScreen.routeName) {
         navigator.pushReplacementNamed(SetPasswordScreen.routeName);
       }
@@ -278,6 +330,11 @@ class _KidSyncAppState extends State<KidSyncApp> {
       print(
         "[DEBUG] _handleNavigation: Session active (event: $event). Navigating based on role: $role",
       );
+
+      // Initialize push notifications for logged-in user (mobile only)
+      if (!kIsWeb && event == AuthChangeEvent.signedIn) {
+        _initializePushNotificationsForUser(user.id);
+      }
 
       switch (role) {
         case 'Admin':
@@ -319,6 +376,20 @@ class _KidSyncAppState extends State<KidSyncApp> {
     }
   }
 
+  // Initialize push notifications for logged-in user
+  Future<void> _initializePushNotificationsForUser(String userId) async {
+    try {
+
+      final pushService = PushNotificationService();
+      
+      // Refresh and store FCM token in database
+      await pushService.refreshFCMToken();
+      print("✅ FCM token stored for user: $userId");
+    } catch (e) {
+      print("❌ Failed to initialize push notifications for user: $e");
+    }
+  }
+
   @override
   void dispose() {
     _authSubscription?.cancel();
@@ -341,24 +412,11 @@ class _KidSyncAppState extends State<KidSyncApp> {
         InitialLoadingScreen.routeName: (_) => const InitialLoadingScreen(),
         LoginScreen.routeName: (_) => const LoginScreen(),
         SetPasswordScreen.routeName: (_) => const SetPasswordScreen(),
-        '/set-password': (_) => const SetPasswordScreen(),
         '#/set-password': (_) => const SetPasswordScreen(),
         '/admin': (_) => const AdminPanel(),
-        '/guard': (_) => GuardPanel(),
+        '/guard': (_) => const GuardPanel(),
         '/teacher': (_) => const TeacherPanel(),
         '/parent': (_) => const ParentHomeScreen(),
-        '/parent/login': (_) => const ParentLoginScreen(),
-        '/parent/notifications': (_) => const ParentNotificationsScreen(),
-        '/parent/child_status': (_) => const ChildStatusScreen(),
-        '/parent/pickup_confirmation':
-            (_) => const PickupConfirmationScreen(
-              primaryColor: Color(0xFF19AE61),
-              backgroundColor: Color.fromARGB(10, 78, 241, 157),
-            ),
-        '/parent/fetcher_code_generator':
-            (_) => const FetcherCodeGeneratorScreen(),
-        '/parent/profile': (_) => const ParentProfileScreen(),
-        '/parent/pickup_status_demo': (_) => const StaticPickupStatusDemo(),
         '/driver': (_) => const DriverPanel(),
       },
     );
