@@ -32,6 +32,19 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     _fetchParents();
   }
 
+  // Normalize relationship values from the database or imports to the
+  // set accepted by the UI dropdowns. This prevents DropdownButton
+  // assertion errors when an unexpected value (e.g. 'mother') is present.
+  String _normalizeRelationship(dynamic value) {
+    if (value == null) return 'parent';
+    final s = value.toString().toLowerCase().trim();
+    if (s == 'parent' || s == 'mother' || s == 'father' || s == 'mom' || s == 'dad') {
+      return 'parent';
+    }
+    if (s == 'guardian' || s == 'caregiver') return 'guardian';
+    return 'parent';
+  }
+
   Future<void> _fetchParents() async {
     setState(() => isLoading = true);
 
@@ -108,7 +121,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
                 'last_name': student['lname'],
                 'grade': student['grade_level'],
                 'section': sectionName,
-                'relationship_type': studentRelation['relationship_type'],
+                'relationship_type': _normalizeRelationship(studentRelation['relationship_type']),
                 'is_primary': studentRelation['is_primary'],
               });
             }

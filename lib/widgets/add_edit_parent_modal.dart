@@ -57,6 +57,24 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
     _initializeForm();
   }
 
+  // Ensure relationship values coming from import or server are mapped
+  // to the limited set used by the UI dropdown. This prevents cases
+  // where imported values like 'mother'/'father' would not match the
+  // available DropdownMenuItem values and trigger Flutter assertions.
+  String _normalizeRelationship(dynamic value) {
+    if (value == null) return 'parent';
+    final s = value.toString().toLowerCase().trim();
+    // Treat common family relations as 'parent'
+    if (s == 'parent' || s == 'mother' || s == 'father' || s == 'mom' || s == 'dad') {
+      return 'parent';
+    }
+    if (s == 'guardian' || s == 'caregiver') {
+      return 'guardian';
+    }
+    // Fallback to 'parent' to keep UI consistent
+    return 'parent';
+  }
+
   void _initializeForm() {
     // If parent provided (editing) use that
     if (widget.parent != null) {
@@ -69,25 +87,22 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
       _addressController.text = widget.parent!['address'] ?? '';
 
       final students = widget.parent!['students'] as List? ?? [];
-      _selectedStudents =
-          students
-              .map(
-                (student) => {
-                  'student_id': student['id'],
-                  'relationship_type': student['relationship_type'] ?? 'parent',
-                  'is_primary': student['is_primary'] ?? false,
-                  'student_data': {
-                    'id': student['id'],
-                    'fname': student['first_name'],
-                    'mname': student['middle_name'],
-                    'lname': student['last_name'],
-                    'grade_level': student['grade'],
-                    'section_id': student['section'],
-                    'status': 'active',
-                  },
-                },
-              )
-              .toList();
+      _selectedStudents = students.map((student) {
+        return {
+          'student_id': student['id'],
+          'relationship_type': _normalizeRelationship(student['relationship_type']),
+          'is_primary': student['is_primary'] ?? false,
+          'student_data': {
+            'id': student['id'],
+            'fname': student['first_name'],
+            'mname': student['middle_name'],
+            'lname': student['last_name'],
+            'grade_level': student['grade'],
+            'section_id': student['section'],
+            'status': 'active',
+          },
+        };
+      }).toList();
       return;
     }
 
@@ -104,16 +119,15 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
 
       // studentsToLink expected to be list of maps similar to selection format
       final studentsList = data['studentsToLink'] as List? ?? [];
-      _selectedStudents =
-          studentsList.map((s) {
-            // keep student_data if provided, otherwise minimal
-            return {
-              'student_id': s['student_id'],
-              'relationship_type': s['relationship_type'] ?? 'parent',
-              'is_primary': s['is_primary'] ?? false,
-              'student_data': s['student_data'] ?? {'id': s['student_id']},
-            };
-          }).toList();
+      _selectedStudents = studentsList.map((s) {
+        // keep student_data if provided, otherwise minimal
+        return {
+          'student_id': s['student_id'],
+          'relationship_type': _normalizeRelationship(s['relationship_type']),
+          'is_primary': s['is_primary'] ?? false,
+          'student_data': s['student_data'] ?? {'id': s['student_id']},
+        };
+      }).toList();
     }
   }
 
