@@ -341,6 +341,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     try {
       html.window.sessionStorage.remove('kidsync_reset_code');
       html.window.sessionStorage.remove('kidsync_reset_email');
+      // clear in-progress flag as well
+      html.window.sessionStorage.remove('kidsync_reset_in_progress');
     } catch (_) {}
   }
 
@@ -355,6 +357,9 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       html.window.sessionStorage.remove('supabase_refresh_token');
       html.window.sessionStorage.remove('kidsync_reset_code');
       html.window.sessionStorage.remove('kidsync_reset_email');
+      try {
+        html.window.sessionStorage.remove('kidsync_reset_in_progress');
+      } catch (_) {}
     }
     // Make sure we sign out any temporary session established earlier
     try {
@@ -396,6 +401,10 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   void dispose() {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    // ensure any in-progress flag is cleared if the screen is disposed
+    try {
+      if (kIsWeb) html.window.sessionStorage.remove('kidsync_reset_in_progress');
+    } catch (_) {}
     super.dispose();
   }
 
