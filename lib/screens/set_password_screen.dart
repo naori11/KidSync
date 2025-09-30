@@ -242,7 +242,19 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             return;
           }
         } catch (e) {
-          _showError("Recovery verification failed: $e");
+          // If recovery verification fails (expired/used token), clear stored reset data and redirect
+          final msg = "Recovery verification failed: $e";
+          if (kIsWeb) {
+            _clearResetTokens();
+          }
+          // Show error then redirect to login so the user doesn't see this screen again
+          _showError(msg);
+          // small delay so SnackBar is visible, then navigate away
+          Future.delayed(const Duration(milliseconds: 800), () {
+            if (mounted) {
+              Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+            }
+          });
           return;
         }
       }
@@ -323,6 +335,13 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red.shade700),
     );
+  }
+
+  void _clearResetTokens() {
+    try {
+      html.window.sessionStorage.remove('kidsync_reset_code');
+      html.window.sessionStorage.remove('kidsync_reset_email');
+    } catch (_) {}
   }
 
   void _passwordSetSuccess(String message) {
