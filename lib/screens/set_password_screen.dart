@@ -27,7 +27,12 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   String? _resetCode;
   String? _resetEmail;
   String? _previousUserEmail;
+  String? _targetUserName;
   bool _isSubmitting = false;
+  bool _showPassword = false;
+  bool _showConfirmPassword = false;
+  int _passwordScore = 0; // 0..4
+  List<String> _passwordSuggestions = [];
 
   @override
   void initState() {
@@ -48,7 +53,10 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         _previousUserEmail = currentUser.email;
         Supabase.instance.client.auth.signOut().then((_) {
           print("SetPasswordScreen: Logged out user $_previousUserEmail");
-          setState(() => _isLoading = false);
+          setState(() {
+            // don't set target user to the logged out account
+            _isLoading = false;
+          });
         });
       } else {
         setState(() => _isLoading = false);
@@ -69,6 +77,13 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       print("SetPasswordScreen: User authenticated: ${currentUser.email}");
       _isAuthenticated = true;
       _userEmail = currentUser.email;
+      // Try to extract a friendly name from user metadata
+      try {
+        final meta = currentUser.userMetadata;
+        if (meta != null) {
+          _targetUserName = meta['full_name'] ?? meta['name'] ?? meta['displayName'] ?? meta['display_name'];
+        }
+      } catch (_) {}
       _userId = currentUser.id;
       setState(() => _isLoading = false);
     } else {
@@ -157,9 +172,10 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       });
     } catch (e) {
       print("SetPasswordScreen: Error processing invite token: $e");
+      final friendly = _formatError(e);
       setState(() {
         _isLoading = false;
-        _errorMessage = "Error processing invitation: $e";
+        _errorMessage = 'Error processing invitation. $friendly';
       });
     }
   }
@@ -174,6 +190,15 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         final decoded = utf8.decode(base64Url.decode(normalized));
         final json = jsonDecode(decoded);
         _userEmail = json['email'];
+        // Attempt to extract a friendly name if present in the token payload
+        if (json is Map && json.containsKey('name')) {
+          _targetUserName = json['name'];
+        } else if (json is Map && json.containsKey('user_metadata')) {
+          final meta = json['user_metadata'];
+          if (meta is Map) {
+            _targetUserName = meta['full_name'] ?? meta['name'] ?? meta['displayName'] ?? meta['display_name'];
+          }
+        }
         _userId = json['sub'];
         print(
           "SetPasswordScreen: Extracted from token - Email: $_userEmail, User ID: $_userId",
@@ -194,6 +219,28 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
 
   Future<void> _onSetPassword() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    // Extra guard: ensure password strength is acceptable
+    if (_passwordScore < 2) {
+      _showError('Please choose a stronger password before continuing. See suggestions below.');
+      return;
+    }
+
+    final newPasswordPreview = _passwordController.text;
+    // Prevent trivial reuse of identifiable info
+    if (_userEmail != null && newPasswordPreview.contains(_userEmail!)) {
+      _showError('Your password should not contain your email address.');
+      return;
+    }
+    if (_targetUserName != null) {
+      final nameParts = _targetUserName!.split(RegExp(r"\s+"));
+      for (final part in nameParts) {
+        if (part.isNotEmpty && newPasswordPreview.toLowerCase().contains(part.toLowerCase())) {
+          _showError('Your password should not contain your name.');
+          return;
+        }
+      }
+    }
 
     final newPassword = _passwordController.text;
 
@@ -219,6 +266,13 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
           print("Verify OTP response: $response");
           if (response.session != null && response.user != null) {
             _userEmail = response.user!.email;
+            // try to get a friendly name from returned user metadata
+            try {
+              final meta = response.user!.userMetadata;
+              if (meta != null) {
+                _targetUserName = meta['full_name'] ?? meta['name'] ?? meta['displayName'] ?? meta['display_name'];
+              }
+            } catch (_) {}
             print(
               "SetPasswordScreen: Successfully verified OTP for $_userEmail",
             );
@@ -243,12 +297,12 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
           }
         } catch (e) {
           // If recovery verification fails (expired/used token), clear stored reset data and redirect
-          final msg = "Recovery verification failed: $e";
           if (kIsWeb) {
             _clearResetTokens();
           }
+          final friendly = _formatError(e);
           // Show error then redirect to login so the user doesn't see this screen again
-          _showError(msg);
+          _showError(friendly);
           // small delay so SnackBar is visible, then navigate away
           Future.delayed(const Duration(milliseconds: 800), () {
             if (mounted) {
@@ -292,7 +346,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             html.window.sessionStorage.remove('supabase_access_token');
             html.window.sessionStorage.remove('supabase_refresh_token');
           }
-          _showError("Invite token processing failed: $e");
+          _showError(_formatError(e));
           return;
         }
       }
@@ -309,7 +363,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
           _passwordSetSuccess("Your password has been updated successfully!");
           return;
         } catch (e) {
-          _showError("Failed to update password: $e");
+          _showError(_formatError(e));
           return;
         }
       }
@@ -335,6 +389,34 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red.shade700),
     );
+  }
+
+  String _formatError(Object? e) {
+    final raw = e?.toString() ?? '';
+    final lower = raw.toLowerCase();
+
+    // Common OTP / token expiry
+    if (lower.contains('otp_expired') || (lower.contains('token') && lower.contains('expired')) || lower.contains('expired')) {
+      return 'This link has expired or is invalid. Please request a new password reset link.';
+    }
+
+    // Common auth/forbidden
+    if (lower.contains('403') || lower.contains('forbidden') || lower.contains('not authorized')) {
+      return 'Unable to use this link. It may have already been used or is not valid.';
+    }
+
+    // Password same as current
+    if (lower.contains('same') && lower.contains('password') || lower.contains('current password')) {
+      return 'Your new password must be different from your current password.';
+    }
+
+    // Generic known messages
+    if (lower.contains('invalid') || lower.contains('invalid code') || lower.contains('invalid token')) {
+      return 'The code or link appears to be invalid. Please request a new link.';
+    }
+
+    // Fallback: avoid showing raw exception to users
+    return 'An error occurred while processing your request. Please try again or contact support.';
   }
 
   void _clearResetTokens() {
@@ -395,6 +477,53 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       print("_isJwtExpired: failed to parse token: $e");
     }
     return false;
+  }
+
+  void _onPasswordChanged(String pwd) {
+    // Simple scoring rules (0..4)
+    int score = 0;
+    final suggestions = <String>[];
+    if (pwd.length >= 8) {
+      score++;
+    } else {
+      suggestions.add('Use at least 8 characters');
+    }
+    if (RegExp(r'[A-Z]').hasMatch(pwd) && RegExp(r'[a-z]').hasMatch(pwd)) {
+      score++;
+    } else {
+      suggestions.add('Mix upper and lower case letters');
+    }
+    if (RegExp(r'\d').hasMatch(pwd)) {
+      score++;
+    } else {
+      suggestions.add('Include numbers');
+    }
+    if (RegExp(r'[!@#\$%\^&\*\(\)_\+\-=`~\[\]{};:\\"\|,<.>/?]').hasMatch(pwd)) {
+      score++;
+    } else {
+      suggestions.add('Add a symbol like !@#%');
+    }
+
+    // If password contains email or name parts, reduce score and add suggestion
+    final low = pwd.toLowerCase();
+    if (_userEmail != null && _userEmail!.isNotEmpty && low.contains(_userEmail!.toLowerCase())) {
+      suggestions.add('Do not include your email address');
+      score = (score - 1).clamp(0, 4);
+    }
+    if (_targetUserName != null && _targetUserName!.isNotEmpty) {
+      for (final part in _targetUserName!.split(RegExp(r"\s+"))) {
+        if (part.isNotEmpty && low.contains(part.toLowerCase())) {
+          suggestions.add('Avoid using parts of your name');
+          score = (score - 1).clamp(0, 4);
+          break;
+        }
+      }
+    }
+
+    setState(() {
+      _passwordScore = score;
+      _passwordSuggestions = suggestions;
+    });
   }
 
   @override
@@ -533,40 +662,39 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                         textAlign: TextAlign.center,
                       ),
                     ],
-                    if (_previousUserEmail != null) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.amber[50],
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.amber),
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.info_outline,
-                                  color: Colors.amber[800],
-                                ),
-                                const SizedBox(width: 8),
+                    // Display the target user (the account for which the password will be set)
+                    if (_userEmail != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: Colors.green[200],
+                            child: Text(
+                              _targetUserName != null && _targetUserName!.isNotEmpty
+                                  ? (_targetUserName!.split(' ').map((s) => s.isNotEmpty ? s[0] : '').take(2).join()).toUpperCase()
+                                  : (_userEmail != null ? _userEmail![0].toUpperCase() : '?'),
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (_targetUserName != null) ...[
                                 Text(
-                                  "Account Switch",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.amber[800],
-                                  ),
+                                  _targetUserName!,
+                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                                 ),
                               ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "You were previously logged in as $_previousUserEmail. You have been logged out to process this password reset.",
-                              style: TextStyle(color: Colors.amber[900]),
-                            ),
-                          ],
-                        ),
+                              Text(
+                                _userEmail!,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ],
                     if (_errorMessage != null) ...[
@@ -599,8 +727,13 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _passwordController,
+                          onChanged: (v) => _onPasswordChanged(v),
                           decoration: InputDecoration(
                             hintText: "Enter your password",
+                            suffixIcon: IconButton(
+                              icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
+                              onPressed: () => setState(() => _showPassword = !_showPassword),
+                            ),
                             contentPadding: const EdgeInsets.symmetric(
                               vertical: 15,
                               horizontal: 16,
@@ -618,7 +751,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                               borderSide: const BorderSide(color: Colors.green),
                             ),
                           ),
-                          obscureText: true,
+                          obscureText: !_showPassword,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return "Password cannot be empty";
@@ -626,8 +759,48 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                             if (value.length < 6) {
                               return "Password must be at least 6 characters";
                             }
+                            if (_passwordScore < 2) {
+                              return "Password is too weak. See suggestions below.";
+                            }
                             return null;
                           },
+                        ),
+                        const SizedBox(height: 8),
+                        // Strength meter
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            LinearProgressIndicator(
+                              value: (_passwordScore / 4).clamp(0.0, 1.0),
+                              color: _passwordScore >= 3
+                                  ? Colors.green
+                                  : (_passwordScore == 2 ? Colors.orange : Colors.red),
+                              backgroundColor: Colors.grey[200],
+                              minHeight: 6,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _passwordScore >= 3
+                                  ? 'Strong password'
+                                  : (_passwordScore == 2 ? 'Medium strength' : 'Weak password'),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _passwordScore >= 3
+                                    ? Colors.green[700]
+                                    : (_passwordScore == 2 ? Colors.orange[700] : Colors.red[700]),
+                              ),
+                            ),
+                            if (_passwordSuggestions.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 6,
+                                children: _passwordSuggestions
+                                    .map((s) => Chip(label: Text(s), backgroundColor: Colors.grey[100]))
+                                    .toList(),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -642,8 +815,13 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _confirmPasswordController,
+                          onChanged: (v) => setState(() {}),
                           decoration: InputDecoration(
                             hintText: "Confirm your password",
+                            suffixIcon: IconButton(
+                              icon: Icon(_showConfirmPassword ? Icons.visibility_off : Icons.visibility),
+                              onPressed: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
+                            ),
                             contentPadding: const EdgeInsets.symmetric(
                               vertical: 15,
                               horizontal: 16,
@@ -661,7 +839,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                               borderSide: const BorderSide(color: Colors.green),
                             ),
                           ),
-                          obscureText: true,
+                          obscureText: !_showConfirmPassword,
                           validator: (value) {
                             if (value == null || value.isEmpty) {
                               return "Please confirm your password";
