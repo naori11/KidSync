@@ -429,123 +429,188 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
           ),
           SizedBox(height: 24),
 
-          // Table header
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
-            ),
-            child: Row(
-              children: [
-                _tableHeaderCell('Time', flex: 2),
-                _tableHeaderCell('Student Name', flex: 3),
-                _tableHeaderCell('Grade/Class', flex: 2),
-                _tableHeaderCell('Status', flex: 2),
-                _tableHeaderCell('Verified By', flex: 3),
-                _tableHeaderCell('Actions', flex: 1),
-              ],
-            ),
-          ),
-          Divider(height: 1, thickness: 1, color: Colors.grey[200]),
-
-          // Table body
+          // Table with same design as student management
           Expanded(
-            child: ListView.separated(
-              itemCount: filteredActivities.length,
-              separatorBuilder:
-                  (context, i) =>
-                      Divider(height: 1, thickness: 1, color: Colors.grey[200]),
-              itemBuilder: (context, index) {
-                final activity = filteredActivities[index];
-                return Container(
-                  height: 64, // Slightly taller for temporary fetcher info
-                  alignment: Alignment.center,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: const Color(0xFFEEEEEE)),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Table(
+                border: TableBorder(
+                  horizontalInside: BorderSide(color: Colors.grey[200]!, width: 1),
+                ),
+                columnWidths: {
+                  0: const FlexColumnWidth(1.5), // Time
+                  1: const FlexColumnWidth(2.5), // Student Name
+                  2: const FlexColumnWidth(1.5), // Grade/Class
+                  3: const FlexColumnWidth(1.5), // Status
+                  4: const FlexColumnWidth(2.0), // Verified By
+                  5: const FlexColumnWidth(1.0), // Actions
+                },
+                defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                children: [
+                  // Table header row
+                  TableRow(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F9FA),
+                      border: Border(
+                        bottom: BorderSide(color: const Color(0xFFE0E0E0), width: 2),
+                      ),
+                    ),
                     children: [
-                      _tableCell(
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.access_time,
-                              size: 16,
-                              color: Colors.grey[400],
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              activity.time,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ],
-                        ),
-                        flex: 2,
+                      const TableHeaderCell(text: 'Time'),
+                      const TableHeaderCell(text: 'Student Name'),
+                      const TableHeaderCell(text: 'Grade/Class'),
+                      const TableHeaderCell(
+                        text: 'Status',
+                        alignment: Alignment.center,
                       ),
-                      _tableCell(
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              activity.studentName,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Row(
-                              children: [
-                                // Show special exit type badges
-                                if (activity.isVeryEarlyDismissal) ...[
-                                  _buildExitTypeBadge('Very Early', Colors.red),
-                                  SizedBox(width: 4),
-                                ] else if (activity.isEarlyDismissal) ...[
-                                  _buildExitTypeBadge('Early Dismissal', Colors.orange),
-                                  SizedBox(width: 4),
-                                ] else if (activity.isEmergencyExit) ...[
-                                  _buildExitTypeBadge('Emergency', Colors.red[800]!),
-                                  SizedBox(width: 4),
-                                ],
-                                if (activity.isTemporaryFetcher) ...[
-                                  _buildExitTypeBadge('Temp', Colors.orange),
-                                  SizedBox(width: 4),
-                                ],
-                              ],
-                            ),
-                          ],
-                        ),
-                        flex: 3,
-                      ),
-                      _tableCell(
-                        Text(
-                          activity.gradeClass,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        flex: 2,
-                      ),
-                      _tableCell(_statusChip(activity.status), flex: 2),
-                      _tableCell(_buildVerifiedByWidget(activity), flex: 3),
-                      _tableCell(
-                        IconButton(
-                          icon: Icon(
-                            Icons.more_horiz,
-                            color: Colors.grey[600],
-                            size: 20,
-                          ),
-                          onPressed: () => _showActivityDetails(activity),
-                        ),
-                        flex: 1,
-                      ),
+                      const TableHeaderCell(text: 'Verified By'),
+                      const TableHeaderCell(text: 'Actions'),
                     ],
                   ),
-                );
-              },
+
+                  // Table data rows
+                  ...filteredActivities.map((activity) {
+                    return TableRow(
+                      children: [
+                        // Time
+                        TableCell(
+                          verticalAlignment: TableCellVerticalAlignment.middle,
+                          child: Container(
+                            alignment: Alignment.centerLeft,
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.access_time,
+                                  size: 16,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  activity.time,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.black87,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Student Name
+                        TableCell(
+                          verticalAlignment: TableCellVerticalAlignment.middle,
+                          child: Container(
+                            alignment: Alignment.centerLeft,
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  activity.studentName,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF1A1A1A),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    // Show special exit type badges
+                                    if (activity.isVeryEarlyDismissal) ...[
+                                      _buildExitTypeBadge('Very Early', Colors.red),
+                                      const SizedBox(width: 4),
+                                    ] else if (activity.isEarlyDismissal) ...[
+                                      _buildExitTypeBadge('Early Dismissal', Colors.orange),
+                                      const SizedBox(width: 4),
+                                    ] else if (activity.isEmergencyExit) ...[
+                                      _buildExitTypeBadge('Emergency', Colors.red[800]!),
+                                      const SizedBox(width: 4),
+                                    ],
+                                    if (activity.isTemporaryFetcher) ...[
+                                      _buildExitTypeBadge('Temp', Colors.orange),
+                                      const SizedBox(width: 4),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Grade/Class
+                        TableCell(
+                          verticalAlignment: TableCellVerticalAlignment.middle,
+                          child: Container(
+                            alignment: Alignment.centerLeft,
+                            padding: const EdgeInsets.all(16),
+                            child: Text(
+                              activity.gradeClass,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Status
+                        TableCell(
+                          verticalAlignment: TableCellVerticalAlignment.middle,
+                          child: Container(
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.all(16),
+                            child: _statusChip(activity.status),
+                          ),
+                        ),
+
+                        // Verified By
+                        TableCell(
+                          verticalAlignment: TableCellVerticalAlignment.middle,
+                          child: Container(
+                            alignment: Alignment.centerLeft,
+                            padding: const EdgeInsets.all(16),
+                            child: _buildVerifiedByWidget(activity),
+                          ),
+                        ),
+
+                        // Actions
+                        TableCell(
+                          verticalAlignment: TableCellVerticalAlignment.middle,
+                          child: Container(
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.all(16),
+                            child: IconButton(
+                              icon: Icon(
+                                Icons.more_horiz,
+                                color: Colors.grey[600],
+                                size: 20,
+                              ),
+                              onPressed: () => _showActivityDetails(activity),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ],
+              ),
             ),
           ),
 
@@ -577,6 +642,47 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _statusChip(String status) {
+    Color bg;
+    Color fg;
+    String label = status;
+
+    switch (status) {
+      case 'Entry Recorded':
+        bg = Color(0xFFE3F2FD);
+        fg = Color(0xFF1976D2);
+        break;
+      case 'Pickup Approved':
+        bg = Color(0xFFE8F5E9);
+        fg = Color(0xFF388E3C);
+        break;
+      case 'Pickup Denied':
+        bg = Color(0xFFFFEBEE);
+        fg = Color(0xFFD32F2F);
+        break;
+      case 'Checked Out':
+        bg = Color(0xFFF3E5F5);
+        fg = Color(0xFF7B1FA2);
+        break;
+      default:
+        bg = Color(0xFFECEFF1);
+        fg = Color(0xFF455A64);
+        break;
+    }
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 13, color: fg, fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -1248,75 +1354,6 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
     );
   }
 
-  Widget _tableHeaderCell(String title, {int flex = 1}) {
-    return Expanded(
-      flex: flex,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16.0),
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[700],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _tableCell(Widget child, {int flex = 1}) {
-    return Expanded(
-      flex: flex,
-      child: Container(
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: child,
-      ),
-    );
-  }
-
-  Widget _statusChip(String status) {
-    Color bg;
-    Color fg;
-    String label = status;
-
-    switch (status) {
-      case 'Entry Recorded':
-        bg = Color(0xFFE3F2FD);
-        fg = Color(0xFF1976D2);
-        break;
-      case 'Pickup Approved':
-        bg = Color(0xFFE8F5E9);
-        fg = Color(0xFF388E3C);
-        break;
-      case 'Pickup Denied':
-        bg = Color(0xFFFFEBEE);
-        fg = Color(0xFFD32F2F);
-        break;
-      case 'Checked Out':
-        bg = Color(0xFFF3E5F5);
-        fg = Color(0xFF7B1FA2);
-        break;
-      default:
-        bg = Color(0xFFECEFF1);
-        fg = Color(0xFF455A64);
-        break;
-    }
-
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 13, color: fg, fontWeight: FontWeight.w500),
-      ),
-    );
-  }
-
   Widget _buildExitTypeBadge(String label, Color color) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1358,6 +1395,35 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
               fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// Custom header cell for table (same as student management)
+class TableHeaderCell extends StatelessWidget {
+  final String text;
+  final Alignment alignment;
+
+  const TableHeaderCell({
+    super.key,
+    required this.text,
+    this.alignment = Alignment.centerLeft,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      alignment: alignment,
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
+          color: Color(0xFF1A1A1A),
+          letterSpacing: 0.3,
         ),
       ),
     );

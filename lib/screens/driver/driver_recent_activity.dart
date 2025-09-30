@@ -239,44 +239,70 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
                       ),
                       SizedBox(height: widget.isMobile ? 12 : 16),
                       
-                      // Filter Chips
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          _buildFilterChip('all', 'All'),
-                          _buildFilterChip('today', 'Today'),
-                          _buildFilterChip('pickup', 'Pickups'),
-                          _buildFilterChip('dropoff', 'Dropoffs'),
-                        ],
+                      // Filter Chips - Professional alignment
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          children: [
+                            _buildFilterChip('all', 'All'),
+                            const SizedBox(width: 8),
+                            _buildFilterChip('today', 'Today'),
+                            const SizedBox(width: 8),
+                            _buildFilterChip('pickup', 'Pickups'),
+                            const SizedBox(width: 8),
+                            _buildFilterChip('dropoff', 'Dropoffs'),
+                          ],
+                        ),
                       ),
                       
-                      SizedBox(height: widget.isMobile ? 8 : 12),
+                      SizedBox(height: widget.isMobile ? 12 : 16),
                       
-                      // Summary Stats
+                      // Summary Stats - Professional alignment
                       if (_logs.isNotEmpty) ...[
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: DriverTheme.greenWithOpacity,
-                            borderRadius: BorderRadius.circular(8),
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[200]!),
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
-                              _buildStatItem(
-                                'Total Activities', 
-                                _logs.length.toString(),
-                                Icons.timeline,
+                              Expanded(
+                                child: _buildStatItem(
+                                  'Total Activities', 
+                                  _logs.length.toString(),
+                                  Icons.timeline,
+                                  widget.primaryColor,
+                                ),
                               ),
-                              _buildStatItem(
-                                'Pickups', 
-                                _logs.where((l) => l['event_type'] == 'pickup').length.toString(),
-                                Icons.directions_car,
+                              Container(
+                                width: 1,
+                                height: 40,
+                                color: Colors.grey[300],
+                                margin: const EdgeInsets.symmetric(horizontal: 16),
                               ),
-                              _buildStatItem(
-                                'Dropoffs', 
-                                _logs.where((l) => l['event_type'] == 'dropoff').length.toString(),
-                                Icons.home,
+                              Expanded(
+                                child: _buildStatItem(
+                                  'Pickups', 
+                                  _logs.where((l) => l['event_type'] == 'pickup').length.toString(),
+                                  Icons.directions_car,
+                                  Colors.blue[600]!,
+                                ),
+                              ),
+                              Container(
+                                width: 1,
+                                height: 40,
+                                color: Colors.grey[300],
+                                margin: const EdgeInsets.symmetric(horizontal: 16),
+                              ),
+                              Expanded(
+                                child: _buildStatItem(
+                                  'Dropoffs', 
+                                  _logs.where((l) => l['event_type'] == 'dropoff').length.toString(),
+                                  Icons.home,
+                                  Colors.green[600]!,
+                                ),
                               ),
                             ],
                           ),
@@ -325,35 +351,81 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
 
   Widget _buildFilterChip(String filter, String label) {
     final isSelected = _selectedFilter == filter;
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) => _changeFilter(filter),
-      backgroundColor: DriverTheme.greyLight,
-      selectedColor: DriverTheme.greenWithOpacity,
-      checkmarkColor: widget.primaryColor,
-      labelStyle: TextStyle(
-        color: isSelected ? widget.primaryColor : DriverTheme.greyDark,
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+    final isToday = filter == 'today';
+    
+    return Expanded(
+      child: Container(
+        height: 40,
+        decoration: BoxDecoration(
+          color: isSelected 
+              ? (isToday ? Colors.white : widget.primaryColor.withOpacity(0.1))
+              : Colors.grey[100],
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected 
+                ? (isToday ? widget.primaryColor : widget.primaryColor)
+                : Colors.grey[300]!,
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected ? [
+            BoxShadow(
+              color: widget.primaryColor.withOpacity(0.2),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ] : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => _changeFilter(filter),
+            child: Center(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: isSelected 
+                      ? (isToday ? widget.primaryColor : widget.primaryColor)
+                      : Colors.grey[600],
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon) {
+  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
     return Column(
       children: [
-        Icon(icon, color: widget.primaryColor, size: 20),
-        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(height: 8),
         Text(
           value,
-          style: DriverTheme.subHeaderTextStyle(widget.isMobile).copyWith(
-            color: widget.primaryColor,
+          style: TextStyle(
+            fontSize: widget.isMobile ? 20 : 24,
             fontWeight: FontWeight.bold,
+            color: color,
           ),
         ),
+        const SizedBox(height: 4),
         Text(
           label,
-          style: DriverTheme.captionTextStyle(widget.isMobile),
+          style: TextStyle(
+            fontSize: widget.isMobile ? 11 : 12,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
           textAlign: TextAlign.center,
         ),
       ],
@@ -411,8 +483,19 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: DriverTheme.greenWithOpacity,
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: widget.primaryColor.withOpacity(0.3),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
                 ),
                 child: Text(
                   '${dayLogs.length}',
@@ -466,6 +549,7 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
       ),
       child: Container(
         decoration: BoxDecoration(
+          color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: eventColor.withOpacity(0.3), width: 1),
         ),
