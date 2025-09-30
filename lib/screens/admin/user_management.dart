@@ -634,10 +634,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   Future<void> _fetchUsers() async {
     setState(() => isLoading = true);
+    // Fetch all users including Admin accounts so Admins show up in the list and role filters
     final response = await supabase
         .from('users')
-        .select()
-        .neq('role', 'Admin'); // Exclude Admin
+        .select();
     setState(() {
       users = List<Map<String, dynamic>>.from(response);
       isLoading = false;
