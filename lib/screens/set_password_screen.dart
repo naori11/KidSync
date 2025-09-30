@@ -82,6 +82,20 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     try {
       _accessToken = html.window.sessionStorage['supabase_access_token'];
       _refreshToken = html.window.sessionStorage['supabase_refresh_token'];
+      // If there's an access token, check if it's expired (JWT "exp" claim)
+  if (_accessToken != null && _isJwtExpired(_accessToken!)) {
+        // token expired — remove stored tokens and don't show this screen
+        if (kIsWeb) {
+          html.window.sessionStorage.remove('supabase_access_token');
+          html.window.sessionStorage.remove('supabase_refresh_token');
+        }
+        setState(() {
+          _isLoading = false;
+          _errorMessage =
+              "This invitation link has expired. Please request a new invite or contact your administrator.";
+        });
+        return;
+      }
       if (_accessToken != null && _refreshToken != null) {
         print(
           "SetPasswordScreen: Found access and refresh tokens in sessionStorage",
@@ -97,6 +111,24 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       }
       final url = html.window.location.href;
       print("SetPasswordScreen: Checking URL for token: $url");
+      // If the URL contains an error param from the provider (e.g. token expired), treat as expired/used
+      if (url.contains('error=') || url.contains('error_description=')) {
+        final lower = url.toLowerCase();
+        if (lower.contains('expired') || lower.contains('otp_expired') || lower.contains('token has expired')) {
+          // clear any reset/session values and avoid showing this screen
+          if (kIsWeb) {
+            html.window.sessionStorage.remove('supabase_access_token');
+            html.window.sessionStorage.remove('supabase_refresh_token');
+            html.window.sessionStorage.remove('kidsync_reset_code');
+            html.window.sessionStorage.remove('kidsync_reset_email');
+          }
+          setState(() {
+            _isLoading = false;
+            _errorMessage = "Link expired or already used. Please request a new link.";
+          });
+          return;
+        }
+      }
       if (url.contains('access_token=')) {
         _accessToken = url.split('access_token=')[1].split('&')[0];
         if (url.contains('refresh_token=')) {
@@ -298,8 +330,47 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.green),
     );
-    Supabase.instance.client.auth.signOut();
+    // After successfully setting the password, remove any invite/reset tokens so they are considered used
+    if (kIsWeb) {
+      html.window.sessionStorage.remove('supabase_access_token');
+      html.window.sessionStorage.remove('supabase_refresh_token');
+      html.window.sessionStorage.remove('kidsync_reset_code');
+      html.window.sessionStorage.remove('kidsync_reset_email');
+    }
+    // Make sure we sign out any temporary session established earlier
+    try {
+      Supabase.instance.client.auth.signOut();
+    } catch (_) {}
     Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+  }
+
+  bool _isJwtExpired(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length < 2) return false;
+      final payload = parts[1];
+      final normalized = base64Url.normalize(payload);
+      final decoded = utf8.decode(base64Url.decode(normalized));
+      final json = jsonDecode(decoded);
+      if (json.containsKey('exp')) {
+        final exp = json['exp'];
+        if (exp is int) {
+          final expiry = DateTime.fromMillisecondsSinceEpoch(exp * 1000);
+          return DateTime.now().isAfter(expiry);
+        }
+        if (exp is String) {
+          final expInt = int.tryParse(exp);
+          if (expInt != null) {
+            final expiry = DateTime.fromMillisecondsSinceEpoch(expInt * 1000);
+            return DateTime.now().isAfter(expiry);
+          }
+        }
+      }
+    } catch (e) {
+      // if parsing fails, assume not expired (so we don't accidentally hide valid flows)
+      print("_isJwtExpired: failed to parse token: $e");
+    }
+    return false;
   }
 
   @override
