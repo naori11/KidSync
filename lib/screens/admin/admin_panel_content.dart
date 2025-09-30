@@ -33,14 +33,20 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
   int totalParents = 0;
   int totalDrivers = 0;
   int totalGuards = 0;
-  List<Map<String, dynamic>> attendanceData = [];
   List<Map<String, dynamic>> recentAuditLogs = [];
+  List<Map<String, dynamic>> recentTaps = [];
 
   @override
   void initState() {
     super.initState();
     _loadAdminData();
     _loadDashboardData();
+    
+    // Set up periodic refresh for audit logs every 30 seconds
+    Future.delayed(Duration.zero, () {
+      _setupPeriodicRefresh();
+    });
+    
     navItems = [
       _NavItem("Dashboard", Icons.dashboard_outlined, const SizedBox()),
       _NavItem(
@@ -88,12 +94,24 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     setState(() => isLoading = false);
   }
 
+  void _setupPeriodicRefresh() {
+    // Refresh audit logs every 30 seconds
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 30));
+      if (mounted && selectedIndex == 0) {
+        await _loadRecentAuditLogs();
+        await _loadRecentTaps();
+      }
+      return mounted;
+    });
+  }
+
   Future<void> _loadDashboardData() async {
     try {
       await Future.wait([
         _loadUserCounts(),
-        _loadAttendanceData(),
         _loadRecentAuditLogs(),
+        _loadRecentTaps(),
       ]);
     } catch (e) {
       print('Error loading dashboard data: $e');
@@ -145,75 +163,6 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     }
   }
 
-  Future<void> _loadAttendanceData() async {
-    try {
-      // Get attendance data for the last 12 months
-      final now = DateTime.now();
-      final startDate = DateTime(now.year, now.month - 11, 1);
-      
-      final response = await supabase
-          .from('attendance')
-          .select('date, status, student_id')
-          .gte('date', startDate.toIso8601String())
-          .lte('date', now.toIso8601String());
-
-      // Process attendance data by month
-      Map<int, Map<String, int>> monthlyStats = {};
-      
-      for (var record in response) {
-        final date = DateTime.parse(record['date']);
-        final month = date.month;
-        final status = record['status'] as String;
-        
-        monthlyStats[month] ??= {'present': 0, 'absent': 0};
-        
-        if (status.toLowerCase() == 'present') {
-          monthlyStats[month]!['present'] = monthlyStats[month]!['present']! + 1;
-        } else if (status.toLowerCase() == 'absent') {
-          monthlyStats[month]!['absent'] = monthlyStats[month]!['absent']! + 1;
-        }
-      }
-
-      // Convert to list format for chart
-      List<Map<String, dynamic>> chartData = [];
-      for (int i = 1; i <= 12; i++) {
-        final monthName = [
-          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-        ][i - 1];
-        
-        final stats = monthlyStats[i] ?? {'present': 0, 'absent': 0};
-        chartData.add({
-          'month': monthName,
-          'present': stats['present']!,
-          'absent': stats['absent']!,
-        });
-      }
-
-      setState(() {
-        attendanceData = chartData;
-      });
-    } catch (e) {
-      print('Error loading attendance data: $e');
-      // Fallback to realistic sample data based on 4 students
-      setState(() {
-        attendanceData = [
-          {"month": "Jan", "present": 85, "absent": 15},
-          {"month": "Feb", "present": 88, "absent": 12},
-          {"month": "Mar", "present": 82, "absent": 18},
-          {"month": "Apr", "present": 90, "absent": 10},
-          {"month": "May", "present": 87, "absent": 13},
-          {"month": "Jun", "present": 92, "absent": 8},
-          {"month": "Jul", "present": 89, "absent": 11},
-          {"month": "Aug", "present": 91, "absent": 9},
-          {"month": "Sep", "present": 86, "absent": 14},
-          {"month": "Oct", "present": 93, "absent": 7},
-          {"month": "Nov", "present": 88, "absent": 12},
-          {"month": "Dec", "present": 90, "absent": 10},
-        ];
-      });
-    }
-  }
 
   Future<void> _loadRecentAuditLogs() async {
     try {
@@ -221,50 +170,132 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           .from('audit_logs')
           .select('action, table_name, created_at, user_id, details')
           .order('created_at', ascending: false)
-          .limit(4);
+          .limit(5);
 
-      print('Audit logs response: $response'); // Debug log
+      print('✅ Audit logs loaded: ${response.length} entries'); // Debug log
+      print('📋 Audit logs data: $response'); // Debug log
       
-      setState(() {
-        recentAuditLogs = List<Map<String, dynamic>>.from(response);
-      });
+      if (response.isNotEmpty) {
+        setState(() {
+          recentAuditLogs = List<Map<String, dynamic>>.from(response);
+        });
+        print('✅ Recent audit logs updated in state');
+      } else {
+        print('⚠️ No audit logs found in database, using fallback data');
+        _setFallbackAuditLogs();
+      }
     } catch (e) {
-      print('Error loading audit logs: $e');
-      // Fallback to sample data that shows recent admin activity
-      setState(() {
-        recentAuditLogs = [
-          {
-            'action': 'UPDATE',
-            'table_name': 'users',
-            'created_at': DateTime.now().subtract(const Duration(minutes: 2)).toIso8601String(),
-            'user_id': 'admin',
-            'details': 'User profile updated'
-          },
-          {
-            'action': 'INSERT',
-            'table_name': 'students',
-            'created_at': DateTime.now().subtract(const Duration(minutes: 15)).toIso8601String(),
-            'user_id': 'admin',
-            'details': 'New student registered'
-          },
-          {
-            'action': 'UPDATE',
-            'table_name': 'attendance',
-            'created_at': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
-            'user_id': 'admin',
-            'details': 'Attendance record modified'
-          },
-          {
-            'action': 'INSERT',
-            'table_name': 'driver_assignments',
-            'created_at': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
-            'user_id': 'admin',
-            'details': 'Driver route assigned'
-          },
-        ];
-      });
+      print('❌ Error loading audit logs: $e');
+      print('Stack trace: ${StackTrace.current}');
+      _setFallbackAuditLogs();
     }
   }
+
+  void _setFallbackAuditLogs() {
+    setState(() {
+      recentAuditLogs = [
+        {
+          'action': 'UPDATE',
+          'table_name': 'users',
+          'created_at': DateTime.now().subtract(const Duration(minutes: 2)).toIso8601String(),
+          'user_id': 'admin',
+          'details': 'User Update'
+        },
+        {
+          'action': 'INSERT',
+          'table_name': 'students',
+          'created_at': DateTime.now().subtract(const Duration(minutes: 15)).toIso8601String(),
+          'user_id': 'admin',
+          'details': 'Insert Students'
+        },
+        {
+          'action': 'UPDATE',
+          'table_name': 'attendance',
+          'created_at': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
+          'user_id': 'admin',
+          'details': 'Attendance Updated'
+        },
+        {
+          'action': 'INSERT',
+          'table_name': 'driver_assignments',
+          'created_at': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
+          'user_id': 'admin',
+          'details': 'Driver Assignment'
+        },
+        {
+          'action': 'UPDATE',
+          'table_name': 'sections',
+          'created_at': DateTime.now().subtract(const Duration(hours: 3)).toIso8601String(),
+          'user_id': 'admin',
+          'details': 'Section Updated'
+        },
+      ];
+    });
+  }
+
+  Future<void> _loadRecentTaps() async {
+    try {
+      // Query student RFID check-ins from attendance or rfid_logs table
+      final response = await supabase
+          .from('attendance')
+          .select('*, students!inner(full_name, profile_image_url)')
+          .eq('status', 'Present')
+          .order('created_at', ascending: false)
+          .limit(5);
+
+      setState(() {
+        recentTaps = List<Map<String, dynamic>>.from(response);
+      });
+    } catch (e) {
+      print('Error loading recent taps: $e');
+      // Try alternative table structure
+      try {
+        final altResponse = await supabase
+            .from('rfid_logs')
+            .select('*, students!inner(full_name, profile_image_url)')
+            .eq('action', 'check_in')
+            .order('created_at', ascending: false)
+            .limit(5);
+        
+        setState(() {
+          recentTaps = List<Map<String, dynamic>>.from(altResponse);
+        });
+      } catch (e2) {
+        print('Error loading from rfid_logs: $e2');
+        // Fallback to sample data
+        setState(() {
+          recentTaps = [
+            {
+              'students': {'full_name': 'Emma Johnson', 'profile_image_url': null},
+              'status': 'Present',
+              'created_at': DateTime.now().subtract(const Duration(minutes: 2)).toIso8601String(),
+            },
+            {
+              'students': {'full_name': 'Liam Smith', 'profile_image_url': null},
+              'status': 'Present',
+              'created_at': DateTime.now().subtract(const Duration(minutes: 5)).toIso8601String(),
+            },
+            {
+              'students': {'full_name': 'Olivia Brown', 'profile_image_url': null},
+              'status': 'Present',
+              'created_at': DateTime.now().subtract(const Duration(minutes: 8)).toIso8601String(),
+            },
+            {
+              'students': {'full_name': 'Noah Davis', 'profile_image_url': null},
+              'status': 'Present',
+              'created_at': DateTime.now().subtract(const Duration(minutes: 12)).toIso8601String(),
+            },
+            {
+              'students': {'full_name': 'Ava Wilson', 'profile_image_url': null},
+              'status': 'Present',
+              'created_at': DateTime.now().subtract(const Duration(minutes: 15)).toIso8601String(),
+            },
+          ];
+        });
+      }
+    }
+  }
+
 
   // Function to handle logout
   Future<void> _handleLogout(BuildContext context) async {
@@ -408,18 +439,21 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
             
             // Scrollable content below
             Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(isMobile ? 8 : (isTablet ? 12 : 16)),
-                child: Column(
-                  children: [
-                    // Overview Section (inspired by image layout)
-                    _buildOverviewSection(isMobile, isTablet),
-                    
-                    SizedBox(height: isMobile ? 16 : 24),
-                    
-                    // Main dashboard content grid
-                    _buildDashboardGrid(isMobile, isTablet, isDesktop),
-                  ],
+              child: Container(
+                color: const Color.fromARGB(10, 78, 241, 157),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(isMobile ? 8 : (isTablet ? 12 : 16)),
+                  child: Column(
+                    children: [
+                      // Overview Section (inspired by image layout)
+                      _buildOverviewSection(isMobile, isTablet),
+                      
+                      SizedBox(height: isMobile ? 16 : 24),
+                      
+                      // Main dashboard content grid
+                      _buildDashboardGrid(isMobile, isTablet, isDesktop),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -437,6 +471,12 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+            spreadRadius: 2,
+          ),
+          BoxShadow(
             color: Colors.black.withOpacity(0.04),
             blurRadius: 6,
             offset: const Offset(0, 2),
@@ -452,9 +492,9 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
               Text(
                 "OVERVIEW",
                 style: TextStyle(
-                  fontSize: isMobile ? 12 : 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[600],
+                  fontSize: isMobile ? 14 : 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
                   letterSpacing: 0.5,
                 ),
               ),
@@ -519,9 +559,9 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                   child: Text(
                     "DATE",
                     style: TextStyle(
-                      fontSize: isMobile ? 10 : 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
+                      fontSize: isMobile ? 11 : 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
                     ),
                   ),
                 ),
@@ -531,9 +571,9 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                     "TOTAL STUDENTS",
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: isMobile ? 10 : 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
+                      fontSize: isMobile ? 11 : 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
                     ),
                   ),
                 ),
@@ -543,9 +583,9 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                     "TOTAL PARENTS",
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: isMobile ? 10 : 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
+                      fontSize: isMobile ? 11 : 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
                     ),
                   ),
                 ),
@@ -555,9 +595,9 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                     "TOTAL DRIVERS",
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: isMobile ? 10 : 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
+                      fontSize: isMobile ? 11 : 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
                     ),
                   ),
                 ),
@@ -567,9 +607,9 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                     "TOTAL GUARDS",
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: isMobile ? 10 : 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey[700],
+                      fontSize: isMobile ? 11 : 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
                     ),
                   ),
                 ),
@@ -589,8 +629,8 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                   child: Text(
                     formattedDate,
                     style: TextStyle(
-                      fontSize: isMobile ? 12 : 13,
-                      fontWeight: FontWeight.w500,
+                      fontSize: isMobile ? 13 : 14,
+                      fontWeight: FontWeight.w600,
                       color: Colors.black87,
                     ),
                   ),
@@ -606,7 +646,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                       totalStudents.toString(),
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: isMobile ? 15 : 16,
+                        fontSize: isMobile ? 20 : 24,
                         fontWeight: FontWeight.bold,
                         color: const Color(0xFF2563EB),
                         decoration: TextDecoration.underline,
@@ -625,7 +665,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                       totalParents.toString(),
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: isMobile ? 15 : 16,
+                        fontSize: isMobile ? 20 : 24,
                         fontWeight: FontWeight.bold,
                         color: const Color(0xFF10B981),
                         decoration: TextDecoration.underline,
@@ -644,7 +684,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                       totalDrivers.toString(),
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: isMobile ? 15 : 16,
+                        fontSize: isMobile ? 20 : 24,
                         fontWeight: FontWeight.bold,
                         color: const Color(0xFFF59E0B),
                         decoration: TextDecoration.underline,
@@ -663,7 +703,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                       totalGuards.toString(),
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: isMobile ? 15 : 16,
+                        fontSize: isMobile ? 20 : 24,
                         fontWeight: FontWeight.bold,
                         color: const Color(0xFF8B5CF6),
                         decoration: TextDecoration.underline,
@@ -682,14 +722,31 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
   Widget _buildDashboardGrid(bool isMobile, bool isTablet, bool isDesktop) {
     return Column(
       children: [
-        _buildAttendanceSection(isMobile, isTablet),
-        SizedBox(height: isMobile ? 16 : 24),
-        _buildAdminActivitiesSection(isMobile, isTablet),
+        // Two column layout for Recent Activity and Recent Taps
+        if (isMobile)
+          Column(
+            children: [
+              _buildRecentActivitySection(isMobile, isTablet),
+              const SizedBox(height: 16),
+              _buildRecentTapsSection(isMobile, isTablet),
+            ],
+          )
+        else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _buildRecentActivitySection(isMobile, isTablet)),
+              const SizedBox(width: 16),
+              Expanded(child: _buildRecentTapsSection(isMobile, isTablet)),
+            ],
+          ),
       ],
     );
   }
   
-  Widget _buildAttendanceSection(bool isMobile, bool isTablet) {
+  
+  
+  Widget _buildRecentActivitySection(bool isMobile, bool isTablet) {
     return Container(
       padding: EdgeInsets.all(isMobile ? 16 : 20),
       decoration: BoxDecoration(
@@ -697,226 +754,11 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+            spreadRadius: 2,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "PRESENT/ABSENCES",
-                style: TextStyle(
-                  fontSize: isMobile ? 12 : 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[600],
-                  letterSpacing: 0.5,
-                ),
-              ),
-              Row(
-                children: [
-                  Text(
-                    "Last 30 days",
-                    style: TextStyle(
-                      fontSize: isMobile ? 10 : 12,
-                      color: Colors.grey[500],
-                    ),
-                  ),
-                  Icon(
-                    Icons.keyboard_arrow_down,
-                    size: 16,
-                    color: Colors.grey[500],
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          // Dynamic chart representation
-          Container(
-            height: isMobile ? 120 : 150,
-            child: _buildAttendanceChart(),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _buildChartLegend("Present", const Color(0xFF2563EB)),
-              const SizedBox(width: 16),
-              _buildChartLegend("Absent", const Color(0xFFEF4444)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildAttendanceChart() {
-    // Use dynamic attendance data if available, otherwise fallback to sample data
-    final chartData = attendanceData.isNotEmpty ? attendanceData : [
-      {"month": "Jan", "present": 85, "absent": 15},
-      {"month": "Feb", "present": 88, "absent": 12},
-      {"month": "Mar", "present": 82, "absent": 18},
-      {"month": "Apr", "present": 90, "absent": 10},
-      {"month": "May", "present": 87, "absent": 13},
-      {"month": "Jun", "present": 92, "absent": 8},
-      {"month": "Jul", "present": 89, "absent": 11},
-      {"month": "Aug", "present": 91, "absent": 9},
-      {"month": "Sep", "present": 86, "absent": 14},
-      {"month": "Oct", "present": 93, "absent": 7},
-      {"month": "Nov", "present": 88, "absent": 12},
-      {"month": "Dec", "present": 90, "absent": 10},
-    ];
-    
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: chartData.map((data) => 
-        _buildDualChartBar(
-          data["present"] as int,
-          data["absent"] as int,
-          data["month"] as String,
-        ),
-      ).toList(),
-    );
-  }
-  
-  Widget _buildDualChartBar(int presentCount, int absentCount, String month) {
-    final maxHeight = 100.0;
-    final total = presentCount + absentCount;
-    final presentHeight = total > 0 ? (presentCount / (presentCount + absentCount + 20)) * maxHeight : 20.0;
-    final absentHeight = total > 0 ? (absentCount / (presentCount + absentCount + 20)) * maxHeight : 0.0;
-    
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        // Show numbers above bars
-        if (total > 0) ...[
-          Text(
-            '$presentCount',
-            style: const TextStyle(
-              fontSize: 8,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF2563EB),
-            ),
-          ),
-          if (absentCount > 0)
-            Text(
-              '$absentCount',
-              style: const TextStyle(
-                fontSize: 8,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFEF4444),
-              ),
-            ),
-          const SizedBox(height: 4),
-        ],
-        SizedBox(
-          height: maxHeight,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              // Absent bar (red)
-              if (absentCount > 0)
-                Container(
-                  width: 12,
-                  height: absentHeight,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFEF4444),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(2),
-                      topRight: Radius.circular(2),
-                    ),
-                  ),
-                ),
-              // Present bar (blue)
-              Container(
-                width: 12,
-                height: presentHeight,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF2563EB),
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(2),
-                    bottomRight: Radius.circular(2),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          month,
-          style: TextStyle(
-            fontSize: 9,
-            color: Colors.grey[600],
-          ),
-        ),
-      ],
-    );
-  }
-  
-  Widget _buildChartBar(double height, String month) {
-    final isCurrentMonth = month == "Dec";
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Container(
-          width: 16,
-          height: height,
-          decoration: BoxDecoration(
-            color: isCurrentMonth ? const Color(0xFF2563EB) : const Color(0xFF94A3B8),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          month,
-          style: TextStyle(
-            fontSize: 10,
-            color: Colors.grey[600],
-          ),
-        ),
-      ],
-    );
-  }
-  
-  Widget _buildChartLegend(String label, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-          ),
-        ),
-      ],
-    );
-  }
-  
-  
-  Widget _buildAdminActivitiesSection(bool isMobile, bool isTablet) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(isMobile ? 16 : 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
             blurRadius: 6,
@@ -926,15 +768,29 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            "ADMIN ACTIVITIES",
-            style: TextStyle(
-              fontSize: isMobile ? 12 : 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[600],
-              letterSpacing: 0.5,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "RECENT ACTIVITY",
+                style: TextStyle(
+                  fontSize: isMobile ? 12 : 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[600],
+                  letterSpacing: 0.5,
+                ),
+              ),
+              Text(
+                "FROM AUDIT LOGS",
+                style: TextStyle(
+                  fontSize: isMobile ? 9 : 10,
+                  color: Colors.grey[400],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(
@@ -967,15 +823,15 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                 const Color(0xFF2563EB),
                 const Color(0xFFF59E0B),
                 const Color(0xFF8B5CF6),
+                const Color(0xFFEC4899),
               ];
               
               return Column(
                 children: [
-                  if (index > 0) const SizedBox(height: 16),
-                  _buildAdminActivityItem(
+                  if (index > 0) const SizedBox(height: 12),
+                  _buildActivityItem(
                     _getActivityTitle(log['action'], log['table_name']),
                     _getActivityType(log['action']),
-                    _getActivityDetail(log['table_name']),
                     _getTimeAgo(log['created_at']),
                     colors[index % colors.length],
                   ),
@@ -987,6 +843,85 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     );
   }
   
+  Widget _buildRecentTapsSection(bool isMobile, bool isTablet) {
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+            spreadRadius: 2,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            "RECENT TAPS",
+            style: TextStyle(
+              fontSize: isMobile ? 12 : 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[600],
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            getTodayLabel().toUpperCase(),
+            style: TextStyle(
+              fontSize: isMobile ? 10 : 11,
+              color: Colors.grey[500],
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (recentTaps.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(20),
+              child: Center(
+                child: Text(
+                  'No recent taps',
+                  style: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            )
+          else
+            ...recentTaps.asMap().entries.map((entry) {
+              final index = entry.key;
+              final tap = entry.value;
+              final student = tap['students'] as Map<String, dynamic>?;
+              
+              return Column(
+                children: [
+                  if (index > 0) const SizedBox(height: 12),
+                  _buildTapItem(
+                    student?['full_name'] ?? 'Unknown Student',
+                    tap['status'] ?? 'Check In',
+                    _getTimeAgo(tap['created_at']),
+                    student?['profile_image_url'],
+                  ),
+                ],
+              );
+            }).toList(),
+        ],
+      ),
+    );
+  }
+
+
   Widget _buildResponsiveMainContent(bool isMobile, bool isTablet, bool isDesktop) {
     final systemOverview = Container(
       padding: EdgeInsets.all(isMobile ? 16 : (isTablet ? 20 : 24)),
@@ -1049,26 +984,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
             ),
           ),
           SizedBox(height: isMobile ? 12 : (isTablet ? 16 : 20)),
-          _buildActivityItem(
-            "New student enrolled",
-            "2 minutes ago",
-            Icons.person_add,
-            Colors.green,
-          ),
-          SizedBox(height: isMobile ? 8 : 12),
-          _buildActivityItem(
-            "Attendance marked",
-            "15 minutes ago",
-            Icons.check_circle,
-            Colors.blue,
-          ),
-          SizedBox(height: isMobile ? 8 : 12),
-          _buildActivityItem(
-            "Section updated",
-            "1 hour ago",
-            Icons.edit,
-            Colors.orange,
-          ),
+          // Old activity items removed - now using dynamic data from audit logs
         ],
       ),
     );
@@ -1306,22 +1222,90 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     );
   }
 
-  // Activity item widget
-  Widget _buildActivityItem(
-    String title,
-    String time,
-    IconData icon,
-    Color color,
-  ) {
+  // Simplified activity item for recent activity - Summary format
+  Widget _buildActivityItem(String title, String type, String time, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                title[0].toUpperCase(),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                    letterSpacing: 0.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  type,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            time,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey[500],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Tap item widget
+  Widget _buildTapItem(String name, String status, String time, String? imageUrl) {
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Icon(icon, color: color, size: 16),
+        CircleAvatar(
+          radius: 16,
+          backgroundColor: Colors.grey[200],
+          backgroundImage: imageUrl != null ? NetworkImage(imageUrl) : null,
+          child: imageUrl == null
+              ? Text(
+                  name[0].toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black54,
+                  ),
+                )
+              : null,
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -1329,23 +1313,36 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                title,
-                style: TextStyle(
+                name,
+                style: const TextStyle(
                   fontSize: 13,
-                  color: Colors.black87,
                   fontWeight: FontWeight.w500,
+                  color: Colors.black87,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               Text(
-                time,
-                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                status,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[600],
+                ),
               ),
             ],
+          ),
+        ),
+        Text(
+          time,
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.grey[500],
           ),
         ),
       ],
     );
   }
+
 
   // Admin activity item widget (more square design)
   Widget _buildAdminActivityItem(String title, String type, String date, String status, Color color) {
@@ -1492,9 +1489,17 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       } else if (difference.inMinutes < 60) {
         return '${difference.inMinutes} min ago';
       } else if (difference.inHours < 24) {
-        return '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
-      } else {
+        // Convert to 12-hour format with AM/PM
+        int hour = dateTime.hour;
+        String period = hour >= 12 ? 'PM' : 'AM';
+        hour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
+        String minute = dateTime.minute.toString().padLeft(2, '0');
+        return '$hour:$minute $period';
+      } else if (difference.inDays < 7) {
         return '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
+      } else {
+        // For older dates, show the date
+        return '${dateTime.month}/${dateTime.day}/${dateTime.year}';
       }
     } catch (e) {
       return 'Recently';

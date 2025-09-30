@@ -1353,7 +1353,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   Widget _buildLogCard(Map<String, dynamic> log) {
     final timestamp = log['timestamp'] as DateTime;
     final dateFormatter = DateFormat('MMM d, yyyy');
-    final timeFormatter = DateFormat('HH:mm');
+    final timeFormatter = DateFormat('h:mm a');
     final status = log['status'] as String;
     final role = log['user']['role'] as String;
 
@@ -1507,7 +1507,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   Widget _buildLogEntry(Map<String, dynamic> log, bool isEvenRow) {
     final timestamp = log['timestamp'] as DateTime;
     final dateFormatter = DateFormat('MMM d, yyyy');
-    final timeFormatter = DateFormat('HH:mm');
+    final timeFormatter = DateFormat('h:mm a');
     final status = log['status'] as String;
     final role = log['user']['role'] as String;
 
@@ -1791,7 +1791,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   // Show detailed log information in a dialog
   void _showLogDetails(Map<String, dynamic> log) {
     final timestamp = log['timestamp'] as DateTime;
-    final dateTimeFormatter = DateFormat('MMM d, yyyy \'at\' HH:mm:ss');
+    final dateTimeFormatter = DateFormat('MMM d, yyyy \'at\' h:mm:ss a');
     
     showDialog(
       context: context,
@@ -1895,7 +1895,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   // Copy log details to clipboard
   void _copyLogDetails(Map<String, dynamic> log) {
     final timestamp = log['timestamp'] as DateTime;
-    final dateTimeFormatter = DateFormat('MMM d, yyyy \'at\' HH:mm:ss');
+    final dateTimeFormatter = DateFormat('MMM d, yyyy \'at\' h:mm:ss a');
     
     final logText = '''
 Log Entry Details:
