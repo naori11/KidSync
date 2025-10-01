@@ -4281,21 +4281,27 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
           ),
         ],
       ),
-      child: Table(
-        border: TableBorder(
-          horizontalInside: BorderSide(color: Colors.grey[200]!, width: 1),
-        ),
-        columnWidths: {
-          0: const FlexColumnWidth(0.5), // Checkbox
-          1: FlexColumnWidth(isTablet ? 0.7 : 0.8), // Student ID - responsive
-          2: FlexColumnWidth(isTablet ? 1.8 : 2.0), // Name + Image - responsive
-          3: FlexColumnWidth(isTablet ? 1.2 : 1.3), // Class - responsive
-          4: FlexColumnWidth(isTablet ? 0.6 : 0.7), // Gender - responsive
-          5: FlexColumnWidth(isTablet ? 0.9 : 1.0), // Enrollment - responsive
-          6: FlexColumnWidth(isTablet ? 0.6 : 0.7), // Status - responsive
-          7: FlexColumnWidth(isTablet ? 0.5 : 0.6), // Actions - responsive
-        },
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minWidth: MediaQuery.of(context).size.width - 300, // Adjust based on sidebar width
+          ),
+          child: Table(
+            border: TableBorder(
+              horizontalInside: BorderSide(color: Colors.grey[200]!, width: 1),
+            ),
+            columnWidths: {
+              0: const FlexColumnWidth(0.5), // Checkbox
+              1: FlexColumnWidth(isTablet ? 0.7 : 0.8), // Student ID - responsive
+              2: FlexColumnWidth(isTablet ? 1.8 : 2.0), // Name + Image - responsive
+              3: FlexColumnWidth(isTablet ? 1.2 : 1.3), // Class - responsive
+              4: FlexColumnWidth(isTablet ? 0.6 : 0.7), // Gender - responsive
+              5: FlexColumnWidth(isTablet ? 0.9 : 1.0), // Enrollment - responsive
+              6: FlexColumnWidth(isTablet ? 0.6 : 0.7), // Status - responsive
+              7: FlexColumnWidth(isTablet ? 0.5 : 0.6), // Actions - responsive
+            },
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         children: [
           // Table header row
           TableRow(
@@ -4768,6 +4774,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
             );
           }).toList(),
         ],
+          ),
+        ),
       ),
     );
   }
