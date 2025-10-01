@@ -1893,14 +1893,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   .from('users')
                                   .update({'profile_image_url': uploadedUrl})
                                   .eq('id', createdUser['id']);
-                              await supabase.auth.admin.updateUserById(
-                                createdUser['id'],
-                                attributes: AdminUserAttributes(
-                                  userMetadata: {
-                                    'profile_image_url': uploadedUrl,
-                                  },
-                                ),
-                              );
                             }
 
                             // For Guards, save RFID separately
@@ -1915,6 +1907,29 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               } catch (rfidError) {
                                 print('Error saving guard RFID: $rfidError');
                               }
+                            }
+
+                            // Log user creation immediately after successful creation (with image)
+                            try {
+                              final userName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                              await auditLogService.logAccountCreation(
+                                targetUserId: createdUser['id'].toString(),
+                                targetUserName: userName,
+                                role: selectedRole!,
+                                userData: {
+                                  'email': emailController.text.trim(),
+                                  'role': selectedRole,
+                                  'fname': fnameController.text.trim(),
+                                  'lname': lnameController.text.trim(),
+                                  'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                  'position': positionController.text.trim().isEmpty ? null : positionController.text.trim(),
+                                  'contact_number': contactController.text.trim().isEmpty ? null : contactController.text.trim(),
+                                  'plate_number': plateNumberController.text.trim().isEmpty ? null : plateNumberController.text.trim(),
+                                  'profile_image_url': uploadedUrl,
+                                },
+                              );
+                            } catch (e) {
+                              print('Error logging user creation audit event: $e');
                             }
                           } else {
                             // existing user: upload image then edit
@@ -1961,6 +1976,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   positionController.text.trim().isEmpty
                                       ? null
                                       : positionController.text.trim(),
+                              plateNumber:
+                                  plateNumberController.text.trim().isEmpty
+                                      ? null
+                                      : plateNumberController.text.trim(),
                               profileImageUrl: imageUrl,
                             );
 
@@ -2926,14 +2945,30 @@ class _UserManagementPageState extends State<UserManagementPage> {
     try {
       setState(() => _isUploadingImage = true);
 
+      // Get the bytes to upload
+      Uint8List bytesToUpload;
       if (_selectedImageBytes != null) {
+        bytesToUpload = _selectedImageBytes!;
       } else {
+        bytesToUpload = await image.readAsBytes();
       }
 
       // Generate unique filename
       final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       final String extension = image.name.split('.').last.toLowerCase();
       final String fileName = 'user_${userId}_$timestamp.$extension';
+
+      // Upload the file to Supabase Storage
+      await supabase.storage
+          .from('user-profile')
+          .uploadBinary(
+            fileName,
+            bytesToUpload,
+            fileOptions: FileOptions(
+              contentType: 'image/$extension',
+              upsert: true,
+            ),
+          );
 
       // Get public URL
       final String publicUrl = supabase.storage
