@@ -1940,7 +1940,7 @@ class _BulkImportPageState extends State<BulkImportPage> {
                 'grade_level': record['student_grade'],
                 'gender': record['student_gender'],
                 'address': record['student_address'],
-                'status': 'active',
+                'status': 'Active',
                 'section_id': null, // Section will be manually assigned later
               })
               .select()
