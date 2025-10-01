@@ -47,7 +47,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       print(
         "SetPasswordScreen: Found reset code in session storage: $_resetCode",
       );
-      // Log out any current user for security
+      // Log out any current user for security, but preserve reset tokens
       final currentUser = Supabase.instance.client.auth.currentUser;
       if (currentUser != null) {
         _previousUserEmail = currentUser.email;
@@ -99,11 +99,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       _refreshToken = html.window.sessionStorage['supabase_refresh_token'];
       // If there's an access token, check if it's expired (JWT "exp" claim)
   if (_accessToken != null && _isJwtExpired(_accessToken!)) {
-        // token expired — remove stored tokens and don't show this screen
-        if (kIsWeb) {
-          html.window.sessionStorage.remove('supabase_access_token');
-          html.window.sessionStorage.remove('supabase_refresh_token');
-        }
+        // token expired — show error but don't remove tokens yet in case user wants to try again
         setState(() {
           _isLoading = false;
           _errorMessage =
@@ -130,13 +126,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       if (url.contains('error=') || url.contains('error_description=')) {
         final lower = url.toLowerCase();
         if (lower.contains('expired') || lower.contains('otp_expired') || lower.contains('token has expired')) {
-          // clear any reset/session values and avoid showing this screen
-          if (kIsWeb) {
-            html.window.sessionStorage.remove('supabase_access_token');
-            html.window.sessionStorage.remove('supabase_refresh_token');
-            html.window.sessionStorage.remove('kidsync_reset_code');
-            html.window.sessionStorage.remove('kidsync_reset_email');
-          }
+          // Show error but preserve tokens in case the error was temporary or user wants to retry
           setState(() {
             _isLoading = false;
             _errorMessage = "Link expired or already used. Please request a new link.";
@@ -175,7 +165,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       final friendly = _formatError(e);
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Error processing invitation. $friendly';
+        _errorMessage = 'Error processing invitation. $friendly Please try again or contact support.';
       });
     }
   }
@@ -296,19 +286,25 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             return;
           }
         } catch (e) {
-          // If recovery verification fails (expired/used token), clear stored reset data and redirect
-          if (kIsWeb) {
-            _clearResetTokens();
-          }
+          // If recovery verification fails, show error but preserve tokens for potential retry
           final friendly = _formatError(e);
-          // Show error then redirect to login so the user doesn't see this screen again
-          _showError(friendly);
-          // small delay so SnackBar is visible, then navigate away
-          Future.delayed(const Duration(milliseconds: 800), () {
-            if (mounted) {
-              Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+          
+          // Only clear tokens and redirect if it's definitively expired/invalid
+          if (_isTokenDefinitelyInvalid(e)) {
+            if (kIsWeb) {
+              _clearResetTokens();
             }
-          });
+            _showError('$friendly The reset link has been used or expired.');
+            // small delay so SnackBar is visible, then navigate away
+            Future.delayed(const Duration(milliseconds: 1500), () {
+              if (mounted) {
+                Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+              }
+            });
+          } else {
+            // For other errors, allow retry
+            _showError('$friendly Please try again.');
+          }
           return;
         }
       }
@@ -341,12 +337,18 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             return;
           }
         } catch (e) {
-          // If token flow fails, clear stored tokens to avoid stale state
-          if (kIsWeb) {
-            html.window.sessionStorage.remove('supabase_access_token');
-            html.window.sessionStorage.remove('supabase_refresh_token');
+          // If token flow fails, show error but preserve tokens for retry unless definitely expired
+          if (_isTokenDefinitelyInvalid(e)) {
+            // Only clear tokens if they're definitively invalid
+            if (kIsWeb) {
+              html.window.sessionStorage.remove('supabase_access_token');
+              html.window.sessionStorage.remove('supabase_refresh_token');
+            }
+            _showError('${_formatError(e)} The invitation link has expired.');
+          } else {
+            // For other errors, preserve tokens and allow retry
+            _showError('${_formatError(e)} Please try again.');
           }
-          _showError(_formatError(e));
           return;
         }
       }
@@ -428,12 +430,23 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     } catch (_) {}
   }
 
+  // Helper method to determine if an error indicates the token is definitely invalid
+  bool _isTokenDefinitelyInvalid(Object? error) {
+    if (error == null) return false;
+    final errorStr = error.toString().toLowerCase();
+    return errorStr.contains('expired') || 
+           errorStr.contains('invalid') || 
+           errorStr.contains('used') ||
+           errorStr.contains('otp_expired') ||
+           errorStr.contains('token has expired');
+  }
+
   void _passwordSetSuccess(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.green),
     );
-    // After successfully setting the password, remove any invite/reset tokens so they are considered used
+    // ONLY after successfully setting the password, remove invite/reset tokens so they are considered used
     if (kIsWeb) {
       html.window.sessionStorage.remove('supabase_access_token');
       html.window.sessionStorage.remove('supabase_refresh_token');
@@ -530,7 +543,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   void dispose() {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    // ensure any in-progress flag is cleared if the screen is disposed
+    // Only clear the in-progress flag, but preserve the actual tokens
+    // so user can return to complete password setup
     try {
       if (kIsWeb) html.window.sessionStorage.remove('kidsync_reset_in_progress');
     } catch (_) {}
@@ -564,6 +578,11 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         _accessToken == null &&
         _resetCode == null &&
         !_isAuthenticated) {
+      // Check if we have any preserved tokens that might allow retry
+      final bool hasPreservedTokens = kIsWeb && 
+        (html.window.sessionStorage.containsKey('supabase_access_token') || 
+         html.window.sessionStorage.containsKey('kidsync_reset_code'));
+      
       return Scaffold(
         backgroundColor: Colors.grey[50],
         body: Center(
@@ -593,15 +612,51 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
+                  if (hasPreservedTokens) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          // Retry by reinitializing
+                          setState(() {
+                            _isLoading = true;
+                            _errorMessage = null;
+                          });
+                          // Trigger reprocessing
+                          Future.delayed(const Duration(milliseconds: 100), () {
+                            if (kIsWeb) {
+                              _processInviteToken();
+                            }
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        child: const Text("Try Again"),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed:
-                          () => Navigator.of(
-                            context,
-                          ).pushReplacementNamed(LoginScreen.routeName),
+                      onPressed: () {
+                        // Clear any remaining tokens when user gives up
+                        if (kIsWeb) {
+                          html.window.sessionStorage.remove('supabase_access_token');
+                          html.window.sessionStorage.remove('supabase_refresh_token');
+                          html.window.sessionStorage.remove('kidsync_reset_code');
+                          html.window.sessionStorage.remove('kidsync_reset_email');
+                        }
+                        Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+                      },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                        backgroundColor: hasPreservedTokens ? Colors.grey[600] : Colors.green,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(
@@ -906,9 +961,16 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                     TextButton(
                       onPressed: _isSubmitting
                           ? null
-                          : () => Navigator.of(
-                                context,
-                              ).pushReplacementNamed(LoginScreen.routeName),
+                          : () {
+                              // Only clear tokens if user explicitly cancels
+                              if (kIsWeb) {
+                                html.window.sessionStorage.remove('supabase_access_token');
+                                html.window.sessionStorage.remove('supabase_refresh_token');
+                                html.window.sessionStorage.remove('kidsync_reset_code');
+                                html.window.sessionStorage.remove('kidsync_reset_email');
+                              }
+                              Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
+                            },
                       style: TextButton.styleFrom(
                         foregroundColor:
                             _isSubmitting ? Colors.grey : Colors.green,
