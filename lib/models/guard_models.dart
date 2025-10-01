@@ -211,10 +211,12 @@ class Activity {
     final gradeLevel = student?['grade_level'] ?? '';
     final gradeClass = gradeLevel.isNotEmpty ? gradeLevel : 'Unknown Class';
 
-    // Format time
+    // Format time to 12-hour AM/PM format
     final scanTime = DateTime.parse(json['scan_time']);
+    final hour = scanTime.hour == 0 ? 12 : (scanTime.hour > 12 ? scanTime.hour - 12 : scanTime.hour);
+    final period = scanTime.hour >= 12 ? 'PM' : 'AM';
     final timeFormatted = 
-        "${scanTime.hour.toString().padLeft(2, '0')}:${scanTime.minute.toString().padLeft(2, '0')}";
+        "${hour.toString()}:${scanTime.minute.toString().padLeft(2, '0')} $period";
 
     // Map action to status
     String status;

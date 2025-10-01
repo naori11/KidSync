@@ -547,7 +547,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
   // Helper method to format TimeOfDay to string
   String _formatTime(TimeOfDay time) {
-    return "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
+    final hour = time.hour == 0 ? 12 : (time.hour > 12 ? time.hour - 12 : time.hour);
+    final period = time.hour >= 12 ? 'PM' : 'AM';
+    return "${hour.toString()}:${time.minute.toString().padLeft(2, '0')} $period";
   }
 
   // Helper method to parse time string to TimeOfDay
@@ -1032,6 +1034,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       connectionDetails: 'Guard override mode activated by $guardName',
       isSuccessful: true,
     );
+
+    // Load all students initially
+    await _loadAllStudents();
   }
 
   // Exit override mode
@@ -1060,12 +1065,45 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     clearScan();
   }
 
+  // Load all students initially
+  Future<void> _loadAllStudents() async {
+    setState(() {
+      _isSearching = true;
+    });
+
+    try {
+      final response = await supabase
+          .from('students')
+          .select('''
+            *,
+            sections!inner(name)
+          ''')
+          .neq('status', 'deleted')
+          .order('fname', ascending: true)
+          .limit(50);
+
+      final students = response.map((data) => Student.fromJson(data)).toList();
+
+      setState(() {
+        _searchResults = students;
+        _isSearching = false;
+      });
+    } catch (e) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      _showErrorNotification('Error loading students: $e');
+    }
+  }
+
   // Search for students in override mode
   Future<void> _searchStudents(String query) async {
     if (query.trim().isEmpty) {
+      // Load all students when search is cleared
+      await _loadAllStudents();
       setState(() {
-        _searchResults = null;
-        _isSearching = false;
+        _searchQuery = '';
       });
       return;
     }
@@ -1083,8 +1121,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             sections!inner(name)
           ''')
           .neq('status', 'deleted')
-          .or('fname.ilike.%$query%,lname.ilike.%$query%,grade_level.ilike.%$query%')
-          .limit(10);
+          .or('fname.ilike.$query%,lname.ilike.$query%,grade_level.ilike.$query%')
+          .limit(50);
 
       final students = response.map((data) => Student.fromJson(data)).toList();
 
@@ -2250,8 +2288,10 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
   void handleApproval(bool approved, {String? denyReason}) {
     final now = DateTime.now();
+    final hour = now.hour == 0 ? 12 : (now.hour > 12 ? now.hour - 12 : now.hour);
+    final period = now.hour >= 12 ? 'PM' : 'AM';
     final formattedTime =
-        "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+        "${hour.toString()}:${now.minute.toString().padLeft(2, '0')} $period";
 
     setState(() {
       fetchStatus = approved ? 'approved' : 'denied';
@@ -3916,7 +3956,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
   String _formatCurrentTime() {
     final now = DateTime.now();
-    return "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+    final hour = now.hour == 0 ? 12 : (now.hour > 12 ? now.hour - 12 : now.hour);
+    final period = now.hour >= 12 ? 'PM' : 'AM';
+    return "${hour.toString()}:${now.minute.toString().padLeft(2, '0')} $period";
   }
 
   // Exit mode layout - enhanced for better accessibility and space utilization
@@ -6297,39 +6339,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       );
     }
 
-    if (_searchQuery.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.search,
-              size: 64,
-              color: Colors.grey[400],
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Start typing to search',
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Enter student name, grade, or class',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_searchResults == null || _searchResults!.isEmpty) {
+    // Show "no results" only when a search was performed but returned empty
+    if (_searchResults != null && _searchResults!.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -6354,6 +6365,26 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Show loading state while fetching students
+    if (_searchResults == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(strokeWidth: 3),
+            SizedBox(height: 16),
+            Text(
+              'Loading students...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
               ),
             ),
           ],
@@ -6525,7 +6556,11 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
     final formattedTime =
         actionTimestamp != null
-            ? "${actionTimestamp!.hour.toString().padLeft(2, '0')}:${actionTimestamp!.minute.toString().padLeft(2, '0')}:${actionTimestamp!.second.toString().padLeft(2, '0')}"
+            ? () {
+                final hour = actionTimestamp!.hour == 0 ? 12 : (actionTimestamp!.hour > 12 ? actionTimestamp!.hour - 12 : actionTimestamp!.hour);
+                final period = actionTimestamp!.hour >= 12 ? 'PM' : 'AM';
+                return "${hour.toString()}:${actionTimestamp!.minute.toString().padLeft(2, '0')}:${actionTimestamp!.second.toString().padLeft(2, '0')} $period";
+              }()
             : '';
 
     return Positioned(

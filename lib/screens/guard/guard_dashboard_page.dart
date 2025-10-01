@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -14,11 +15,20 @@ class _DashboardPageState extends State<DashboardPage> {
   String? guardName;
   String? profileImageUrl;
   bool isLoading = false;
+  
+  // Dashboard statistics
+  int studentsCheckedIn = 0;
+  int studentsCheckedOut = 0;
+  int pendingPickups = 0;
+  
+  // Recent activities
+  List<Map<String, dynamic>> recentActivities = [];
 
   @override
   void initState() {
     super.initState();
     _loadGuardData();
+    _loadDashboardData();
   }
 
   Future<void> _loadGuardData() async {
@@ -48,6 +58,92 @@ class _DashboardPageState extends State<DashboardPage> {
     profileImageUrl = guardData?['profile_image_url'];
 
     setState(() => isLoading = false);
+  }
+
+  Future<void> _loadDashboardData() async {
+    await Future.wait([
+      _loadTodayStats(),
+      _loadRecentActivities(),
+    ]);
+  }
+
+  Future<void> _loadTodayStats() async {
+    try {
+      final today = DateTime.now();
+      final startOfDay = DateTime(today.year, today.month, today.day);
+      final endOfDay = startOfDay.add(const Duration(days: 1));
+
+      // Get check-ins (entry scans)
+      final checkInsResponse = await supabase
+          .from('scan_records')
+          .select('id')
+          .eq('action', 'entry')
+          .gte('scan_time', startOfDay.toIso8601String())
+          .lt('scan_time', endOfDay.toIso8601String());
+
+      // Get check-outs (exit scans)
+      final checkOutsResponse = await supabase
+          .from('scan_records')
+          .select('id')
+          .eq('action', 'exit')
+          .gte('scan_time', startOfDay.toIso8601String())
+          .lt('scan_time', endOfDay.toIso8601String());
+
+      // Calculate pending pickups (checked in but not checked out)
+      final checkedInStudents = await supabase
+          .from('scan_records')
+          .select('student_id')
+          .eq('action', 'entry')
+          .gte('scan_time', startOfDay.toIso8601String())
+          .lt('scan_time', endOfDay.toIso8601String());
+
+      final checkedOutStudents = await supabase
+          .from('scan_records')
+          .select('student_id')
+          .eq('action', 'exit')
+          .gte('scan_time', startOfDay.toIso8601String())
+          .lt('scan_time', endOfDay.toIso8601String());
+
+      final checkedInIds = (checkedInStudents as List)
+          .map((e) => e['student_id'])
+          .toSet();
+      final checkedOutIds = (checkedOutStudents as List)
+          .map((e) => e['student_id'])
+          .toSet();
+      final pending = checkedInIds.difference(checkedOutIds).length;
+
+      setState(() {
+        studentsCheckedIn = (checkInsResponse as List).length;
+        studentsCheckedOut = (checkOutsResponse as List).length;
+        pendingPickups = pending;
+      });
+    } catch (e) {
+      print('Error loading today stats: $e');
+    }
+  }
+
+  Future<void> _loadRecentActivities() async {
+    try {
+      final response = await supabase
+          .from('scan_records')
+          .select('''
+            id,
+            student_id,
+            action,
+            scan_time,
+            verified_by,
+            notes,
+            students!inner(fname, lname)
+          ''')
+          .order('scan_time', ascending: false)
+          .limit(10);
+
+      setState(() {
+        recentActivities = List<Map<String, dynamic>>.from(response);
+      });
+    } catch (e) {
+      print('Error loading recent activities: $e');
+    }
   }
 
   String getTodayLabel() {
@@ -176,21 +272,21 @@ class _DashboardPageState extends State<DashboardPage> {
                         children: [
                           _statCard(
                             "Students Checked In",
-                            "42",
+                            studentsCheckedIn.toString(),
                             Icons.login,
                             Colors.blue,
                           ),
                           const SizedBox(width: 16),
                           _statCard(
                             "Students Checked Out",
-                            "38",
+                            studentsCheckedOut.toString(),
                             Icons.logout,
                             Colors.green,
                           ),
                           const SizedBox(width: 16),
                           _statCard(
                             "Pending Pickups",
-                            "4",
+                            pendingPickups.toString(),
                             Icons.people_outline,
                             Colors.orange,
                           ),
@@ -232,35 +328,37 @@ class _DashboardPageState extends State<DashboardPage> {
 
                         // Activity list - wrapped in Expanded to make it scrollable if needed
                         Expanded(
-                          child: SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                _activityItem(
-                                  "RFID Tag",
-                                  "Checked out by guardian",
-                                  "10:15 AM",
-                                  Icons.logout,
-                                  Colors.green,
+                          child: recentActivities.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.history,
+                                        size: 48,
+                                        color: Colors.grey[400],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'No recent activities',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : SingleChildScrollView(
+                                  child: Column(
+                                    children: [
+                                      for (int i = 0; i < recentActivities.length; i++) ...[
+                                        _buildActivityItem(recentActivities[i]),
+                                        if (i < recentActivities.length - 1) _divider(),
+                                      ],
+                                    ],
+                                  ),
                                 ),
-                                _divider(),
-                                _activityItem(
-                                  "RFID Card",
-                                  "Checked in by parent",
-                                  "8:30 AM",
-                                  Icons.login,
-                                  Colors.blue,
-                                ),
-                                _divider(),
-                                _activityItem(
-                                  "Test Student",
-                                  "Pickup denied - unauthorized fetcher",
-                                  "3:45 PM",
-                                  Icons.block,
-                                  Colors.red,
-                                ),
-                              ],
-                            ),
-                          ),
                         ),
                       ],
                     ),
@@ -304,7 +402,81 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // Helper widget for activity items
+  // Build activity item from database record
+  Widget _buildActivityItem(Map<String, dynamic> activity) {
+    final student = activity['students'];
+    final studentName = student != null
+        ? '${student['fname'] ?? ''} ${student['lname'] ?? ''}'.trim()
+        : 'Unknown Student';
+    
+    final action = activity['action'] ?? '';
+    final scanTime = activity['scan_time'] != null
+        ? DateTime.parse(activity['scan_time'])
+        : DateTime.now();
+    
+    final timeStr = DateFormat('h:mm a').format(scanTime);
+    
+    // Determine icon and color based on action
+    IconData icon;
+    Color color;
+    String actionText;
+    
+    if (action == 'entry') {
+      icon = Icons.login;
+      color = Colors.blue;
+      actionText = 'Checked in by ${activity['verified_by'] ?? 'guardian'}';
+    } else if (action == 'exit') {
+      icon = Icons.logout;
+      color = Colors.green;
+      actionText = 'Checked out by ${activity['verified_by'] ?? 'guardian'}';
+    } else {
+      icon = Icons.info_outline;
+      color = Colors.grey;
+      actionText = activity['notes'] ?? 'Activity recorded';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 16, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  studentName,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                Text(
+                  actionText,
+                  style: const TextStyle(fontSize: 14, color: Colors.black54),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            timeStr,
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper widget for activity items (legacy - kept for compatibility)
   Widget _activityItem(
     String name,
     String action,
@@ -331,7 +503,7 @@ class _DashboardPageState extends State<DashboardPage> {
               children: [
                 Text(
                   name,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
@@ -339,7 +511,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 Text(
                   action,
-                  style: TextStyle(fontSize: 14, color: Colors.black54),
+                  style: const TextStyle(fontSize: 14, color: Colors.black54),
                 ),
               ],
             ),

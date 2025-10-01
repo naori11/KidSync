@@ -51,6 +51,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       MediaQuery.of(context).size.width < 1200;
   bool get isDesktop => MediaQuery.of(context).size.width >= 1200;
   bool get isSmallMobile => MediaQuery.of(context).size.width < 480;
+  bool get isLargeDesktop => MediaQuery.of(context).size.width >= 1440;
 
 
   // For image uploads
@@ -4286,13 +4287,13 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         ),
         columnWidths: {
           0: const FlexColumnWidth(0.5), // Checkbox
-          1: const FlexColumnWidth(0.8), // Student ID
-          2: const FlexColumnWidth(2.0), // Name + Image
-          3: const FlexColumnWidth(1.0), // Class
-          4: FlexColumnWidth(isTablet ? 0.6 : 0.8), // Gender - responsive
-          5: const FlexColumnWidth(1.0), // Enrollment
-          6: FlexColumnWidth(isTablet ? 0.6 : 0.8), // Status - responsive
-          7: const FlexColumnWidth(0.6), // Actions
+          1: FlexColumnWidth(isTablet ? 0.7 : 0.8), // Student ID - responsive
+          2: FlexColumnWidth(isTablet ? 1.8 : 2.0), // Name + Image - responsive
+          3: FlexColumnWidth(isTablet ? 1.2 : 1.3), // Class - responsive
+          4: FlexColumnWidth(isTablet ? 0.6 : 0.7), // Gender - responsive
+          5: FlexColumnWidth(isTablet ? 0.9 : 1.0), // Enrollment - responsive
+          6: FlexColumnWidth(isTablet ? 0.6 : 0.7), // Status - responsive
+          7: FlexColumnWidth(isTablet ? 0.5 : 0.6), // Actions - responsive
         },
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         children: [
@@ -4484,12 +4485,14 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                             children: [
                               Text(
                                 fullName,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1A1A1A),
-                                  fontSize: 18,
+                                  color: const Color(0xFF1A1A1A),
+                                  fontSize: isTablet ? 16 : 18,
                                   letterSpacing: 0.3,
                                 ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
                               if (student['rfid_uid'] != null &&
                                   student['rfid_uid']
@@ -4527,8 +4530,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                 TableCell(
                   verticalAlignment: TableCellVerticalAlignment.middle,
                   child: Container(
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.all(16),
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -4550,6 +4553,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                           color: Color(0xFF2ECC71),
                         ),
                         textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),

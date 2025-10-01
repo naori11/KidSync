@@ -747,7 +747,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
                         activity['pickup_time'] ?? activity['dropoff_time'];
                     final formattedTime =
                         time != null
-                            ? DateFormat('HH:mm').format(DateTime.parse(time))
+                            ? DateFormat('h:mm a').format(DateTime.parse(time))
                             : 'N/A';
 
                     IconData icon;

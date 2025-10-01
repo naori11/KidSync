@@ -100,10 +100,12 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
 
         final reason = record['notes'] ?? '';
 
+        final hour = scanTime.hour == 0 ? 12 : (scanTime.hour > 12 ? scanTime.hour - 12 : scanTime.hour);
+        final period = scanTime.hour >= 12 ? 'PM' : 'AM';
         fetched.add(
           Activity(
             time:
-                "${scanTime.hour.toString().padLeft(2, '0')}:${scanTime.minute.toString().padLeft(2, '0')}",
+                "${hour.toString()}:${scanTime.minute.toString().padLeft(2, '0')} $period",
             studentName:
                 student != null
                     ? "${student['fname']} ${student['mname'] ?? ''} ${student['lname']}"

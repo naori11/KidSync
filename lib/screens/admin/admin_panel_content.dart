@@ -33,8 +33,9 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
   int totalParents = 0;
   int totalDrivers = 0;
   int totalGuards = 0;
+  int totalTeachers = 0;
   List<Map<String, dynamic>> recentAuditLogs = [];
-  List<Map<String, dynamic>> recentTaps = [];
+  List<Map<String, dynamic>> todaysClasses = [];
 
   @override
   void initState() {
@@ -95,12 +96,12 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
   }
 
   void _setupPeriodicRefresh() {
-    // Refresh audit logs every 30 seconds
+    // Refresh audit logs and classes every 30 seconds
     Future.doWhile(() async {
       await Future.delayed(const Duration(seconds: 30));
       if (mounted && selectedIndex == 0) {
         await _loadRecentAuditLogs();
-        await _loadRecentTaps();
+        await _loadUpcomingClasses();
       }
       return mounted;
     });
@@ -111,7 +112,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       await Future.wait([
         _loadUserCounts(),
         _loadRecentAuditLogs(),
-        _loadRecentTaps(),
+        _loadUpcomingClasses(),
       ]);
     } catch (e) {
       print('Error loading dashboard data: $e');
@@ -152,11 +153,18 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           .select('id')
           .eq('role', 'Guard');
 
+      // Load total teachers from users table
+      final teachersResponse = await supabase
+          .from('users')
+          .select('id')
+          .eq('role', 'Teacher');
+
       setState(() {
         totalStudents = studentsResponse.length;
         totalParents = parentsResponse.length;
         totalDrivers = driversResponse.length;
         totalGuards = guardsResponse.length;
+        totalTeachers = teachersResponse.length;
       });
     } catch (e) {
       print('Error loading user counts: $e');
@@ -168,12 +176,11 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     try {
       final response = await supabase
           .from('audit_logs')
-          .select('action, table_name, created_at, user_id, details')
+          .select('action_type, action_description, created_at, user_id, user_name, module, target_type')
           .order('created_at', ascending: false)
           .limit(5);
 
       print('✅ Audit logs loaded: ${response.length} entries'); // Debug log
-      print('📋 Audit logs data: $response'); // Debug log
       
       if (response.isNotEmpty) {
         setState(() {
@@ -186,7 +193,6 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       }
     } catch (e) {
       print('❌ Error loading audit logs: $e');
-      print('Stack trace: ${StackTrace.current}');
       _setFallbackAuditLogs();
     }
   }
@@ -195,104 +201,130 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     setState(() {
       recentAuditLogs = [
         {
-          'action': 'UPDATE',
-          'table_name': 'users',
+          'action_type': 'Update',
+          'action_description': 'User profile updated',
+          'module': 'User Management',
+          'target_type': 'users',
+          'user_name': 'Admin User',
           'created_at': DateTime.now().subtract(const Duration(minutes: 2)).toIso8601String(),
-          'user_id': 'admin',
-          'details': 'User Update'
         },
         {
-          'action': 'INSERT',
-          'table_name': 'students',
+          'action_type': 'Create',
+          'action_description': 'New student added',
+          'module': 'Student Management',
+          'target_type': 'students',
+          'user_name': 'Admin User',
           'created_at': DateTime.now().subtract(const Duration(minutes: 15)).toIso8601String(),
-          'user_id': 'admin',
-          'details': 'Insert Students'
         },
         {
-          'action': 'UPDATE',
-          'table_name': 'attendance',
+          'action_type': 'Update',
+          'action_description': 'Attendance marked',
+          'module': 'Attendance',
+          'target_type': 'section_attendance',
+          'user_name': 'Teacher',
           'created_at': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
-          'user_id': 'admin',
-          'details': 'Attendance Updated'
         },
         {
-          'action': 'INSERT',
-          'table_name': 'driver_assignments',
+          'action_type': 'Assign',
+          'action_description': 'Driver assigned to student',
+          'module': 'Driver Assignment',
+          'target_type': 'driver_assignments',
+          'user_name': 'Admin User',
           'created_at': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
-          'user_id': 'admin',
-          'details': 'Driver Assignment'
         },
         {
-          'action': 'UPDATE',
-          'table_name': 'sections',
+          'action_type': 'Update',
+          'action_description': 'Section information updated',
+          'module': 'Section Management',
+          'target_type': 'sections',
+          'user_name': 'Admin User',
           'created_at': DateTime.now().subtract(const Duration(hours: 3)).toIso8601String(),
-          'user_id': 'admin',
-          'details': 'Section Updated'
         },
       ];
     });
   }
 
-  Future<void> _loadRecentTaps() async {
+  Future<void> _loadUpcomingClasses() async {
     try {
-      // Query student RFID check-ins from attendance or rfid_logs table
+      // Get current day of week (1 = Monday, 7 = Sunday)
+      final now = DateTime.now();
+      final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      final todayAbbrev = weekDays[now.weekday - 1];
+      
+      print('🔍 Loading upcoming classes for: $todayAbbrev');
+      print('🕐 Current time: ${now.hour}:${now.minute}');
+
+      // Query section_teachers for today's classes
       final response = await supabase
-          .from('attendance')
-          .select('*, students!inner(full_name, profile_image_url)')
-          .eq('status', 'Present')
-          .order('created_at', ascending: false)
-          .limit(5);
+          .from('section_teachers')
+          .select('''
+            subject,
+            start_time,
+            end_time,
+            days,
+            sections!inner(name, grade_level),
+            users!inner(fname, lname)
+          ''')
+          .contains('days', [todayAbbrev])
+          .order('start_time', ascending: true);
+
+      print('📚 Total classes found for $todayAbbrev: ${(response as List).length}');
+
+      // Filter for upcoming classes only (classes that haven't started yet)
+      final upcomingClasses = (response as List).where((classData) {
+        final startTimeStr = classData['start_time'] as String?;
+        if (startTimeStr == null || startTimeStr.isEmpty) return false;
+
+        final startTimeParts = startTimeStr.split(':');
+        if (startTimeParts.length < 2) return false;
+
+        final startTime = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          int.parse(startTimeParts[0]),
+          int.parse(startTimeParts[1]),
+        );
+
+        final isUpcoming = now.isBefore(startTime);
+        print('⏰ Class: ${classData['subject']} at $startTimeStr - Upcoming: $isUpcoming');
+        
+        return isUpcoming;
+      }).take(5).toList();
+
+      print('✅ Upcoming classes filtered: ${upcomingClasses.length}');
 
       setState(() {
-        recentTaps = List<Map<String, dynamic>>.from(response);
+        todaysClasses = List<Map<String, dynamic>>.from(upcomingClasses);
       });
     } catch (e) {
-      print('Error loading recent taps: $e');
-      // Try alternative table structure
-      try {
-        final altResponse = await supabase
-            .from('rfid_logs')
-            .select('*, students!inner(full_name, profile_image_url)')
-            .eq('action', 'check_in')
-            .order('created_at', ascending: false)
-            .limit(5);
-        
-        setState(() {
-          recentTaps = List<Map<String, dynamic>>.from(altResponse);
-        });
-      } catch (e2) {
-        print('Error loading from rfid_logs: $e2');
-        // Fallback to sample data
-        setState(() {
-          recentTaps = [
-            {
-              'students': {'full_name': 'Emma Johnson', 'profile_image_url': null},
-              'status': 'Present',
-              'created_at': DateTime.now().subtract(const Duration(minutes: 2)).toIso8601String(),
-            },
-            {
-              'students': {'full_name': 'Liam Smith', 'profile_image_url': null},
-              'status': 'Present',
-              'created_at': DateTime.now().subtract(const Duration(minutes: 5)).toIso8601String(),
-            },
-            {
-              'students': {'full_name': 'Olivia Brown', 'profile_image_url': null},
-              'status': 'Present',
-              'created_at': DateTime.now().subtract(const Duration(minutes: 8)).toIso8601String(),
-            },
-            {
-              'students': {'full_name': 'Noah Davis', 'profile_image_url': null},
-              'status': 'Present',
-              'created_at': DateTime.now().subtract(const Duration(minutes: 12)).toIso8601String(),
-            },
-            {
-              'students': {'full_name': 'Ava Wilson', 'profile_image_url': null},
-              'status': 'Present',
-              'created_at': DateTime.now().subtract(const Duration(minutes: 15)).toIso8601String(),
-            },
-          ];
-        });
-      }
+      print('❌ Error loading upcoming classes: $e');
+      // Fallback to sample data
+      setState(() {
+        todaysClasses = [
+          {
+            'subject': 'Mathematics',
+            'start_time': '14:00:00',
+            'end_time': '15:00:00',
+            'sections': {'name': 'Grade 1-A', 'grade_level': 'Grade 1'},
+            'users': {'fname': 'John', 'lname': 'Smith'},
+          },
+          {
+            'subject': 'English',
+            'start_time': '15:00:00',
+            'end_time': '16:00:00',
+            'sections': {'name': 'Grade 2-B', 'grade_level': 'Grade 2'},
+            'users': {'fname': 'Sarah', 'lname': 'Johnson'},
+          },
+          {
+            'subject': 'Science',
+            'start_time': '16:00:00',
+            'end_time': '17:00:00',
+            'sections': {'name': 'Grade 3-A', 'grade_level': 'Grade 3'},
+            'users': {'fname': 'Michael', 'lname': 'Brown'},
+          },
+        ];
+      });
     }
   }
 
@@ -613,6 +645,18 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                     ),
                   ),
                 ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    "TOTAL TEACHERS",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: isMobile ? 11 : 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -706,6 +750,25 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                         fontSize: isMobile ? 20 : 24,
                         fontWeight: FontWeight.bold,
                         color: const Color(0xFF8B5CF6),
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: InkWell(
+                    onTap: () {
+                      // Navigate to user management for teachers
+                      setState(() => selectedIndex = 3); // User Management
+                    },
+                    child: Text(
+                      totalTeachers.toString(),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: isMobile ? 20 : 24,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFFEC4899),
                         decoration: TextDecoration.underline,
                       ),
                     ),
@@ -830,9 +893,9 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                 children: [
                   if (index > 0) const SizedBox(height: 12),
                   _buildActivityItem(
-                    _getActivityTitle(log['action'], log['table_name']),
-                    _getActivityType(log['action']),
-                    _getTimeAgo(log['created_at']),
+                    log['action_description'] ?? 'Activity',
+                    log['action_type'] ?? 'Update',
+                    '', // Remove time ago display
                     colors[index % colors.length],
                   ),
                 ],
@@ -868,7 +931,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            "RECENT TAPS",
+            "UPCOMING CLASSES",
             style: TextStyle(
               fontSize: isMobile ? 12 : 14,
               fontWeight: FontWeight.w600,
@@ -885,12 +948,12 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
             ),
           ),
           const SizedBox(height: 20),
-          if (recentTaps.isEmpty)
+          if (todaysClasses.isEmpty)
             Container(
               padding: const EdgeInsets.all(20),
               child: Center(
                 child: Text(
-                  'No recent taps',
+                  'No upcoming classes',
                   style: TextStyle(
                     color: Colors.grey[500],
                     fontSize: 14,
@@ -899,19 +962,32 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
               ),
             )
           else
-            ...recentTaps.asMap().entries.map((entry) {
+            ...todaysClasses.asMap().entries.map((entry) {
               final index = entry.key;
-              final tap = entry.value;
-              final student = tap['students'] as Map<String, dynamic>?;
+              final classData = entry.value;
+              final section = classData['sections'] as Map<String, dynamic>?;
+              final teacher = classData['users'] as Map<String, dynamic>?;
+              
+              // Format time to 12-hour AM/PM
+              String formatTime(String? timeStr) {
+                if (timeStr == null) return '';
+                final parts = timeStr.split(':');
+                if (parts.length < 2) return timeStr;
+                final hour = int.parse(parts[0]);
+                final minute = parts[1];
+                final period = hour >= 12 ? 'PM' : 'AM';
+                final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+                return '$displayHour:$minute $period';
+              }
               
               return Column(
                 children: [
                   if (index > 0) const SizedBox(height: 12),
-                  _buildTapItem(
-                    student?['full_name'] ?? 'Unknown Student',
-                    tap['status'] ?? 'Check In',
-                    _getTimeAgo(tap['created_at']),
-                    student?['profile_image_url'],
+                  _buildClassItem(
+                    classData['subject'] ?? 'Unknown Subject',
+                    section?['name'] ?? 'Unknown Section',
+                    '${teacher?['fname'] ?? ''} ${teacher?['lname'] ?? ''}'.trim(),
+                    '${formatTime(classData['start_time'])} - ${formatTime(classData['end_time'])}',
                   ),
                 ],
               );
@@ -1340,6 +1416,77 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           ),
         ),
       ],
+    );
+  }
+
+  // Class item widget for Today's Classes
+  Widget _buildClassItem(String subject, String section, String teacher, String time) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Icon(
+              Icons.class_outlined,
+              size: 20,
+              color: Colors.blue,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  subject,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  section,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[700],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (teacher.isNotEmpty)
+                  Text(
+                    teacher,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Text(
+            time,
+            style: const TextStyle(
+              fontSize: 11,
+              color: Colors.blue,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
