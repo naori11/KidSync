@@ -24,10 +24,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _handleLogin() async {
     if (_formKey.currentState!.validate()) {
-      await ref.read(authControllerProvider.notifier).login(
-            _emailController.text.trim(),
-            _passwordController.text.trim(),
-          );
+      await ref
+          .read(authControllerProvider.notifier)
+          .login(_emailController.text.trim(), _passwordController.text.trim());
       // Navigation is handled by main.dart's auth state listener
     }
   }
@@ -199,10 +198,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       vertical: 16,
                     ),
                   ),
-                  validator: (value) =>
-                      value == null || !value.contains('@')
-                          ? 'Enter a valid email'
-                          : null,
+                  validator:
+                      (value) =>
+                          value == null || !value.contains('@')
+                              ? 'Enter a valid email'
+                              : null,
                 ),
                 const SizedBox(height: 20),
                 const Text(
@@ -238,10 +238,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       vertical: 16,
                     ),
                   ),
-                  validator: (value) =>
-                      value == null || value.isEmpty
-                          ? 'Enter your password'
-                          : null,
+                  validator:
+                      (value) =>
+                          value == null || value.isEmpty
+                              ? 'Enter your password'
+                              : null,
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
@@ -256,20 +257,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       elevation: 0,
                     ),
                     onPressed: isLoading ? null : _handleLogin,
-                    child: isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                    child:
+                        isLoading
+                            ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                            : const Text(
+                              "Sign In",
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                              ),
                             ),
-                          )
-                        : const Text(
-                            "Sign In",
-                            style: TextStyle(fontSize: 16, color: Colors.white),
-                          ),
                   ),
                 ),
                 const SizedBox(height: 16),

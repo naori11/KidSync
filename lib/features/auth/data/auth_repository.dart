@@ -24,11 +24,7 @@ class AuthRepository {
     required OtpType type,
     String? email,
   }) async {
-    return await _client.auth.verifyOTP(
-      token: token,
-      type: type,
-      email: email,
-    );
+    return await _client.auth.verifyOTP(token: token, type: type, email: email);
   }
 
   Future<UserResponse> updateUser(UserAttributes attributes) async {

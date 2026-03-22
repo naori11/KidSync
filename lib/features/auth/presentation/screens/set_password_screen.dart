@@ -273,11 +273,13 @@ class _SetPasswordScreenState extends ConsumerState<SetPasswordScreen> {
       if (_resetCode != null) {
         print("SetPasswordScreen: Processing password reset with code");
         try {
-          final response = await ref.read(authRepositoryProvider).verifyOTP(
-            token: _resetCode!,
-            type: OtpType.recovery,
-            email: _resetEmail,
-          );
+          final response = await ref
+              .read(authRepositoryProvider)
+              .verifyOTP(
+                token: _resetCode!,
+                type: OtpType.recovery,
+                email: _resetEmail,
+              );
 
           print("Verify OTP response: $response");
           if (response.session != null && response.user != null) {
@@ -297,9 +299,9 @@ class _SetPasswordScreenState extends ConsumerState<SetPasswordScreen> {
               "SetPasswordScreen: Successfully verified OTP for $_userEmail",
             );
             if (_userEmail != null) {
-              await ref.read(authRepositoryProvider).updateUser(
-                UserAttributes(password: newPassword),
-              );
+              await ref
+                  .read(authRepositoryProvider)
+                  .updateUser(UserAttributes(password: newPassword));
               if (kIsWeb) {
                 html.window.sessionStorage.remove('kidsync_reset_code');
                 html.window.sessionStorage.remove('kidsync_reset_email');
@@ -338,9 +340,9 @@ class _SetPasswordScreenState extends ConsumerState<SetPasswordScreen> {
       if (_userEmail != null && _accessToken != null && _refreshToken != null) {
         print("SetPasswordScreen: Setting password via token for $_userEmail");
         try {
-          final response = await ref.read(authRepositoryProvider).setSession(
-            _refreshToken!,
-          );
+          final response = await ref
+              .read(authRepositoryProvider)
+              .setSession(_refreshToken!);
           if (response.session != null) {
             final tokenUser = response.user;
             if (tokenUser?.email != _userEmail) {
@@ -352,9 +354,9 @@ class _SetPasswordScreenState extends ConsumerState<SetPasswordScreen> {
               _showError("Token email doesn't match expected user.");
               return;
             }
-            await ref.read(authRepositoryProvider).updateUser(
-              UserAttributes(password: newPassword),
-            );
+            await ref
+                .read(authRepositoryProvider)
+                .updateUser(UserAttributes(password: newPassword));
             _passwordSetSuccess("Your account has been set up successfully!");
             return;
           } else {
@@ -378,9 +380,9 @@ class _SetPasswordScreenState extends ConsumerState<SetPasswordScreen> {
           print(
             "SetPasswordScreen: User is authenticated, directly updating password for $_userEmail",
           );
-          await ref.read(authRepositoryProvider).updateUser(
-            UserAttributes(password: newPassword),
-          );
+          await ref
+              .read(authRepositoryProvider)
+              .updateUser(UserAttributes(password: newPassword));
           _passwordSetSuccess("Your password has been updated successfully!");
           return;
         } catch (e) {
