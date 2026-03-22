@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -59,6 +60,9 @@ class _AuthRedirectScreenState extends State<AuthRedirectScreen> {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 1. Load environment variables
+  await dotenv.load(fileName: ".env");
+
   // Initialize Firebase
   try {
     await Firebase.initializeApp(
@@ -84,9 +88,8 @@ Future<void> main() async {
   setHashUrlStrategy();
 
   await Supabase.initialize(
-    url: 'https://zouitgpqqudhqdcbuhbz.supabase.co',
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvdWl0Z3BxcXVkaHFkY2J1aGJ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc2NDk5OTUsImV4cCI6MjA2MzIyNTk5NX0.FuWUR1QHFiWzPwZa0HvW0yLhJfHHw0EhBLibA0t0Dsw',
+    url: dotenv.env['SUPABASE_URL']!,
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
   // Initialize Push Notifications AFTER Supabase (mobile platforms only)

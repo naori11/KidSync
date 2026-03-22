@@ -3,6 +3,7 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
@@ -40,50 +41,60 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAxJb98gsX1FYUXSdQDSxcZhn9H5kyLlcI',
-    appId: '1:441772492413:web:7b161e1eba8aaca5bd5314',
-    messagingSenderId: '441772492413',
-    projectId: 'kidsync-5fbc3',
-    authDomain: 'kidsync-5fbc3.firebaseapp.com',
-    storageBucket: 'kidsync-5fbc3.firebasestorage.app',
-    measurementId: 'G-WBK44XB5L8',
-  );
+  static FirebaseOptions get web {
+    return FirebaseOptions(
+      apiKey: dotenv.env['FIREBASE_WEB_API_KEY'] ?? '',
+      appId: '1:441772492413:web:7b161e1eba8aaca5bd5314',
+      messagingSenderId: '441772492413',
+      projectId: 'kidsync-5fbc3',
+      authDomain: 'kidsync-5fbc3.firebaseapp.com',
+      storageBucket: 'kidsync-5fbc3.firebasestorage.app',
+      measurementId: 'G-WBK44XB5L8',
+    );
+  }
 
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCALHwTAilGR5VFyEJg5OOxI3lgXrzGuKg',
-    appId: '1:441772492413:android:fb4f99e087fb6360bd5314',
-    messagingSenderId: '441772492413',
-    projectId: 'kidsync-5fbc3',
-    storageBucket: 'kidsync-5fbc3.firebasestorage.app',
-  );
+  static FirebaseOptions get android {
+    return FirebaseOptions(
+      apiKey: dotenv.env['FIREBASE_ANDROID_API_KEY'] ?? '',
+      appId: '1:441772492413:android:fb4f99e087fb6360bd5314',
+      messagingSenderId: '441772492413',
+      projectId: 'kidsync-5fbc3',
+      storageBucket: 'kidsync-5fbc3.firebasestorage.app',
+    );
+  }
 
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDHC-gUlGfjsRFCkUV_OkYwqPt6kMTDPHM',
-    appId: '1:441772492413:ios:1b31a740b97bc2f4bd5314',
-    messagingSenderId: '441772492413',
-    projectId: 'kidsync-5fbc3',
-    storageBucket: 'kidsync-5fbc3.firebasestorage.app',
-    iosBundleId: 'com.example.kidsync',
-  );
+  static FirebaseOptions get ios {
+    return FirebaseOptions(
+      apiKey: dotenv.env['FIREBASE_IOS_API_KEY'] ?? '',
+      appId: '1:441772492413:ios:1b31a740b97bc2f4bd5314',
+      messagingSenderId: '441772492413',
+      projectId: 'kidsync-5fbc3',
+      storageBucket: 'kidsync-5fbc3.firebasestorage.app',
+      iosBundleId: 'com.example.kidsync',
+    );
+  }
 
-  static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyDHC-gUlGfjsRFCkUV_OkYwqPt6kMTDPHM',
-    appId: '1:441772492413:ios:1b31a740b97bc2f4bd5314',
-    messagingSenderId: '441772492413',
-    projectId: 'kidsync-5fbc3',
-    storageBucket: 'kidsync-5fbc3.firebasestorage.app',
-    iosBundleId: 'com.example.kidsync',
-  );
+  static FirebaseOptions get macos {
+    return FirebaseOptions(
+      apiKey: dotenv.env['FIREBASE_IOS_API_KEY'] ?? '',
+      appId: '1:441772492413:ios:1b31a740b97bc2f4bd5314',
+      messagingSenderId: '441772492413',
+      projectId: 'kidsync-5fbc3',
+      storageBucket: 'kidsync-5fbc3.firebasestorage.app',
+      iosBundleId: 'com.example.kidsync',
+    );
+  }
 
-  static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyAxJb98gsX1FYUXSdQDSxcZhn9H5kyLlcI',
-    appId: '1:441772492413:web:499baebfff454e76bd5314',
-    messagingSenderId: '441772492413',
-    projectId: 'kidsync-5fbc3',
-    authDomain: 'kidsync-5fbc3.firebaseapp.com',
-    storageBucket: 'kidsync-5fbc3.firebasestorage.app',
-    measurementId: 'G-110JXHEM4G',
-  );
+  static FirebaseOptions get windows {
+    return FirebaseOptions(
+      apiKey: dotenv.env['FIREBASE_WEB_API_KEY'] ?? '',
+      appId: '1:441772492413:web:499baebfff454e76bd5314',
+      messagingSenderId: '441772492413',
+      projectId: 'kidsync-5fbc3',
+      authDomain: 'kidsync-5fbc3.firebaseapp.com',
+      storageBucket: 'kidsync-5fbc3.firebasestorage.app',
+      measurementId: 'G-110JXHEM4G',
+    );
+  }
 
 }
