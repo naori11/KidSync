@@ -244,7 +244,13 @@ class _TeacherStudentAttendanceCalendarPageState
                   final hour = int.tryParse(parts[0]);
                   final minute = int.tryParse(parts[1]);
                   if (hour != null && minute != null) {
-                    final classEnd = DateTime(now.year, now.month, now.day, hour, minute);
+                    final classEnd = DateTime(
+                      now.year,
+                      now.month,
+                      now.day,
+                      hour,
+                      minute,
+                    );
                     if (now.isAfter(classEnd)) {
                       dayStatus = "Absent";
                     }
@@ -587,12 +593,18 @@ class _TeacherStudentAttendanceCalendarPageState
             final minute = int.tryParse(parts[1]);
             if (hour != null && minute != null) {
               final now = DateTime.now();
-              final classEnd = DateTime(now.year, now.month, now.day, hour, minute);
+              final classEnd = DateTime(
+                now.year,
+                now.month,
+                now.day,
+                hour,
+                minute,
+              );
               shouldMarkAbsent = now.isAfter(classEnd);
             }
           }
         }
-        
+
         if (shouldMarkAbsent) {
           dayStatus = "Absent";
           statusColor = const Color(0xFFEB5757);
@@ -756,11 +768,12 @@ class _TeacherStudentAttendanceCalendarPageState
         status.length > 6 ? status.substring(0, 6) : status,
         style: TextStyle(
           fontSize: 9,
-          color: status == "Absent"
-              ? const Color(0xFFEB5757)
-              : status == "Emergency Exit"
+          color:
+              status == "Absent"
+                  ? const Color(0xFFEB5757)
+                  : status == "Emergency Exit"
                   ? const Color(0xFF6A1B9A)
-              : status == "Pending"
+                  : status == "Pending"
                   ? const Color(0xFFFFA726)
                   : const Color(0xFF8F9BB3),
           fontWeight: FontWeight.w600,
@@ -797,9 +810,10 @@ class _TeacherStudentAttendanceCalendarPageState
         status,
         style: TextStyle(
           fontSize: 10,
-          color: status == "Absent"
-              ? const Color(0xFFEB5757)
-              : status == "Emergency Exit"
+          color:
+              status == "Absent"
+                  ? const Color(0xFFEB5757)
+                  : status == "Emergency Exit"
                   ? const Color(0xFF6A1B9A)
                   : const Color(0xFF8F9BB3),
           fontWeight: FontWeight.w600,
@@ -1159,7 +1173,7 @@ class _TeacherStudentAttendanceCalendarPageState
       future: _getTeacherInfo(),
       builder: (context, snapshot) {
         final teacherInfo = snapshot.data ?? {};
-        
+
         return SmartAttendanceButton(
           studentId: widget.studentId,
           sectionId: widget.sectionId,
@@ -1183,26 +1197,22 @@ class _TeacherStudentAttendanceCalendarPageState
   Future<Map<String, String?>> _getTeacherInfo() async {
     try {
       final user = supabase.auth.currentUser;
-      final teacherData = await supabase
-          .from('users')
-          .select('fname, lname')
-          .eq('id', user?.id ?? '')
-          .maybeSingle();
+      final teacherData =
+          await supabase
+              .from('users')
+              .select('fname, lname')
+              .eq('id', user?.id ?? '')
+              .maybeSingle();
 
-      final teacherName = teacherData != null 
-          ? '${teacherData['fname'] ?? ''} ${teacherData['lname'] ?? ''}'.trim()
-          : 'Teacher';
+      final teacherName =
+          teacherData != null
+              ? '${teacherData['fname'] ?? ''} ${teacherData['lname'] ?? ''}'
+                  .trim()
+              : 'Teacher';
 
-      return {
-        'name': teacherName,
-        'id': user?.id,
-      };
+      return {'name': teacherName, 'id': user?.id};
     } catch (e) {
-      return {
-        'name': 'Teacher',
-        'id': null,
-      };
+      return {'name': 'Teacher', 'id': null};
     }
   }
-
 }

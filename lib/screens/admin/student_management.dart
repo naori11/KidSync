@@ -52,7 +52,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   bool get isDesktop => MediaQuery.of(context).size.width >= 1200;
   bool get isSmallMobile => MediaQuery.of(context).size.width < 480;
 
-
   // For image uploads
   String? _selectedImagePath;
   String? _currentImageUrl;
@@ -175,7 +174,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       print('Error ensuring primary parent for student $studentId: $e');
     }
   }
-
 
   Future<String?> _showRFIDScanDialog(
     BuildContext context, {
@@ -852,22 +850,23 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                 ),
                                 value: selectedSectionId,
                                 items: () {
-                                  final filteredSections = sections
-                                      .where(
-                                        (s) =>
-                                            selectedGradeLevel == null ||
-                                            s['grade_level'] ==
-                                                selectedGradeLevel,
-                                      )
-                                      .toList();
-                                  
+                                  final filteredSections =
+                                      sections
+                                          .where(
+                                            (s) =>
+                                                selectedGradeLevel == null ||
+                                                s['grade_level'] ==
+                                                    selectedGradeLevel,
+                                          )
+                                          .toList();
+
                                   if (filteredSections.isEmpty) {
                                     return [
                                       DropdownMenuItem<int>(
                                         value: null,
                                         enabled: false,
                                         child: Text(
-                                          selectedGradeLevel == null 
+                                          selectedGradeLevel == null
                                               ? 'Please select grade level first'
                                               : 'No sections available for this grade',
                                           style: TextStyle(
@@ -878,7 +877,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                       ),
                                     ];
                                   }
-                                  
+
                                   return filteredSections.map((section) {
                                     return DropdownMenuItem<int>(
                                       value: section['id'],
@@ -1605,48 +1604,71 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
                             // Log student creation with actual ID
                             try {
-                              final studentName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                              final studentName =
+                                  '${fnameController.text.trim()} ${lnameController.text.trim()}';
                               await auditLogService.logStudentCreation(
                                 studentId: response['id'].toString(),
                                 studentName: studentName,
                                 studentData: {
                                   'fname': fnameController.text.trim(),
                                   'lname': lnameController.text.trim(),
-                                  'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                  'mname':
+                                      mnameController.text.trim().isEmpty
+                                          ? null
+                                          : mnameController.text.trim(),
                                   'address': addressController.text.trim(),
                                   'gender': selectedGender,
                                   'grade_level': selectedGradeLevel,
                                   'section_id': selectedSectionId,
-                                  'birthday': birthdayController.text.trim().isEmpty ? null : birthdayController.text.trim(),
+                                  'birthday':
+                                      birthdayController.text.trim().isEmpty
+                                          ? null
+                                          : birthdayController.text.trim(),
                                   'profile_image_url': imageUrl,
                                 },
                               );
                             } catch (e) {
-                              print('Error logging student creation audit event: $e');
+                              print(
+                                'Error logging student creation audit event: $e',
+                              );
                             }
                           } else {
                             // No image, just insert normally
-                            final response = await supabase.from('students').insert(payload).select('id').single();
+                            final response =
+                                await supabase
+                                    .from('students')
+                                    .insert(payload)
+                                    .select('id')
+                                    .single();
 
                             // Log student creation with actual ID
                             try {
-                              final studentName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                              final studentName =
+                                  '${fnameController.text.trim()} ${lnameController.text.trim()}';
                               await auditLogService.logStudentCreation(
                                 studentId: response['id'].toString(),
                                 studentName: studentName,
                                 studentData: {
                                   'fname': fnameController.text.trim(),
                                   'lname': lnameController.text.trim(),
-                                  'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                  'mname':
+                                      mnameController.text.trim().isEmpty
+                                          ? null
+                                          : mnameController.text.trim(),
                                   'address': addressController.text.trim(),
                                   'gender': selectedGender,
                                   'grade_level': selectedGradeLevel,
                                   'section_id': selectedSectionId,
-                                  'birthday': birthdayController.text.trim().isEmpty ? null : birthdayController.text.trim(),
+                                  'birthday':
+                                      birthdayController.text.trim().isEmpty
+                                          ? null
+                                          : birthdayController.text.trim(),
                                 },
                               );
                             } catch (e) {
-                              print('Error logging student creation audit event: $e');
+                              print(
+                                'Error logging student creation audit event: $e',
+                              );
                             }
                           }
                         } else {
@@ -1658,7 +1680,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
                           // Log student update
                           try {
-                            final studentName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                            final studentName =
+                                '${fnameController.text.trim()} ${lnameController.text.trim()}';
                             await auditLogService.logStudentUpdate(
                               studentId: student['id'].toString(),
                               studentName: studentName,
@@ -1671,22 +1694,31 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                 'grade_level': student['grade_level'],
                                 'section_id': student['section_id'],
                                 'birthday': student['birthday'],
-                                'profile_image_url': student['profile_image_url'],
+                                'profile_image_url':
+                                    student['profile_image_url'],
                               },
                               newValues: {
                                 'fname': fnameController.text.trim(),
                                 'lname': lnameController.text.trim(),
-                                'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                'mname':
+                                    mnameController.text.trim().isEmpty
+                                        ? null
+                                        : mnameController.text.trim(),
                                 'address': addressController.text.trim(),
                                 'gender': selectedGender,
                                 'grade_level': selectedGradeLevel,
                                 'section_id': selectedSectionId,
-                                'birthday': birthdayController.text.trim().isEmpty ? null : birthdayController.text.trim(),
+                                'birthday':
+                                    birthdayController.text.trim().isEmpty
+                                        ? null
+                                        : birthdayController.text.trim(),
                                 'profile_image_url': imageUrl,
                               },
                             );
                           } catch (e) {
-                            print('Error logging student update audit event: $e');
+                            print(
+                              'Error logging student update audit event: $e',
+                            );
                           }
                         }
 
@@ -2192,14 +2224,14 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       ];
     }
     return items.map((item) {
-      return DropdownMenuItem<String>(
-        value: item,
-        child: Text(item),
-      );
+      return DropdownMenuItem<String>(value: item, child: Text(item));
     }).toList();
   }
 
-  Future<void> _deleteStudent(int id, {Map<String, dynamic>? studentData}) async {
+  Future<void> _deleteStudent(
+    int id, {
+    Map<String, dynamic>? studentData,
+  }) async {
     try {
       await supabase.from('students').delete().eq('id', id);
       _fetchStudents();
@@ -2207,7 +2239,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       // Log audit event for student deletion
       try {
         if (studentData != null) {
-          final studentName = '${studentData['fname'] ?? ''} ${studentData['lname'] ?? ''}'.trim();
+          final studentName =
+              '${studentData['fname'] ?? ''} ${studentData['lname'] ?? ''}'
+                  .trim();
           await auditLogService.logStudentDeletion(
             studentId: id.toString(),
             studentName: studentName,
@@ -3018,9 +3052,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
           final String fname = s['fname'] ?? '';
           final String lname = s['lname'] ?? '';
           final String suffix = s['suffix'] ?? '';
-          final name = suffix.isNotEmpty 
-              ? "$fname $lname $suffix" 
-              : "$fname $lname";
+          final name =
+              suffix.isNotEmpty ? "$fname $lname $suffix" : "$fname $lname";
           final classMatch =
               _classFilter == 'All Classes' ||
               s['grade_level']?.toString() == _classFilter;
@@ -3035,45 +3068,37 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
     // Apply sorting
     if (_sortOption == 'Name (A-Z)') {
-      filteredStudents.sort(
-        (a, b) {
-          final String aFname = a['fname'] ?? '';
-          final String aLname = a['lname'] ?? '';
-          final String aSuffix = a['suffix'] ?? '';
-          final String aFullName = aSuffix.isNotEmpty 
-              ? "$aFname $aLname $aSuffix" 
-              : "$aFname $aLname";
-          
-          final String bFname = b['fname'] ?? '';
-          final String bLname = b['lname'] ?? '';
-          final String bSuffix = b['suffix'] ?? '';
-          final String bFullName = bSuffix.isNotEmpty 
-              ? "$bFname $bLname $bSuffix" 
-              : "$bFname $bLname";
-              
-          return aFullName.compareTo(bFullName);
-        },
-      );
+      filteredStudents.sort((a, b) {
+        final String aFname = a['fname'] ?? '';
+        final String aLname = a['lname'] ?? '';
+        final String aSuffix = a['suffix'] ?? '';
+        final String aFullName =
+            aSuffix.isNotEmpty ? "$aFname $aLname $aSuffix" : "$aFname $aLname";
+
+        final String bFname = b['fname'] ?? '';
+        final String bLname = b['lname'] ?? '';
+        final String bSuffix = b['suffix'] ?? '';
+        final String bFullName =
+            bSuffix.isNotEmpty ? "$bFname $bLname $bSuffix" : "$bFname $bLname";
+
+        return aFullName.compareTo(bFullName);
+      });
     } else if (_sortOption == 'Name (Z-A)') {
-      filteredStudents.sort(
-        (a, b) {
-          final String aFname = a['fname'] ?? '';
-          final String aLname = a['lname'] ?? '';
-          final String aSuffix = a['suffix'] ?? '';
-          final String aFullName = aSuffix.isNotEmpty 
-              ? "$aFname $aLname $aSuffix" 
-              : "$aFname $aLname";
-          
-          final String bFname = b['fname'] ?? '';
-          final String bLname = b['lname'] ?? '';
-          final String bSuffix = b['suffix'] ?? '';
-          final String bFullName = bSuffix.isNotEmpty 
-              ? "$bFname $bLname $bSuffix" 
-              : "$bFname $bLname";
-              
-          return bFullName.compareTo(aFullName);
-        },
-      );
+      filteredStudents.sort((a, b) {
+        final String aFname = a['fname'] ?? '';
+        final String aLname = a['lname'] ?? '';
+        final String aSuffix = a['suffix'] ?? '';
+        final String aFullName =
+            aSuffix.isNotEmpty ? "$aFname $aLname $aSuffix" : "$aFname $aLname";
+
+        final String bFname = b['fname'] ?? '';
+        final String bLname = b['lname'] ?? '';
+        final String bSuffix = b['suffix'] ?? '';
+        final String bFullName =
+            bSuffix.isNotEmpty ? "$bFname $bLname $bSuffix" : "$bFname $bLname";
+
+        return bFullName.compareTo(aFullName);
+      });
     } else if (_sortOption.contains('Date')) {
       filteredStudents.sort(
         (a, b) => (a['created_at'] ?? '').compareTo(b['created_at'] ?? ''),
@@ -3082,7 +3107,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         filteredStudents = filteredStudents.reversed.toList();
       }
     }
-
 
     // Get unique class/grade levels for filter dropdown
     final List<String> classOptions = ['All Classes'];
@@ -3501,7 +3525,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   child: DropdownButtonHideUnderline(
                                     child: DropdownButton<String>(
                                       value: _sortOption,
-                                      icon: const Icon(Icons.keyboard_arrow_down),
+                                      icon: const Icon(
+                                        Icons.keyboard_arrow_down,
+                                      ),
                                       items:
                                           <String>[
                                             'Name (A-Z)',
@@ -3705,14 +3731,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(
-                                0xFF2ECC71,
-                              ).withOpacity(0.1),
+                              color: const Color(0xFF2ECC71).withOpacity(0.1),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: const Color(
-                                  0xFF2ECC71,
-                                ).withOpacity(0.3),
+                                color: const Color(0xFF2ECC71).withOpacity(0.3),
                               ),
                             ),
                             child: Row(
@@ -3836,7 +3858,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                               ? _buildMobileTable(filteredStudents)
                               : _buildDesktopTable(filteredStudents),
                     ),
-
                   ],
                 ),
               ),
@@ -3917,9 +3938,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                 final String fname = student['fname'] ?? '';
                 final String lname = student['lname'] ?? '';
                 final String suffix = student['suffix'] ?? '';
-                final fullName = suffix.isNotEmpty 
-                    ? "$fname $lname $suffix" 
-                    : "$fname $lname";
+                final fullName =
+                    suffix.isNotEmpty
+                        ? "$fname $lname $suffix"
+                        : "$fname $lname";
                 final String studentId =
                     "STU${student['id'].toString().padLeft(3, '0')}";
                 final section = student['sections'];
@@ -4247,7 +4269,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                                   student['fname'],
                                 );
                                 if (confirm) {
-                                  await _deleteStudent(student['id'], studentData: student);
+                                  await _deleteStudent(
+                                    student['id'],
+                                    studentData: student,
+                                  );
                                 }
                               },
                             ),
@@ -4334,9 +4359,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
             final String fname = student['fname'] ?? '';
             final String lname = student['lname'] ?? '';
             final String suffix = student['suffix'] ?? '';
-            final fullName = suffix.isNotEmpty 
-                ? "$fname $lname $suffix" 
-                : "$fname $lname";
+            final fullName =
+                suffix.isNotEmpty ? "$fname $lname $suffix" : "$fname $lname";
             final String studentId =
                 "STU${student['id'].toString().padLeft(3, '0')}";
             final section = student['sections'];
@@ -4709,7 +4733,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                             student['fname'],
                           );
                           if (confirm) {
-                            await _deleteStudent(student['id'], studentData: student);
+                            await _deleteStudent(
+                              student['id'],
+                              studentData: student,
+                            );
                           }
                         }
                       },

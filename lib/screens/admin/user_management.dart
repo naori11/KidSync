@@ -77,9 +77,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     return items.map((item) {
       return DropdownMenuItem<T>(
-        value: getDropdownValueFunction != null
-            ? getDropdownValueFunction(item)
-            : getValueFunction(item) as T,
+        value:
+            getDropdownValueFunction != null
+                ? getDropdownValueFunction(item)
+                : getValueFunction(item) as T,
         child: Text(getDisplayTextFunction(item)),
       );
     }).toList();
@@ -107,10 +108,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     }
 
     return items.map((item) {
-      return DropdownMenuItem<String>(
-        value: item,
-        child: Text(item),
-      );
+      return DropdownMenuItem<String>(value: item, child: Text(item));
     }).toList();
   }
 
@@ -119,7 +117,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
     super.initState();
     _fetchUsers();
   }
-
 
   // Export users functionality
   Future<void> _exportUsers() async {
@@ -139,28 +136,32 @@ class _UserManagementPageState extends State<UserManagementPage> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          content: Row(
-            children: [
-              CircularProgressIndicator(color: Color(0xFF2ECC71)),
-              SizedBox(width: 16),
-              Text('Exporting users...'),
-            ],
-          ),
-        ),
+        builder:
+            (context) => const AlertDialog(
+              content: Row(
+                children: [
+                  CircularProgressIndicator(color: Color(0xFF2ECC71)),
+                  SizedBox(width: 16),
+                  Text('Exporting users...'),
+                ],
+              ),
+            ),
       );
 
       // Apply current filters to determine which users to export
       final query = _searchQuery.trim().toLowerCase();
-      List<Map<String, dynamic>> usersToExport = users.where((u) {
-        final roleMatch = _roleFilter == 'All Roles' || u['role'] == _roleFilter;
-        if (!roleMatch) return false;
+      List<Map<String, dynamic>> usersToExport =
+          users.where((u) {
+            final roleMatch =
+                _roleFilter == 'All Roles' || u['role'] == _roleFilter;
+            if (!roleMatch) return false;
 
-        if (query.isEmpty) return true;
-        final name = "${u['fname'] ?? ''} ${u['lname'] ?? ''}".toLowerCase();
-        final email = (u['email'] ?? '').toString().toLowerCase();
-        return name.contains(query) || email.contains(query);
-      }).toList();
+            if (query.isEmpty) return true;
+            final name =
+                "${u['fname'] ?? ''} ${u['lname'] ?? ''}".toLowerCase();
+            final email = (u['email'] ?? '').toString().toLowerCase();
+            return name.contains(query) || email.contains(query);
+          }).toList();
 
       // Sort users based on current sort option
       if (_sortOption == 'Name (A-Z)') {
@@ -213,11 +214,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
       final fileName = 'Users_Export_${timestamp}.xlsx';
 
       // Download file
-      final blob = html.Blob([fileBytes], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      final blob = html.Blob([
+        fileBytes,
+      ], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', fileName)
-        ..style.display = 'none';
+      final anchor =
+          html.AnchorElement(href: url)
+            ..setAttribute('download', fileName)
+            ..style.display = 'none';
 
       html.document.body?.children.add(anchor);
       anchor.click();
@@ -233,7 +237,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
           exportType: 'Users',
           fileName: fileName,
           recordCount: usersToExport.length,
-          filters: _roleFilter != 'All Roles' || _searchQuery.isNotEmpty ? '$_roleFilter, $_searchQuery' : 'No filters',
+          filters:
+              _roleFilter != 'All Roles' || _searchQuery.isNotEmpty
+                  ? '$_roleFilter, $_searchQuery'
+                  : 'No filters',
         );
       } catch (auditError) {
         print('Failed to log audit event: $auditError');
@@ -252,7 +259,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     } catch (e) {
       // Close loading dialog if still open
       if (mounted) Navigator.of(context).pop();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -273,25 +280,33 @@ class _UserManagementPageState extends State<UserManagementPage> {
     int rowIndex = 0;
 
     // Add title
-    var titleCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var titleCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     titleCell.value = excel_lib.TextCellValue('USERS DATA EXPORT');
     titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
     rowIndex += 2;
 
     // Add export info
-    var dateCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var dateCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     dateCell.value = excel_lib.TextCellValue('Export Date:');
     dateCell.cellStyle = excel_lib.CellStyle(bold: true);
-    
-    var dateValueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
-    dateValueCell.value = excel_lib.TextCellValue(DateTime.now().toLocal().toString().split('.')[0]);
+
+    var dateValueCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex),
+    );
+    dateValueCell.value = excel_lib.TextCellValue(
+      DateTime.now().toLocal().toString().split('.')[0],
+    );
     rowIndex += 2;
 
     // Column headers
     final headers = [
       'User ID',
       'First Name',
-      'Middle Name', 
+      'Middle Name',
       'Last Name',
       'Suffix',
       'Full Name',
@@ -326,12 +341,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
     // Sort each role group by account creation date (ascending)
     for (final role in usersByRole.keys) {
       usersByRole[role]!.sort((a, b) {
-        final aDate = a['created_at'] != null 
-            ? DateTime.parse(a['created_at'].toString()) 
-            : DateTime.fromMillisecondsSinceEpoch(0);
-        final bDate = b['created_at'] != null 
-            ? DateTime.parse(b['created_at'].toString()) 
-            : DateTime.fromMillisecondsSinceEpoch(0);
+        final aDate =
+            a['created_at'] != null
+                ? DateTime.parse(a['created_at'].toString())
+                : DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate =
+            b['created_at'] != null
+                ? DateTime.parse(b['created_at'].toString())
+                : DateTime.fromMillisecondsSinceEpoch(0);
         return aDate.compareTo(bDate);
       });
     }
@@ -341,24 +358,35 @@ class _UserManagementPageState extends State<UserManagementPage> {
       if (usersByRole[role]!.isEmpty) continue;
 
       // Role header - just one cell, no merging
-      var roleHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
-      roleHeaderCell.value = excel_lib.TextCellValue(role);
-      roleHeaderCell.cellStyle = excel_lib.CellStyle(
-        bold: true,
-        fontSize: 16,
+      var roleHeaderCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
       );
+      roleHeaderCell.value = excel_lib.TextCellValue(role);
+      roleHeaderCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 16);
       rowIndex++;
 
       // Column headers for this role
       for (int col = 0; col < headers.length; col++) {
-        var headerCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+        var headerCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: col,
+            rowIndex: rowIndex,
+          ),
+        );
         headerCell.value = excel_lib.TextCellValue(headers[col]);
         headerCell.cellStyle = excel_lib.CellStyle(
           bold: true,
           leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
           topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
       }
       rowIndex++;
@@ -368,13 +396,20 @@ class _UserManagementPageState extends State<UserManagementPage> {
         final user = usersByRole[role]![i];
         final userRole = user['role'] ?? '';
         final userPrefix = _getUserIdPrefix(userRole);
-        final userIndex = users.indexWhere((item) => item['id'] == user['id']) + 1;
+        final userIndex =
+            users.indexWhere((item) => item['id'] == user['id']) + 1;
         final userId = "$userPrefix${userIndex.toString().padLeft(3, '0')}";
-        
-        final fullName = "${user['fname'] ?? ''} ${user['mname'] ?? ''} ${user['lname'] ?? ''} ${user['suffix'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
-        final formattedCreatedAt = user['created_at'] != null
-            ? DateTime.parse(user['created_at'].toString()).toLocal().toString().split('.')[0]
-            : '';
+
+        final fullName =
+            "${user['fname'] ?? ''} ${user['mname'] ?? ''} ${user['lname'] ?? ''} ${user['suffix'] ?? ''}"
+                .trim()
+                .replaceAll(RegExp(r'\s+'), ' ');
+        final formattedCreatedAt =
+            user['created_at'] != null
+                ? DateTime.parse(
+                  user['created_at'].toString(),
+                ).toLocal().toString().split('.')[0]
+                : '';
 
         // Get actual status (default to 'Active' since schema doesn't have status field for users)
         final status = user['status']?.toString() ?? 'Active';
@@ -395,26 +430,47 @@ class _UserManagementPageState extends State<UserManagementPage> {
         ];
 
         for (int col = 0; col < rowData.length; col++) {
-          var dataCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+          var dataCell = sheet.cell(
+            excel_lib.CellIndex.indexByColumnRow(
+              columnIndex: col,
+              rowIndex: rowIndex,
+            ),
+          );
           dataCell.value = excel_lib.TextCellValue(rowData[col]);
           dataCell.cellStyle = excel_lib.CellStyle(
-            leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-            rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-            bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+            leftBorder: excel_lib.Border(
+              borderStyle: excel_lib.BorderStyle.Thin,
+            ),
+            rightBorder: excel_lib.Border(
+              borderStyle: excel_lib.BorderStyle.Thin,
+            ),
+            bottomBorder: excel_lib.Border(
+              borderStyle: excel_lib.BorderStyle.Thin,
+            ),
           );
         }
         rowIndex++;
       }
 
       // Add total row for this role
-      var totalLabelCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
-      totalLabelCell.value = excel_lib.TextCellValue('TOTAL:');
-      totalLabelCell.cellStyle = excel_lib.CellStyle(
-        bold: true,
+      var totalLabelCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
       );
+      totalLabelCell.value = excel_lib.TextCellValue('TOTAL:');
+      totalLabelCell.cellStyle = excel_lib.CellStyle(bold: true);
 
-      var totalCountCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
-      totalCountCell.value = excel_lib.TextCellValue('${usersByRole[role]!.length} users');
+      var totalCountCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
+      totalCountCell.value = excel_lib.TextCellValue(
+        '${usersByRole[role]!.length} users',
+      );
       totalCountCell.cellStyle = excel_lib.CellStyle(
         bold: true,
         leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
@@ -432,24 +488,35 @@ class _UserManagementPageState extends State<UserManagementPage> {
     // Handle any users with unknown roles
     if (usersByRole.containsKey('Other') && usersByRole['Other']!.isNotEmpty) {
       // Other roles header - just one cell, no merging
-      var otherHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
-      otherHeaderCell.value = excel_lib.TextCellValue('Other Roles');
-      otherHeaderCell.cellStyle = excel_lib.CellStyle(
-        bold: true,
-        fontSize: 16,
+      var otherHeaderCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
       );
+      otherHeaderCell.value = excel_lib.TextCellValue('Other Roles');
+      otherHeaderCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 16);
       rowIndex++;
 
       // Column headers for other roles
       for (int col = 0; col < headers.length; col++) {
-        var headerCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+        var headerCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: col,
+            rowIndex: rowIndex,
+          ),
+        );
         headerCell.value = excel_lib.TextCellValue(headers[col]);
         headerCell.cellStyle = excel_lib.CellStyle(
           bold: true,
           leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
           topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
       }
       rowIndex++;
@@ -458,13 +525,20 @@ class _UserManagementPageState extends State<UserManagementPage> {
       for (final user in usersByRole['Other']!) {
         final userRole = user['role'] ?? '';
         final userPrefix = _getUserIdPrefix(userRole);
-        final userIndex = users.indexWhere((item) => item['id'] == user['id']) + 1;
+        final userIndex =
+            users.indexWhere((item) => item['id'] == user['id']) + 1;
         final userId = "$userPrefix${userIndex.toString().padLeft(3, '0')}";
-        
-        final fullName = "${user['fname'] ?? ''} ${user['mname'] ?? ''} ${user['lname'] ?? ''} ${user['suffix'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
-        final formattedCreatedAt = user['created_at'] != null
-            ? DateTime.parse(user['created_at'].toString()).toLocal().toString().split('.')[0]
-            : '';
+
+        final fullName =
+            "${user['fname'] ?? ''} ${user['mname'] ?? ''} ${user['lname'] ?? ''} ${user['suffix'] ?? ''}"
+                .trim()
+                .replaceAll(RegExp(r'\s+'), ' ');
+        final formattedCreatedAt =
+            user['created_at'] != null
+                ? DateTime.parse(
+                  user['created_at'].toString(),
+                ).toLocal().toString().split('.')[0]
+                : '';
 
         final status = user['status']?.toString() ?? 'Active';
 
@@ -484,26 +558,47 @@ class _UserManagementPageState extends State<UserManagementPage> {
         ];
 
         for (int col = 0; col < rowData.length; col++) {
-          var dataCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+          var dataCell = sheet.cell(
+            excel_lib.CellIndex.indexByColumnRow(
+              columnIndex: col,
+              rowIndex: rowIndex,
+            ),
+          );
           dataCell.value = excel_lib.TextCellValue(rowData[col]);
           dataCell.cellStyle = excel_lib.CellStyle(
-            leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-            rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-            bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+            leftBorder: excel_lib.Border(
+              borderStyle: excel_lib.BorderStyle.Thin,
+            ),
+            rightBorder: excel_lib.Border(
+              borderStyle: excel_lib.BorderStyle.Thin,
+            ),
+            bottomBorder: excel_lib.Border(
+              borderStyle: excel_lib.BorderStyle.Thin,
+            ),
           );
         }
         rowIndex++;
       }
 
       // Add total row for other roles
-      var totalLabelCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
-      totalLabelCell.value = excel_lib.TextCellValue('TOTAL:');
-      totalLabelCell.cellStyle = excel_lib.CellStyle(
-        bold: true,
+      var totalLabelCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
       );
+      totalLabelCell.value = excel_lib.TextCellValue('TOTAL:');
+      totalLabelCell.cellStyle = excel_lib.CellStyle(bold: true);
 
-      var totalCountCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
-      totalCountCell.value = excel_lib.TextCellValue('${usersByRole['Other']!.length} users');
+      var totalCountCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
+      totalCountCell.value = excel_lib.TextCellValue(
+        '${usersByRole['Other']!.length} users',
+      );
       totalCountCell.cellStyle = excel_lib.CellStyle(
         bold: true,
         leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
@@ -514,16 +609,16 @@ class _UserManagementPageState extends State<UserManagementPage> {
     }
 
     // Set column widths for better readability
-    sheet.setColumnWidth(0, 12.0);  // User ID
-    sheet.setColumnWidth(1, 15.0);  // First Name
-    sheet.setColumnWidth(2, 15.0);  // Middle Name
-    sheet.setColumnWidth(3, 15.0);  // Last Name
-    sheet.setColumnWidth(4, 10.0);  // Suffix
-    sheet.setColumnWidth(5, 25.0);  // Full Name
-    sheet.setColumnWidth(6, 30.0);  // Email
-    sheet.setColumnWidth(7, 15.0);  // Contact Number
-    sheet.setColumnWidth(8, 20.0);  // Position
-    sheet.setColumnWidth(9, 15.0);  // Plate Number
+    sheet.setColumnWidth(0, 12.0); // User ID
+    sheet.setColumnWidth(1, 15.0); // First Name
+    sheet.setColumnWidth(2, 15.0); // Middle Name
+    sheet.setColumnWidth(3, 15.0); // Last Name
+    sheet.setColumnWidth(4, 10.0); // Suffix
+    sheet.setColumnWidth(5, 25.0); // Full Name
+    sheet.setColumnWidth(6, 30.0); // Email
+    sheet.setColumnWidth(7, 15.0); // Contact Number
+    sheet.setColumnWidth(8, 20.0); // Position
+    sheet.setColumnWidth(9, 15.0); // Plate Number
     sheet.setColumnWidth(10, 10.0); // Status
     sheet.setColumnWidth(11, 20.0); // Account Created
   }
@@ -537,42 +632,59 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     // Get current user info
     final user = supabase.auth.currentUser;
-    final userName = user?.userMetadata?['fname'] != null && user?.userMetadata?['lname'] != null
-        ? '${user?.userMetadata?['fname']} ${user?.userMetadata?['lname']}'
-        : user?.email ?? 'Unknown User';
+    final userName =
+        user?.userMetadata?['fname'] != null &&
+                user?.userMetadata?['lname'] != null
+            ? '${user?.userMetadata?['fname']} ${user?.userMetadata?['lname']}'
+            : user?.email ?? 'Unknown User';
 
     // Title
-    var titleCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var titleCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     titleCell.value = excel_lib.TextCellValue('USERS EXPORT SUMMARY');
     titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
     rowIndex += 2;
 
     // Generation info
-    var dateCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var dateCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     dateCell.value = excel_lib.TextCellValue('Export Date & Time:');
     dateCell.cellStyle = excel_lib.CellStyle(bold: true);
-    
-    var dateValueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
-    dateValueCell.value = excel_lib.TextCellValue(DateTime.now().toLocal().toString().split('.')[0]);
+
+    var dateValueCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex),
+    );
+    dateValueCell.value = excel_lib.TextCellValue(
+      DateTime.now().toLocal().toString().split('.')[0],
+    );
     rowIndex++;
 
-    var generatedByCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var generatedByCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     generatedByCell.value = excel_lib.TextCellValue('Generated By:');
     generatedByCell.cellStyle = excel_lib.CellStyle(bold: true);
-    
-    var generatedByValueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+
+    var generatedByValueCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex),
+    );
     generatedByValueCell.value = excel_lib.TextCellValue(userName);
     rowIndex += 2;
 
     // Overall statistics
-    var statsHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var statsHeaderCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     statsHeaderCell.value = excel_lib.TextCellValue('OVERALL STATISTICS');
     statsHeaderCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 16);
     rowIndex += 2;
 
     // Calculate statistics
     final totalUsers = usersData.length;
-    final activeUsers = usersData.where((u) => (u['status'] ?? 'Active') == 'Active').length;
+    final activeUsers =
+        usersData.where((u) => (u['status'] ?? 'Active') == 'Active').length;
     final inactiveUsers = totalUsers - activeUsers;
 
     // Role statistics
@@ -590,11 +702,21 @@ class _UserManagementPageState extends State<UserManagementPage> {
     ];
 
     for (var stat in overallStats) {
-      var labelCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+      var labelCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
       labelCell.value = excel_lib.TextCellValue(stat[0]);
       labelCell.cellStyle = excel_lib.CellStyle(bold: true);
 
-      var valueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+      var valueCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
       valueCell.value = excel_lib.TextCellValue(stat[1]);
 
       rowIndex++;
@@ -603,9 +725,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
     rowIndex += 2;
 
     // Role breakdown
-    var roleBreakdownHeader = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var roleBreakdownHeader = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     roleBreakdownHeader.value = excel_lib.TextCellValue('USERS BY ROLE');
-    roleBreakdownHeader.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 14);
+    roleBreakdownHeader.cellStyle = excel_lib.CellStyle(
+      bold: true,
+      fontSize: 14,
+    );
     rowIndex++;
 
     // Sort role stats by role importance
@@ -621,11 +748,21 @@ class _UserManagementPageState extends State<UserManagementPage> {
     });
 
     for (var entry in sortedRoleEntries) {
-      var roleCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+      var roleCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
       roleCell.value = excel_lib.TextCellValue('${entry.key}:');
       roleCell.cellStyle = excel_lib.CellStyle(bold: true);
 
-      var countCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+      var countCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
       countCell.value = excel_lib.TextCellValue(entry.value.toString());
 
       rowIndex++;
@@ -849,16 +986,17 @@ class _UserManagementPageState extends State<UserManagementPage> {
     String? selectedRole = user?['role']?.toString();
     String selectedStatus = user?['status']?.toString() ?? 'Active';
     String? rfidUID;
-    
+
     // Initialize RFID UID for guards from guard_rfid_cards table
     if (selectedRole == 'Guard' && user?['id'] != null) {
       try {
-        final rfidResponse = await supabase
-            .from('guard_rfid_cards')
-            .select('rfid_uid')
-            .eq('guard_id', user!['id'])
-            .eq('status', 'active')
-            .maybeSingle();
+        final rfidResponse =
+            await supabase
+                .from('guard_rfid_cards')
+                .select('rfid_uid')
+                .eq('guard_id', user!['id'])
+                .eq('status', 'active')
+                .maybeSingle();
         if (rfidResponse != null) {
           rfidUID = rfidResponse['rfid_uid'];
         }
@@ -875,7 +1013,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     // Build DropdownMenuItem list; insert a disabled 'Parent' item when editing a Parent
     List<DropdownMenuItem<String>> roleItems = [];
-    
+
     if (roleOptionsBase.isEmpty) {
       roleItems.add(
         DropdownMenuItem<String>(
@@ -891,32 +1029,33 @@ class _UserManagementPageState extends State<UserManagementPage> {
         ),
       );
     } else {
-      roleItems = roleOptionsBase.map((role) {
-        IconData roleIcon;
-        switch (role) {
-          case 'Teacher':
-            roleIcon = Icons.school;
-            break;
-          case 'Guard':
-            roleIcon = Icons.security;
-            break;
-          case 'Driver':
-            roleIcon = Icons.directions_bus;
-            break;
-          default:
-            roleIcon = Icons.person;
-        }
-        return DropdownMenuItem(
-          value: role,
-          child: Row(
-            children: [
-              Icon(roleIcon, size: 16, color: Colors.grey[600]),
-              const SizedBox(width: 8),
-              Text(role),
-            ],
-          ),
-        );
-      }).toList();
+      roleItems =
+          roleOptionsBase.map((role) {
+            IconData roleIcon;
+            switch (role) {
+              case 'Teacher':
+                roleIcon = Icons.school;
+                break;
+              case 'Guard':
+                roleIcon = Icons.security;
+                break;
+              case 'Driver':
+                roleIcon = Icons.directions_bus;
+                break;
+              default:
+                roleIcon = Icons.person;
+            }
+            return DropdownMenuItem(
+              value: role,
+              child: Row(
+                children: [
+                  Icon(roleIcon, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 8),
+                  Text(role),
+                ],
+              ),
+            );
+          }).toList();
     }
 
     // If editing a Parent, include a non-selectable Parent item so the dropdown can show it
@@ -1284,7 +1423,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                     decoration: BoxDecoration(
                                       color: Colors.green[50],
                                       borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.green[200]!),
+                                      border: Border.all(
+                                        color: Colors.green[200]!,
+                                      ),
                                     ),
                                     child: Row(
                                       children: [
@@ -1296,7 +1437,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                         SizedBox(width: 12),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 'RFID Card Assigned',
@@ -1319,10 +1461,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                         ),
                                         IconButton(
                                           onPressed: () async {
-                                            final newUID = await _showRFIDScanDialog(
-                                              context,
-                                              excludeUserId: user?['id'],
-                                            );
+                                            final newUID =
+                                                await _showRFIDScanDialog(
+                                                  context,
+                                                  excludeUserId: user?['id'],
+                                                );
                                             if (newUID != null) {
                                               setDialogState(() {
                                                 rfidUID = newUID;
@@ -1358,7 +1501,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                     decoration: BoxDecoration(
                                       color: Colors.orange[50],
                                       borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.orange[200]!),
+                                      border: Border.all(
+                                        color: Colors.orange[200]!,
+                                      ),
                                     ),
                                     child: Row(
                                       children: [
@@ -1386,10 +1531,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                     Expanded(
                                       child: OutlinedButton.icon(
                                         onPressed: () async {
-                                          final newUID = await _showRFIDScanDialog(
-                                            context,
-                                            excludeUserId: user?['id'],
-                                          );
+                                          final newUID =
+                                              await _showRFIDScanDialog(
+                                                context,
+                                                excludeUserId: user?['id'],
+                                              );
                                           if (newUID != null) {
                                             setDialogState(() {
                                               rfidUID = newUID;
@@ -1398,11 +1544,15 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                         },
                                         icon: Icon(Icons.nfc),
                                         label: Text(
-                                          rfidUID != null ? 'Change RFID Card' : 'Assign RFID Card',
+                                          rfidUID != null
+                                              ? 'Change RFID Card'
+                                              : 'Assign RFID Card',
                                         ),
                                         style: OutlinedButton.styleFrom(
                                           foregroundColor: Colors.blue[700],
-                                          side: BorderSide(color: Colors.blue[300]!),
+                                          side: BorderSide(
+                                            color: Colors.blue[300]!,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -1462,29 +1612,38 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                     'Plate Number',
                                     Icons.confirmation_number,
                                   ),
-                                  textCapitalization: TextCapitalization.characters,
+                                  textCapitalization:
+                                      TextCapitalization.characters,
                                   validator: (value) {
                                     if (fieldErrors['plate_number'] != null)
                                       return fieldErrors['plate_number'];
                                     // Plate number is optional for drivers
-                                    if (value != null && value.trim().isNotEmpty) {
-                                      final plateRegex = RegExp(r'^[A-Z0-9\s\-]{2,15}$');
-                                      if (!plateRegex.hasMatch(value.trim().toUpperCase())) {
+                                    if (value != null &&
+                                        value.trim().isNotEmpty) {
+                                      final plateRegex = RegExp(
+                                        r'^[A-Z0-9\s\-]{2,15}$',
+                                      );
+                                      if (!plateRegex.hasMatch(
+                                        value.trim().toUpperCase(),
+                                      )) {
                                         return 'Please enter a valid plate number';
                                       }
                                     }
                                     return null;
                                   },
                                   inputFormatters: [
-                                    FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9\s\-]')),
-                                    LengthLimitingTextInputFormatter(15),
-                                    TextInputFormatter.withFunction(
-                                      (oldValue, newValue) {
-                                        return newValue.copyWith(
-                                          text: newValue.text.toUpperCase(),
-                                        );
-                                      },
+                                    FilteringTextInputFormatter.allow(
+                                      RegExp(r'[A-Za-z0-9\s\-]'),
                                     ),
+                                    LengthLimitingTextInputFormatter(15),
+                                    TextInputFormatter.withFunction((
+                                      oldValue,
+                                      newValue,
+                                    ) {
+                                      return newValue.copyWith(
+                                        text: newValue.text.toUpperCase(),
+                                      );
+                                    }),
                                   ],
                                 ),
                                 SizedBox(height: 12),
@@ -1821,7 +1980,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       try {
                         String? imageUrl =
                             _currentImageUrl ?? user?['profile_image_url'];
-                        
+
                         // helper to set field errors and refresh validators in dialog
                         void _setFieldErrors(Map<String, String?> errs) {
                           setDialogState(() {
@@ -1904,13 +2063,16 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             }
 
                             // For Guards, save RFID separately
-                            if (selectedRole == 'Guard' && rfidUID != null && rfidUID!.isNotEmpty) {
+                            if (selectedRole == 'Guard' &&
+                                rfidUID != null &&
+                                rfidUID!.isNotEmpty) {
                               try {
                                 await supabase.from('guard_rfid_cards').upsert({
                                   'guard_id': createdUser['id'],
                                   'rfid_uid': rfidUID,
                                   'status': 'active',
-                                  'assigned_at': DateTime.now().toIso8601String(),
+                                  'assigned_at':
+                                      DateTime.now().toIso8601String(),
                                 });
                               } catch (rfidError) {
                                 print('Error saving guard RFID: $rfidError');
@@ -1974,23 +2136,31 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             if (selectedRole == 'Guard') {
                               if (rfidUID != null && rfidUID!.isNotEmpty) {
                                 try {
-                                  await supabase.from('guard_rfid_cards').upsert({
-                                    'guard_id': user['id'],
-                                    'rfid_uid': rfidUID,
-                                    'status': 'active',
-                                    'assigned_at': DateTime.now().toIso8601String(),
-                                  });
+                                  await supabase
+                                      .from('guard_rfid_cards')
+                                      .upsert({
+                                        'guard_id': user['id'],
+                                        'rfid_uid': rfidUID,
+                                        'status': 'active',
+                                        'assigned_at':
+                                            DateTime.now().toIso8601String(),
+                                      });
                                 } catch (rfidError) {
-                                  print('Error updating guard RFID: $rfidError');
+                                  print(
+                                    'Error updating guard RFID: $rfidError',
+                                  );
                                 }
                               } else {
                                 // Remove RFID if empty
                                 try {
-                                  await supabase.from('guard_rfid_cards')
+                                  await supabase
+                                      .from('guard_rfid_cards')
                                       .delete()
                                       .eq('guard_id', user['id']);
                                 } catch (rfidError) {
-                                  print('Error removing guard RFID: $rfidError');
+                                  print(
+                                    'Error removing guard RFID: $rfidError',
+                                  );
                                 }
                               }
                             }
@@ -2003,7 +2173,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
                             // Log user update immediately after successful edit (with image path)
                             try {
-                              final userName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                              final userName =
+                                  '${fnameController.text.trim()} ${lnameController.text.trim()}';
                               await auditLogService.logUserManagement(
                                 action: 'update',
                                 targetUserId: user['id'].toString(),
@@ -2018,22 +2189,37 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   'position': user['position'],
                                   'contact_number': user['contact_number'],
                                   'plate_number': user['plate_number'],
-                                  'profile_image_url': user['profile_image_url'],
+                                  'profile_image_url':
+                                      user['profile_image_url'],
                                 },
                                 newValues: {
                                   'email': emailController.text.trim(),
                                   'fname': fnameController.text.trim(),
                                   'lname': lnameController.text.trim(),
-                                  'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                  'mname':
+                                      mnameController.text.trim().isEmpty
+                                          ? null
+                                          : mnameController.text.trim(),
                                   'role': selectedRole,
-                                  'position': positionController.text.trim().isEmpty ? null : positionController.text.trim(),
-                                  'contact_number': contactController.text.trim().isEmpty ? null : contactController.text.trim(),
-                                  'plate_number': plateNumberController.text.trim().isEmpty ? null : plateNumberController.text.trim(),
+                                  'position':
+                                      positionController.text.trim().isEmpty
+                                          ? null
+                                          : positionController.text.trim(),
+                                  'contact_number':
+                                      contactController.text.trim().isEmpty
+                                          ? null
+                                          : contactController.text.trim(),
+                                  'plate_number':
+                                      plateNumberController.text.trim().isEmpty
+                                          ? null
+                                          : plateNumberController.text.trim(),
                                   'profile_image_url': imageUrl,
                                 },
                               );
                             } catch (e) {
-                              print('Error logging user update audit event: $e');
+                              print(
+                                'Error logging user update audit event: $e',
+                              );
                             }
                           }
                         } else {
@@ -2076,20 +2262,24 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             }
 
                             // Fetch the created user ID for audit logging
-                            final createdUser = await supabase
-                                .from('users')
-                                .select('id')
-                                .eq('email', emailController.text.trim())
-                                .single();
+                            final createdUser =
+                                await supabase
+                                    .from('users')
+                                    .select('id')
+                                    .eq('email', emailController.text.trim())
+                                    .single();
 
                             // For Guards, save RFID separately
-                            if (selectedRole == 'Guard' && rfidUID != null && rfidUID!.isNotEmpty) {
+                            if (selectedRole == 'Guard' &&
+                                rfidUID != null &&
+                                rfidUID!.isNotEmpty) {
                               try {
                                 await supabase.from('guard_rfid_cards').upsert({
                                   'guard_id': createdUser['id'],
                                   'rfid_uid': rfidUID,
                                   'status': 'active',
-                                  'assigned_at': DateTime.now().toIso8601String(),
+                                  'assigned_at':
+                                      DateTime.now().toIso8601String(),
                                 });
                               } catch (rfidError) {
                                 print('Error saving guard RFID: $rfidError');
@@ -2098,7 +2288,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
                             // Log user creation immediately after successful creation
                             try {
-                              final userName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                              final userName =
+                                  '${fnameController.text.trim()} ${lnameController.text.trim()}';
                               await auditLogService.logAccountCreation(
                                 targetUserId: createdUser['id'].toString(),
                                 targetUserName: userName,
@@ -2108,14 +2299,28 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   'role': selectedRole,
                                   'fname': fnameController.text.trim(),
                                   'lname': lnameController.text.trim(),
-                                  'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
-                                  'position': positionController.text.trim().isEmpty ? null : positionController.text.trim(),
-                                  'contact_number': contactController.text.trim().isEmpty ? null : contactController.text.trim(),
-                                  'plate_number': plateNumberController.text.trim().isEmpty ? null : plateNumberController.text.trim(),
+                                  'mname':
+                                      mnameController.text.trim().isEmpty
+                                          ? null
+                                          : mnameController.text.trim(),
+                                  'position':
+                                      positionController.text.trim().isEmpty
+                                          ? null
+                                          : positionController.text.trim(),
+                                  'contact_number':
+                                      contactController.text.trim().isEmpty
+                                          ? null
+                                          : contactController.text.trim(),
+                                  'plate_number':
+                                      plateNumberController.text.trim().isEmpty
+                                          ? null
+                                          : plateNumberController.text.trim(),
                                 },
                               );
                             } catch (e) {
-                              print('Error logging user creation audit event: $e');
+                              print(
+                                'Error logging user creation audit event: $e',
+                              );
                             }
                           } else {
                             final editRes = await editUserViaEdgeFunction(
@@ -2157,30 +2362,39 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             if (selectedRole == 'Guard') {
                               if (rfidUID != null && rfidUID!.isNotEmpty) {
                                 try {
-                                  await supabase.from('guard_rfid_cards').upsert({
-                                    'guard_id': user['id'],
-                                    'rfid_uid': rfidUID,
-                                    'status': 'active',
-                                    'assigned_at': DateTime.now().toIso8601String(),
-                                  });
+                                  await supabase
+                                      .from('guard_rfid_cards')
+                                      .upsert({
+                                        'guard_id': user['id'],
+                                        'rfid_uid': rfidUID,
+                                        'status': 'active',
+                                        'assigned_at':
+                                            DateTime.now().toIso8601String(),
+                                      });
                                 } catch (rfidError) {
-                                  print('Error updating guard RFID: $rfidError');
+                                  print(
+                                    'Error updating guard RFID: $rfidError',
+                                  );
                                 }
                               } else {
                                 // Remove RFID if empty
                                 try {
-                                  await supabase.from('guard_rfid_cards')
+                                  await supabase
+                                      .from('guard_rfid_cards')
                                       .delete()
                                       .eq('guard_id', user['id']);
                                 } catch (rfidError) {
-                                  print('Error removing guard RFID: $rfidError');
+                                  print(
+                                    'Error removing guard RFID: $rfidError',
+                                  );
                                 }
                               }
                             }
 
                             // Log user update immediately after successful edit (no image path)
                             try {
-                              final userName = '${fnameController.text.trim()} ${lnameController.text.trim()}';
+                              final userName =
+                                  '${fnameController.text.trim()} ${lnameController.text.trim()}';
                               await auditLogService.logUserManagement(
                                 action: 'update',
                                 targetUserId: user['id'].toString(),
@@ -2200,15 +2414,29 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   'email': emailController.text.trim(),
                                   'fname': fnameController.text.trim(),
                                   'lname': lnameController.text.trim(),
-                                  'mname': mnameController.text.trim().isEmpty ? null : mnameController.text.trim(),
+                                  'mname':
+                                      mnameController.text.trim().isEmpty
+                                          ? null
+                                          : mnameController.text.trim(),
                                   'role': selectedRole,
-                                  'position': positionController.text.trim().isEmpty ? null : positionController.text.trim(),
-                                  'contact_number': contactController.text.trim().isEmpty ? null : contactController.text.trim(),
-                                  'plate_number': plateNumberController.text.trim().isEmpty ? null : plateNumberController.text.trim(),
+                                  'position':
+                                      positionController.text.trim().isEmpty
+                                          ? null
+                                          : positionController.text.trim(),
+                                  'contact_number':
+                                      contactController.text.trim().isEmpty
+                                          ? null
+                                          : contactController.text.trim(),
+                                  'plate_number':
+                                      plateNumberController.text.trim().isEmpty
+                                          ? null
+                                          : plateNumberController.text.trim(),
                                 },
                               );
                             } catch (e) {
-                              print('Error logging user update audit event: $e');
+                              print(
+                                'Error logging user update audit event: $e',
+                              );
                             }
                           }
                         }
@@ -2418,11 +2646,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
     String rfidUID,
   ) async {
     try {
-      final response = await supabase
-          .from('students')
-          .select('id, fname, lname, grade_level, sections(name, grade_level)')
-          .eq('rfid_uid', rfidUID)
-          .maybeSingle();
+      final response =
+          await supabase
+              .from('students')
+              .select(
+                'id, fname, lname, grade_level, sections(name, grade_level)',
+              )
+              .eq('rfid_uid', rfidUID)
+              .maybeSingle();
       return response;
     } catch (e) {
       print('Error checking RFID in students: $e');
@@ -2528,7 +2759,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                           });
                         } else {
                           // Check what entity already has this RFID
-                          final existingStudent = await _checkRFIDExistsInStudents(uid);
+                          final existingStudent =
+                              await _checkRFIDExistsInStudents(uid);
                           final existingGuard = await _checkRFIDExistsInGuards(
                             uid,
                             excludeUserId: excludeUserId,
@@ -2547,9 +2779,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 'This RFID card is already assigned to student $studentName in $classInfo';
                           } else if (existingGuard != null) {
                             final guardUser = existingGuard['users'];
-                            final guardName = guardUser != null
-                                ? "${guardUser['fname'] ?? ''} ${guardUser['lname'] ?? ''}"
-                                : "Unknown Guard";
+                            final guardName =
+                                guardUser != null
+                                    ? "${guardUser['fname'] ?? ''} ${guardUser['lname'] ?? ''}"
+                                    : "Unknown Guard";
                             errorMessage =
                                 'This RFID card is already assigned to guard $guardName';
                           } else {
@@ -2592,7 +2825,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
                 setDialogState(() {
                   isConnected = true;
-                  connectionStatus = 'Connected! Please tap the RFID card on the scanner...';
+                  connectionStatus =
+                      'Connected! Please tap the RFID card on the scanner...';
                 });
               } catch (e) {
                 setDialogState(() {
@@ -2605,18 +2839,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
             return AlertDialog(
               title: Row(
                 children: [
-                  Icon(
-                    Icons.credit_card,
-                    color: Colors.blue,
-                    size: 24,
-                  ),
+                  Icon(Icons.credit_card, color: Colors.blue, size: 24),
                   SizedBox(width: 12),
                   Text(
                     'Scan RFID Card',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -2629,14 +2856,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     Container(
                       padding: EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: isConnected
-                            ? Colors.green[50]
-                            : Colors.orange[50],
+                        color:
+                            isConnected ? Colors.green[50] : Colors.orange[50],
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: isConnected
-                              ? Colors.green[200]!
-                              : Colors.orange[200]!,
+                          color:
+                              isConnected
+                                  ? Colors.green[200]!
+                                  : Colors.orange[200]!,
                         ),
                       ),
                       child: Row(
@@ -2651,7 +2878,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             child: Text(
                               connectionStatus,
                               style: TextStyle(
-                                color: isConnected ? Colors.green[700] : Colors.orange[700],
+                                color:
+                                    isConnected
+                                        ? Colors.green[700]
+                                        : Colors.orange[700],
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -2670,7 +2900,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         decoration: BoxDecoration(
                           color: Colors.blue[50],
                           borderRadius: BorderRadius.circular(50),
-                          border: Border.all(color: Colors.blue[200]!, width: 2),
+                          border: Border.all(
+                            color: Colors.blue[200]!,
+                            width: 2,
+                          ),
                         ),
                         child: Icon(
                           Icons.credit_card,
@@ -2681,10 +2914,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       SizedBox(height: 16),
                       Text(
                         'Please tap the RFID card on the scanner...',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -2695,10 +2925,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       SizedBox(height: 16),
                       Text(
                         'Validating RFID card...',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -2711,7 +2938,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         decoration: BoxDecoration(
                           color: Colors.green[50],
                           borderRadius: BorderRadius.circular(50),
-                          border: Border.all(color: Colors.green[200]!, width: 2),
+                          border: Border.all(
+                            color: Colors.green[200]!,
+                            width: 2,
+                          ),
                         ),
                         child: Icon(
                           Icons.check_circle,
@@ -2752,11 +2982,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         ),
                         child: Row(
                           children: [
-                            Icon(
-                              Icons.error,
-                              color: Colors.red,
-                              size: 20,
-                            ),
+                            Icon(Icons.error, color: Colors.red, size: 20),
                             SizedBox(width: 12),
                             Expanded(
                               child: Text(
@@ -2773,10 +2999,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       SizedBox(height: 16),
                       Text(
                         'Please try a different RFID card',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -2927,8 +3150,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       setState(() => _isUploadingImage = true);
 
       if (_selectedImageBytes != null) {
-      } else {
-      }
+      } else {}
 
       // Generate unique filename
       final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
@@ -3065,7 +3287,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
       );
     }
 
-
     // Get unique roles for filter dropdown
     final List<String> roleOptions = ['All Roles'];
     for (var user in users) {
@@ -3172,8 +3393,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 vertical: 10,
                               ),
                             ),
-                            onPressed:
-                                isAdmin ? () => _addOrEditUser() : null,
+                            onPressed: isAdmin ? () => _addOrEditUser() : null,
                           ),
                         ),
                       ),
@@ -3437,7 +3657,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   child: DropdownButtonHideUnderline(
                                     child: DropdownButton<String>(
                                       value: _sortOption,
-                                      icon: const Icon(Icons.keyboard_arrow_down),
+                                      icon: const Icon(
+                                        Icons.keyboard_arrow_down,
+                                      ),
                                       items:
                                           <String>[
                                             'Name (A-Z)',
@@ -3594,14 +3816,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(
-                                0xFF2ECC71,
-                              ).withOpacity(0.1),
+                              color: const Color(0xFF2ECC71).withOpacity(0.1),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: const Color(
-                                  0xFF2ECC71,
-                                ).withOpacity(0.3),
+                                color: const Color(0xFF2ECC71).withOpacity(0.3),
                               ),
                             ),
                             child: Row(
@@ -3665,217 +3883,308 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     return SingleChildScrollView(
       child: Column(
-        children: users.map((u) {
-          final role = u['role'] ?? '';
-          final userPrefix = _getUserIdPrefix(role);
-          final int userIndex =
-              this.users.indexWhere((item) => item['id'] == u['id']) + 1;
-          final String userId =
-              "$userPrefix${userIndex.toString().padLeft(3, '0')}";
-          final fullName =
-              "${u['fname'] ?? ''} ${u['lname'] ?? ''} ${u['suffix'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
-          final status = u['status'] ?? 'Active';
+        children:
+            users.map((u) {
+              final role = u['role'] ?? '';
+              final userPrefix = _getUserIdPrefix(role);
+              final int userIndex =
+                  this.users.indexWhere((item) => item['id'] == u['id']) + 1;
+              final String userId =
+                  "$userPrefix${userIndex.toString().padLeft(3, '0')}";
+              final fullName =
+                  "${u['fname'] ?? ''} ${u['lname'] ?? ''} ${u['suffix'] ?? ''}"
+                      .trim()
+                      .replaceAll(RegExp(r'\s+'), ' ');
+              final status = u['status'] ?? 'Active';
 
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE0E0E0)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header row with profile image and name
-                Row(
-                  children: [
-                    // Profile Image
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(25),
-                        border: Border.all(
-                          color: const Color(0xFF2ECC71).withOpacity(0.3),
-                          width: 2,
-                        ),
-                      ),
-                      child: ClipOval(
-                        child: (u['profile_image_url'] != null &&
-                                u['profile_image_url'].toString().isNotEmpty)
-                            ? Image.network(
-                                u['profile_image_url'],
-                                width: 50,
-                                height: 50,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(
-                                    Icons.person,
-                                    size: 25,
-                                    color: Colors.grey,
-                                  );
-                                },
-                              )
-                            : const Icon(
-                                Icons.person,
-                                size: 25,
-                                color: Colors.grey,
-                              ),
-                      ),
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE0E0E0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            fullName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: Color(0xFF1A1A1A),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header row with profile image and name
+                    Row(
+                      children: [
+                        // Profile Image
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(25),
+                            border: Border.all(
+                              color: const Color(0xFF2ECC71).withOpacity(0.3),
+                              width: 2,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Row(
+                          child: ClipOval(
+                            child:
+                                (u['profile_image_url'] != null &&
+                                        u['profile_image_url']
+                                            .toString()
+                                            .isNotEmpty)
+                                    ? Image.network(
+                                      u['profile_image_url'],
+                                      width: 50,
+                                      height: 50,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (
+                                        context,
+                                        error,
+                                        stackTrace,
+                                      ) {
+                                        return const Icon(
+                                          Icons.person,
+                                          size: 25,
+                                          color: Colors.grey,
+                                        );
+                                      },
+                                    )
+                                    : const Icon(
+                                      Icons.person,
+                                      size: 25,
+                                      color: Colors.grey,
+                                    ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _getRoleColor(role).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      _getRoleIcon(role),
-                                      size: 12,
-                                      color: _getRoleColor(role),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      role,
-                                      style: TextStyle(
-                                        color: _getRoleColor(role),
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
+                              Text(
+                                fullName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: Color(0xFF1A1A1A),
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                userId,
-                                style: const TextStyle(
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: _getRoleColor(
+                                        role,
+                                      ).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          _getRoleIcon(role),
+                                          size: 12,
+                                          color: _getRoleColor(role),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          role,
+                                          style: TextStyle(
+                                            color: _getRoleColor(role),
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    userId,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF666666),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        PopupMenuButton<String>(
+                          onSelected: (value) async {
+                            if (value == 'edit') {
+                              _addOrEditUser(user: u);
+                            } else if (value == 'delete') {
+                              // Delete confirmation dialog
+                              showDialog(
+                                context: context,
+                                builder:
+                                    (ctx) => AlertDialog(
+                                      title: const Row(
+                                        children: [
+                                          Icon(
+                                            Icons.warning,
+                                            color: Colors.red,
+                                          ),
+                                          SizedBox(width: 8),
+                                          Text('Delete User'),
+                                        ],
+                                      ),
+                                      content: Text(
+                                        'Are you sure you want to delete ${fullName}? This action cannot be undone.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.red,
+                                          ),
+                                          onPressed: () async {
+                                            Navigator.pop(ctx);
+                                            try {
+                                              await deleteUserViaEdgeFunction(
+                                                u['id'].toString(),
+                                              );
+                                              await _fetchUsers();
+                                              if (mounted) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'User deleted successfully!',
+                                                    ),
+                                                    backgroundColor: Color(
+                                                      0xFF2ECC71,
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            } catch (e) {
+                                              if (mounted) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      'Error: ${e.toString()}',
+                                                    ),
+                                                    backgroundColor: Colors.red,
+                                                  ),
+                                                );
+                                              }
+                                            }
+                                          },
+                                          child: const Text(
+                                            'Delete',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                              );
+                            }
+                          },
+                          itemBuilder:
+                              (context) => [
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.edit,
+                                        size: 16,
+                                        color: Color(0xFF2ECC71),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text('Edit'),
+                                    ],
+                                  ),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.delete,
+                                        size: 16,
+                                        color: Colors.red,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Delete',
+                                        style: TextStyle(color: Colors.red),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Details
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Email',
+                                style: TextStyle(
                                   fontSize: 12,
                                   color: Color(0xFF666666),
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    PopupMenuButton<String>(
-                      onSelected: (value) async {
-                        if (value == 'edit') {
-                          _addOrEditUser(user: u);
-                        } else if (value == 'delete') {
-                          // Delete confirmation dialog
-                          showDialog(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Row(
-                                children: [
-                                  Icon(Icons.warning, color: Colors.red),
-                                  SizedBox(width: 8),
-                                  Text('Delete User'),
-                                ],
-                              ),
-                              content: Text(
-                                'Are you sure you want to delete ${fullName}? This action cannot be undone.',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx),
-                                  child: const Text('Cancel'),
+                              const SizedBox(height: 2),
+                              Text(
+                                u['email']?.toString() ?? 'N/A',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF1A1A1A),
                                 ),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                  ),
-                                  onPressed: () async {
-                                    Navigator.pop(ctx);
-                                    try {
-                                      await deleteUserViaEdgeFunction(
-                                        u['id'].toString(),
-                                      );
-                                      await _fetchUsers();
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'User deleted successfully!',
-                                            ),
-                                            backgroundColor: Color(0xFF2ECC71),
-                                          ),
-                                        );
-                                      }
-                                    } catch (e) {
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                            content: Text('Error: ${e.toString()}'),
-                                            backgroundColor: Colors.red,
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  },
-                                  child: const Text(
-                                    'Delete',
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Row(
-                            children: [
-                              Icon(Icons.edit, size: 16, color: Color(0xFF2ECC71)),
-                              SizedBox(width: 8),
-                              Text('Edit'),
+                              ),
                             ],
                           ),
                         ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Row(
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.delete, size: 16, color: Colors.red),
-                              SizedBox(width: 8),
-                              Text('Delete', style: TextStyle(color: Colors.red)),
+                              const Text(
+                                'Phone',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF666666),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                u['contact_number']?.toString() ?? 'N/A',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF1A1A1A),
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -3883,63 +4192,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                // Details
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Email',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF666666),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            u['email']?.toString() ?? 'N/A',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF1A1A1A),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Phone',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF666666),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            u['contact_number']?.toString() ?? 'N/A',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF1A1A1A),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }).toList(),
+              );
+            }).toList(),
       ),
     );
   }
@@ -3948,7 +4202,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   Widget _buildDesktopTable(List<Map<String, dynamic>> users) {
     final user = Supabase.instance.client.auth.currentUser;
     final isAdmin = user?.userMetadata?['role'] == 'Admin';
-    
+
     if (users.isEmpty) {
       return const Center(child: Text("No users found."));
     }
@@ -3963,10 +4217,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
         ),
         child: Table(
           border: TableBorder(
-            horizontalInside: BorderSide(
-              color: Colors.grey[200]!,
-              width: 1,
-            ),
+            horizontalInside: BorderSide(color: Colors.grey[200]!, width: 1),
           ),
           columnWidths: const {
             0: FlexColumnWidth(0.7), // ID
@@ -3981,9 +4232,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
           children: [
             // Table header row
             TableRow(
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-              ),
+              decoration: BoxDecoration(color: Colors.grey[50]),
               children: const [
                 TableHeaderCell(text: 'User ID'),
                 TableHeaderCell(text: 'Name'),
@@ -3997,738 +4246,637 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
             // Table data rows
             ...users.map((u) {
-                                final role = u['role'] ?? '';
-                                final userPrefix = _getUserIdPrefix(role);
-                                final int userIndex =
-                                    users.indexWhere(
-                                      (item) => item['id'] == u['id'],
-                                    ) +
-                                    1;
-                                final String userId =
-                                    "$userPrefix${userIndex.toString().padLeft(3, '0')}";
-                                final fullName =
-                                    "${u['fname'] ?? ''} ${u['lname'] ?? ''} ${u['suffix'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
-                                final status = u['status'] ?? 'Active';
+              final role = u['role'] ?? '';
+              final userPrefix = _getUserIdPrefix(role);
+              final int userIndex =
+                  users.indexWhere((item) => item['id'] == u['id']) + 1;
+              final String userId =
+                  "$userPrefix${userIndex.toString().padLeft(3, '0')}";
+              final fullName =
+                  "${u['fname'] ?? ''} ${u['lname'] ?? ''} ${u['suffix'] ?? ''}"
+                      .trim()
+                      .replaceAll(RegExp(r'\s+'), ' ');
+              final status = u['status'] ?? 'Active';
 
-                                return TableRow(
-                                  decoration: const BoxDecoration(
-                                    color: Colors.white,
-                                  ),
-                                  children: [
-                                    // User ID
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Text(
-                                          userId,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                            color: Color(0xFF555555),
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+              return TableRow(
+                decoration: const BoxDecoration(color: Colors.white),
+                children: [
+                  // User ID
+                  TableCell(
+                    verticalAlignment: TableCellVerticalAlignment.middle,
+                    child: Container(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        userId,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF555555),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
 
-                                    // Name WITH PROFILE IMAGE (similar to student management)
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Row(
-                                          children: [
-                                            // Profile Image
-                                            Container(
-                                              width: 40,
-                                              height: 40,
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                                border: Border.all(
-                                                  color: const Color(
-                                                    0xFF2ECC71,
-                                                  ).withOpacity(0.3),
-                                                  width: 2,
-                                                ),
-                                              ),
-                                              child: ClipOval(
+                  // Name WITH PROFILE IMAGE (similar to student management)
+                  TableCell(
+                    verticalAlignment: TableCellVerticalAlignment.middle,
+                    child: Container(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          // Profile Image
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFF2ECC71).withOpacity(0.3),
+                                width: 2,
+                              ),
+                            ),
+                            child: ClipOval(
+                              child:
+                                  (u['profile_image_url'] != null &&
+                                          u['profile_image_url']
+                                              .toString()
+                                              .isNotEmpty)
+                                      ? Image.network(
+                                        u['profile_image_url'],
+                                        width: 40,
+                                        height: 40,
+                                        fit: BoxFit.cover,
+                                        loadingBuilder: (
+                                          context,
+                                          child,
+                                          loadingProgress,
+                                        ) {
+                                          if (loadingProgress == null)
+                                            return child;
+                                          return Container(
+                                            width: 40,
+                                            height: 40,
+                                            color: Colors.grey[200],
+                                            child: const Center(
+                                              child: SizedBox(
+                                                width: 16,
+                                                height: 16,
                                                 child:
-                                                    (u['profile_image_url'] !=
-                                                                null &&
-                                                            u['profile_image_url']
-                                                                .toString()
-                                                                .isNotEmpty)
-                                                        ? Image.network(
-                                                          u['profile_image_url'],
-                                                          width: 40,
-                                                          height: 40,
-                                                          fit: BoxFit.cover,
-                                                          loadingBuilder: (
-                                                            context,
-                                                            child,
-                                                            loadingProgress,
-                                                          ) {
-                                                            if (loadingProgress ==
-                                                                null)
-                                                              return child;
-                                                            return Container(
-                                                              width: 40,
-                                                              height: 40,
-                                                              color:
-                                                                  Colors
-                                                                      .grey[200],
-                                                              child: const Center(
-                                                                child: SizedBox(
-                                                                  width: 16,
-                                                                  height: 16,
-                                                                  child: CircularProgressIndicator(
-                                                                    strokeWidth:
-                                                                        2,
-                                                                    color: Color(
-                                                                      0xFF2ECC71,
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                            );
-                                                          },
-                                                          errorBuilder: (
-                                                            context,
-                                                            error,
-                                                            stackTrace,
-                                                          ) {
-                                                            return const Icon(
-                                                              Icons.person,
-                                                              size: 20,
-                                                              color:
-                                                                  Colors.grey,
-                                                            );
-                                                          },
-                                                        )
-                                                        : const Icon(
-                                                          Icons.person,
-                                                          size: 20,
-                                                          color: Colors.grey,
-                                                        ),
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Color(0xFF2ECC71),
+                                                    ),
                                               ),
                                             ),
-                                            const SizedBox(width: 12),
-                                            // User Name and additional info
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  Text(
-                                                    fullName,
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      color: Color(0xFF1A1A1A),
-                                                      fontSize: 18,
-                                                      letterSpacing: 0.3,
-                                                    ),
-                                                  ),
-                                                  if (u['position'] != null &&
-                                                      u['position']
-                                                          .toString()
-                                                          .isNotEmpty) ...[
-                                                    const SizedBox(height: 2),
-                                                    Text(
-                                                      u['position'].toString(),
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                        color: Colors.grey[600],
-                                                        fontStyle:
-                                                            FontStyle.italic,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                  if (role == 'Driver' && 
-                                                      u['plate_number'] != null &&
-                                                      u['plate_number']
-                                                          .toString()
-                                                          .isNotEmpty) ...[
-                                                    const SizedBox(height: 2),
-                                                    Row(
-                                                      children: [
-                                                        Icon(
-                                                          Icons.directions_bus,
-                                                          size: 12,
-                                                          color: Colors.orange[600],
-                                                        ),
-                                                        const SizedBox(width: 4),
-                                                        Text(
-                                                          'Plate: ${u['plate_number']}',
-                                                          style: TextStyle(
-                                                            fontSize: 12,
-                                                            color: Colors.orange[700],
-                                                            fontWeight: FontWeight.w500,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ],
-                                                ],
-                                              ),
-                                            ),
-                                          ],
+                                          );
+                                        },
+                                        errorBuilder: (
+                                          context,
+                                          error,
+                                          stackTrace,
+                                        ) {
+                                          return const Icon(
+                                            Icons.person,
+                                            size: 20,
+                                            color: Colors.grey,
+                                          );
+                                        },
+                                      )
+                                      : const Icon(
+                                        Icons.person,
+                                        size: 20,
+                                        color: Colors.grey,
+                                      ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // User Name and additional info
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  fullName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1A1A1A),
+                                    fontSize: 18,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                                if (u['position'] != null &&
+                                    u['position'].toString().isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    u['position'].toString(),
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey[600],
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ],
+                                if (role == 'Driver' &&
+                                    u['plate_number'] != null &&
+                                    u['plate_number']
+                                        .toString()
+                                        .isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.directions_bus,
+                                        size: 12,
+                                        color: Colors.orange[600],
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Plate: ${u['plate_number']}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.orange[700],
+                                          fontWeight: FontWeight.w500,
                                         ),
                                       ),
-                                    ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
-                                    // Role
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: _getRoleColor(
-                                              role,
-                                            ).withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                _getRoleIcon(role),
-                                                size: 12,
-                                                color: _getRoleColor(role),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                role,
-                                                style: TextStyle(
-                                                  color: _getRoleColor(role),
-                                                  fontWeight: FontWeight.w500,
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    // Email
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.email,
-                                              size: 14,
-                                              color: Colors.grey[600],
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Expanded(
-                                              child: Text(
-                                                u['email'] ?? 'N/A',
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-
-                                    // Phone/Contact
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Container(
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.all(16),
-                                        child:
-                                            u['contact_number'] != null &&
-                                                    u['contact_number']
-                                                        .toString()
-                                                        .isNotEmpty
-                                                ? Row(
-                                                  children: [
-                                                    Icon(
-                                                      Icons.phone,
-                                                      size: 14,
-                                                      color: Colors.grey[600],
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Text(
-                                                      u['contact_number'],
-                                                      style: const TextStyle(
-                                                        fontSize: 13,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                )
-                                                : Text(
-                                                  'N/A',
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                    color: Colors.grey[500],
-                                                    fontStyle: FontStyle.italic,
-                                                  ),
-                                                ),
-                                      ),
-                                    ),
-
-                                    // Status
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color:
-                                                status == 'Active'
-                                                    ? const Color(0xFFE8F5E9)
-                                                    : const Color(0xFFFFEBEE),
-                                            borderRadius: BorderRadius.circular(
-                                              16,
-                                            ),
-                                            border: Border.all(
-                                              color:
-                                                  status == 'Active'
-                                                      ? const Color(0xFF4CAF50)
-                                                      : const Color(0xFFE57373),
-                                              width: 1,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Container(
-                                                width: 6,
-                                                height: 6,
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      status == 'Active'
-                                                          ? const Color(
-                                                            0xFF4CAF50,
-                                                          )
-                                                          : const Color(
-                                                            0xFFE57373,
-                                                          ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(3),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                status,
-                                                style: TextStyle(
-                                                  color:
-                                                      status == 'Active'
-                                                          ? const Color(
-                                                            0xFF2E7D32,
-                                                          )
-                                                          : const Color(
-                                                            0xFFC62828,
-                                                          ),
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-
-                                    // Actions
-                                    TableCell(
-                                      verticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      child: Center(
-                                        child:
-                                            isAdmin
-                                                ? PopupMenuButton<String>(
-                                                  icon: Icon(
-                                                    Icons.more_vert,
-                                                    color: Colors.grey[600],
-                                                  ),
-                                                  iconSize: 20,
-                                                  onSelected: (value) async {
-                                                    if (value == 'edit') {
-                                                      _addOrEditUser(user: u);
-                                                    } else if (value ==
-                                                        'delete') {
-                                                      showDialog(
-                                                        context: context,
-                                                        builder:
-                                                            (
-                                                              ctx,
-                                                            ) => AlertDialog(
-                                                              title: const Row(
-                                                                children: [
-                                                                  Icon(
-                                                                    Icons
-                                                                        .warning,
-                                                                    color:
-                                                                        Colors
-                                                                            .red,
-                                                                  ),
-                                                                  SizedBox(
-                                                                    width: 8,
-                                                                  ),
-                                                                  Text(
-                                                                    'Confirm Delete',
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                              content: Text(
-                                                                'Are you sure you want to delete ${u['fname']} ${u['lname']}? This action cannot be undone.',
-                                                              ),
-                                                              actions: [
-                                                                TextButton(
-                                                                  onPressed:
-                                                                      () =>
-                                                                          Navigator.pop(
-                                                                            ctx,
-                                                                          ),
-                                                                  child:
-                                                                      const Text(
-                                                                        'Cancel',
-                                                                      ),
-                                                                ),
-                                                                ElevatedButton(
-                                                                  style: ElevatedButton.styleFrom(
-                                                                    backgroundColor:
-                                                                        Colors
-                                                                            .red,
-                                                                  ),
-                                                                  onPressed: () async {
-                                                                    Navigator.pop(
-                                                                      ctx,
-                                                                    );
-                                                                    try {
-                                                                      await deleteUserViaEdgeFunction(
-                                                                        u['id']
-                                                                            .toString(),
-                                                                      );
-                                                                      await _fetchUsers();
-                                                                      
-                                                                      // Log audit event for user deletion
-                                                                      try {
-                                                                        await auditLogService.logAccountDeletion(
-                                                                          targetUserId: u['id'].toString(),
-                                                                          targetUserName: '${u['fname'] ?? ''} ${u['lname'] ?? ''}'.trim(),
-                                                                          role: u['role']?.toString() ?? 'Unknown',
-                                                                        );
-                                                                      } catch (auditError) {
-                                                                        print('Failed to log audit event: $auditError');
-                                                                      }
-                                                                      
-                                                                      if (mounted) {
-                                                                        ScaffoldMessenger.of(
-                                                                          context,
-                                                                        ).showSnackBar(
-                                                                          const SnackBar(
-                                                                            content: Row(
-                                                                              children: [
-                                                                                Icon(
-                                                                                  Icons.check_circle,
-                                                                                  color:
-                                                                                      Colors.white,
-                                                                                ),
-                                                                                SizedBox(
-                                                                                  width:
-                                                                                      8,
-                                                                                ),
-                                                                                Text(
-                                                                                  'User deleted successfully!',
-                                                                                ),
-                                                                              ],
-                                                                            ),
-                                                                            backgroundColor: Color(
-                                                                              0xFF2ECC71,
-                                                                            ),
-                                                                            behavior:
-                                                                                SnackBarBehavior.floating,
-                                                                          ),
-                                                                        );
-                                                                      }
-                                                                    } catch (
-                                                                      e
-                                                                    ) {
-                                                                      if (mounted) {
-                                                                        ScaffoldMessenger.of(
-                                                                          context,
-                                                                        ).showSnackBar(
-                                                                          SnackBar(
-                                                                            content: Row(
-                                                                              children: [
-                                                                                const Icon(
-                                                                                  Icons.error,
-                                                                                  color:
-                                                                                      Colors.white,
-                                                                                ),
-                                                                                const SizedBox(
-                                                                                  width:
-                                                                                      8,
-                                                                                ),
-                                                                                Expanded(
-                                                                                  child: Text(
-                                                                                    'Error: ${e.toString()}',
-                                                                                  ),
-                                                                                ),
-                                                                              ],
-                                                                            ),
-                                                                            backgroundColor:
-                                                                                Colors.red,
-                                                                            behavior:
-                                                                                SnackBarBehavior.floating,
-                                                                          ),
-                                                                        );
-                                                                      }
-                                                                    }
-                                                                  },
-                                                                  child: const Text(
-                                                                    'Delete',
-                                                                    style: TextStyle(
-                                                                      color:
-                                                                          Colors
-                                                                              .white,
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                      );
-                                                    } else if (value ==
-                                                        'reset_password') {
-                                                      showDialog(
-                                                        context: context,
-                                                        builder:
-                                                            (
-                                                              ctx,
-                                                            ) => AlertDialog(
-                                                              title: const Row(
-                                                                children: [
-                                                                  Icon(
-                                                                    Icons.email,
-                                                                    color: Color(
-                                                                      0xFF2ECC71,
-                                                                    ),
-                                                                  ),
-                                                                  SizedBox(
-                                                                    width: 8,
-                                                                  ),
-                                                                  Text(
-                                                                    'Reset Password',
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                              content: Text(
-                                                                'Send password reset email to ${u['email']}?',
-                                                              ),
-                                                              actions: [
-                                                                TextButton(
-                                                                  onPressed:
-                                                                      () =>
-                                                                          Navigator.pop(
-                                                                            ctx,
-                                                                          ),
-                                                                  child:
-                                                                      const Text(
-                                                                        'Cancel',
-                                                                      ),
-                                                                ),
-                                                                ElevatedButton(
-                                                                  style: ElevatedButton.styleFrom(
-                                                                    backgroundColor:
-                                                                        const Color(
-                                                                          0xFF2ECC71,
-                                                                        ),
-                                                                  ),
-                                                                  onPressed: () async {
-                                                                    Navigator.pop(
-                                                                      ctx,
-                                                                    );
-                                                                    try {
-                                                                      await sendPasswordResetEmail(
-                                                                        u['email'],
-                                                                      );
-                                                                      if (mounted) {
-                                                                        ScaffoldMessenger.of(
-                                                                          context,
-                                                                        ).showSnackBar(
-                                                                          const SnackBar(
-                                                                            content: Row(
-                                                                              children: [
-                                                                                Icon(
-                                                                                  Icons.check_circle,
-                                                                                  color:
-                                                                                      Colors.white,
-                                                                                ),
-                                                                                SizedBox(
-                                                                                  width:
-                                                                                      8,
-                                                                                ),
-                                                                                Text(
-                                                                                  'Password reset email sent successfully!',
-                                                                                ),
-                                                                              ],
-                                                                            ),
-                                                                            backgroundColor: Color(
-                                                                              0xFF2ECC71,
-                                                                            ),
-                                                                            behavior:
-                                                                                SnackBarBehavior.floating,
-                                                                          ),
-                                                                        );
-                                                                      }
-                                                                    } catch (
-                                                                      e
-                                                                    ) {
-                                                                      if (mounted) {
-                                                                        ScaffoldMessenger.of(
-                                                                          context,
-                                                                        ).showSnackBar(
-                                                                          SnackBar(
-                                                                            content: Row(
-                                                                              children: [
-                                                                                const Icon(
-                                                                                  Icons.error,
-                                                                                  color:
-                                                                                      Colors.white,
-                                                                                ),
-                                                                                const SizedBox(
-                                                                                  width:
-                                                                                      8,
-                                                                                ),
-                                                                                Expanded(
-                                                                                  child: Text(
-                                                                                    'Error: ${e.toString()}',
-                                                                                  ),
-                                                                                ),
-                                                                              ],
-                                                                            ),
-                                                                            backgroundColor:
-                                                                                Colors.red,
-                                                                            behavior:
-                                                                                SnackBarBehavior.floating,
-                                                                          ),
-                                                                        );
-                                                                      }
-                                                                    }
-                                                                  },
-                                                                  child: const Text(
-                                                                    'Send Email',
-                                                                    style: TextStyle(
-                                                                      color:
-                                                                          Colors
-                                                                              .white,
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                      );
-                                                    }
-                                                  },
-                                                  itemBuilder:
-                                                      (context) => [
-                                                        const PopupMenuItem(
-                                                          value: 'edit',
-                                                          child: Row(
-                                                            children: [
-                                                              Icon(
-                                                                Icons.edit,
-                                                                size: 16,
-                                                                color: Color(
-                                                                  0xFF2ECC71,
-                                                                ),
-                                                              ),
-                                                              SizedBox(
-                                                                width: 8,
-                                                              ),
-                                                              Text('Edit'),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                        const PopupMenuItem(
-                                                          value:
-                                                              'reset_password',
-                                                          child: Row(
-                                                            children: [
-                                                              Icon(
-                                                                Icons.email,
-                                                                size: 16,
-                                                              ),
-                                                              SizedBox(
-                                                                width: 8,
-                                                              ),
-                                                              Text(
-                                                                'Reset Password',
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                        const PopupMenuItem(
-                                                          value: 'delete',
-                                                          child: Row(
-                                                            children: [
-                                                              Icon(
-                                                                Icons.delete,
-                                                                size: 16,
-                                                                color:
-                                                                    Colors.red,
-                                                              ),
-                                                              SizedBox(
-                                                                width: 8,
-                                                              ),
-                                                              Text(
-                                                                'Delete',
-                                                                style: TextStyle(
-                                                                  color:
-                                                                      Colors
-                                                                          .red,
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ],
-                                                )
-                                                : const Text('-'),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
+                  // Role
+                  TableCell(
+                    verticalAlignment: TableCellVerticalAlignment.middle,
+                    child: Container(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.all(16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getRoleColor(role).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _getRoleIcon(role),
+                              size: 12,
+                              color: _getRoleColor(role),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              role,
+                              style: TextStyle(
+                                color: _getRoleColor(role),
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                    );
+                    ),
+                  ),
+
+                  // Email
+                  TableCell(
+                    verticalAlignment: TableCellVerticalAlignment.middle,
+                    child: Container(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Icon(Icons.email, size: 14, color: Colors.grey[600]),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              u['email'] ?? 'N/A',
+                              style: const TextStyle(fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Phone/Contact
+                  TableCell(
+                    verticalAlignment: TableCellVerticalAlignment.middle,
+                    child: Container(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.all(16),
+                      child:
+                          u['contact_number'] != null &&
+                                  u['contact_number'].toString().isNotEmpty
+                              ? Row(
+                                children: [
+                                  Icon(
+                                    Icons.phone,
+                                    size: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    u['contact_number'],
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                ],
+                              )
+                              : Text(
+                                'N/A',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[500],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                    ),
+                  ),
+
+                  // Status
+                  TableCell(
+                    verticalAlignment: TableCellVerticalAlignment.middle,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              status == 'Active'
+                                  ? const Color(0xFFE8F5E9)
+                                  : const Color(0xFFFFEBEE),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color:
+                                status == 'Active'
+                                    ? const Color(0xFF4CAF50)
+                                    : const Color(0xFFE57373),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color:
+                                    status == 'Active'
+                                        ? const Color(0xFF4CAF50)
+                                        : const Color(0xFFE57373),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              status,
+                              style: TextStyle(
+                                color:
+                                    status == 'Active'
+                                        ? const Color(0xFF2E7D32)
+                                        : const Color(0xFFC62828),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Actions
+                  TableCell(
+                    verticalAlignment: TableCellVerticalAlignment.middle,
+                    child: Center(
+                      child:
+                          isAdmin
+                              ? PopupMenuButton<String>(
+                                icon: Icon(
+                                  Icons.more_vert,
+                                  color: Colors.grey[600],
+                                ),
+                                iconSize: 20,
+                                onSelected: (value) async {
+                                  if (value == 'edit') {
+                                    _addOrEditUser(user: u);
+                                  } else if (value == 'delete') {
+                                    showDialog(
+                                      context: context,
+                                      builder:
+                                          (ctx) => AlertDialog(
+                                            title: const Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.warning,
+                                                  color: Colors.red,
+                                                ),
+                                                SizedBox(width: 8),
+                                                Text('Confirm Delete'),
+                                              ],
+                                            ),
+                                            content: Text(
+                                              'Are you sure you want to delete ${u['fname']} ${u['lname']}? This action cannot be undone.',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed:
+                                                    () => Navigator.pop(ctx),
+                                                child: const Text('Cancel'),
+                                              ),
+                                              ElevatedButton(
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                                onPressed: () async {
+                                                  Navigator.pop(ctx);
+                                                  try {
+                                                    await deleteUserViaEdgeFunction(
+                                                      u['id'].toString(),
+                                                    );
+                                                    await _fetchUsers();
+
+                                                    // Log audit event for user deletion
+                                                    try {
+                                                      await auditLogService
+                                                          .logAccountDeletion(
+                                                            targetUserId:
+                                                                u['id']
+                                                                    .toString(),
+                                                            targetUserName:
+                                                                '${u['fname'] ?? ''} ${u['lname'] ?? ''}'
+                                                                    .trim(),
+                                                            role:
+                                                                u['role']
+                                                                    ?.toString() ??
+                                                                'Unknown',
+                                                          );
+                                                    } catch (auditError) {
+                                                      print(
+                                                        'Failed to log audit event: $auditError',
+                                                      );
+                                                    }
+
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Row(
+                                                            children: [
+                                                              Icon(
+                                                                Icons
+                                                                    .check_circle,
+                                                                color:
+                                                                    Colors
+                                                                        .white,
+                                                              ),
+                                                              SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Text(
+                                                                'User deleted successfully!',
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          backgroundColor:
+                                                              Color(0xFF2ECC71),
+                                                          behavior:
+                                                              SnackBarBehavior
+                                                                  .floating,
+                                                        ),
+                                                      );
+                                                    }
+                                                  } catch (e) {
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        SnackBar(
+                                                          content: Row(
+                                                            children: [
+                                                              const Icon(
+                                                                Icons.error,
+                                                                color:
+                                                                    Colors
+                                                                        .white,
+                                                              ),
+                                                              const SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Expanded(
+                                                                child: Text(
+                                                                  'Error: ${e.toString()}',
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          backgroundColor:
+                                                              Colors.red,
+                                                          behavior:
+                                                              SnackBarBehavior
+                                                                  .floating,
+                                                        ),
+                                                      );
+                                                    }
+                                                  }
+                                                },
+                                                child: const Text(
+                                                  'Delete',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                    );
+                                  } else if (value == 'reset_password') {
+                                    showDialog(
+                                      context: context,
+                                      builder:
+                                          (ctx) => AlertDialog(
+                                            title: const Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.email,
+                                                  color: Color(0xFF2ECC71),
+                                                ),
+                                                SizedBox(width: 8),
+                                                Text('Reset Password'),
+                                              ],
+                                            ),
+                                            content: Text(
+                                              'Send password reset email to ${u['email']}?',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed:
+                                                    () => Navigator.pop(ctx),
+                                                child: const Text('Cancel'),
+                                              ),
+                                              ElevatedButton(
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: const Color(
+                                                    0xFF2ECC71,
+                                                  ),
+                                                ),
+                                                onPressed: () async {
+                                                  Navigator.pop(ctx);
+                                                  try {
+                                                    await sendPasswordResetEmail(
+                                                      u['email'],
+                                                    );
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Row(
+                                                            children: [
+                                                              Icon(
+                                                                Icons
+                                                                    .check_circle,
+                                                                color:
+                                                                    Colors
+                                                                        .white,
+                                                              ),
+                                                              SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Text(
+                                                                'Password reset email sent successfully!',
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          backgroundColor:
+                                                              Color(0xFF2ECC71),
+                                                          behavior:
+                                                              SnackBarBehavior
+                                                                  .floating,
+                                                        ),
+                                                      );
+                                                    }
+                                                  } catch (e) {
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(
+                                                        context,
+                                                      ).showSnackBar(
+                                                        SnackBar(
+                                                          content: Row(
+                                                            children: [
+                                                              const Icon(
+                                                                Icons.error,
+                                                                color:
+                                                                    Colors
+                                                                        .white,
+                                                              ),
+                                                              const SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Expanded(
+                                                                child: Text(
+                                                                  'Error: ${e.toString()}',
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                          backgroundColor:
+                                                              Colors.red,
+                                                          behavior:
+                                                              SnackBarBehavior
+                                                                  .floating,
+                                                        ),
+                                                      );
+                                                    }
+                                                  }
+                                                },
+                                                child: const Text(
+                                                  'Send Email',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                    );
+                                  }
+                                },
+                                itemBuilder:
+                                    (context) => [
+                                      const PopupMenuItem(
+                                        value: 'edit',
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.edit,
+                                              size: 16,
+                                              color: Color(0xFF2ECC71),
+                                            ),
+                                            SizedBox(width: 8),
+                                            Text('Edit'),
+                                          ],
+                                        ),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'reset_password',
+                                        child: Row(
+                                          children: [
+                                            Icon(Icons.email, size: 16),
+                                            SizedBox(width: 8),
+                                            Text('Reset Password'),
+                                          ],
+                                        ),
+                                      ),
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.delete,
+                                              size: 16,
+                                              color: Colors.red,
+                                            ),
+                                            SizedBox(width: 8),
+                                            Text(
+                                              'Delete',
+                                              style: TextStyle(
+                                                color: Colors.red,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                              )
+                              : const Text('-'),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ],
+        ),
+      ),
+    );
   }
 
   // Helper method to get role colors

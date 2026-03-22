@@ -9,22 +9,26 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PushNotificationService {
-  static final PushNotificationService _instance = PushNotificationService._internal();
+  static final PushNotificationService _instance =
+      PushNotificationService._internal();
   factory PushNotificationService() => _instance;
   PushNotificationService._internal();
 
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
-  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
   final supabase = Supabase.instance.client;
-  
+
   // Stream controllers for different notification types
-  final _notificationStreamController = StreamController<Map<String, dynamic>>.broadcast();
+  final _notificationStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
   final _badgeCountController = StreamController<int>.broadcast();
-  
+
   // Getters for streams
-  Stream<Map<String, dynamic>> get notificationStream => _notificationStreamController.stream;
+  Stream<Map<String, dynamic>> get notificationStream =>
+      _notificationStreamController.stream;
   Stream<int> get badgeCountStream => _badgeCountController.stream;
-  
+
   bool _isInitialized = false;
   String? _fcmToken;
   int _badgeCount = 0;
@@ -32,7 +36,7 @@ class PushNotificationService {
   /// Initialize the push notification service
   Future<void> initialize() async {
     if (_isInitialized) return;
-    
+
     try {
       // Initialize Firebase (if not already initialized)
       try {
@@ -44,16 +48,16 @@ class PushNotificationService {
 
       // Initialize local notifications
       await _initializeLocalNotifications();
-      
+
       // Request permissions
       await _requestPermissions();
-      
+
       // Setup Firebase messaging handlers
       await _setupFirebaseHandlers();
-      
+
       // Get FCM token
       await _getFCMToken();
-      
+
       _isInitialized = true;
       print('✅ Push Notification Service initialized successfully');
     } catch (e) {
@@ -73,10 +77,11 @@ class PushNotificationService {
           requestSoundPermission: true,
         );
 
-    const InitializationSettings initializationSettings = InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsIOS,
-    );
+    const InitializationSettings initializationSettings =
+        InitializationSettings(
+          android: initializationSettingsAndroid,
+          iOS: initializationSettingsIOS,
+        );
 
     await _localNotifications.initialize(
       initializationSettings,
@@ -99,47 +104,67 @@ class PushNotificationService {
       sound: RawResourceAndroidNotificationSound('notification'),
     );
 
-    const AndroidNotificationChannel dropoffChannel = AndroidNotificationChannel(
-      'dropoff_channel',
-      'Dropoff Notifications',
-      description: 'Notifications for student dropoff events',
-      importance: Importance.high,
-      sound: RawResourceAndroidNotificationSound('notification'),
-    );
+    const AndroidNotificationChannel dropoffChannel =
+        AndroidNotificationChannel(
+          'dropoff_channel',
+          'Dropoff Notifications',
+          description: 'Notifications for student dropoff events',
+          importance: Importance.high,
+          sound: RawResourceAndroidNotificationSound('notification'),
+        );
 
-    const AndroidNotificationChannel attendanceChannel = AndroidNotificationChannel(
-      'attendance_channel',
-      'Attendance Notifications',
-      description: 'Notifications for attendance updates',
-      importance: Importance.high,
-      sound: RawResourceAndroidNotificationSound('notification'),
-    );
+    const AndroidNotificationChannel attendanceChannel =
+        AndroidNotificationChannel(
+          'attendance_channel',
+          'Attendance Notifications',
+          description: 'Notifications for attendance updates',
+          importance: Importance.high,
+          sound: RawResourceAndroidNotificationSound('notification'),
+        );
 
-    const AndroidNotificationChannel emergencyChannel = AndroidNotificationChannel(
-      'emergency_channel',
-      'Emergency Notifications',
-      description: 'High priority emergency notifications',
-      importance: Importance.max,
-      sound: RawResourceAndroidNotificationSound('emergency'),
-    );
+    const AndroidNotificationChannel emergencyChannel =
+        AndroidNotificationChannel(
+          'emergency_channel',
+          'Emergency Notifications',
+          description: 'High priority emergency notifications',
+          importance: Importance.max,
+          sound: RawResourceAndroidNotificationSound('emergency'),
+        );
 
-    const AndroidNotificationChannel generalChannel = AndroidNotificationChannel(
-      'general_channel',
-      'General Notifications',
-      description: 'General app notifications',
-      importance: Importance.defaultImportance,
-    );
+    const AndroidNotificationChannel generalChannel =
+        AndroidNotificationChannel(
+          'general_channel',
+          'General Notifications',
+          description: 'General app notifications',
+          importance: Importance.defaultImportance,
+        );
 
-    final FlutterLocalNotificationsPlugin plugin = FlutterLocalNotificationsPlugin();
-    await plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+    final FlutterLocalNotificationsPlugin plugin =
+        FlutterLocalNotificationsPlugin();
+    await plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(pickupChannel);
-    await plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+    await plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(dropoffChannel);
-    await plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+    await plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(attendanceChannel);
-    await plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+    await plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(emergencyChannel);
-    await plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+    await plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(generalChannel);
   }
 
@@ -174,7 +199,8 @@ class PushNotificationService {
     FirebaseMessaging.onMessageOpenedApp.listen(_handleBackgroundMessage);
 
     // Handle messages when app is terminated
-    RemoteMessage? initialMessage = await _firebaseMessaging.getInitialMessage();
+    RemoteMessage? initialMessage =
+        await _firebaseMessaging.getInitialMessage();
     if (initialMessage != null) {
       _handleTerminatedMessage(initialMessage);
     }
@@ -210,7 +236,7 @@ class PushNotificationService {
           'platform': Platform.isAndroid ? 'android' : 'ios',
           'updated_at': DateTime.now().toIso8601String(),
         }, onConflict: 'user_id');
-        
+
         _fcmToken = token;
         print('✅ FCM token stored successfully');
       }
@@ -222,13 +248,13 @@ class PushNotificationService {
   /// Handle foreground messages
   void _handleForegroundMessage(RemoteMessage message) {
     print('📱 Received foreground message: ${message.messageId}');
-    
+
     // Show local notification
     _showLocalNotification(message);
-    
+
     // Update badge count
     _updateBadgeCount();
-    
+
     // Emit to stream for UI updates
     _notificationStreamController.add({
       'type': 'foreground',
@@ -240,7 +266,7 @@ class PushNotificationService {
   /// Handle background messages (app opened from notification)
   void _handleBackgroundMessage(RemoteMessage message) {
     print('📱 Received background message: ${message.messageId}');
-    
+
     _notificationStreamController.add({
       'type': 'background',
       'message': message,
@@ -251,7 +277,7 @@ class PushNotificationService {
   /// Handle terminated messages (app opened from notification when closed)
   void _handleTerminatedMessage(RemoteMessage message) {
     print('📱 Received terminated message: ${message.messageId}');
-    
+
     _notificationStreamController.add({
       'type': 'terminated',
       'message': message,
@@ -267,26 +293,26 @@ class PushNotificationService {
 
       final notificationType = message.data['type'] ?? 'general';
       final channelId = _getChannelId(notificationType);
-      
+
       final AndroidNotificationDetails androidPlatformChannelSpecifics =
           AndroidNotificationDetails(
-        channelId,
-        _getChannelName(channelId),
-        channelDescription: _getChannelDescription(channelId),
-        importance: _getImportance(notificationType),
-        priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
-        color: const Color(0xFF19AE61), // KidSync primary green
-        playSound: true,
-        enableVibration: true,
-      );
+            channelId,
+            _getChannelName(channelId),
+            channelDescription: _getChannelDescription(channelId),
+            importance: _getImportance(notificationType),
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+            color: const Color(0xFF19AE61), // KidSync primary green
+            playSound: true,
+            enableVibration: true,
+          );
 
       const DarwinNotificationDetails iOSPlatformChannelSpecifics =
           DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          );
 
       final NotificationDetails platformChannelSpecifics = NotificationDetails(
         android: androidPlatformChannelSpecifics,
@@ -310,10 +336,7 @@ class PushNotificationService {
     if (response.payload != null) {
       try {
         final data = jsonDecode(response.payload!);
-        _notificationStreamController.add({
-          'type': 'tap',
-          'data': data,
-        });
+        _notificationStreamController.add({'type': 'tap', 'data': data});
       } catch (e) {
         print('Error parsing notification payload: $e');
       }
@@ -330,7 +353,7 @@ class PushNotificationService {
             .select('id')
             .eq('recipient_id', user.id)
             .eq('is_read', false);
-        
+
         _badgeCount = response.length;
         _badgeCountController.add(_badgeCount);
       }
@@ -418,21 +441,21 @@ class PushNotificationService {
   }) async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      'test_channel',
-      'Test Notifications',
-      channelDescription: 'Test notifications for debugging',
-      importance: Importance.high,
-      priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
-      color: Color(0xFF19AE61),
-    );
+          'test_channel',
+          'Test Notifications',
+          channelDescription: 'Test notifications for debugging',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+          color: Color(0xFF19AE61),
+        );
 
     const DarwinNotificationDetails iOSPlatformChannelSpecifics =
         DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-    );
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        );
 
     const NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,

@@ -21,7 +21,11 @@ class TeacherDashboardPage extends StatefulWidget {
   final VoidCallback? onOpenClassList;
   final Function(int sectionId, String sectionName)? onOpenAttendance;
 
-  const TeacherDashboardPage({super.key, this.onOpenClassList, this.onOpenAttendance});
+  const TeacherDashboardPage({
+    super.key,
+    this.onOpenClassList,
+    this.onOpenAttendance,
+  });
 
   @override
   State<TeacherDashboardPage> createState() => _TeacherDashboardPageState();
@@ -29,8 +33,10 @@ class TeacherDashboardPage extends StatefulWidget {
 
 class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   final supabase = Supabase.instance.client;
-  final AttendanceMonitoringService _attendanceService = AttendanceMonitoringService();
-  final AttendanceTicketingService _ticketingService = AttendanceTicketingService();
+  final AttendanceMonitoringService _attendanceService =
+      AttendanceMonitoringService();
+  final AttendanceTicketingService _ticketingService =
+      AttendanceTicketingService();
   String? teacherId;
   String? teacherName;
   String? profileImageUrl;
@@ -41,7 +47,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   List<Map<String, dynamic>> studentsWithAttendanceIssues = [];
   Map<String, dynamic> attendanceInsights = {};
   bool isLoading = true;
-  
+
   // Simple performance caching
   DateTime? _lastLoadTime;
   Timer? _refreshTimer;
@@ -58,7 +64,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     super.initState();
     _loadDashboard();
   }
-  
+
   @override
   void dispose() {
     _refreshTimer?.cancel();
@@ -75,14 +81,14 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     if (days.isEmpty || startTime.isEmpty || endTime.isEmpty) {
       return "--";
     }
-    
+
     // Format times to 12-hour format
     final formattedStart = _formatTimeTo12Hour(startTime);
     final formattedEnd = _formatTimeTo12Hour(endTime);
-    
+
     return "$days | $formattedStart - $formattedEnd";
   }
-  
+
   String _formatTimeTo12Hour(String timeStr) {
     if (timeStr.isEmpty) return timeStr;
     final parts = timeStr.split(':');
@@ -145,11 +151,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   Future<void> _loadDashboard() async {
     // Simple cache check - avoid reloading data if loaded recently
     final currentTime = DateTime.now();
-    if (_lastLoadTime != null && 
+    if (_lastLoadTime != null &&
         currentTime.difference(_lastLoadTime!).inMinutes < 2) {
       return;
     }
-    
+
     setState(() => isLoading = true);
 
     final user = supabase.auth.currentUser;
@@ -175,39 +181,40 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       return;
     }
 
-      // Fetch section assignments for this teacher
-      final sectionAssignments = await supabase
-          .from('section_teachers')
-          .select(
-            'id, section_id, subject, days, start_time, end_time, assigned_at, sections(id, name, grade_level)',
-          )
-          .eq('teacher_id', teacherId!);
+    // Fetch section assignments for this teacher
+    final sectionAssignments = await supabase
+        .from('section_teachers')
+        .select(
+          'id, section_id, subject, days, start_time, end_time, assigned_at, sections(id, name, grade_level)',
+        )
+        .eq('teacher_id', teacherId!);
 
-      assignedSections = List<Map<String, dynamic>>.from(sectionAssignments);
-      sectionStudents.clear();
-      sectionAttendanceStats.clear();
-      sectionStudentStatus.clear();
+    assignedSections = List<Map<String, dynamic>>.from(sectionAssignments);
+    sectionStudents.clear();
+    sectionAttendanceStats.clear();
+    sectionStudentStatus.clear();
 
-      // Batch load students for all sections at once
-      final allSectionIds = assignedSections
-          .map((a) => a['sections']?['id'] as int?)
-          .where((id) => id != null)
-          .cast<int>()
-          .toSet()
-          .toList();
+    // Batch load students for all sections at once
+    final allSectionIds =
+        assignedSections
+            .map((a) => a['sections']?['id'] as int?)
+            .where((id) => id != null)
+            .cast<int>()
+            .toSet()
+            .toList();
 
-      if (allSectionIds.isNotEmpty) {
-        final allStudents = await supabase
-            .from('students')
-            .select('id, fname, lname, rfid_uid, section_id')
-            .inFilter('section_id', allSectionIds);
-        
-        // Group students by section
-        for (final student in allStudents) {
-          final sectionId = student['section_id'] as int;
-          sectionStudents.putIfAbsent(sectionId, () => []).add(student);
-        }
-      }    // Date filters for today
+    if (allSectionIds.isNotEmpty) {
+      final allStudents = await supabase
+          .from('students')
+          .select('id, fname, lname, rfid_uid, section_id')
+          .inFilter('section_id', allSectionIds);
+
+      // Group students by section
+      for (final student in allStudents) {
+        final sectionId = student['section_id'] as int;
+        sectionStudents.putIfAbsent(sectionId, () => []).add(student);
+      }
+    } // Date filters for today
     final now = DateTime.now();
     final nowUtc = now.toUtc();
     final todayStart = DateTime.utc(
@@ -250,10 +257,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     List<Map<String, dynamic>> allLateArrivals = [];
 
     // Get all student IDs across all sections
-    final allStudentIds = sectionStudents.values
-        .expand((students) => students)
-        .map((s) => s['id'] as int)
-        .toList();
+    final allStudentIds =
+        sectionStudents.values
+            .expand((students) => students)
+            .map((s) => s['id'] as int)
+            .toList();
 
     if (allStudentIds.isNotEmpty) {
       // Batch load scan records for all students
@@ -272,47 +280,53 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         presentIds.add(sid);
         entryTimes[sid] = DateTime.parse(record['scan_time']);
       }
-      
+
       // Process each section's attendance
       for (final assignment in todayAssignments) {
         final section = assignment['sections'];
         if (section == null) continue;
         final sectionId = section['id'] as int;
         final studentsList = sectionStudents[sectionId] ?? [];
-        
+
         if (studentsList.isEmpty) {
           sectionAttendanceStats[sectionId] = {'present': 0, 'attendance': 0};
           sectionStudentStatus[sectionId] = {};
           continue;
         }
-        
+
         totalStudents += studentsList.length;
-        
+
         int presentCount = 0;
         Map<int, String> statusMap = {};
         List<Map<String, dynamic>> lateThisSection = [];
-        
+
         // Parse class times for this assignment
         final startTimeStr = assignment['start_time'] ?? '';
         final endTimeStr = assignment['end_time'] ?? '';
         DateTime? classStartTime;
         DateTime? classEndTime;
-        
+
         if (startTimeStr.contains(':')) {
           final st = startTimeStr.split(':');
           classStartTime = DateTime(
-            now.year, now.month, now.day,
-            int.parse(st[0]), int.parse(st[1]),
+            now.year,
+            now.month,
+            now.day,
+            int.parse(st[0]),
+            int.parse(st[1]),
           );
         }
         if (endTimeStr.contains(':')) {
           final et = endTimeStr.split(':');
           classEndTime = DateTime(
-            now.year, now.month, now.day,
-            int.parse(et[0]), int.parse(et[1]),
+            now.year,
+            now.month,
+            now.day,
+            int.parse(et[0]),
+            int.parse(et[1]),
           );
         }
-        
+
         for (final student in studentsList) {
           final int sid = student['id'];
           if (presentIds.contains(sid)) {
@@ -340,7 +354,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             }
           }
         }
-        
+
         int attendancePercent =
             studentsList.isEmpty
                 ? 0
@@ -368,7 +382,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
         }
       }
     }
-    
+
     totalClassesToday = todayAssignments.length;
     totalStudentsToday = totalStudents;
     totalPresentToday = totalPresent;
@@ -376,9 +390,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     lateArrivals = allLateArrivals;
 
     // Load students with attendance issues using ticketing service
-    studentsWithAttendanceIssues = await _ticketingService.getStudentsRequiringAttention(
-      teacherId: teacherId!,
-    );
+    studentsWithAttendanceIssues = await _ticketingService
+        .getStudentsRequiringAttention(teacherId: teacherId!);
 
     // Load attendance insights
     attendanceInsights = await _attendanceService.getAttendanceInsights(
@@ -443,7 +456,8 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
   Widget _buildDetailLayoutGrid() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 1000; // desktop/tablet wide breakpoint
+        final isWide =
+            constraints.maxWidth >= 1000; // desktop/tablet wide breakpoint
         if (!isWide) {
           // Original stacked order for mobile / narrow screens
           return Column(
@@ -465,9 +479,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
               flex: 3,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildScheduleList(),
-                ],
+                children: [_buildScheduleList()],
               ),
             ),
             const SizedBox(width: 24),
@@ -574,18 +586,22 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                           0,
                       onGoToClass: () {
                         if (widget.onOpenAttendance != null) {
-                          widget.onOpenAttendance!(assignment['sections']['id'], assignment['sections']['name']);
+                          widget.onOpenAttendance!(
+                            assignment['sections']['id'],
+                            assignment['sections']['name'],
+                          );
                         } else {
                           // Fallback: Direct navigation (loses sidebar)
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (context) => TeacherSectionAttendancePage(
-                                sectionId: assignment['sections']['id'],
-                                sectionName: assignment['sections']['name'],
-                                onBack: () {
-                                  Navigator.of(context).pop();
-                                },
-                              ),
+                              builder:
+                                  (context) => TeacherSectionAttendancePage(
+                                    sectionId: assignment['sections']['id'],
+                                    sectionName: assignment['sections']['name'],
+                                    onBack: () {
+                                      Navigator.of(context).pop();
+                                    },
+                                  ),
                             ),
                           );
                         }
@@ -598,8 +614,6 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       ),
     );
   }
-
-
 
   Widget _buildAttendanceIssues() {
     return Padding(
@@ -679,7 +693,11 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
             else
               Column(
                 children: [
-                  for (int i = 0; i < studentsWithAttendanceIssues.length && i < 5; i++)
+                  for (
+                    int i = 0;
+                    i < studentsWithAttendanceIssues.length && i < 5;
+                    i++
+                  )
                     _buildAttendanceIssueItem(studentsWithAttendanceIssues[i]),
                   if (studentsWithAttendanceIssues.length > 5)
                     Padding(
@@ -689,7 +707,9 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                           // TODO: Navigate to full attendance issues page
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text("Full attendance monitoring page coming soon"),
+                              content: Text(
+                                "Full attendance monitoring page coming soon",
+                              ),
                               backgroundColor: Color(0xFF2563EB),
                             ),
                           );
@@ -716,7 +736,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     final section = studentData['section'];
     final consecutiveAbsences = studentData['consecutiveAbsences'] as int;
     final ticketStatus = studentData['ticketStatus'] as Map<String, dynamic>;
-    
+
     final studentName = '${student['fname']} ${student['lname']}';
     final hasTicket = ticketStatus['hasTicket'] as bool;
     final isResolved = ticketStatus['isResolved'] as bool;
@@ -727,22 +747,22 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
     // Only show badges if there are 3+ consecutive absences and no unresolved notifications
     if (consecutiveAbsences >= 3 && (!hasTicket || isResolved)) {
       if (consecutiveAbsences >= 8) {
-        badgeWidgets.add(const AttendanceStatusBadge(
-          type: AttendanceBadgeType.critical,
-        ));
+        badgeWidgets.add(
+          const AttendanceStatusBadge(type: AttendanceBadgeType.critical),
+        );
       } else if (consecutiveAbsences >= 5) {
-        badgeWidgets.add(const AttendanceStatusBadge(
-          type: AttendanceBadgeType.urgent,
-        ));
+        badgeWidgets.add(
+          const AttendanceStatusBadge(type: AttendanceBadgeType.urgent),
+        );
       } else if (consecutiveAbsences >= 3) {
-        badgeWidgets.add(const AttendanceStatusBadge(
-          type: AttendanceBadgeType.attention,
-        ));
+        badgeWidgets.add(
+          const AttendanceStatusBadge(type: AttendanceBadgeType.attention),
+        );
       }
     } else if (hasTicket && !isResolved) {
-      badgeWidgets.add(const AttendanceStatusBadge(
-        type: AttendanceBadgeType.monitoring,
-      ));
+      badgeWidgets.add(
+        const AttendanceStatusBadge(type: AttendanceBadgeType.monitoring),
+      );
     }
 
     // Determine priority color for container styling
@@ -763,28 +783,27 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
       decoration: BoxDecoration(
         color: priorityColor.withOpacity(0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: priorityColor.withOpacity(0.2),
-          width: 1,
-        ),
+        border: Border.all(color: priorityColor.withOpacity(0.2), width: 1),
       ),
       child: Row(
         children: [
           CircleAvatar(
             radius: 20,
             backgroundColor: const Color(0xFFE5E7EB),
-            backgroundImage: student['profile_image_url'] != null 
-                ? NetworkImage(student['profile_image_url'])
-                : null,
-            child: student['profile_image_url'] == null
-                ? Text(
-                    studentName[0].toUpperCase(),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF374151),
-                    ),
-                  )
-                : null,
+            backgroundImage:
+                student['profile_image_url'] != null
+                    ? NetworkImage(student['profile_image_url'])
+                    : null,
+            child:
+                student['profile_image_url'] == null
+                    ? Text(
+                      studentName[0].toUpperCase(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF374151),
+                      ),
+                    )
+                    : null,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -803,10 +822,12 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                         ),
                       ),
                     ),
-                    ...badgeWidgets.map((badge) => Padding(
-                      padding: const EdgeInsets.only(left: 4),
-                      child: badge,
-                    )),
+                    ...badgeWidgets.map(
+                      (badge) => Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: badge,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -832,7 +853,10 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                     if (hasTicket && !isResolved) ...[
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFF3B82F6).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(6),
@@ -1242,5 +1266,3 @@ class _ScheduleListTile extends StatelessWidget {
     );
   }
 }
-
-

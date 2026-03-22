@@ -7,9 +7,6 @@ class ParentPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RoleProtected(
-      requiredRole: 'Parent',
-      child: ParentHomeScreen(),
-    );
+    return RoleProtected(requiredRole: 'Parent', child: ParentHomeScreen());
   }
 }

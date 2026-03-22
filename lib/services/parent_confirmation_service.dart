@@ -5,8 +5,9 @@ import '../services/notification_service.dart';
 class ParentConfirmationService {
   final supabase = Supabase.instance.client;
   final notificationService = NotificationService();
-  
-  static final ParentConfirmationService _instance = ParentConfirmationService._internal();
+
+  static final ParentConfirmationService _instance =
+      ParentConfirmationService._internal();
   factory ParentConfirmationService() => _instance;
   ParentConfirmationService._internal();
 
@@ -19,18 +20,21 @@ class ParentConfirmationService {
     String? notes,
   }) async {
     try {
-      print('Processing parent confirmation for log $logId, parent $parentId, status: $status');
+      print(
+        'Processing parent confirmation for log $logId, parent $parentId, status: $status',
+      );
 
       // Get the pickup/dropoff log details
-      final logResponse = await supabase
-          .from('pickup_dropoff_logs')
-          .select('''
+      final logResponse =
+          await supabase
+              .from('pickup_dropoff_logs')
+              .select('''
             *,
             students!pickup_dropoff_logs_student_id_fkey (id, fname, lname),
             drivers:users!pickup_dropoff_logs_driver_id_fkey (id, fname, lname)
           ''')
-          .eq('id', logId)
-          .maybeSingle();
+              .eq('id', logId)
+              .maybeSingle();
 
       if (logResponse == null) {
         print('Pickup/dropoff log not found: $logId');
@@ -38,11 +42,12 @@ class ParentConfirmationService {
       }
 
       // Get parent details
-      final parentResponse = await supabase
-          .from('parents')
-          .select('fname, lname')
-          .eq('id', parentId)
-          .maybeSingle();
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('fname, lname')
+              .eq('id', parentId)
+              .maybeSingle();
 
       if (parentResponse == null) {
         print('Parent not found: $parentId');
@@ -57,11 +62,12 @@ class ParentConfirmationService {
         final studentName = '${student['fname']} ${student['lname']}';
         final parentName = '${parent['fname']} ${parent['lname']}';
         final eventType = logResponse['event_type'] ?? 'pickup';
-        final eventTime = logResponse['pickup_time'] != null 
-            ? DateTime.parse(logResponse['pickup_time'])
-            : (logResponse['dropoff_time'] != null 
-                ? DateTime.parse(logResponse['dropoff_time'])
-                : DateTime.now());
+        final eventTime =
+            logResponse['pickup_time'] != null
+                ? DateTime.parse(logResponse['pickup_time'])
+                : (logResponse['dropoff_time'] != null
+                    ? DateTime.parse(logResponse['dropoff_time'])
+                    : DateTime.now());
         final driverId = driver['id'];
         final studentId = student['id'];
 
@@ -75,25 +81,27 @@ class ParentConfirmationService {
         // Send notification to driver
         bool notificationSent = false;
         if (eventType == 'pickup') {
-          notificationSent = await notificationService.sendPickupApprovalNotification(
-            driverId: driverId,
-            studentId: studentId,
-            studentName: studentName,
-            parentName: parentName,
-            approvalTime: eventTime,
-            isApproved: status == 'confirmed',
-            notes: notes,
-          );
+          notificationSent = await notificationService
+              .sendPickupApprovalNotification(
+                driverId: driverId,
+                studentId: studentId,
+                studentName: studentName,
+                parentName: parentName,
+                approvalTime: eventTime,
+                isApproved: status == 'confirmed',
+                notes: notes,
+              );
         } else if (eventType == 'dropoff') {
-          notificationSent = await notificationService.sendDropoffApprovalNotification(
-            driverId: driverId,
-            studentId: studentId,
-            studentName: studentName,
-            parentName: parentName,
-            approvalTime: eventTime,
-            isApproved: status == 'confirmed',
-            notes: notes,
-          );
+          notificationSent = await notificationService
+              .sendDropoffApprovalNotification(
+                driverId: driverId,
+                studentId: studentId,
+                studentName: studentName,
+                parentName: parentName,
+                approvalTime: eventTime,
+                isApproved: status == 'confirmed',
+                notes: notes,
+              );
         }
 
         if (notificationSent) {
@@ -115,7 +123,9 @@ class ParentConfirmationService {
 
         return notificationSent;
       } else {
-        print('Missing required data - Student: $student, Driver: $driver, Parent: $parent');
+        print(
+          'Missing required data - Student: $student, Driver: $driver, Parent: $parent',
+        );
         return false;
       }
     } catch (e) {
@@ -136,12 +146,13 @@ class ParentConfirmationService {
   }) async {
     try {
       // Try to find existing verification record
-      final existingVerification = await supabase
-          .from('pickup_dropoff_verifications')
-          .select('id')
-          .eq('pickup_dropoff_log_id', logId)
-          .eq('parent_id', parentId)
-          .maybeSingle();
+      final existingVerification =
+          await supabase
+              .from('pickup_dropoff_verifications')
+              .select('id')
+              .eq('pickup_dropoff_log_id', logId)
+              .eq('parent_id', parentId)
+              .maybeSingle();
 
       if (existingVerification != null) {
         // Update existing record
@@ -153,21 +164,21 @@ class ParentConfirmationService {
               'parent_notes': notes,
             })
             .eq('id', existingVerification['id']);
-        print('Updated existing verification record ${existingVerification['id']}');
+        print(
+          'Updated existing verification record ${existingVerification['id']}',
+        );
       } else {
         // Create new verification record
-        await supabase
-            .from('pickup_dropoff_verifications')
-            .insert({
-              'pickup_dropoff_log_id': logId,
-              'student_id': studentId,
-              'parent_id': parentId,
-              'event_type': eventType,
-              'event_time': eventTime.toIso8601String(),
-              'status': status,
-              'parent_response_time': DateTime.now().toIso8601String(),
-              'parent_notes': notes,
-            });
+        await supabase.from('pickup_dropoff_verifications').insert({
+          'pickup_dropoff_log_id': logId,
+          'student_id': studentId,
+          'parent_id': parentId,
+          'event_type': eventType,
+          'event_time': eventTime.toIso8601String(),
+          'status': status,
+          'parent_response_time': DateTime.now().toIso8601String(),
+          'parent_notes': notes,
+        });
         print('Created new verification record');
       }
     } catch (e) {
@@ -183,10 +194,10 @@ class ParentConfirmationService {
 
       // Find pickup_dropoff_logs that have been confirmed but may not have sent notifications
       // This is a fallback for cases where the parent confirmed through an older system
-      
+
       // Look for recent confirmations (last 24 hours) that might not have notifications
       final oneDayAgo = DateTime.now().subtract(Duration(days: 1));
-      
+
       // Get verified records from verification table that are confirmed
       final confirmedVerifications = await supabase
           .from('pickup_dropoff_verifications')
@@ -199,11 +210,13 @@ class ParentConfirmationService {
           .eq('status', 'confirmed')
           .gte('parent_response_time', oneDayAgo.toIso8601String());
 
-      print('Found ${confirmedVerifications.length} confirmed verifications from last 24 hours');
+      print(
+        'Found ${confirmedVerifications.length} confirmed verifications from last 24 hours',
+      );
 
       for (final verification in confirmedVerifications) {
         final driverId = verification['driver_id'];
-        
+
         // Check if driver notification was already sent
         final existingNotifications = await supabase
             .from('notifications')
@@ -214,12 +227,14 @@ class ParentConfirmationService {
             .limit(1);
 
         if (existingNotifications.isEmpty) {
-          print('Missing notification for verification ${verification['id']}, sending now...');
-          
+          print(
+            'Missing notification for verification ${verification['id']}, sending now...',
+          );
+
           final student = verification['students'];
           final driver = verification['drivers'];
           final parent = verification['parents'];
-          
+
           if (student != null && driver != null && parent != null) {
             await confirmPickupDropoff(
               logId: verification['pickup_dropoff_log_id'],

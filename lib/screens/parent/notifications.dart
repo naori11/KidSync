@@ -7,17 +7,16 @@ import '../../services/parent_audit_service.dart';
 
 class ParentNotificationsModal extends StatefulWidget {
   final Student selectedStudent;
-  
-  const ParentNotificationsModal({
-    Key? key,
-    required this.selectedStudent,
-  }) : super(key: key);
+
+  const ParentNotificationsModal({Key? key, required this.selectedStudent})
+    : super(key: key);
 
   @override
-  State<ParentNotificationsModal> createState() => _ParentNotificationsModalState();
+  State<ParentNotificationsModal> createState() =>
+      _ParentNotificationsModalState();
 }
 
-class _ParentNotificationsModalState extends State<ParentNotificationsModal> 
+class _ParentNotificationsModalState extends State<ParentNotificationsModal>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
@@ -25,7 +24,7 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
   final supabase = Supabase.instance.client;
   final NotificationService _notificationService = NotificationService();
   final ParentAuditService _auditService = ParentAuditService();
-  
+
   List<Map<String, dynamic>> todayNotifications = [];
   // ...existing code...
   // replaced earlierNotifications list with a map grouped by date (yyyy-MM-dd)
@@ -39,23 +38,15 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    
-    _scaleAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutBack,
-    ));
-    
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOut,
-    ));
-    
+
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+
     _animationController.forward();
     _loadNotifications();
   }
@@ -73,15 +64,16 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
       final user = supabase.auth.currentUser;
       if (user == null) return;
 
-      final parentResponse = await supabase
-          .from('parents')
-          .select('id')
-          .eq('user_id', user.id)
-          .maybeSingle();
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('id')
+              .eq('user_id', user.id)
+              .maybeSingle();
 
       if (parentResponse != null) {
         final parentId = parentResponse['id'];
-        
+
         // Load today's notifications
         final todayNotifs = await _notificationService.getParentNotifications(
           parentId,
@@ -89,14 +81,14 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
           todayOnly: true,
           limit: 50,
         );
-        
+
         // Load all recent notifications (including pickup denials) for earlier section
         final allNotifs = await _notificationService.getParentAllNotifications(
           parentId,
           studentId: widget.selectedStudent.id,
           limit: 200,
         );
-        
+
         // Determine date ranges
         final now = DateTime.now().toLocal();
         final todayStart = DateTime(now.year, now.month, now.day);
@@ -105,23 +97,30 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
         final cutoffStart = todayStart.subtract(const Duration(days: 29));
 
         // Filter earlier notifications to those strictly before todayStart and within last 30 days
-        final earlierNotifs = allNotifs.where((notif) {
-          try {
-            final createdAt = DateTime.parse(notif['created_at']).toLocal();
-            final isBeforeToday = createdAt.isBefore(todayStart);
-            final isWithinCutoff = createdAt.isAtSameMomentAs(cutoffStart) || createdAt.isAfter(cutoffStart);
-            return isBeforeToday && isWithinCutoff;
-          } catch (e) {
-            return false;
-          }
-        }).toList();
+        final earlierNotifs =
+            allNotifs.where((notif) {
+              try {
+                final createdAt = DateTime.parse(notif['created_at']).toLocal();
+                final isBeforeToday = createdAt.isBefore(todayStart);
+                final isWithinCutoff =
+                    createdAt.isAtSameMomentAs(cutoffStart) ||
+                    createdAt.isAfter(cutoffStart);
+                return isBeforeToday && isWithinCutoff;
+              } catch (e) {
+                return false;
+              }
+            }).toList();
 
         // Group earlier notifications by date (yyyy-MM-dd)
         final Map<String, List<Map<String, dynamic>>> grouped = {};
         for (final notif in earlierNotifs) {
           try {
             final createdAt = DateTime.parse(notif['created_at']).toLocal();
-            final dateOnly = DateTime(createdAt.year, createdAt.month, createdAt.day);
+            final dateOnly = DateTime(
+              createdAt.year,
+              createdAt.month,
+              createdAt.day,
+            );
             final key = DateFormat('yyyy-MM-dd').format(dateOnly);
             grouped.putIfAbsent(key, () => []).add(notif);
           } catch (e) {
@@ -130,16 +129,21 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
         }
 
         setState(() {
-          todayNotifications = todayNotifs.where((notif) {
-            // ensure today's notifications are also within last 30 days (should be)
-            try {
-              final createdAt = DateTime.parse(notif['created_at']).toLocal();
-              return (createdAt.isAtSameMomentAs(todayStart) || (createdAt.isAfter(todayStart) && createdAt.isBefore(todayEnd))) ||
-                     createdAt.isAfter(todayStart) && createdAt.isBefore(todayEnd);
-            } catch (e) {
-              return false;
-            }
-          }).toList();
+          todayNotifications =
+              todayNotifs.where((notif) {
+                // ensure today's notifications are also within last 30 days (should be)
+                try {
+                  final createdAt =
+                      DateTime.parse(notif['created_at']).toLocal();
+                  return (createdAt.isAtSameMomentAs(todayStart) ||
+                          (createdAt.isAfter(todayStart) &&
+                              createdAt.isBefore(todayEnd))) ||
+                      createdAt.isAfter(todayStart) &&
+                          createdAt.isBefore(todayEnd);
+                } catch (e) {
+                  return false;
+                }
+              }).toList();
           groupedEarlierNotifications = grouped;
         });
 
@@ -270,168 +274,183 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
                 ),
                 // Modal Content
                 Expanded(
-                  child: isLoading
-                      ? Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(primaryGreen),
-                          ),
-                        )
-                      : SingleChildScrollView(
-                          padding: EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // Today's Notifications Section
-                              Container(
-                                margin: EdgeInsets.only(bottom: 20),
-                                padding: EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: greenWithOpacity,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: primaryGreen.withOpacity(0.2),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.today,
-                                          color: primaryGreen,
-                                          size: 20,
-                                        ),
-                                        SizedBox(width: 12),
-                                        Text(
-                                          'Today\'s Notifications',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 18,
-                                            color: black,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    SizedBox(height: 16),
-                                    if (todayNotifications.isEmpty)
-                                      Container(
-                                        padding: EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.info_outline,
-                                              color: Colors.grey[600],
-                                              size: 20,
-                                            ),
-                                            SizedBox(width: 12),
-                                            Expanded(
-                                              child: Text(
-                                                'No notifications for today',
-                                                style: TextStyle(
-                                                  color: Colors.grey[600],
-                                                  fontSize: 16,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      )
-                                    else
-                                      ...todayNotifications.map((notification) =>
-                                          _buildModalNotificationItem(
-                                            notification,
-                                            primaryGreen,
-                                            black,
-                                            isMobile,
-                                          )).toList(),
-                                  ],
-                                ),
+                  child:
+                      isLoading
+                          ? Center(
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                primaryGreen,
                               ),
-                              SizedBox(height: 20),
-                              // Earlier Notifications Section (grouped by date)
-                              Container(
-                                padding: EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.withOpacity(0.05),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: Colors.grey.withOpacity(0.2),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.history,
-                                          color: Colors.grey[600],
-                                          size: 20,
-                                        ),
-                                        SizedBox(width: 12),
-                                        Text(
-                                          'Earlier Notifications',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 18,
-                                            color: black,
-                                          ),
-                                        ),
-                                      ],
+                            ),
+                          )
+                          : SingleChildScrollView(
+                            padding: EdgeInsets.all(20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // Today's Notifications Section
+                                Container(
+                                  margin: EdgeInsets.only(bottom: 20),
+                                  padding: EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    color: greenWithOpacity,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: primaryGreen.withOpacity(0.2),
+                                      width: 1,
                                     ),
-                                    SizedBox(height: 16),
-                                    if (groupedEarlierNotifications.isEmpty)
-                                      Container(
-                                        padding: EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: white,
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(
-                                            color: Colors.grey.withOpacity(0.2),
-                                            width: 1,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.today,
+                                            color: primaryGreen,
+                                            size: 20,
                                           ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.info_outline,
-                                              color: Colors.grey[600],
-                                              size: 20,
+                                          SizedBox(width: 12),
+                                          Text(
+                                            'Today\'s Notifications',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 18,
+                                              color: black,
                                             ),
-                                            SizedBox(width: 12),
-                                            Expanded(
-                                              child: Text(
-                                                'No earlier notifications in the last 30 days',
-                                                style: TextStyle(
-                                                  color: Colors.grey[600],
-                                                  fontSize: 16,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      )
-                                    else
-                                      // build date groups sorted descending
-                                      ..._buildEarlierDateGroups(
-                                        groupedEarlierNotifications,
-                                        primaryGreen,
-                                        black,
-                                        isMobile,
+                                          ),
+                                        ],
                                       ),
-                                  ],
+                                      SizedBox(height: 16),
+                                      if (todayNotifications.isEmpty)
+                                        Container(
+                                          padding: EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.info_outline,
+                                                color: Colors.grey[600],
+                                                size: 20,
+                                              ),
+                                              SizedBox(width: 12),
+                                              Expanded(
+                                                child: Text(
+                                                  'No notifications for today',
+                                                  style: TextStyle(
+                                                    color: Colors.grey[600],
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      else
+                                        ...todayNotifications
+                                            .map(
+                                              (notification) =>
+                                                  _buildModalNotificationItem(
+                                                    notification,
+                                                    primaryGreen,
+                                                    black,
+                                                    isMobile,
+                                                  ),
+                                            )
+                                            .toList(),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                      ],
-                    ),
-                  ),
+                                SizedBox(height: 20),
+                                // Earlier Notifications Section (grouped by date)
+                                Container(
+                                  padding: EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: Colors.grey.withOpacity(0.2),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.history,
+                                            color: Colors.grey[600],
+                                            size: 20,
+                                          ),
+                                          SizedBox(width: 12),
+                                          Text(
+                                            'Earlier Notifications',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 18,
+                                              color: black,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      SizedBox(height: 16),
+                                      if (groupedEarlierNotifications.isEmpty)
+                                        Container(
+                                          padding: EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: white,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.grey.withOpacity(
+                                                0.2,
+                                              ),
+                                              width: 1,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.info_outline,
+                                                color: Colors.grey[600],
+                                                size: 20,
+                                              ),
+                                              SizedBox(width: 12),
+                                              Expanded(
+                                                child: Text(
+                                                  'No earlier notifications in the last 30 days',
+                                                  style: TextStyle(
+                                                    color: Colors.grey[600],
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      else
+                                        // build date groups sorted descending
+                                        ..._buildEarlierDateGroups(
+                                          groupedEarlierNotifications,
+                                          primaryGreen,
+                                          black,
+                                          isMobile,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                 ),
               ],
             ),
@@ -448,18 +467,20 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
     bool isMobile,
   ) {
     // Sort keys (yyyy-MM-dd) descending
-    final keys = grouped.keys.toList()
-      ..sort((a, b) {
-        final da = DateTime.parse(a);
-        final db = DateTime.parse(b);
-        return db.compareTo(da);
-      });
+    final keys =
+        grouped.keys.toList()..sort((a, b) {
+          final da = DateTime.parse(a);
+          final db = DateTime.parse(b);
+          return db.compareTo(da);
+        });
 
     final List<Widget> widgets = [];
 
     for (final key in keys) {
       final date = DateTime.parse(key);
-      final headerLabel = DateFormat('EEEE, MMM d').format(date); // e.g., Friday, Aug 21
+      final headerLabel = DateFormat(
+        'EEEE, MMM d',
+      ).format(date); // e.g., Friday, Aug 21
       widgets.add(
         Container(
           margin: EdgeInsets.only(bottom: 12),
@@ -481,14 +502,18 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
       );
 
       final notifs = grouped[key]!;
-      widgets.addAll(notifs.map((notification) =>
-        _buildModalNotificationItem(
-          notification,
-          primaryGreen,
-          black,
-          isMobile,
-        )
-      ).toList());
+      widgets.addAll(
+        notifs
+            .map(
+              (notification) => _buildModalNotificationItem(
+                notification,
+                primaryGreen,
+                black,
+                isMobile,
+              ),
+            )
+            .toList(),
+      );
 
       widgets.add(SizedBox(height: 8));
     }
@@ -507,11 +532,11 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
     final message = notification['message'] ?? '';
     final createdAt = notification['created_at'];
     final isRead = notification['is_read'] ?? false;
-    
+
     IconData icon;
     Color iconColor;
     Color backgroundColor;
-    
+
     switch (type) {
       case 'pickup':
         icon = Icons.school;
@@ -581,9 +606,10 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
         color: isRead ? Colors.white : backgroundColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isRead
-              ? Colors.grey.withOpacity(0.2)
-              : iconColor.withOpacity(0.3),
+          color:
+              isRead
+                  ? Colors.grey.withOpacity(0.2)
+                  : iconColor.withOpacity(0.3),
           width: 1,
         ),
         boxShadow: [
@@ -602,11 +628,7 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
               color: iconColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 20,
-            ),
+            child: Icon(icon, color: iconColor, size: 20),
           ),
           SizedBox(width: 12),
           Expanded(
@@ -624,18 +646,12 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
                 const SizedBox(height: 4),
                 Text(
                   message,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: black.withOpacity(0.7),
-                  ),
+                  style: TextStyle(fontSize: 13, color: black.withOpacity(0.7)),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   timeText,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: black.withOpacity(0.5),
-                  ),
+                  style: TextStyle(fontSize: 11, color: black.withOpacity(0.5)),
                 ),
               ],
             ),
@@ -666,10 +682,10 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
     final message = notification['message'] ?? '';
     final createdAt = notification['created_at'];
     final isRead = notification['is_read'] ?? false;
-    
+
     IconData icon;
     Color iconColor;
-    
+
     switch (type) {
       case 'pickup':
         icon = Icons.school;
@@ -715,19 +731,16 @@ class _ParentNotificationsModalState extends State<ParentNotificationsModal>
         color: isRead ? Colors.white : greenWithOpacity,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isRead
-              ? primaryGreen.withOpacity(0.1)
-              : primaryGreen.withOpacity(0.3),
+          color:
+              isRead
+                  ? primaryGreen.withOpacity(0.1)
+                  : primaryGreen.withOpacity(0.3),
           width: 1,
         ),
       ),
       child: Row(
         children: [
-          Icon(
-            icon,
-            color: iconColor,
-            size: isMobile ? 18 : 20,
-          ),
+          Icon(icon, color: iconColor, size: isMobile ? 18 : 20),
           SizedBox(width: 12),
           Expanded(
             child: Column(

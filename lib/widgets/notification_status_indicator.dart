@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum NotificationStatusType {
-  none,
-  pending,
-  resolved,
-}
+enum NotificationStatusType { none, pending, resolved }
 
 class NotificationStatusIndicator extends StatelessWidget {
   final NotificationStatusType status;
@@ -46,11 +42,7 @@ class NotificationStatusIndicator extends StatelessWidget {
     }
 
     if (!showText) {
-      return Icon(
-        icon,
-        color: color,
-        size: size,
-      );
+      return Icon(icon, color: color, size: size);
     }
 
     return Container(

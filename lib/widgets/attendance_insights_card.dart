@@ -57,10 +57,7 @@ class AttendanceInsightsCard extends StatelessWidget {
                   onPressed: onViewDetails,
                   child: const Text(
                     "View Details",
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF3B82F6),
-                    ),
+                    style: TextStyle(fontSize: 14, color: Color(0xFF3B82F6)),
                   ),
                 ),
             ],
@@ -83,7 +80,9 @@ class AttendanceInsightsCard extends StatelessWidget {
                   "Issues Resolved",
                   issuesResolved.toString(),
                   "$resolutionRate% resolution rate",
-                  resolutionRate >= 70 ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
+                  resolutionRate >= 70
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFFF59E0B),
                   Icons.check_circle_outline,
                 ),
               ),
@@ -93,7 +92,9 @@ class AttendanceInsightsCard extends StatelessWidget {
                   "Escalated Cases",
                   escalatedCases.toString(),
                   "Requiring attention",
-                  escalatedCases > 0 ? const Color(0xFFDC2626) : const Color(0xFF10B981),
+                  escalatedCases > 0
+                      ? const Color(0xFFDC2626)
+                      : const Color(0xFF10B981),
                   Icons.priority_high_outlined,
                 ),
               ),
@@ -104,30 +105,24 @@ class AttendanceInsightsCard extends StatelessWidget {
     );
   }
 
-  Widget _insightCard(String title, String value, String subtitle, Color color, IconData icon) {
+  Widget _insightCard(
+    String title,
+    String value,
+    String subtitle,
+    Color color,
+    IconData icon,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: color.withOpacity(0.2),
-          width: 1,
-        ),
+        border: Border.all(color: color.withOpacity(0.2), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(
-                icon,
-                color: color,
-                size: 16,
-              ),
-              const Spacer(),
-            ],
-          ),
+          Row(children: [Icon(icon, color: color, size: 16), const Spacer()]),
           const SizedBox(height: 8),
           Text(
             value,
@@ -149,10 +144,7 @@ class AttendanceInsightsCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             subtitle,
-            style: TextStyle(
-              fontSize: 10,
-              color: color.withOpacity(0.8),
-            ),
+            style: TextStyle(fontSize: 10, color: color.withOpacity(0.8)),
           ),
         ],
       ),
@@ -192,7 +184,9 @@ class AttendanceQuickStats extends StatelessWidget {
           child: _statChip(
             "With Issues",
             studentsWithIssues.toString(),
-            studentsWithIssues > 0 ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+            studentsWithIssues > 0
+                ? const Color(0xFFF59E0B)
+                : const Color(0xFF10B981),
             Icons.warning_outlined,
           ),
         ),
@@ -224,18 +218,11 @@ class AttendanceQuickStats extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: color.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
       ),
       child: Column(
         children: [
-          Icon(
-            icon,
-            color: color,
-            size: 16,
-          ),
+          Icon(icon, color: color, size: 16),
           const SizedBox(height: 2),
           Text(
             value,
@@ -247,10 +234,7 @@ class AttendanceQuickStats extends StatelessWidget {
           ),
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 10,
-              color: Color(0xFF6B7280),
-            ),
+            style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280)),
             textAlign: TextAlign.center,
           ),
         ],

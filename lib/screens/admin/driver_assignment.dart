@@ -611,8 +611,10 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                   LayoutBuilder(
                     builder: (context, constraints) {
                       final isDesktop = constraints.maxWidth > 1200;
-                      final isTablet = constraints.maxWidth > 768 && constraints.maxWidth <= 1200;
-                      
+                      final isTablet =
+                          constraints.maxWidth > 768 &&
+                          constraints.maxWidth <= 1200;
+
                       if (isDesktop) {
                         return Row(
                           children: [
@@ -625,7 +627,11 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                   Icons.assignment,
                                 ),
                                 const SizedBox(width: 16),
-                                _buildViewTab('students', 'Students View', Icons.school),
+                                _buildViewTab(
+                                  'students',
+                                  'Students View',
+                                  Icons.school,
+                                ),
                                 const SizedBox(width: 16),
                                 _buildViewTab(
                                   'drivers',
@@ -681,7 +687,11 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                   Icons.assignment,
                                 ),
                                 const SizedBox(width: 16),
-                                _buildViewTab('students', 'Students View', Icons.school),
+                                _buildViewTab(
+                                  'students',
+                                  'Students View',
+                                  Icons.school,
+                                ),
                                 const SizedBox(width: 16),
                                 _buildViewTab(
                                   'drivers',
@@ -748,7 +758,11 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
                                     Icons.assignment,
                                   ),
                                   const SizedBox(width: 12),
-                                  _buildViewTab('students', 'Students View', Icons.school),
+                                  _buildViewTab(
+                                    'students',
+                                    'Students View',
+                                    Icons.school,
+                                  ),
                                   const SizedBox(width: 12),
                                   _buildViewTab(
                                     'drivers',
@@ -822,13 +836,14 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
 
             // Content Area
             Expanded(
-              child: isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF2ECC71),
-                      ),
-                    )
-                  : _buildContent(),
+              child:
+                  isLoading
+                      ? const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF2ECC71),
+                        ),
+                      )
+                      : _buildContent(),
             ),
           ],
         ),
@@ -2178,8 +2193,10 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
         filtered.sort((a, b) {
           final sa = a['students'];
           final sb = b['students'];
-          final nameA = '${sa['fname']} ${sa['lname']}'.toString().toLowerCase();
-          final nameB = '${sb['fname']} ${sb['lname']}'.toString().toLowerCase();
+          final nameA =
+              '${sa['fname']} ${sa['lname']}'.toString().toLowerCase();
+          final nameB =
+              '${sb['fname']} ${sb['lname']}'.toString().toLowerCase();
           return nameA.compareTo(nameB);
         });
         break;
@@ -2187,8 +2204,10 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
         filtered.sort((a, b) {
           final sa = a['students'];
           final sb = b['students'];
-          final nameA = '${sa['fname']} ${sa['lname']}'.toString().toLowerCase();
-          final nameB = '${sb['fname']} ${sb['lname']}'.toString().toLowerCase();
+          final nameA =
+              '${sa['fname']} ${sa['lname']}'.toString().toLowerCase();
+          final nameB =
+              '${sb['fname']} ${sb['lname']}'.toString().toLowerCase();
           return nameB.compareTo(nameA);
         });
         break;
@@ -2201,8 +2220,12 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
         break;
       case 'Date Created':
         filtered.sort((a, b) {
-          final da = _toDateTime(a['created_at']) ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final db = _toDateTime(b['created_at']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final da =
+              _toDateTime(a['created_at']) ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          final db =
+              _toDateTime(b['created_at']) ??
+              DateTime.fromMillisecondsSinceEpoch(0);
           // Newest first
           return db.compareTo(da);
         });
@@ -2581,9 +2604,11 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
       if (assignmentToDelete.isNotEmpty) {
         final student = assignmentToDelete['students'] ?? {};
         final driver = assignmentToDelete['users'] ?? {};
-        final studentName = '${student['fname'] ?? 'Unknown'} ${student['lname'] ?? 'Student'}';
-        final driverName = '${driver['fname'] ?? 'Unknown'} ${driver['lname'] ?? 'Driver'}';
-        
+        final studentName =
+            '${student['fname'] ?? 'Unknown'} ${student['lname'] ?? 'Student'}';
+        final driverName =
+            '${driver['fname'] ?? 'Unknown'} ${driver['lname'] ?? 'Driver'}';
+
         await auditLogService.logDriverAssignment(
           action: 'unassign',
           studentId: assignmentToDelete['student_id'].toString(),
@@ -2657,7 +2682,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
             (s) => s['id'].toString() == studentId,
             orElse: () => {'fname': 'Unknown', 'lname': 'Student'},
           );
-          
+
           await auditLogService.logDriverAssignment(
             action: 'assign',
             studentId: studentId,
@@ -2859,7 +2884,7 @@ class _DriverAssignmentPageState extends State<DriverAssignmentPage> {
     dateValueCell.value = excel_lib.TextCellValue(
       DateTime.now().toLocal().toString().split('.')[0],
     );
-    
+
     rowIndex++; // Move to next row for Generated By
 
     var generatedByCell = sheet.cell(
@@ -5139,10 +5164,7 @@ class _BulkAssignmentDialogState extends State<_BulkAssignmentDialog> {
         value: driver['id'].toString(),
         child: Text(
           '${driver['fname']} ${driver['lname']}',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
         ),
       );
     }).toList();

@@ -13,7 +13,10 @@ class DriverService {
   // SMS service configured to call the server-side Edge Function which proxies to the
   // SMS provider. Username/password are unused when supabaseFunctionUrl is set.
   final SmsGatewayService smsService = SmsGatewayService(
-    supabaseFunctionUrl: SUPABASE_FUNCTIONS_BASE.isNotEmpty ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms' : null,
+    supabaseFunctionUrl:
+        SUPABASE_FUNCTIONS_BASE.isNotEmpty
+            ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms'
+            : null,
     username: '',
     password: '',
   );
@@ -22,7 +25,7 @@ class DriverService {
   Future<List<DriverAssignment>> getDriverAssignments(String driverId) async {
     try {
       print('Fetching driver assignments for driver: $driverId');
-      
+
       final response = await supabase
           .from('driver_assignments')
           .select('''
@@ -47,7 +50,7 @@ class DriverService {
           .eq('status', 'active');
 
       print('Raw response: $response');
-      
+
       final assignments = <DriverAssignment>[];
       for (final json in response) {
         try {
@@ -59,7 +62,7 @@ class DriverService {
           print('JSON data: $json');
         }
       }
-      
+
       print('Successfully parsed ${assignments.length} assignments');
       return assignments;
     } catch (e) {
@@ -73,25 +76,39 @@ class DriverService {
     try {
       final today = DateTime.now();
       final dayOfWeek = today.weekday; // 1 = Monday, 7 = Sunday
-      
+
       // Get driver assignments for today
       final assignments = await getDriverAssignments(driverId);
-      
+
       // Filter assignments that have today in their schedule_days
-      final todaysAssignments = assignments.where((assignment) {
-        if (assignment.scheduleDays == null || assignment.scheduleDays!.isEmpty) {
-          return false;
-        }
-        
-        // Check if today's day is in the schedule
-        final dayNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        final todayName = dayNames[dayOfWeek];
-        
-        return assignment.scheduleDays!.any((day) => 
-          day.toLowerCase().contains(todayName.toLowerCase().substring(0, 3)) ||
-          day.toLowerCase() == todayName.toLowerCase()
-        );
-      }).toList();
+      final todaysAssignments =
+          assignments.where((assignment) {
+            if (assignment.scheduleDays == null ||
+                assignment.scheduleDays!.isEmpty) {
+              return false;
+            }
+
+            // Check if today's day is in the schedule
+            final dayNames = [
+              '',
+              'Monday',
+              'Tuesday',
+              'Wednesday',
+              'Thursday',
+              'Friday',
+              'Saturday',
+              'Sunday',
+            ];
+            final todayName = dayNames[dayOfWeek];
+
+            return assignment.scheduleDays!.any(
+              (day) =>
+                  day.toLowerCase().contains(
+                    todayName.toLowerCase().substring(0, 3),
+                  ) ||
+                  day.toLowerCase() == todayName.toLowerCase(),
+            );
+          }).toList();
 
       if (todaysAssignments.isEmpty) {
         return [];
@@ -99,11 +116,12 @@ class DriverService {
 
       // Group assignments by school/pickup time
       final Map<String, List<DriverAssignment>> groupedAssignments = {};
-      
+
       for (final assignment in todaysAssignments) {
         final student = assignment.student;
         if (student?.section?.name != null) {
-          final key = '${student!.section!.name}_${assignment.pickupTime ?? 'default'}';
+          final key =
+              '${student!.section!.name}_${assignment.pickupTime ?? 'default'}';
           groupedAssignments.putIfAbsent(key, () => []).add(assignment);
         }
       }
@@ -111,31 +129,34 @@ class DriverService {
       // Create pickup tasks
       final tasks = <PickupTask>[];
       int taskId = 1;
-      
+
       for (final entry in groupedAssignments.entries) {
         final assignments = entry.value;
         final firstAssignment = assignments.first;
         final student = firstAssignment.student!;
-        
-        final students = assignments.map((assignment) {
-          final s = assignment.student!;
-          return Student(
-            id: s.id.toString(),
-            name: '${s.fname} ${s.mname ?? ''} ${s.lname}'.trim(),
-            grade: s.gradeLevel ?? student.section?.gradeLevel ?? 'Unknown',
-            studentDbId: s.id,
-            sectionName: s.section?.name,
-          );
-        }).toList();
 
-        tasks.add(PickupTask(
-          id: 'task_$taskId',
-          date: today,
-          schoolName: student.section?.name ?? 'School',
-          pickupTime: firstAssignment.pickupTime ?? '3:30 PM',
-          students: students,
-        ));
-        
+        final students =
+            assignments.map((assignment) {
+              final s = assignment.student!;
+              return Student(
+                id: s.id.toString(),
+                name: '${s.fname} ${s.mname ?? ''} ${s.lname}'.trim(),
+                grade: s.gradeLevel ?? student.section?.gradeLevel ?? 'Unknown',
+                studentDbId: s.id,
+                sectionName: s.section?.name,
+              );
+            }).toList();
+
+        tasks.add(
+          PickupTask(
+            id: 'task_$taskId',
+            date: today,
+            schoolName: student.section?.name ?? 'School',
+            pickupTime: firstAssignment.pickupTime ?? '3:30 PM',
+            students: students,
+          ),
+        );
+
         taskId++;
       }
 
@@ -147,13 +168,17 @@ class DriverService {
   }
 
   /// Get today's students with pickup/dropoff patterns for driver
-  Future<Map<String, dynamic>> getTodaysStudentsWithPatterns(String driverId) async {
+  Future<Map<String, dynamic>> getTodaysStudentsWithPatterns(
+    String driverId,
+  ) async {
     try {
       final today = DateTime.now();
       final dayOfWeek = today.weekday; // 1 = Monday, 7 = Sunday
       final todayDate = DateFormat('yyyy-MM-dd').format(today);
 
-      print('Loading students for driver: $driverId, day: $dayOfWeek, date: $todayDate');
+      print(
+        'Loading students for driver: $driverId, day: $dayOfWeek, date: $todayDate',
+      );
 
       // Get students assigned to this driver
       final assignedStudentsResponse = await supabase
@@ -200,11 +225,12 @@ class DriverService {
             if (daysStr.startsWith('{') && daysStr.endsWith('}')) {
               daysStr = daysStr.substring(1, daysStr.length - 1);
             }
-            days = daysStr
-                .split(',')
-                .map((s) => s.trim())
-                .where((s) => s.isNotEmpty)
-                .toList();
+            days =
+                daysStr
+                    .split(',')
+                    .map((s) => s.trim())
+                    .where((s) => s.isNotEmpty)
+                    .toList();
           }
 
           // Check if today's day name is in the schedule
@@ -267,12 +293,18 @@ class DriverService {
 
         // Add to morning pickup list if driver should pick up (dropoff_person = driver means morning pickup)
         if (dropoffPerson == 'driver') {
-          morningPickupList.add({...studentData, 'task_type': 'morning_pickup'});
+          morningPickupList.add({
+            ...studentData,
+            'task_type': 'morning_pickup',
+          });
         }
 
         // Add to afternoon dropoff list if driver should drop off (pickup_person = driver means afternoon dropoff)
         if (pickupPerson == 'driver') {
-          afternoonDropoffList.add({...studentData, 'task_type': 'afternoon_dropoff'});
+          afternoonDropoffList.add({
+            ...studentData,
+            'task_type': 'afternoon_dropoff',
+          });
         }
       }
 
@@ -308,14 +340,19 @@ class DriverService {
   }) async {
     try {
       // Insert pickup log and get the ID
-      final logResponse = await supabase.from('pickup_dropoff_logs').insert({
-        'student_id': studentId,
-        'driver_id': driverId,
-        'pickup_time': pickupTime.toIso8601String(),
-        'event_type': 'pickup',
-        'notes': notes,
-        'created_at': DateTime.now().toIso8601String(),
-      }).select('id').single();
+      final logResponse =
+          await supabase
+              .from('pickup_dropoff_logs')
+              .insert({
+                'student_id': studentId,
+                'driver_id': driverId,
+                'pickup_time': pickupTime.toIso8601String(),
+                'event_type': 'pickup',
+                'notes': notes,
+                'created_at': DateTime.now().toIso8601String(),
+              })
+              .select('id')
+              .single();
 
       final logId = logResponse['id'];
 
@@ -329,20 +366,23 @@ class DriverService {
       );
 
       // Get student and driver names for notification
-      final studentResponse = await supabase
-          .from('students')
-          .select('fname, lname')
-          .eq('id', studentId)
-          .maybeSingle();
+      final studentResponse =
+          await supabase
+              .from('students')
+              .select('fname, lname')
+              .eq('id', studentId)
+              .maybeSingle();
 
-      final driverResponse = await supabase
-          .from('users')
-          .select('fname, lname')
-          .eq('id', driverId)
-          .maybeSingle();
+      final driverResponse =
+          await supabase
+              .from('users')
+              .select('fname, lname')
+              .eq('id', driverId)
+              .maybeSingle();
 
       if (studentResponse != null && driverResponse != null) {
-        final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
+        final studentName =
+            '${studentResponse['fname']} ${studentResponse['lname']}';
 
         // Send verification request notification to driver
         await notificationService.sendVerificationRequestNotification(
@@ -356,7 +396,7 @@ class DriverService {
 
       // Notify parents (legacy method)
       await _notifyParents(studentId, 'pickup', pickupTime);
-      
+
       return true;
     } catch (e) {
       print('Error recording pickup: $e');
@@ -373,14 +413,19 @@ class DriverService {
   }) async {
     try {
       // Insert dropoff log and get the ID
-      final logResponse = await supabase.from('pickup_dropoff_logs').insert({
-        'student_id': studentId,
-        'driver_id': driverId,
-        'dropoff_time': dropoffTime.toIso8601String(),
-        'event_type': 'dropoff',
-        'notes': notes,
-        'created_at': DateTime.now().toIso8601String(),
-      }).select('id').single();
+      final logResponse =
+          await supabase
+              .from('pickup_dropoff_logs')
+              .insert({
+                'student_id': studentId,
+                'driver_id': driverId,
+                'dropoff_time': dropoffTime.toIso8601String(),
+                'event_type': 'dropoff',
+                'notes': notes,
+                'created_at': DateTime.now().toIso8601String(),
+              })
+              .select('id')
+              .single();
 
       final logId = logResponse['id'];
 
@@ -394,20 +439,23 @@ class DriverService {
       );
 
       // Get student and driver names for notification
-      final studentResponse = await supabase
-          .from('students')
-          .select('fname, lname')
-          .eq('id', studentId)
-          .maybeSingle();
+      final studentResponse =
+          await supabase
+              .from('students')
+              .select('fname, lname')
+              .eq('id', studentId)
+              .maybeSingle();
 
-      final driverResponse = await supabase
-          .from('users')
-          .select('fname, lname')
-          .eq('id', driverId)
-          .maybeSingle();
+      final driverResponse =
+          await supabase
+              .from('users')
+              .select('fname, lname')
+              .eq('id', driverId)
+              .maybeSingle();
 
       if (studentResponse != null && driverResponse != null) {
-        final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
+        final studentName =
+            '${studentResponse['fname']} ${studentResponse['lname']}';
 
         // Send verification request notification to driver
         await notificationService.sendVerificationRequestNotification(
@@ -421,7 +469,7 @@ class DriverService {
 
       // Notify parents (legacy method)
       await _notifyParents(studentId, 'dropoff', dropoffTime);
-      
+
       return true;
     } catch (e) {
       print('Error recording dropoff: $e');
@@ -442,17 +490,18 @@ class DriverService {
       final endOfDay = startOfDay.add(const Duration(days: 1));
 
       // Find the pickup record to cancel
-      final existingPickup = await supabase
-          .from('pickup_dropoff_logs')
-          .select('id')
-          .eq('student_id', studentId)
-          .eq('driver_id', driverId)
-          .eq('event_type', 'pickup')
-          .gte('created_at', startOfDay.toIso8601String())
-          .lt('created_at', endOfDay.toIso8601String())
-          .order('created_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
+      final existingPickup =
+          await supabase
+              .from('pickup_dropoff_logs')
+              .select('id')
+              .eq('student_id', studentId)
+              .eq('driver_id', driverId)
+              .eq('event_type', 'pickup')
+              .gte('created_at', startOfDay.toIso8601String())
+              .lt('created_at', endOfDay.toIso8601String())
+              .order('created_at', ascending: false)
+              .limit(1)
+              .maybeSingle();
 
       if (existingPickup == null) {
         print('No pickup record found to cancel for student $studentId');
@@ -466,7 +515,8 @@ class DriverService {
         'student_id': studentId,
         'driver_id': driverId,
         'event_type': 'pickup_cancelled',
-        'notes': 'CANCELLED - Reason: $reason${notes != null ? '. Notes: $notes' : ''}',
+        'notes':
+            'CANCELLED - Reason: $reason${notes != null ? '. Notes: $notes' : ''}',
         'created_at': DateTime.now().toIso8601String(),
       });
 
@@ -504,17 +554,18 @@ class DriverService {
       final endOfDay = startOfDay.add(const Duration(days: 1));
 
       // Find the dropoff record to cancel
-      final existingDropoff = await supabase
-          .from('pickup_dropoff_logs')
-          .select('id')
-          .eq('student_id', studentId)
-          .eq('driver_id', driverId)
-          .eq('event_type', 'dropoff')
-          .gte('created_at', startOfDay.toIso8601String())
-          .lt('created_at', endOfDay.toIso8601String())
-          .order('created_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
+      final existingDropoff =
+          await supabase
+              .from('pickup_dropoff_logs')
+              .select('id')
+              .eq('student_id', studentId)
+              .eq('driver_id', driverId)
+              .eq('event_type', 'dropoff')
+              .gte('created_at', startOfDay.toIso8601String())
+              .lt('created_at', endOfDay.toIso8601String())
+              .order('created_at', ascending: false)
+              .limit(1)
+              .maybeSingle();
 
       if (existingDropoff == null) {
         print('No dropoff record found to cancel for student $studentId');
@@ -528,7 +579,8 @@ class DriverService {
         'student_id': studentId,
         'driver_id': driverId,
         'event_type': 'dropoff_cancelled',
-        'notes': 'CANCELLED - Reason: $reason${notes != null ? '. Notes: $notes' : ''}',
+        'notes':
+            'CANCELLED - Reason: $reason${notes != null ? '. Notes: $notes' : ''}',
         'created_at': DateTime.now().toIso8601String(),
       });
 
@@ -536,7 +588,8 @@ class DriverService {
       await supabase
           .from('pickup_dropoff_logs')
           .update({
-            'notes': (existingDropoff['notes'] ?? '') + ' [CANCELLED - $reason]',
+            'notes':
+                (existingDropoff['notes'] ?? '') + ' [CANCELLED - $reason]',
           })
           .eq('id', logId);
 
@@ -554,7 +607,12 @@ class DriverService {
   }
 
   /// Helper method to cancel verification requests
-  Future<void> _cancelVerificationRequest(int logId, int studentId, String driverId, String eventType) async {
+  Future<void> _cancelVerificationRequest(
+    int logId,
+    int studentId,
+    String driverId,
+    String eventType,
+  ) async {
     try {
       // Update verification status to cancelled
       await supabase
@@ -566,7 +624,7 @@ class DriverService {
           })
           .eq('pickup_dropoff_log_id', logId)
           .eq('status', 'pending');
-      
+
       print('✅ Verification request cancelled for $eventType log $logId');
     } catch (e) {
       print('Error cancelling verification request: $e');
@@ -574,39 +632,52 @@ class DriverService {
   }
 
   /// Helper method to notify parents of cancellations
-  Future<void> _notifyParentsCancellation(int studentId, String eventType, String reason) async {
+  Future<void> _notifyParentsCancellation(
+    int studentId,
+    String eventType,
+    String reason,
+  ) async {
     try {
       // Get student and driver information
-      final studentResponse = await supabase
-          .from('students')
-          .select('fname, lname')
-          .eq('id', studentId)
-          .maybeSingle();
+      final studentResponse =
+          await supabase
+              .from('students')
+              .select('fname, lname')
+              .eq('id', studentId)
+              .maybeSingle();
 
-      final driverResponse = await supabase
-          .from('users')
-          .select('fname, lname')
-          .eq('id', supabase.auth.currentUser!.id)
-          .maybeSingle();
+      final driverResponse =
+          await supabase
+              .from('users')
+              .select('fname, lname')
+              .eq('id', supabase.auth.currentUser!.id)
+              .maybeSingle();
 
       if (studentResponse != null) {
-        final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
-        final driverName = driverResponse != null 
-            ? '${driverResponse['fname']} ${driverResponse['lname']}'
-            : null;
-        
+        final studentName =
+            '${studentResponse['fname']} ${studentResponse['lname']}';
+        final driverName =
+            driverResponse != null
+                ? '${driverResponse['fname']} ${driverResponse['lname']}'
+                : null;
+
         // Try using the new RPC function first
         try {
-          final result = await supabase.rpc('create_cancellation_notification', params: {
-            'p_student_id': studentId,
-            'p_student_name': studentName,
-            'p_event_type': eventType,
-            'p_reason': reason,
-            'p_driver_name': driverName,
-          });
-          
+          final result = await supabase.rpc(
+            'create_cancellation_notification',
+            params: {
+              'p_student_id': studentId,
+              'p_student_name': studentName,
+              'p_event_type': eventType,
+              'p_reason': reason,
+              'p_driver_name': driverName,
+            },
+          );
+
           if (result == true) {
-            print('✅ Cancellation notification sent via RPC for $studentName $eventType');
+            print(
+              '✅ Cancellation notification sent via RPC for $studentName $eventType',
+            );
             // RPC created notification server-side; attempt to enqueue SMS from client as well
             try {
               final parentPhoneRows = await supabase
@@ -621,21 +692,30 @@ class DriverService {
                 } catch (_) {}
               }
               if (phones.isNotEmpty) {
-                final smsMsg = '$studentName\'s $eventType has been cancelled. Reason: $reason${driverName != null ? '. Driver: $driverName' : ''}';
+                final smsMsg =
+                    '$studentName\'s $eventType has been cancelled. Reason: $reason${driverName != null ? '. Driver: $driverName' : ''}';
                 try {
-                  print('DriverService: RPC created cancellation notification; enqueuing SMS -> recipients=${phones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
+                  print(
+                    'DriverService: RPC created cancellation notification; enqueuing SMS -> recipients=${phones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"',
+                  );
                 } catch (_) {}
                 smsService.sendSms(recipients: phones, message: smsMsg);
               }
             } catch (e) {
-              print('DriverService: failed to enqueue SMS after RPC create_cancellation_notification: $e');
+              print(
+                'DriverService: failed to enqueue SMS after RPC create_cancellation_notification: $e',
+              );
             }
             return;
           } else {
-            print('⚠️ RPC function returned false for cancellation notification');
+            print(
+              '⚠️ RPC function returned false for cancellation notification',
+            );
           }
         } catch (rpcError) {
-          print('⚠️ RPC function failed for cancellation notification: $rpcError');
+          print(
+            '⚠️ RPC function failed for cancellation notification: $rpcError',
+          );
         }
 
         // Fallback to direct insert if RPC fails
@@ -649,8 +729,10 @@ class DriverService {
               .eq('student_id', studentId);
 
           final List<Map<String, dynamic>> notifications = [];
-          final title = '${eventType == 'pickup' ? 'Pickup' : 'Dropoff'} Cancelled';
-          final message = '$studentName\'s $eventType has been cancelled. Reason: $reason${driverName != null ? '. Driver: $driverName' : ''}';
+          final title =
+              '${eventType == 'pickup' ? 'Pickup' : 'Dropoff'} Cancelled';
+          final message =
+              '$studentName\'s $eventType has been cancelled. Reason: $reason${driverName != null ? '. Driver: $driverName' : ''}';
 
           for (final parentData in parentResponse) {
             final userId = parentData['parents']['user_id'];
@@ -669,14 +751,17 @@ class DriverService {
 
           if (notifications.isNotEmpty) {
             await supabase.from('notifications').insert(notifications);
-            print('✅ Cancellation notification sent via direct insert for $studentName $eventType');
+            print(
+              '✅ Cancellation notification sent via direct insert for $studentName $eventType',
+            );
 
             // Collect parent phones and enqueue SMS (non-blocking)
             try {
               final List<String> parentPhones = [];
               for (final parentData in parentResponse) {
                 try {
-                  final phone = parentData['parents']?['phone']?.toString() ?? '';
+                  final phone =
+                      parentData['parents']?['phone']?.toString() ?? '';
                   if (phone.isNotEmpty) parentPhones.add(phone);
                 } catch (_) {}
               }
@@ -685,7 +770,9 @@ class DriverService {
                 smsService.sendSms(recipients: parentPhones, message: smsMsg);
               }
             } catch (e) {
-              print('SMS enqueue error (driver_service._notifyParentsCancellation): $e');
+              print(
+                'SMS enqueue error (driver_service._notifyParentsCancellation): $e',
+              );
             }
           }
         } catch (fallbackError) {
@@ -721,7 +808,9 @@ class DriverService {
           .lt('created_at', endOfDay.toIso8601String())
           .order('created_at', ascending: false);
 
-      return response.map<PickupDropoffLog>((json) => PickupDropoffLog.fromJson(json)).toList();
+      return response
+          .map<PickupDropoffLog>((json) => PickupDropoffLog.fromJson(json))
+          .toList();
     } catch (e) {
       print('Error fetching today\'s logs: $e');
       return [];
@@ -839,7 +928,11 @@ class DriverService {
   }
 
   /// Private method to notify parents
-  Future<void> _notifyParents(int studentId, String eventType, DateTime eventTime) async {
+  Future<void> _notifyParents(
+    int studentId,
+    String eventType,
+    DateTime eventTime,
+  ) async {
     try {
       // Get parent information for the student
       final parentResponse = await supabase
@@ -857,22 +950,27 @@ class DriverService {
           .eq('student_id', studentId);
 
       // Get student information
-      final studentResponse = await supabase
-          .from('students')
-          .select('fname, mname, lname')
-          .eq('id', studentId)
-          .single();
+      final studentResponse =
+          await supabase
+              .from('students')
+              .select('fname, mname, lname')
+              .eq('id', studentId)
+              .single();
 
-      final studentName = '${studentResponse['fname']} ${studentResponse['mname'] ?? ''} ${studentResponse['lname']}'.trim();
+      final studentName =
+          '${studentResponse['fname']} ${studentResponse['mname'] ?? ''} ${studentResponse['lname']}'
+              .trim();
 
       // Get driver information
-      final driverResponse = await supabase
-          .from('users')
-          .select('fname, lname')
-          .eq('id', supabase.auth.currentUser!.id)
-          .single();
+      final driverResponse =
+          await supabase
+              .from('users')
+              .select('fname, lname')
+              .eq('id', supabase.auth.currentUser!.id)
+              .single();
 
-      final driverName = '${driverResponse['fname']} ${driverResponse['lname']}'.trim();
+      final driverName =
+          '${driverResponse['fname']} ${driverResponse['lname']}'.trim();
 
       // Create notification records for each parent, and collect phone numbers for SMS
       final List<String> parentPhones = [];
@@ -881,8 +979,12 @@ class DriverService {
         if (parent != null) {
           await supabase.from('notifications').insert({
             'recipient_id': parent['user_id'],
-            'title': eventType == 'pickup' ? 'Student Picked Up' : 'Student Dropped Off',
-            'message': '$studentName has been ${eventType == 'pickup' ? 'picked up' : 'dropped off'} by $driverName at ${_formatTime(eventTime)}',
+            'title':
+                eventType == 'pickup'
+                    ? 'Student Picked Up'
+                    : 'Student Dropped Off',
+            'message':
+                '$studentName has been ${eventType == 'pickup' ? 'picked up' : 'dropped off'} by $driverName at ${_formatTime(eventTime)}',
             'type': eventType,
             'student_id': studentId,
             'created_at': DateTime.now().toIso8601String(),
@@ -899,9 +1001,12 @@ class DriverService {
 
       // Enqueue SMS to parents (non-blocking, service will queue & retry)
       if (parentPhones.isNotEmpty) {
-        final smsMessage = '$studentName has been ${eventType == 'pickup' ? 'picked up' : 'dropped off'} by $driverName at ${_formatTime(eventTime)}';
+        final smsMessage =
+            '$studentName has been ${eventType == 'pickup' ? 'picked up' : 'dropped off'} by $driverName at ${_formatTime(eventTime)}';
         try {
-          print('DriverService: enqueuing SMS for ${eventType} notify -> recipients=${parentPhones.length}, preview="${smsMessage.substring(0, smsMessage.length > 80 ? 80 : smsMessage.length)}"');
+          print(
+            'DriverService: enqueuing SMS for ${eventType} notify -> recipients=${parentPhones.length}, preview="${smsMessage.substring(0, smsMessage.length > 80 ? 80 : smsMessage.length)}"',
+          );
         } catch (_) {}
         smsService.sendSms(recipients: parentPhones, message: smsMessage);
       }

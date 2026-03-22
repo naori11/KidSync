@@ -12,13 +12,7 @@ void main() {
   testWidgets('App initialization test', (WidgetTester tester) async {
     // Simple test that doesn't require full app initialization
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: Text('Test'),
-          ),
-        ),
-      ),
+      const MaterialApp(home: Scaffold(body: Center(child: Text('Test')))),
     );
 
     // Verify that the test widget renders

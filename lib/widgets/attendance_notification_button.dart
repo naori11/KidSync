@@ -1,13 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Button states for attendance notification actions
-enum AttendanceButtonState {
-  urgent,
-  escalate,
-  monitoring,
-  disabled,
-  loading,
-}
+enum AttendanceButtonState { urgent, escalate, monitoring, disabled, loading }
 
 /// Smart notification button that adapts based on attendance status
 class AttendanceNotificationButton extends StatelessWidget {
@@ -29,7 +23,7 @@ class AttendanceNotificationButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final config = _getButtonConfig();
-    
+
     return SizedBox(
       width: width,
       height: height,
@@ -38,40 +32,35 @@ class AttendanceNotificationButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: config.color,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         ),
-        child: state == AttendanceButtonState.loading
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    config.icon,
-                    size: 16,
+        child:
+            state == AttendanceButtonState.loading
+                ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
                     color: Colors.white,
+                    strokeWidth: 2,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    config.text,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                )
+                : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(config.icon, size: 16, color: Colors.white),
+                    const SizedBox(height: 2),
+                    Text(
+                      config.text,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+                  ],
+                ),
       ),
     );
   }
@@ -117,11 +106,7 @@ class _ButtonConfig {
   final Color color;
   final IconData icon;
 
-  _ButtonConfig({
-    required this.text,
-    required this.color,
-    required this.icon,
-  });
+  _ButtonConfig({required this.text, required this.color, required this.icon});
 }
 
 /// Action button for specific attendance actions
@@ -155,41 +140,40 @@ class AttendanceActionButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           elevation: 2,
           shadowColor: color.withOpacity(0.3),
         ),
-        child: isLoading
-            ? const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 14),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      text,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.2,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
+        child:
+            isLoading
+                ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
                   ),
-                ],
-              ),
+                )
+                : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 14),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        text,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ),
+                  ],
+                ),
       ),
     );
   }

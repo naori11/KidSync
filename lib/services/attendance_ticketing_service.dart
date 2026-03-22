@@ -8,12 +8,16 @@ class AttendanceTicketingService {
   final supabase = Supabase.instance.client;
   final teacherAuditService = TeacherAuditService();
   final SmsGatewayService smsService = SmsGatewayService(
-    supabaseFunctionUrl: SUPABASE_FUNCTIONS_BASE.isNotEmpty ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms' : null,
+    supabaseFunctionUrl:
+        SUPABASE_FUNCTIONS_BASE.isNotEmpty
+            ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms'
+            : null,
     username: '',
     password: '',
   );
-  
-  static final AttendanceTicketingService _instance = AttendanceTicketingService._internal();
+
+  static final AttendanceTicketingService _instance =
+      AttendanceTicketingService._internal();
   factory AttendanceTicketingService() => _instance;
   AttendanceTicketingService._internal();
 
@@ -24,13 +28,16 @@ class AttendanceTicketingService {
   }) async {
     try {
       // Use RPC function to bypass RLS and get ticket status
-      final rpcResult = await supabase.rpc('get_attendance_ticket_status', params: {
-        'p_student_id': studentId,
-      });
-      
+      final rpcResult = await supabase.rpc(
+        'get_attendance_ticket_status',
+        params: {'p_student_id': studentId},
+      );
+
       if (rpcResult != null) {
         // Convert the JSON result to a Map
-        final Map<String, dynamic> status = Map<String, dynamic>.from(rpcResult);
+        final Map<String, dynamic> status = Map<String, dynamic>.from(
+          rpcResult,
+        );
         return status;
       } else {
         return _getFallbackTicketStatus(studentId);
@@ -47,7 +54,9 @@ class AttendanceTicketingService {
       // Query for attendance notifications for this student
       final tickets = await supabase
           .from('notifications')
-          .select('id, type, created_at, is_read, title, message, student_id, recipient_id')
+          .select(
+            'id, type, created_at, is_read, title, message, student_id, recipient_id',
+          )
           .eq('student_id', studentId)
           .or('type.eq.attendance_ticket,type.eq.attendance_resolved')
           .order('created_at', ascending: false)
@@ -69,8 +78,10 @@ class AttendanceTicketingService {
       return {
         'hasTicket': true,
         'isResolved': isResolved,
-        'canSendNotification': isResolved, // Can send new notification only if current is resolved
-        'canMarkResolved': !isResolved, // Can resolve only if not already resolved
+        'canSendNotification':
+            isResolved, // Can send new notification only if current is resolved
+        'canMarkResolved':
+            !isResolved, // Can resolve only if not already resolved
         'ticketData': latestTicket,
       };
     } catch (e) {
@@ -102,7 +113,9 @@ class AttendanceTicketingService {
       );
 
       if (ticketStatus['hasTicket'] && !ticketStatus['isResolved']) {
-        throw Exception('There is already an unresolved notification for this student');
+        throw Exception(
+          'There is already an unresolved notification for this student',
+        );
       }
 
       // Get all parents for this student
@@ -124,10 +137,13 @@ class AttendanceTicketingService {
 
       // Prepare notification message
       String title = 'Attendance Concern - $studentName';
-      String message = 'Hello! $teacherName from $sectionName would like to discuss $studentName\'s attendance with you.\n\n';
+      String message =
+          'Hello! $teacherName from $sectionName would like to discuss $studentName\'s attendance with you.\n\n';
       message += 'Reason: $customReason\n\n';
-      message += 'Please contact the school at your earliest convenience to discuss this matter. ';
-      message += 'Your child\'s regular attendance is important for their academic success.';
+      message +=
+          'Please contact the school at your earliest convenience to discuss this matter. ';
+      message +=
+          'Your child\'s regular attendance is important for their academic success.';
 
       // Send notification to each parent
       final List<Map<String, dynamic>> notifications = [];
@@ -150,21 +166,24 @@ class AttendanceTicketingService {
         try {
           // Use RPC function instead of direct insert to bypass RLS issues
           List<Map<String, dynamic>> insertResults = [];
-          
+
           for (var notification in notifications) {
-            final rpcResult = await supabase.rpc('create_teacher_notification', params: {
-              'p_recipient_id': notification['recipient_id'],
-              'p_title': notification['title'],
-              'p_message': notification['message'],
-              'p_type': notification['type'],
-              'p_student_id': notification['student_id'],
-            });
-            
+            final rpcResult = await supabase.rpc(
+              'create_teacher_notification',
+              params: {
+                'p_recipient_id': notification['recipient_id'],
+                'p_title': notification['title'],
+                'p_message': notification['message'],
+                'p_type': notification['type'],
+                'p_student_id': notification['student_id'],
+              },
+            );
+
             if (rpcResult != null) {
               insertResults.add(rpcResult);
             }
           }
-          
+
           if (insertResults.isEmpty) {
             throw Exception('No notifications were created');
           }
@@ -179,20 +198,25 @@ class AttendanceTicketingService {
           if (parentPhones.isNotEmpty) {
             final smsMsg = message;
             try {
-              print('AttendanceTicketingService: enqueuing SMS for attendance ticket -> recipients=${parentPhones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
+              print(
+                'AttendanceTicketingService: enqueuing SMS for attendance ticket -> recipients=${parentPhones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"',
+              );
             } catch (_) {}
             // Enqueue SMS without awaiting
             smsService.sendSms(recipients: parentPhones, message: smsMsg);
           }
         } catch (insertError) {
-          
           if (insertError.toString().contains('Only teachers can create')) {
-            throw Exception('Permission denied: Only teachers can send attendance notifications.');
+            throw Exception(
+              'Permission denied: Only teachers can send attendance notifications.',
+            );
           }
-          
-          throw Exception('Failed to send notification: ${insertError.toString()}');
+
+          throw Exception(
+            'Failed to send notification: ${insertError.toString()}',
+          );
         }
-        
+
         // Log the ticket creation with proper audit logging
         await teacherAuditService.logParentNotificationTrigger(
           studentId: studentId.toString(),
@@ -208,7 +232,7 @@ class AttendanceTicketingService {
             'notification_count': notifications.length,
           },
         );
-        
+
         // Keep existing ticket activity logging for compatibility
         await _logTicketActivity(
           studentId: studentId,
@@ -221,7 +245,7 @@ class AttendanceTicketingService {
           },
           performedBy: teacherId,
         );
-        
+
         return true;
       }
 
@@ -253,7 +277,8 @@ class AttendanceTicketingService {
       final resolutionTicket = {
         'recipient_id': resolvedBy,
         'title': 'Attendance Issue Resolved',
-        'message': 'Attendance concern resolved for student ID $studentId. Notes: ${resolutionNotes ?? "Issue resolved by teacher"}',
+        'message':
+            'Attendance concern resolved for student ID $studentId. Notes: ${resolutionNotes ?? "Issue resolved by teacher"}',
         'type': 'attendance_resolved',
         'student_id': studentId,
         'is_read': true,
@@ -278,11 +303,14 @@ class AttendanceTicketingService {
         }
 
         if (parentPhones.isNotEmpty) {
-            final smsMsg = 'Attendance concern for $studentId has been resolved. ${resolutionNotes ?? ''}';
-            try {
-              print('AttendanceTicketingService: enqueuing SMS for ticket resolved -> recipients=${parentPhones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
-            } catch (_) {}
-            smsService.sendSms(recipients: parentPhones, message: smsMsg);
+          final smsMsg =
+              'Attendance concern for $studentId has been resolved. ${resolutionNotes ?? ''}';
+          try {
+            print(
+              'AttendanceTicketingService: enqueuing SMS for ticket resolved -> recipients=${parentPhones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"',
+            );
+          } catch (_) {}
+          smsService.sendSms(recipients: parentPhones, message: smsMsg);
         }
       } catch (_) {}
 
@@ -291,15 +319,18 @@ class AttendanceTicketingService {
       await supabase.from('scan_records').insert({
         'student_id': studentId,
         'guard_id': supabase.auth.currentUser?.id ?? resolvedBy,
-        'rfid_uid': 'ticket_resolution_${studentId}_${now.millisecondsSinceEpoch}',
+        'rfid_uid':
+            'ticket_resolution_${studentId}_${now.millisecondsSinceEpoch}',
         'scan_time': now.toIso8601String(),
         'action': 'attendance_resolution',
-        'notes': 'Attendance ticket resolved - resets consecutive absence tracking',
+        'notes':
+            'Attendance ticket resolved - resets consecutive absence tracking',
       });
 
       // Log the ticket resolution with proper audit logging (fetches student name automatically)
       await teacherAuditService.logIssueResolutionWithLookup(
-        issueId: 'attendance_ticket_${studentId}_${DateTime.now().millisecondsSinceEpoch}',
+        issueId:
+            'attendance_ticket_${studentId}_${DateTime.now().millisecondsSinceEpoch}',
         studentId: studentId.toString(),
         issueType: 'attendance_ticket',
         resolution: 'resolved_by_teacher',
@@ -309,7 +340,7 @@ class AttendanceTicketingService {
           'resolved_at': DateTime.now().toIso8601String(),
         },
       );
-      
+
       // Keep existing ticket activity logging for compatibility
       await _logTicketActivity(
         studentId: studentId,
@@ -355,7 +386,7 @@ class AttendanceTicketingService {
       }
 
       final sections = await sectionsQuery;
-      
+
       List<Map<String, dynamic>> studentsRequiringAttention = [];
 
       for (final section in sections) {
@@ -379,7 +410,7 @@ class AttendanceTicketingService {
           // 1. Don't have a ticket yet, OR
           // 2. Have an unresolved ticket (to show current status)
           bool shouldShow = consecutiveAbsences >= 3;
-          
+
           // Hide students whose tickets are resolved (issue is considered closed)
           if (ticketStatus['hasTicket'] && ticketStatus['isResolved']) {
             shouldShow = false;
@@ -402,7 +433,9 @@ class AttendanceTicketingService {
 
       // Sort by consecutive absences (most concerning first)
       studentsRequiringAttention.sort((a, b) {
-        return (b['consecutiveAbsences'] as int).compareTo(a['consecutiveAbsences'] as int);
+        return (b['consecutiveAbsences'] as int).compareTo(
+          a['consecutiveAbsences'] as int,
+        );
       });
 
       return studentsRequiringAttention;
@@ -430,7 +463,7 @@ class AttendanceTicketingService {
   }) async {
     try {
       final now = DateTime.now();
-      
+
       // Load class schedule to determine class days
       final assignmentRows = await supabase
           .from('section_teachers')
@@ -441,7 +474,7 @@ class AttendanceTicketingService {
       // Parse class schedule
       List<String> classDays = [];
       String? classEndTime;
-      
+
       if (assignmentRows.isNotEmpty) {
         final Set<String> unionDays = {};
 
@@ -491,8 +524,10 @@ class AttendanceTicketingService {
 
       // Get attendance records for the last 30 days
       final startDate = now.subtract(const Duration(days: 30));
-      final startDateStr = "${startDate.year.toString().padLeft(4, '0')}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}";
-      final endDateStr = "${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+      final startDateStr =
+          "${startDate.year.toString().padLeft(4, '0')}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}";
+      final endDateStr =
+          "${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
       final records = await supabase
           .from('section_attendance')
@@ -514,7 +549,7 @@ class AttendanceTicketingService {
       // Count consecutive absences from most recent date
       int consecutiveAbsences = 0;
       DateTime checkDate = now;
-      
+
       // Check if there's a resolution marker that breaks the consecutive chain
       final resolutionMarkers = await supabase
           .from('scan_records')
@@ -526,29 +561,34 @@ class AttendanceTicketingService {
 
       DateTime? lastResolutionDate;
       if (resolutionMarkers.isNotEmpty) {
-        lastResolutionDate = DateTime.parse(resolutionMarkers.first['scan_time']);
+        lastResolutionDate = DateTime.parse(
+          resolutionMarkers.first['scan_time'],
+        );
       }
 
       while (checkDate.isAfter(startDate)) {
         if (isClassDay(checkDate)) {
-          final dateStr = "${checkDate.year.toString().padLeft(4, '0')}-${checkDate.month.toString().padLeft(2, '0')}-${checkDate.day.toString().padLeft(2, '0')}";
-          
+          final dateStr =
+              "${checkDate.year.toString().padLeft(4, '0')}-${checkDate.month.toString().padLeft(2, '0')}-${checkDate.day.toString().padLeft(2, '0')}";
+
           // If we have a resolution marker and this date is before it, stop counting
-          if (lastResolutionDate != null && checkDate.isBefore(lastResolutionDate)) {
+          if (lastResolutionDate != null &&
+              checkDate.isBefore(lastResolutionDate)) {
             break;
           }
-          
+
           bool isAbsent = false;
           if (attendanceMap.containsKey(dateStr)) {
             final status = attendanceMap[dateStr]!;
             isAbsent = (status == 'Absent');
           } else {
             // Check if this missing record should count as absent
-            final isToday = checkDate.year == now.year && 
-                          checkDate.month == now.month && 
-                          checkDate.day == now.day;
+            final isToday =
+                checkDate.year == now.year &&
+                checkDate.month == now.month &&
+                checkDate.day == now.day;
             final isPastDate = checkDate.isBefore(now);
-            
+
             if (isPastDate) {
               isAbsent = true;
             } else if (isToday && classEndTime != null) {
@@ -557,13 +597,19 @@ class AttendanceTicketingService {
                 final hour = int.tryParse(parts[0]);
                 final minute = int.tryParse(parts[1]);
                 if (hour != null && minute != null) {
-                  final classEnd = DateTime(now.year, now.month, now.day, hour, minute);
+                  final classEnd = DateTime(
+                    now.year,
+                    now.month,
+                    now.day,
+                    hour,
+                    minute,
+                  );
                   isAbsent = now.isAfter(classEnd);
                 }
               }
             }
           }
-          
+
           if (isAbsent) {
             consecutiveAbsences++;
           } else {
@@ -644,7 +690,8 @@ class AttendanceTicketingService {
       await supabase.from('notifications').insert({
         'recipient_id': performedBy ?? supabase.auth.currentUser?.id,
         'title': 'Attendance Ticket Log',
-        'message': 'Ticket $action for student ID $studentId. Details: ${details.toString()}',
+        'message':
+            'Ticket $action for student ID $studentId. Details: ${details.toString()}',
         'type': 'system_log_ticket_$action',
         'student_id': studentId,
         'is_read': true, // Mark as read since it's a log entry
@@ -668,7 +715,7 @@ class AttendanceTicketingService {
             'attendance_ticket',
             'attendance_resolved',
             'system_log_ticket_created',
-            'system_log_ticket_resolved'
+            'system_log_ticket_resolved',
           ])
           .order('created_at', ascending: false);
 

@@ -22,9 +22,10 @@ class GuardAuditService {
     return await _auditService.logEvent(
       actionType: isSuccessful ? 'Security' : 'Security',
       actionCategory: 'RFID Operations',
-      description: isSuccessful
-          ? 'RFID scan successful for UID: $rfidUid${studentName != null ? ' (Student: $studentName)' : ''}'
-          : 'RFID scan failed for UID: $rfidUid${failureReason != null ? ' - Reason: $failureReason' : ''}',
+      description:
+          isSuccessful
+              ? 'RFID scan successful for UID: $rfidUid${studentName != null ? ' (Student: $studentName)' : ''}'
+              : 'RFID scan failed for UID: $rfidUid${failureReason != null ? ' - Reason: $failureReason' : ''}',
       targetType: 'rfid_scan',
       targetId: rfidUid,
       targetName: studentName ?? 'Unknown',
@@ -53,9 +54,10 @@ class GuardAuditService {
     return await _auditService.logEvent(
       actionType: 'Security',
       actionCategory: 'Student Entry/Exit',
-      description: isSuccessful
-          ? 'Student check-in: $studentName entered school premises via RFID scan'
-          : 'Student check-in failed: $studentName - RFID scan unsuccessful',
+      description:
+          isSuccessful
+              ? 'Student check-in: $studentName entered school premises via RFID scan'
+              : 'Student check-in failed: $studentName - RFID scan unsuccessful',
       targetType: 'student',
       targetId: studentId,
       targetName: studentName,
@@ -89,9 +91,10 @@ class GuardAuditService {
     return await _auditService.logEvent(
       actionType: isApproved ? 'Security' : 'Security',
       actionCategory: 'Student Entry/Exit',
-      description: isApproved
-          ? 'Student check-out approved: $studentName exited with ${fetcherName ?? 'authorized person'}${exitType != null && exitType != 'regular' ? ' ($exitType)' : ''}'
-          : 'Student check-out denied: $studentName - ${denyReason ?? 'Unauthorized pickup attempt'}',
+      description:
+          isApproved
+              ? 'Student check-out approved: $studentName exited with ${fetcherName ?? 'authorized person'}${exitType != null && exitType != 'regular' ? ' ($exitType)' : ''}'
+              : 'Student check-out denied: $studentName - ${denyReason ?? 'Unauthorized pickup attempt'}',
       targetType: 'student',
       targetId: studentId,
       targetName: studentName,
@@ -129,9 +132,10 @@ class GuardAuditService {
     return await _auditService.logEvent(
       actionType: 'Security',
       actionCategory: 'Fetcher Verification',
-      description: isVerified
-          ? 'Authorized fetcher verified: $fetcherName ($fetcherType) for student $studentName'
-          : 'Authorized fetcher verification failed: $fetcherName for student $studentName',
+      description:
+          isVerified
+              ? 'Authorized fetcher verified: $fetcherName ($fetcherType) for student $studentName'
+              : 'Authorized fetcher verification failed: $fetcherName for student $studentName',
       targetType: 'fetcher_verification',
       targetId: '${studentId}_$fetcherId',
       targetName: '$fetcherName - $studentName',
@@ -163,9 +167,10 @@ class GuardAuditService {
     return await _auditService.logEvent(
       actionType: isSuccessful ? 'Security' : 'Security',
       actionCategory: 'Fetcher Verification',
-      description: isSuccessful
-          ? 'Temporary fetcher PIN verified: $pin for ${fetcherName ?? 'unknown fetcher'} (Student: $studentName)'
-          : 'Temporary fetcher PIN verification failed: $pin for student $studentName - ${failureReason ?? 'Invalid PIN'}',
+      description:
+          isSuccessful
+              ? 'Temporary fetcher PIN verified: $pin for ${fetcherName ?? 'unknown fetcher'} (Student: $studentName)'
+              : 'Temporary fetcher PIN verification failed: $pin for student $studentName - ${failureReason ?? 'Invalid PIN'}',
       targetType: 'temp_fetcher_verification',
       targetId: tempFetcherId ?? '${studentId}_$pin',
       targetName: '${fetcherName ?? 'Unknown'} - $studentName',
@@ -188,7 +193,8 @@ class GuardAuditService {
   Future<bool> logUnauthorizedPickupAttempt({
     required String studentId,
     required String studentName,
-    required String attemptType, // 'unknown_person', 'invalid_pin', 'suspicious_behavior'
+    required String
+    attemptType, // 'unknown_person', 'invalid_pin', 'suspicious_behavior'
     required String denyReason,
     String? attemptedFetcherName,
     String? attemptedPin,
@@ -198,7 +204,8 @@ class GuardAuditService {
     return await _auditService.logEvent(
       actionType: 'Security',
       actionCategory: 'Security Incident',
-      description: 'Unauthorized pickup attempt blocked: $denyReason (Student: $studentName)${attemptedFetcherName != null ? ' - Attempted by: $attemptedFetcherName' : ''}',
+      description:
+          'Unauthorized pickup attempt blocked: $denyReason (Student: $studentName)${attemptedFetcherName != null ? ' - Attempted by: $attemptedFetcherName' : ''}',
       targetType: 'security_incident',
       targetId: '${studentId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$studentName - Unauthorized Pickup',
@@ -237,9 +244,10 @@ class GuardAuditService {
     return await _auditService.logEvent(
       actionType: 'Security',
       actionCategory: 'Authentication',
-      description: isSuccessful
-          ? 'Guard $activity successful: $actualGuardName'
-          : 'Guard $activity failed: $actualGuardName - ${failureReason ?? 'Unknown error'}',
+      description:
+          isSuccessful
+              ? 'Guard $activity successful: $actualGuardName'
+              : 'Guard $activity failed: $actualGuardName - ${failureReason ?? 'Unknown error'}',
       targetType: 'guard_auth',
       targetId: actualGuardId,
       targetName: actualGuardName,
@@ -259,7 +267,8 @@ class GuardAuditService {
 
   /// Log RFID system access and usage
   Future<bool> logRFIDSystemAccess({
-    required String accessType, // 'system_start', 'system_stop', 'websocket_connect', 'websocket_disconnect'
+    required String
+    accessType, // 'system_start', 'system_stop', 'websocket_connect', 'websocket_disconnect'
     String? connectionDetails,
     bool isSuccessful = true,
     String? errorDetails,
@@ -267,9 +276,10 @@ class GuardAuditService {
     return await _auditService.logEvent(
       actionType: 'System',
       actionCategory: 'System Access',
-      description: isSuccessful
-          ? 'RFID system access: $accessType completed successfully'
-          : 'RFID system access failed: $accessType - ${errorDetails ?? 'Unknown error'}',
+      description:
+          isSuccessful
+              ? 'RFID system access: $accessType completed successfully'
+              : 'RFID system access failed: $accessType - ${errorDetails ?? 'Unknown error'}',
       targetType: 'rfid_system',
       targetId: 'rfid_system_main',
       targetName: 'RFID Scanner System',
@@ -300,7 +310,8 @@ class GuardAuditService {
     return await _auditService.logEvent(
       actionType: 'Security',
       actionCategory: 'Critical Decision',
-      description: 'Pickup denied with reason: $denyReason (Student: $studentName, Fetcher: ${fetcherName ?? 'Unknown'}, Type: $fetcherType)',
+      description:
+          'Pickup denied with reason: $denyReason (Student: $studentName, Fetcher: ${fetcherName ?? 'Unknown'}, Type: $fetcherType)',
       targetType: 'pickup_denial',
       targetId: '${studentId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$studentName - Pickup Denied',
@@ -320,7 +331,8 @@ class GuardAuditService {
 
   /// Log override authorizations and justifications
   Future<bool> logOverrideAuthorization({
-    required String overrideType, // 'schedule_validation', 'emergency_exit', 'early_dismissal'
+    required String
+    overrideType, // 'schedule_validation', 'emergency_exit', 'early_dismissal'
     required String studentId,
     required String studentName,
     required String justification,
@@ -331,9 +343,11 @@ class GuardAuditService {
     return await _auditService.logEvent(
       actionType: 'Security',
       actionCategory: 'Override Authorization',
-      description: 'Override authorized: $overrideType for student $studentName - Justification: $justification',
+      description:
+          'Override authorized: $overrideType for student $studentName - Justification: $justification',
       targetType: 'override_authorization',
-      targetId: '${studentId}_${overrideType}_${DateTime.now().millisecondsSinceEpoch}',
+      targetId:
+          '${studentId}_${overrideType}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$studentName - $overrideType Override',
       module: 'Guard - Override System',
       status: 'warning',
@@ -351,7 +365,8 @@ class GuardAuditService {
 
   /// Log emergency situation handling
   Future<bool> logEmergencyHandling({
-    required String emergencyType, // 'emergency_exit', 'medical_emergency', 'security_threat'
+    required String
+    emergencyType, // 'emergency_exit', 'medical_emergency', 'security_threat'
     required String description,
     String? studentId,
     String? studentName,
@@ -362,10 +377,12 @@ class GuardAuditService {
     return await _auditService.logEvent(
       actionType: 'Security',
       actionCategory: 'Emergency Response',
-      description: 'Emergency handled: $emergencyType - $description${studentName != null ? ' (Student: $studentName)' : ''}',
+      description:
+          'Emergency handled: $emergencyType - $description${studentName != null ? ' (Student: $studentName)' : ''}',
       targetType: 'emergency_response',
       targetId: '${emergencyType}_${DateTime.now().millisecondsSinceEpoch}',
-      targetName: studentName != null ? '$studentName - $emergencyType' : emergencyType,
+      targetName:
+          studentName != null ? '$studentName - $emergencyType' : emergencyType,
       module: 'Guard - Emergency Response',
       status: 'error',
       metadata: {
@@ -416,7 +433,8 @@ class GuardAuditService {
   Future<bool> logSystemError({
     required String errorType,
     required String errorDescription,
-    String? systemComponent, // 'rfid_scanner', 'database', 'websocket', 'camera'
+    String?
+    systemComponent, // 'rfid_scanner', 'database', 'websocket', 'camera'
     String? errorCode,
     String? guardResponse,
     String? resolutionAction,
@@ -425,7 +443,8 @@ class GuardAuditService {
     return await _auditService.logEvent(
       actionType: 'System',
       actionCategory: 'System Error',
-      description: 'System error encountered: $errorType in ${systemComponent ?? 'unknown component'} - $errorDescription',
+      description:
+          'System error encountered: $errorType in ${systemComponent ?? 'unknown component'} - $errorDescription',
       targetType: 'system_error',
       targetId: '${errorType}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$errorType - ${systemComponent ?? 'System'}',
@@ -460,9 +479,10 @@ class GuardAuditService {
     return await _auditService.logEvent(
       actionType: 'System',
       actionCategory: 'Schedule Validation',
-      description: canExit
-          ? 'Schedule validation passed: $studentName can exit - $validationResult'
-          : 'Schedule validation blocked: $studentName cannot exit - ${restrictionReason ?? 'Classes in session'}',
+      description:
+          canExit
+              ? 'Schedule validation passed: $studentName can exit - $validationResult'
+              : 'Schedule validation blocked: $studentName cannot exit - ${restrictionReason ?? 'Classes in session'}',
       targetType: 'schedule_validation',
       targetId: '${studentId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$studentName - Schedule Check',
@@ -474,7 +494,10 @@ class GuardAuditService {
         'validation_result': validationResult,
         'schedule_info': scheduleInfo,
         'restriction_reason': restrictionReason,
-        'class_end_time': classEndTime != null ? '${classEndTime.hour.toString().padLeft(2, '0')}:${classEndTime.minute.toString().padLeft(2, '0')}' : null,
+        'class_end_time':
+            classEndTime != null
+                ? '${classEndTime.hour.toString().padLeft(2, '0')}:${classEndTime.minute.toString().padLeft(2, '0')}'
+                : null,
         'current_class': currentClass,
         'validation_time': DateTime.now().toIso8601String(),
         'schedule_details': scheduleDetails,
@@ -524,7 +547,8 @@ class GuardAuditService {
     return await _auditService.logEvent(
       actionType: 'System',
       actionCategory: 'Shift Management',
-      description: 'Shift change: $changeType${previousGuardName != null ? ' (Previous: $previousGuardName)' : ''}${nextGuardName != null ? ' (Next: $nextGuardName)' : ''}',
+      description:
+          'Shift change: $changeType${previousGuardName != null ? ' (Previous: $previousGuardName)' : ''}${nextGuardName != null ? ' (Next: $nextGuardName)' : ''}',
       targetType: 'shift_change',
       targetId: '${changeType}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$changeType - Guard Shift',

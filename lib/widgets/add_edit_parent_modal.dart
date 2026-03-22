@@ -120,11 +120,13 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
   Future<void> _loadStudents() async {
     setState(() => _isLoadingStudents = true);
     try {
-    final response = await supabase
-      .from('students')
-      .select('id, fname, mname, lname, grade_level, section_id, sections(name), status')
-      .eq('status', 'active')
-      .order('fname');
+      final response = await supabase
+          .from('students')
+          .select(
+            'id, fname, mname, lname, grade_level, section_id, sections(name), status',
+          )
+          .eq('status', 'active')
+          .order('fname');
 
       setState(() {
         _allStudents = response;
@@ -258,10 +260,7 @@ class _AddEditParentModalState extends State<AddEditParentModal> {
         value: item,
         child: Text(
           item.toUpperCase(),
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
         ),
       );
     }).toList();

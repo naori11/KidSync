@@ -32,7 +32,7 @@ class AttendanceStatusBadge extends StatelessWidget {
     }
 
     final config = _getBadgeConfig();
-    
+
     return Container(
       padding: padding,
       decoration: BoxDecoration(
@@ -42,11 +42,7 @@ class AttendanceStatusBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            config.icon,
-            size: fontSize + 2,
-            color: Colors.white,
-          ),
+          Icon(config.icon, size: fontSize + 2, color: Colors.white),
           const SizedBox(width: 2),
           Text(
             customText ?? config.text,
@@ -94,11 +90,7 @@ class AttendanceStatusBadge extends StatelessWidget {
           icon: Icons.check_circle,
         );
       default:
-        return _BadgeConfig(
-          text: '',
-          color: Colors.grey,
-          icon: Icons.info,
-        );
+        return _BadgeConfig(text: '', color: Colors.grey, icon: Icons.info);
     }
   }
 }
@@ -108,11 +100,7 @@ class _BadgeConfig {
   final Color color;
   final IconData icon;
 
-  _BadgeConfig({
-    required this.text,
-    required this.color,
-    required this.icon,
-  });
+  _BadgeConfig({required this.text, required this.color, required this.icon});
 }
 
 /// Creates a badge from service badge status

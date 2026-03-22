@@ -58,9 +58,10 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
 
     return items.map((item) {
       return DropdownMenuItem<T>(
-        value: getDropdownValueFunction != null
-            ? getDropdownValueFunction(item)
-            : getValueFunction(item) as T,
+        value:
+            getDropdownValueFunction != null
+                ? getDropdownValueFunction(item)
+                : getValueFunction(item) as T,
         child: Text(getDisplayTextFunction(item)),
       );
     }).toList();
@@ -88,10 +89,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     }
 
     return items.map((item) {
-      return DropdownMenuItem<String>(
-        value: item,
-        child: Text(item),
-      );
+      return DropdownMenuItem<String>(value: item, child: Text(item));
     }).toList();
   }
 
@@ -323,12 +321,17 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                         'name': nameController.text.trim(),
                         'grade_level': selectedGradeLevel,
                       };
-                      
+
                       try {
                         if (section == null) {
                           // Create new section
-                          final result = await supabase.from('sections').insert(payload).select('id').single();
-                          
+                          final result =
+                              await supabase
+                                  .from('sections')
+                                  .insert(payload)
+                                  .select('id')
+                                  .single();
+
                           // Log section creation
                           await auditLogService.logSectionManagement(
                             action: 'create',
@@ -342,7 +345,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                               .from('sections')
                               .update(payload)
                               .eq('id', section['id']);
-                          
+
                           // Log section update
                           await auditLogService.logSectionManagement(
                             action: 'update',
@@ -356,7 +359,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                             newValues: payload,
                           );
                         }
-                        
+
                         Navigator.pop(context);
                         await _fetchSections();
                       } catch (e) {
@@ -398,17 +401,18 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
   Future<void> _deleteSection(int id) async {
     try {
       // Get section info before deletion for audit logging
-      final sectionResponse = await supabase
-          .from('sections')
-          .select('name, grade_level')
-          .eq('id', id)
-          .single();
-      
+      final sectionResponse =
+          await supabase
+              .from('sections')
+              .select('name, grade_level')
+              .eq('id', id)
+              .single();
+
       final sectionName = sectionResponse['name'];
       final gradeLevel = sectionResponse['grade_level'];
-      
+
       await supabase.from('sections').delete().eq('id', id);
-      
+
       // Log section deletion
       await auditLogService.logSectionManagement(
         action: 'delete',
@@ -416,7 +420,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
         sectionName: sectionName,
         gradeLevel: gradeLevel,
       );
-      
+
       await _fetchSections();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -729,15 +733,17 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                             ),
                           ),
                           value: selectedTeacherId,
-                          items:
-                              _buildDropdownItems<dynamic>(
-                                items: teachers,
-                                getValueFunction: (teacher) => teacher['id'].toString(),
-                                getDisplayTextFunction: (teacher) =>
+                          items: _buildDropdownItems<dynamic>(
+                            items: teachers,
+                            getValueFunction:
+                                (teacher) => teacher['id'].toString(),
+                            getDisplayTextFunction:
+                                (teacher) =>
                                     '${teacher['fname']} ${teacher['lname']}',
-                                getDropdownValueFunction: (teacher) => teacher['id'],
-                                emptyMessage: 'No teachers available',
-                              ),
+                            getDropdownValueFunction:
+                                (teacher) => teacher['id'],
+                            emptyMessage: 'No teachers available',
+                          ),
                           onChanged: (value) async {
                             setDialogState(() {
                               selectedTeacherId = value;
@@ -1378,22 +1384,25 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                       // Insert or update
                       if (assignment == null) {
                         await supabase.from('section_teachers').insert(payload);
-                        
+
                         // Get teacher and section names for audit logging
-                        final teacherResponse = await supabase
-                            .from('users')
-                            .select('fname, lname')
-                            .eq('id', selectedTeacherId)
-                            .single();
-                        final sectionResponse = await supabase
-                            .from('sections')
-                            .select('name')
-                            .eq('id', sectionId)
-                            .single();
-                        
-                        final teacherName = '${teacherResponse['fname']} ${teacherResponse['lname']}';
+                        final teacherResponse =
+                            await supabase
+                                .from('users')
+                                .select('fname, lname')
+                                .eq('id', selectedTeacherId)
+                                .single();
+                        final sectionResponse =
+                            await supabase
+                                .from('sections')
+                                .select('name')
+                                .eq('id', sectionId)
+                                .single();
+
+                        final teacherName =
+                            '${teacherResponse['fname']} ${teacherResponse['lname']}';
                         final sectionName = sectionResponse['name'];
-                        
+
                         // Log teacher assignment creation
                         await auditLogService.logTeacherSectionAssignment(
                           action: 'assign',
@@ -1403,7 +1412,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                           sectionName: sectionName,
                           subject: subjectController.text.trim(),
                         );
-                        
+
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
@@ -1417,22 +1426,25 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                             .from('section_teachers')
                             .update(payload)
                             .eq('id', assignment['id']);
-                        
+
                         // Get teacher and section names for audit logging
-                        final teacherResponse = await supabase
-                            .from('users')
-                            .select('fname, lname')
-                            .eq('id', selectedTeacherId)
-                            .single();
-                        final sectionResponse = await supabase
-                            .from('sections')
-                            .select('name')
-                            .eq('id', sectionId)
-                            .single();
-                        
-                        final teacherName = '${teacherResponse['fname']} ${teacherResponse['lname']}';
+                        final teacherResponse =
+                            await supabase
+                                .from('users')
+                                .select('fname, lname')
+                                .eq('id', selectedTeacherId)
+                                .single();
+                        final sectionResponse =
+                            await supabase
+                                .from('sections')
+                                .select('name')
+                                .eq('id', sectionId)
+                                .single();
+
+                        final teacherName =
+                            '${teacherResponse['fname']} ${teacherResponse['lname']}';
                         final sectionName = sectionResponse['name'];
-                        
+
                         // Log teacher assignment update
                         await auditLogService.logTeacherSectionAssignment(
                           action: 'update',
@@ -1442,7 +1454,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
                           sectionName: sectionName,
                           subject: subjectController.text.trim(),
                         );
-                        
+
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
@@ -1497,26 +1509,28 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
   Future<void> _deleteTeacherAssignment(int assignmentId) async {
     try {
       // Get assignment details before deletion for audit logging
-      final assignmentResponse = await supabase
-          .from('section_teachers')
-          .select('''
+      final assignmentResponse =
+          await supabase
+              .from('section_teachers')
+              .select('''
             teacher_id,
             section_id,
             subject,
             users!inner(fname, lname),
             sections!inner(name)
           ''')
-          .eq('id', assignmentId)
-          .single();
-      
+              .eq('id', assignmentId)
+              .single();
+
       final teacherId = assignmentResponse['teacher_id'];
       final sectionId = assignmentResponse['section_id'];
       final subject = assignmentResponse['subject'];
-      final teacherName = '${assignmentResponse['users']['fname']} ${assignmentResponse['users']['lname']}';
+      final teacherName =
+          '${assignmentResponse['users']['fname']} ${assignmentResponse['users']['lname']}';
       final sectionName = assignmentResponse['sections']['name'];
-      
+
       await supabase.from('section_teachers').delete().eq('id', assignmentId);
-      
+
       // Log teacher assignment deletion
       await auditLogService.logTeacherSectionAssignment(
         action: 'unassign',
@@ -1526,7 +1540,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
         sectionName: sectionName,
         subject: subject,
       );
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Row(
@@ -2128,7 +2142,9 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
   }
 
   // Fetch students for a specific section
-  Future<List<Map<String, dynamic>>> _fetchStudentsForSection(int sectionId) async {
+  Future<List<Map<String, dynamic>>> _fetchStudentsForSection(
+    int sectionId,
+  ) async {
     final response = await supabase
         .from('students')
         .select('''
@@ -2162,15 +2178,16 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          content: Row(
-            children: [
-              CircularProgressIndicator(color: Color(0xFF2ECC71)),
-              SizedBox(width: 16),
-              Text('Exporting sections...'),
-            ],
-          ),
-        ),
+        builder:
+            (context) => const AlertDialog(
+              content: Row(
+                children: [
+                  CircularProgressIndicator(color: Color(0xFF2ECC71)),
+                  SizedBox(width: 16),
+                  Text('Exporting sections...'),
+                ],
+              ),
+            ),
       );
 
       // Create Excel workbook
@@ -2191,12 +2208,14 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
 
         // Fetch students for this section
         final studentsInSection = await _fetchStudentsForSection(sectionId);
-        
+
         // Fetch teacher assignments for this section
         final teacherAssignments = await _fetchSectionTeachers(sectionId);
 
         // Create sheet for this section with grade level in name
-        final sanitizedSheetName = _sanitizeSheetName('$gradeLevel - $sectionName');
+        final sanitizedSheetName = _sanitizeSheetName(
+          '$gradeLevel - $sectionName',
+        );
         var sheet = excel[sanitizedSheetName];
 
         // Populate the sheet
@@ -2230,11 +2249,14 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
       final fileName = 'Sections_Export_${timestamp}.xlsx';
 
       // Download file
-      final blob = html.Blob([fileBytes], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      final blob = html.Blob([
+        fileBytes,
+      ], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', fileName)
-        ..style.display = 'none';
+      final anchor =
+          html.AnchorElement(href: url)
+            ..setAttribute('download', fileName)
+            ..style.display = 'none';
 
       html.document.body?.children.add(anchor);
       anchor.click();
@@ -2257,7 +2279,7 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     } catch (e) {
       // Close loading dialog if still open
       if (mounted) Navigator.of(context).pop();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2271,7 +2293,9 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
   }
 
   // Sort sections by grade level hierarchy and then by section name
-  List<Map<String, dynamic>> _sortSectionsByGradeAndName(List<Map<String, dynamic>> sections) {
+  List<Map<String, dynamic>> _sortSectionsByGradeAndName(
+    List<Map<String, dynamic>> sections,
+  ) {
     final gradeOrder = [
       'Pre-K1',
       'Pre-K2',
@@ -2294,11 +2318,11 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     sortedSections.sort((a, b) {
       final aGradeIndex = gradeIndex(a['grade_level']?.toString());
       final bGradeIndex = gradeIndex(b['grade_level']?.toString());
-      
+
       if (aGradeIndex != bGradeIndex) {
         return aGradeIndex.compareTo(bGradeIndex);
       }
-      
+
       // If same grade, sort by section name alphabetically
       final aName = a['name']?.toString() ?? '';
       final bName = b['name']?.toString() ?? '';
@@ -2317,35 +2341,51 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
 
     // Get current user info
     final user = supabase.auth.currentUser;
-    final userName = user?.userMetadata?['fname'] != null && user?.userMetadata?['lname'] != null
-        ? '${user?.userMetadata?['fname']} ${user?.userMetadata?['lname']}'
-        : user?.email ?? 'Unknown User';
+    final userName =
+        user?.userMetadata?['fname'] != null &&
+                user?.userMetadata?['lname'] != null
+            ? '${user?.userMetadata?['fname']} ${user?.userMetadata?['lname']}'
+            : user?.email ?? 'Unknown User';
 
     // Title
-    var titleCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var titleCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     titleCell.value = excel_lib.TextCellValue('SECTIONS EXPORT SUMMARY');
     titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
     rowIndex += 2;
 
     // Generation info
-    var dateCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var dateCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     dateCell.value = excel_lib.TextCellValue('Export Date & Time:');
     dateCell.cellStyle = excel_lib.CellStyle(bold: true);
-    
-    var dateValueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
-    dateValueCell.value = excel_lib.TextCellValue(DateTime.now().toLocal().toString().split('.')[0]);
+
+    var dateValueCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex),
+    );
+    dateValueCell.value = excel_lib.TextCellValue(
+      DateTime.now().toLocal().toString().split('.')[0],
+    );
     rowIndex++;
 
-    var generatedByCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var generatedByCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     generatedByCell.value = excel_lib.TextCellValue('Generated By:');
     generatedByCell.cellStyle = excel_lib.CellStyle(bold: true);
-    
-    var generatedByValueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+
+    var generatedByValueCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex),
+    );
     generatedByValueCell.value = excel_lib.TextCellValue(userName);
     rowIndex += 2;
 
     // Overall statistics
-    var statsHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var statsHeaderCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     statsHeaderCell.value = excel_lib.TextCellValue('OVERALL STATISTICS');
     statsHeaderCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 16);
     rowIndex += 2;
@@ -2355,20 +2395,27 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     int totalMaleStudents = 0;
     int totalFemaleStudents = 0;
     Map<String, int> gradeStats = {};
-    
+
     for (final section in sections) {
       final studentsInSection = await _fetchStudentsForSection(section['id']);
       totalStudents += studentsInSection.length;
-      
-      final maleCount = studentsInSection.where((s) => s['gender']?.toString().toLowerCase() == 'male').length;
-      final femaleCount = studentsInSection.where((s) => s['gender']?.toString().toLowerCase() == 'female').length;
-      
+
+      final maleCount =
+          studentsInSection
+              .where((s) => s['gender']?.toString().toLowerCase() == 'male')
+              .length;
+      final femaleCount =
+          studentsInSection
+              .where((s) => s['gender']?.toString().toLowerCase() == 'female')
+              .length;
+
       totalMaleStudents += maleCount;
       totalFemaleStudents += femaleCount;
-      
+
       // Grade level statistics
       final gradeLevel = section['grade_level']?.toString() ?? 'Unknown';
-      gradeStats[gradeLevel] = (gradeStats[gradeLevel] ?? 0) + studentsInSection.length;
+      gradeStats[gradeLevel] =
+          (gradeStats[gradeLevel] ?? 0) + studentsInSection.length;
     }
 
     // Display overall stats
@@ -2380,11 +2427,21 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     ];
 
     for (var stat in overallStats) {
-      var labelCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+      var labelCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
       labelCell.value = excel_lib.TextCellValue(stat[0]);
       labelCell.cellStyle = excel_lib.CellStyle(bold: true);
 
-      var valueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+      var valueCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
       valueCell.value = excel_lib.TextCellValue(stat[1]);
 
       rowIndex++;
@@ -2393,13 +2450,29 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     rowIndex += 2;
 
     // Grade level breakdown
-    var gradeBreakdownHeader = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
-    gradeBreakdownHeader.value = excel_lib.TextCellValue('STUDENTS BY GRADE LEVEL');
-    gradeBreakdownHeader.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 14);
+    var gradeBreakdownHeader = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    gradeBreakdownHeader.value = excel_lib.TextCellValue(
+      'STUDENTS BY GRADE LEVEL',
+    );
+    gradeBreakdownHeader.cellStyle = excel_lib.CellStyle(
+      bold: true,
+      fontSize: 14,
+    );
     rowIndex++;
 
     // Sort grade stats by grade order
-    final gradeOrder = ['Preschool', 'Kinder', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
+    final gradeOrder = [
+      'Preschool',
+      'Kinder',
+      'Grade 1',
+      'Grade 2',
+      'Grade 3',
+      'Grade 4',
+      'Grade 5',
+      'Grade 6',
+    ];
     final sortedGradeEntries = gradeStats.entries.toList();
     sortedGradeEntries.sort((a, b) {
       final aIndex = gradeOrder.indexOf(a.key);
@@ -2411,11 +2484,21 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     });
 
     for (var entry in sortedGradeEntries) {
-      var gradeCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+      var gradeCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
       gradeCell.value = excel_lib.TextCellValue('${entry.key}:');
       gradeCell.cellStyle = excel_lib.CellStyle(bold: true);
 
-      var countCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+      var countCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
       countCell.value = excel_lib.TextCellValue(entry.value.toString());
 
       rowIndex++;
@@ -2424,15 +2507,32 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     rowIndex += 2;
 
     // Detailed section breakdown
-    var sectionBreakdownHeader = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var sectionBreakdownHeader = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     sectionBreakdownHeader.value = excel_lib.TextCellValue('SECTION DETAILS');
-    sectionBreakdownHeader.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 14);
+    sectionBreakdownHeader.cellStyle = excel_lib.CellStyle(
+      bold: true,
+      fontSize: 14,
+    );
     rowIndex++;
 
     // Column headers
-    var headerRow = ['Section Name', 'Grade Level', 'Total Students', 'Male Students', 'Female Students', 'Teachers'];
+    var headerRow = [
+      'Section Name',
+      'Grade Level',
+      'Total Students',
+      'Male Students',
+      'Female Students',
+      'Teachers',
+    ];
     for (int col = 0; col < headerRow.length; col++) {
-      var headerCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+      var headerCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: col,
+          rowIndex: rowIndex,
+        ),
+      );
       headerCell.value = excel_lib.TextCellValue(headerRow[col]);
       headerCell.cellStyle = excel_lib.CellStyle(bold: true);
     }
@@ -2442,13 +2542,19 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     for (final section in sections) {
       final sectionName = section['name'] ?? 'Unknown Section';
       final gradeLevel = section['grade_level'] ?? 'Unknown Grade';
-      
+
       final studentsInSection = await _fetchStudentsForSection(section['id']);
       final teacherAssignments = await _fetchSectionTeachers(section['id']);
-      
-      final maleCount = studentsInSection.where((s) => s['gender']?.toString().toLowerCase() == 'male').length;
-      final femaleCount = studentsInSection.where((s) => s['gender']?.toString().toLowerCase() == 'female').length;
-      
+
+      final maleCount =
+          studentsInSection
+              .where((s) => s['gender']?.toString().toLowerCase() == 'male')
+              .length;
+      final femaleCount =
+          studentsInSection
+              .where((s) => s['gender']?.toString().toLowerCase() == 'female')
+              .length;
+
       final sectionData = [
         sectionName,
         gradeLevel,
@@ -2459,19 +2565,24 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
       ];
 
       for (int col = 0; col < sectionData.length; col++) {
-        var dataCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+        var dataCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: col,
+            rowIndex: rowIndex,
+          ),
+        );
         dataCell.value = excel_lib.TextCellValue(sectionData[col]);
       }
       rowIndex++;
     }
 
     // Set column widths for better readability
-    sheet.setColumnWidth(0, 25.0);  // Section Name
-    sheet.setColumnWidth(1, 15.0);  // Grade Level
-    sheet.setColumnWidth(2, 15.0);  // Total Students
-    sheet.setColumnWidth(3, 15.0);  // Male Students
-    sheet.setColumnWidth(4, 15.0);  // Female Students
-    sheet.setColumnWidth(5, 12.0);  // Teachers
+    sheet.setColumnWidth(0, 25.0); // Section Name
+    sheet.setColumnWidth(1, 15.0); // Grade Level
+    sheet.setColumnWidth(2, 15.0); // Total Students
+    sheet.setColumnWidth(3, 15.0); // Male Students
+    sheet.setColumnWidth(4, 15.0); // Female Students
+    sheet.setColumnWidth(5, 12.0); // Teachers
   }
 
   // Sanitize sheet name for Excel compatibility
@@ -2496,43 +2607,69 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     int rowIndex = 0;
 
     // Section Header Information
-    var headerCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var headerCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     headerCell.value = excel_lib.TextCellValue('SECTION: $sectionName');
     headerCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 16);
     rowIndex++;
 
-    var gradeCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var gradeCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     gradeCell.value = excel_lib.TextCellValue('GRADE LEVEL: $gradeLevel');
     gradeCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 14);
     rowIndex += 2; // Add extra space
 
     // Add Name of Adviser, Male Students, Female Students labels
-    var adviserCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var adviserCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     adviserCell.value = excel_lib.TextCellValue('Name of Adviser:');
     adviserCell.cellStyle = excel_lib.CellStyle(bold: true);
     rowIndex++;
 
     // Separate students by gender
-    final maleStudents = students.where((s) => s['gender']?.toString().toLowerCase() == 'male').toList();
-    final femaleStudents = students.where((s) => s['gender']?.toString().toLowerCase() == 'female').toList();
+    final maleStudents =
+        students
+            .where((s) => s['gender']?.toString().toLowerCase() == 'male')
+            .toList();
+    final femaleStudents =
+        students
+            .where((s) => s['gender']?.toString().toLowerCase() == 'female')
+            .toList();
 
-    var maleStudentsCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
-    maleStudentsCell.value = excel_lib.TextCellValue('Male Students: ${maleStudents.length}');
+    var maleStudentsCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    maleStudentsCell.value = excel_lib.TextCellValue(
+      'Male Students: ${maleStudents.length}',
+    );
     maleStudentsCell.cellStyle = excel_lib.CellStyle(bold: true);
     rowIndex++;
 
-    var femaleStudentsCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
-    femaleStudentsCell.value = excel_lib.TextCellValue('Female Students: ${femaleStudents.length}');
+    var femaleStudentsCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
+    femaleStudentsCell.value = excel_lib.TextCellValue(
+      'Female Students: ${femaleStudents.length}',
+    );
     femaleStudentsCell.cellStyle = excel_lib.CellStyle(bold: true);
     rowIndex += 2;
 
     // Calculate starting positions for columns
     const int maleStartCol = 0;
     const int femaleStartCol = 2;
-    const int teacherStartCol = 7; // 3 columns gap after female students (columns 5, 6, 7 are empty)
+    const int teacherStartCol =
+        7; // 3 columns gap after female students (columns 5, 6, 7 are empty)
 
     // Create headers with borders
-    var maleHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: maleStartCol, rowIndex: rowIndex));
+    var maleHeaderCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(
+        columnIndex: maleStartCol,
+        rowIndex: rowIndex,
+      ),
+    );
     maleHeaderCell.value = excel_lib.TextCellValue('No.');
     maleHeaderCell.cellStyle = excel_lib.CellStyle(
       bold: true,
@@ -2542,7 +2679,12 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
       bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
     );
 
-    var maleNameHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: maleStartCol + 1, rowIndex: rowIndex));
+    var maleNameHeaderCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(
+        columnIndex: maleStartCol + 1,
+        rowIndex: rowIndex,
+      ),
+    );
     maleNameHeaderCell.value = excel_lib.TextCellValue('MALE');
     maleNameHeaderCell.cellStyle = excel_lib.CellStyle(
       bold: true,
@@ -2551,7 +2693,12 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
       bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
     );
 
-    var femaleHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: femaleStartCol, rowIndex: rowIndex));
+    var femaleHeaderCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(
+        columnIndex: femaleStartCol,
+        rowIndex: rowIndex,
+      ),
+    );
     femaleHeaderCell.value = excel_lib.TextCellValue('No.');
     femaleHeaderCell.cellStyle = excel_lib.CellStyle(
       bold: true,
@@ -2561,7 +2708,12 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
       bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
     );
 
-    var femaleNameHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: femaleStartCol + 1, rowIndex: rowIndex));
+    var femaleNameHeaderCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(
+        columnIndex: femaleStartCol + 1,
+        rowIndex: rowIndex,
+      ),
+    );
     femaleNameHeaderCell.value = excel_lib.TextCellValue('FEMALE');
     femaleNameHeaderCell.cellStyle = excel_lib.CellStyle(
       bold: true,
@@ -2572,7 +2724,12 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
 
     // Add teacher assignment headers if there are any teacher assignments
     if (teacherAssignments.isNotEmpty) {
-      var teacherNameHeader = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: teacherStartCol, rowIndex: rowIndex));
+      var teacherNameHeader = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: teacherStartCol,
+          rowIndex: rowIndex,
+        ),
+      );
       teacherNameHeader.value = excel_lib.TextCellValue('Teacher Name');
       teacherNameHeader.cellStyle = excel_lib.CellStyle(
         bold: true,
@@ -2582,7 +2739,12 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
         bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
       );
 
-      var subjectHeader = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: teacherStartCol + 1, rowIndex: rowIndex));
+      var subjectHeader = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: teacherStartCol + 1,
+          rowIndex: rowIndex,
+        ),
+      );
       subjectHeader.value = excel_lib.TextCellValue('Subject');
       subjectHeader.cellStyle = excel_lib.CellStyle(
         bold: true,
@@ -2591,7 +2753,12 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
         bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
       );
 
-      var scheduleHeader = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: teacherStartCol + 2, rowIndex: rowIndex));
+      var scheduleHeader = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: teacherStartCol + 2,
+          rowIndex: rowIndex,
+        ),
+      );
       scheduleHeader.value = excel_lib.TextCellValue('Schedule');
       scheduleHeader.cellStyle = excel_lib.CellStyle(
         bold: true,
@@ -2604,92 +2771,181 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     rowIndex++;
 
     // Find the maximum count to determine how many rows we need (students vs teachers)
-    final maxCount = [maleStudents.length, femaleStudents.length, teacherAssignments.length].reduce((a, b) => a > b ? a : b);
+    final maxCount = [
+      maleStudents.length,
+      femaleStudents.length,
+      teacherAssignments.length,
+    ].reduce((a, b) => a > b ? a : b);
 
     // Populate student lists and teacher assignments simultaneously
     for (int i = 0; i < maxCount; i++) {
       // Male students column
       if (i < maleStudents.length) {
         final student = maleStudents[i];
-        final fullName = '${student['fname'] ?? ''} ${student['mname'] ?? ''} ${student['lname'] ?? ''}'.trim();
-        
+        final fullName =
+            '${student['fname'] ?? ''} ${student['mname'] ?? ''} ${student['lname'] ?? ''}'
+                .trim();
+
         // Number column for male
-        var numCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: maleStartCol, rowIndex: rowIndex + i));
+        var numCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: maleStartCol,
+            rowIndex: rowIndex + i,
+          ),
+        );
         numCell.value = excel_lib.TextCellValue((i + 1).toString());
         numCell.cellStyle = excel_lib.CellStyle(
           leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
-        
+
         // Name column for male
-        var maleNameCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: maleStartCol + 1, rowIndex: rowIndex + i));
+        var maleNameCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: maleStartCol + 1,
+            rowIndex: rowIndex + i,
+          ),
+        );
         maleNameCell.value = excel_lib.TextCellValue(fullName);
         maleNameCell.cellStyle = excel_lib.CellStyle(
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
       } else {
         // Empty cells with borders for male section
-        var maleEmptyNumCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: maleStartCol, rowIndex: rowIndex + i));
+        var maleEmptyNumCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: maleStartCol,
+            rowIndex: rowIndex + i,
+          ),
+        );
         maleEmptyNumCell.value = excel_lib.TextCellValue('');
         maleEmptyNumCell.cellStyle = excel_lib.CellStyle(
           leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
-        
-        var maleEmptyNameCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: maleStartCol + 1, rowIndex: rowIndex + i));
+
+        var maleEmptyNameCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: maleStartCol + 1,
+            rowIndex: rowIndex + i,
+          ),
+        );
         maleEmptyNameCell.value = excel_lib.TextCellValue('');
         maleEmptyNameCell.cellStyle = excel_lib.CellStyle(
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
       }
 
       // Female students column
       if (i < femaleStudents.length) {
         final student = femaleStudents[i];
-        final fullName = '${student['fname'] ?? ''} ${student['mname'] ?? ''} ${student['lname'] ?? ''}'.trim();
-        
+        final fullName =
+            '${student['fname'] ?? ''} ${student['mname'] ?? ''} ${student['lname'] ?? ''}'
+                .trim();
+
         // Number column for female
-        var femaleNumCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: femaleStartCol, rowIndex: rowIndex + i));
+        var femaleNumCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: femaleStartCol,
+            rowIndex: rowIndex + i,
+          ),
+        );
         femaleNumCell.value = excel_lib.TextCellValue((i + 1).toString());
         femaleNumCell.cellStyle = excel_lib.CellStyle(
           leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
-        
+
         // Name column for female
-        var femaleNameCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: femaleStartCol + 1, rowIndex: rowIndex + i));
+        var femaleNameCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: femaleStartCol + 1,
+            rowIndex: rowIndex + i,
+          ),
+        );
         femaleNameCell.value = excel_lib.TextCellValue(fullName);
         femaleNameCell.cellStyle = excel_lib.CellStyle(
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
       } else {
         // Empty cells with borders for female section
-        var femaleEmptyNumCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: femaleStartCol, rowIndex: rowIndex + i));
+        var femaleEmptyNumCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: femaleStartCol,
+            rowIndex: rowIndex + i,
+          ),
+        );
         femaleEmptyNumCell.value = excel_lib.TextCellValue('');
         femaleEmptyNumCell.cellStyle = excel_lib.CellStyle(
           leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
-        
-        var femaleEmptyNameCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: femaleStartCol + 1, rowIndex: rowIndex + i));
+
+        var femaleEmptyNameCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: femaleStartCol + 1,
+            rowIndex: rowIndex + i,
+          ),
+        );
         femaleEmptyNameCell.value = excel_lib.TextCellValue('');
         femaleEmptyNameCell.cellStyle = excel_lib.CellStyle(
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
-        
-        var nameCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: femaleStartCol + 1, rowIndex: rowIndex + i));
+
+        var nameCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: femaleStartCol + 1,
+            rowIndex: rowIndex + i,
+          ),
+        );
         nameCell.value = excel_lib.TextCellValue('');
         nameCell.cellStyle = excel_lib.CellStyle(
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
       }
 
@@ -2697,61 +2953,119 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
       if (i < teacherAssignments.length) {
         final assignment = teacherAssignments[i];
         final teacher = assignment['users'];
-        final teacherName = teacher != null 
-            ? '${teacher['fname']} ${teacher['lname']}'
-            : 'Unknown Teacher';
+        final teacherName =
+            teacher != null
+                ? '${teacher['fname']} ${teacher['lname']}'
+                : 'Unknown Teacher';
         final subject = assignment['subject'] ?? 'No Subject';
-        final days = assignment['days'] != null ? (assignment['days'] as List) : [];
+        final days =
+            assignment['days'] != null ? (assignment['days'] as List) : [];
         final startTime = assignment['start_time'] ?? '';
         final endTime = assignment['end_time'] ?? '';
-        
+
         // Format days into ranges if possible
         String formattedDays = _formatDaysAsRanges(days);
-        final schedule = '$formattedDays ${startTime.isNotEmpty && endTime.isNotEmpty ? '$startTime - $endTime' : ''}'.trim();
+        final schedule =
+            '$formattedDays ${startTime.isNotEmpty && endTime.isNotEmpty ? '$startTime - $endTime' : ''}'
+                .trim();
 
-        var teacherNameCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: teacherStartCol, rowIndex: rowIndex + i));
+        var teacherNameCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: teacherStartCol,
+            rowIndex: rowIndex + i,
+          ),
+        );
         teacherNameCell.value = excel_lib.TextCellValue(teacherName);
         teacherNameCell.cellStyle = excel_lib.CellStyle(
           leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
 
-        var subjectCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: teacherStartCol + 1, rowIndex: rowIndex + i));
+        var subjectCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: teacherStartCol + 1,
+            rowIndex: rowIndex + i,
+          ),
+        );
         subjectCell.value = excel_lib.TextCellValue(subject);
         subjectCell.cellStyle = excel_lib.CellStyle(
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
 
-        var scheduleCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: teacherStartCol + 2, rowIndex: rowIndex + i));
+        var scheduleCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: teacherStartCol + 2,
+            rowIndex: rowIndex + i,
+          ),
+        );
         scheduleCell.value = excel_lib.TextCellValue(schedule);
         scheduleCell.cellStyle = excel_lib.CellStyle(
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
       } else if (teacherAssignments.isNotEmpty) {
         // Empty cells with borders for teacher section when no more teachers
-        var teacherEmptyNameCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: teacherStartCol, rowIndex: rowIndex + i));
+        var teacherEmptyNameCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: teacherStartCol,
+            rowIndex: rowIndex + i,
+          ),
+        );
         teacherEmptyNameCell.value = excel_lib.TextCellValue('');
         teacherEmptyNameCell.cellStyle = excel_lib.CellStyle(
           leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
-        
-        var teacherEmptySubjectCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: teacherStartCol + 1, rowIndex: rowIndex + i));
+
+        var teacherEmptySubjectCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: teacherStartCol + 1,
+            rowIndex: rowIndex + i,
+          ),
+        );
         teacherEmptySubjectCell.value = excel_lib.TextCellValue('');
         teacherEmptySubjectCell.cellStyle = excel_lib.CellStyle(
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
-        
-        var teacherEmptyScheduleCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: teacherStartCol + 2, rowIndex: rowIndex + i));
+
+        var teacherEmptyScheduleCell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: teacherStartCol + 2,
+            rowIndex: rowIndex + i,
+          ),
+        );
         teacherEmptyScheduleCell.value = excel_lib.TextCellValue('');
         teacherEmptyScheduleCell.cellStyle = excel_lib.CellStyle(
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
       }
     }
@@ -2759,48 +3073,49 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
     rowIndex += maxCount + 2; // Move past all lists with spacing
 
     // Set column widths for better readability and auto-fit content
-    sheet.setColumnWidth(0, 8.0);   // Number columns (male)
-    sheet.setColumnWidth(1, 30.0);  // Male names (increased for auto-fit)
-    sheet.setColumnWidth(2, 4.0);   // Gap between male and female
-    sheet.setColumnWidth(3, 8.0);   // Female number column  
-    sheet.setColumnWidth(4, 30.0);  // Female names (increased for auto-fit)
-    sheet.setColumnWidth(5, 4.0);   // Gap column
-    sheet.setColumnWidth(6, 4.0);   // Gap column
-    sheet.setColumnWidth(7, 4.0);   // Gap column
-    sheet.setColumnWidth(8, 25.0);  // Teacher names
-    sheet.setColumnWidth(9, 20.0);  // Subject
+    sheet.setColumnWidth(0, 8.0); // Number columns (male)
+    sheet.setColumnWidth(1, 30.0); // Male names (increased for auto-fit)
+    sheet.setColumnWidth(2, 4.0); // Gap between male and female
+    sheet.setColumnWidth(3, 8.0); // Female number column
+    sheet.setColumnWidth(4, 30.0); // Female names (increased for auto-fit)
+    sheet.setColumnWidth(5, 4.0); // Gap column
+    sheet.setColumnWidth(6, 4.0); // Gap column
+    sheet.setColumnWidth(7, 4.0); // Gap column
+    sheet.setColumnWidth(8, 25.0); // Teacher names
+    sheet.setColumnWidth(9, 20.0); // Subject
     sheet.setColumnWidth(10, 30.0); // Schedule (increased for auto-fit)
   }
 
   // Helper method to format days as ranges
   String _formatDaysAsRanges(List days) {
     if (days.isEmpty) return '';
-    
+
     // Convert to list of strings and sort by day order
     final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
     List<String> sortedDays = [];
-    
+
     for (String dayName in dayNames) {
       if (days.contains(dayName)) {
         sortedDays.add(dayName);
       }
     }
-    
+
     if (sortedDays.isEmpty) return days.join(', ');
-    
+
     // Group consecutive days into ranges
     List<String> ranges = [];
     int start = 0;
-    
+
     while (start < sortedDays.length) {
       int end = start;
-      
+
       // Find consecutive days
-      while (end + 1 < sortedDays.length && 
-             dayNames.indexOf(sortedDays[end + 1]) == dayNames.indexOf(sortedDays[end]) + 1) {
+      while (end + 1 < sortedDays.length &&
+          dayNames.indexOf(sortedDays[end + 1]) ==
+              dayNames.indexOf(sortedDays[end]) + 1) {
         end++;
       }
-      
+
       // Create range string
       if (start == end) {
         ranges.add(sortedDays[start]);
@@ -2809,10 +3124,10 @@ class _SectionManagementPageState extends State<SectionManagementPage> {
       } else {
         ranges.add('${sortedDays[start]}-${sortedDays[end]}');
       }
-      
+
       start = end + 1;
     }
-    
+
     return ranges.join(', ');
   }
 

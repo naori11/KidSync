@@ -160,21 +160,22 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
   // Helper method to get student name by ID
   Future<String?> _getStudentName(int studentId) async {
     try {
-      final response = await supabase
-          .from('students')
-          .select('fname, mname, lname')
-          .eq('id', studentId)
-          .maybeSingle();
-      
+      final response =
+          await supabase
+              .from('students')
+              .select('fname, mname, lname')
+              .eq('id', studentId)
+              .maybeSingle();
+
       if (response != null) {
         final firstName = response['fname'] ?? '';
         final middleName = response['mname'] ?? '';
         final lastName = response['lname'] ?? '';
-        
+
         String fullName = firstName;
         if (middleName.isNotEmpty) fullName += ' $middleName';
         if (lastName.isNotEmpty) fullName += ' $lastName';
-        
+
         return fullName.trim();
       }
     } catch (e) {
@@ -227,7 +228,7 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
     try {
       // Load student name first
       _currentStudentName = await _getStudentName(_currentStudentId!);
-      
+
       // Load student schedule
       _studentSchedule = await _service.getStudentSchedule(_currentStudentId!);
 
@@ -1339,7 +1340,8 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
         childId: _currentStudentId!.toString(),
         childName: _currentStudentName ?? 'Student $_currentStudentId',
         emergencyReason: 'Emergency transportation change',
-        requestedFetcher: 'Dropoff: ${emergencySchedule['dropoff']}, Pickup: ${emergencySchedule['pickup']}',
+        requestedFetcher:
+            'Dropoff: ${emergencySchedule['dropoff']}, Pickup: ${emergencySchedule['pickup']}',
         approvalStatus: 'approved',
         requestedTime: DateTime.now(),
       );
@@ -1419,7 +1421,8 @@ class _PickupDropoffScreenState extends State<PickupDropoffScreen> {
         childId: _currentStudentId!.toString(),
         childName: _currentStudentName ?? 'Student $_currentStudentId',
         changeType: 'exception',
-        description: 'Set schedule exception for ${date.toIso8601String().split('T')[0]}',
+        description:
+            'Set schedule exception for ${date.toIso8601String().split('T')[0]}',
         newSchedule: schedule.cast<String, dynamic>(),
         effectiveDate: date.toIso8601String().split('T')[0],
       );

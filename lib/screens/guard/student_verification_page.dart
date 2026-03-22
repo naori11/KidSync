@@ -50,7 +50,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   bool _isSearching = false;
   String _searchQuery = '';
   TextEditingController _searchController = TextEditingController();
-  
+
   // Manual gate control state
   bool _manualGateOpen = false;
   String _manualGateType = ''; // 'entry' or 'exit' or 'closed'
@@ -65,25 +65,28 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   static const int cooldownSeconds = 30; // 30 second cooldown
 
   // Scanner tracking - prevent consecutive taps on same scanner
-  static Map<String, String> lastScannerPerRfid = {}; // rfid_uid -> last_scanner
-  static Map<String, DateTime> lastScanTimePerRfid = {}; // rfid_uid -> last_scan_time
-  static const int scannerCooldownSeconds = 5; // 5 second cooldown for same scanner
+  static Map<String, String> lastScannerPerRfid =
+      {}; // rfid_uid -> last_scanner
+  static Map<String, DateTime> lastScanTimePerRfid =
+      {}; // rfid_uid -> last_scan_time
+  static const int scannerCooldownSeconds =
+      5; // 5 second cooldown for same scanner
 
   @override
   void initState() {
     super.initState();
     // Log guard dashboard access
     _guardAuditService.logDashboardAccess();
-    
+
     // Initialize Gate Control Service
     _gateControlService.initialize();
-    
+
     // Initialize WebSocket channel
     try {
       channel = HtmlWebSocketChannel.connect(
         'wss://rfid-websocket-server.onrender.com',
       );
-      
+
       // Log successful RFID system connection
       _guardAuditService.logRFIDSystemAccess(
         accessType: 'websocket_connect',
@@ -138,7 +141,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               'scanner': scanner ?? 'unknown',
             },
           );
-          
+
           // Check if this is a guard RFID card first
           await _checkGuardRFID(uid, scanner: scanner);
         } else {
@@ -155,7 +158,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         }
       } catch (e) {
         print('Error processing WebSocket message: $e');
-        
+
         // Log RFID scan processing error
         _guardAuditService.logSystemError(
           errorType: 'rfid_processing_error',
@@ -166,7 +169,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             'error': e.toString(),
           },
         );
-        
+
         _showErrorNotification('Error processing RFID scan');
       }
     });
@@ -180,10 +183,10 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       connectionDetails: 'Disconnecting from RFID WebSocket server',
       isSuccessful: true,
     );
-    
+
     _searchController.dispose();
     _gateControlService.dispose();
-    
+
     channel.sink.close();
     super.dispose();
   }
@@ -270,12 +273,15 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       );
 
       // First check for early dismissal
-      final earlyDismissalStatus = await _checkEarlyDismissal(student.sectionId);
+      final earlyDismissalStatus = await _checkEarlyDismissal(
+        student.sectionId,
+      );
       if (earlyDismissalStatus['hasEarlyDismissal']) {
         print('Early dismissal is active, allowing exit');
         return {
           'canExit': true,
-          'message': 'Early dismissal active: ${earlyDismissalStatus['reason']}',
+          'message':
+              'Early dismissal active: ${earlyDismissalStatus['reason']}',
           'exitType': 'early_dismissal',
           'earlyDismissal': earlyDismissalStatus,
         };
@@ -316,42 +322,47 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
       if (response.isNotEmpty) {
         print('Found ${response.length} classes today');
-        
+
         // Find current ongoing class (if any)
         Map<String, dynamic>? currentClass;
         Map<String, dynamic>? nextClass;
-        
+
         for (final classInfo in response) {
           final startTimeStr = classInfo['start_time'];
           final endTimeStr = classInfo['end_time'];
-          
+
           if (startTimeStr != null && endTimeStr != null) {
             final startTime = _parseTimeString(startTimeStr);
             final endTime = _parseTimeString(endTimeStr);
-            final minutesFromStart = _getMinutesDifference(startTime, currentTime);
+            final minutesFromStart = _getMinutesDifference(
+              startTime,
+              currentTime,
+            );
             final minutesUntilEnd = _getMinutesDifference(currentTime, endTime);
-            
+
             // Check if current time is within this class period
             if (minutesFromStart <= 0 && minutesUntilEnd > 0) {
               currentClass = classInfo;
               break;
             }
-            
+
             // If no current class, find the next class
             if (currentClass == null && minutesUntilEnd > 0) {
               nextClass = classInfo;
             }
           }
         }
-        
+
         // Get the last class of the day for overall validation
         final lastClass = response.first;
         final endTimeStr = lastClass['end_time']; // Format: "HH:MM:SS"
         final subjectName = lastClass['subject'];
         final teacherInfo = lastClass['users'];
-        final teacherName = teacherInfo != null 
-            ? "${teacherInfo['fname'] ?? ''} ${teacherInfo['lname'] ?? ''}".trim()
-            : 'Unknown Teacher';
+        final teacherName =
+            teacherInfo != null
+                ? "${teacherInfo['fname'] ?? ''} ${teacherInfo['lname'] ?? ''}"
+                    .trim()
+                : 'Unknown Teacher';
 
         if (endTimeStr != null) {
           final endTime = _parseTimeString(endTimeStr);
@@ -365,19 +376,23 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           // Determine what class info to show
           String classDisplayInfo;
           String teacherDisplayInfo;
-          
+
           if (currentClass != null) {
             classDisplayInfo = currentClass['subject'] ?? 'Unknown Subject';
             final currentTeacher = currentClass['users'];
-            teacherDisplayInfo = currentTeacher != null 
-                ? "${currentTeacher['fname'] ?? ''} ${currentTeacher['lname'] ?? ''}".trim()
-                : 'Unknown Teacher';
+            teacherDisplayInfo =
+                currentTeacher != null
+                    ? "${currentTeacher['fname'] ?? ''} ${currentTeacher['lname'] ?? ''}"
+                        .trim()
+                    : 'Unknown Teacher';
           } else if (nextClass != null) {
             classDisplayInfo = nextClass['subject'] ?? 'Unknown Subject';
             final nextTeacher = nextClass['users'];
-            teacherDisplayInfo = nextTeacher != null 
-                ? "${nextTeacher['fname'] ?? ''} ${nextTeacher['lname'] ?? ''}".trim()
-                : 'Unknown Teacher';
+            teacherDisplayInfo =
+                nextTeacher != null
+                    ? "${nextTeacher['fname'] ?? ''} ${nextTeacher['lname'] ?? ''}"
+                        .trim()
+                    : 'Unknown Teacher';
           } else {
             classDisplayInfo = subjectName ?? 'Unknown Subject';
             teacherDisplayInfo = teacherName;
@@ -389,14 +404,20 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             return {
               'canExit': false,
               'message': 'Student is not allowed to exit school grounds yet',
-              'detailedMessage': 'Classes are still ongoing until ${_formatTime(endTime)}',
+              'detailedMessage':
+                  'Classes are still ongoing until ${_formatTime(endTime)}',
               'currentClass': classDisplayInfo,
               'currentTeacher': teacherDisplayInfo,
               'lastClassEndTime': endTime,
               'subject': subjectName,
-              'exitType': minutesUntilEnd > 120 ? 'very_early' : 
-                          minutesUntilEnd > 30 ? 'early' : 
-                          minutesUntilEnd > 15 ? 'near_end' : 'within_15min',
+              'exitType':
+                  minutesUntilEnd > 120
+                      ? 'very_early'
+                      : minutesUntilEnd > 30
+                      ? 'early'
+                      : minutesUntilEnd > 15
+                      ? 'near_end'
+                      : 'within_15min',
               'requiresReason': minutesUntilEnd > 120,
             };
           } else {
@@ -404,7 +425,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             print('Classes are finished, allowing regular exit');
             return {
               'canExit': true,
-              'message': 'Classes finished. Last class ($subjectName) ended at ${_formatTime(endTime)}',
+              'message':
+                  'Classes finished. Last class ($subjectName) ended at ${_formatTime(endTime)}',
               'exitType': 'regular',
               'subject': subjectName,
             };
@@ -468,20 +490,22 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   Future<Map<String, dynamic>> _checkEmergencyExitStatus(int studentId) async {
     try {
       final today = DateTime.now();
-      final todayDateStr = "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+      final todayDateStr =
+          "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
 
       // Check section_attendance for Emergency Exit status today
-      final attendanceResponse = await supabase
-          .from('section_attendance')
-          .select('''
+      final attendanceResponse =
+          await supabase
+              .from('section_attendance')
+              .select('''
             *,
             sections!inner(name),
             users!section_attendance_marked_by_fkey(fname, lname)
           ''')
-          .eq('student_id', studentId)
-          .eq('date', todayDateStr)
-          .eq('status', 'Emergency Exit')
-          .maybeSingle();
+              .eq('student_id', studentId)
+              .eq('date', todayDateStr)
+              .eq('status', 'Emergency Exit')
+              .maybeSingle();
 
       if (attendanceResponse != null) {
         return {
@@ -502,7 +526,10 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   }
 
   // Log early dismissal exit when student actually leaves
-  Future<void> _logEarlyDismissalExit(int studentId, Map<String, dynamic> earlyDismissalInfo) async {
+  Future<void> _logEarlyDismissalExit(
+    int studentId,
+    Map<String, dynamic> earlyDismissalInfo,
+  ) async {
     try {
       // Update the early_dismissal_students table to mark when student actually exited
       await supabase
@@ -518,14 +545,18 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   }
 
   // Log emergency exit completion
-  Future<void> _logEmergencyExitCompletion(int studentId, Map<String, dynamic> emergencyExitInfo) async {
+  Future<void> _logEmergencyExitCompletion(
+    int studentId,
+    Map<String, dynamic> emergencyExitInfo,
+  ) async {
     try {
       // Update the section_attendance record to add exit timestamp in notes
       final currentNotes = emergencyExitInfo['notes'] ?? '';
       final exitTimestamp = DateTime.now().toIso8601String();
-      final updatedNotes = currentNotes.isEmpty 
-          ? 'Emergency exit completed at $exitTimestamp'
-          : '$currentNotes - Exit completed at $exitTimestamp';
+      final updatedNotes =
+          currentNotes.isEmpty
+              ? 'Emergency exit completed at $exitTimestamp'
+              : '$currentNotes - Exit completed at $exitTimestamp';
 
       await supabase
           .from('section_attendance')
@@ -562,29 +593,38 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   String _getCurrentDayName() {
     final now = DateTime.now();
     final dayNames = [
-      'Sun',    // Sunday = 0
-      'Mon',    // Monday = 1  
-      'Tue',    // Tuesday = 2
-      'Wed',    // Wednesday = 3
-      'Thu',    // Thursday = 4
-      'Fri',    // Friday = 5
-      'Sat',    // Saturday = 6
+      'Sun', // Sunday = 0
+      'Mon', // Monday = 1
+      'Tue', // Tuesday = 2
+      'Wed', // Wednesday = 3
+      'Thu', // Thursday = 4
+      'Fri', // Friday = 5
+      'Sat', // Saturday = 6
     ];
     return dayNames[now.weekday % 7];
   }
 
   // New method that includes scanner validation before processing student RFID
-  Future<void> _fetchStudentByRFIDWithValidation(String rfidUid, {String? scanner}) async {
-    print('Validating scanner access for RFID: $rfidUid, Scanner: ${scanner ?? "unknown"}');
-    
+  Future<void> _fetchStudentByRFIDWithValidation(
+    String rfidUid, {
+    String? scanner,
+  }) async {
+    print(
+      'Validating scanner access for RFID: $rfidUid, Scanner: ${scanner ?? "unknown"}',
+    );
+
     // First check if student exists
     try {
-      final studentResponse = await supabase
-          .from('students')
-          .select('id, fname, lname, rfid_uid, status')
-          .eq('rfid_uid', rfidUid)
-          .neq('status', 'deleted')  // Changed from .eq('status', 'active') to match original logic
-          .maybeSingle();
+      final studentResponse =
+          await supabase
+              .from('students')
+              .select('id, fname, lname, rfid_uid, status')
+              .eq('rfid_uid', rfidUid)
+              .neq(
+                'status',
+                'deleted',
+              ) // Changed from .eq('status', 'active') to match original logic
+              .maybeSingle();
 
       if (studentResponse == null) {
         _showErrorNotification('Student not found or inactive');
@@ -592,15 +632,16 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       }
 
       final studentId = studentResponse['id'] as int;
-      final studentName = '${studentResponse['fname']} ${studentResponse['lname']}';
-      
+      final studentName =
+          '${studentResponse['fname']} ${studentResponse['lname']}';
+
       // Check today's scan records to determine current status
       final todayStatus = await _checkTodayAttendanceStatus(studentId);
       print('Student $studentName current status: $todayStatus');
-      
+
       // Validate scanner usage based on student status and scanner type
       final validationResult = _validateScannerUsage(todayStatus, scanner);
-      
+
       if (!validationResult['isValid']) {
         // Log invalid scanner usage attempt
         _guardAuditService.logRFIDScanAttempt(
@@ -611,35 +652,43 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           isSuccessful: false,
           failureReason: validationResult['message'],
         );
-        
+
         _showErrorNotification(validationResult['message']);
         return;
       }
-      
+
       // Validation passed, proceed with normal RFID processing
       await _fetchStudentByRFID(rfidUid, scanner: scanner);
-      
     } catch (e) {
       print('Error validating student RFID: $e');
-      _showErrorNotification('Error validating student access: ${e.toString()}');
+      _showErrorNotification(
+        'Error validating student access: ${e.toString()}',
+      );
     }
   }
 
   // Validate if the scanner usage is appropriate for student's current status
-  Map<String, dynamic> _validateScannerUsage(String expectedAction, String? scanner) {
+  Map<String, dynamic> _validateScannerUsage(
+    String expectedAction,
+    String? scanner,
+  ) {
     // If no scanner info available, allow processing (backward compatibility)
     if (scanner == null) {
-      return {'isValid': true, 'message': 'Scanner validation skipped - no scanner info'};
+      return {
+        'isValid': true,
+        'message': 'Scanner validation skipped - no scanner info',
+      };
     }
-    
+
     // Check scanner and expected action compatibility
     if (expectedAction == 'entry') {
       if (scanner == 'entry') {
         return {'isValid': true, 'message': 'Valid entry scanner usage'};
       } else {
         return {
-          'isValid': false, 
-          'message': 'Student needs to check IN first. Please use the ENTRY scanner.'
+          'isValid': false,
+          'message':
+              'Student needs to check IN first. Please use the ENTRY scanner.',
         };
       }
     } else if (expectedAction == 'exit') {
@@ -647,15 +696,17 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         return {'isValid': true, 'message': 'Valid exit scanner usage'};
       } else {
         return {
-          'isValid': false, 
-          'message': 'Student is already checked in. Please use the EXIT scanner to check out.'
+          'isValid': false,
+          'message':
+              'Student is already checked in. Please use the EXIT scanner to check out.',
         };
       }
     }
-    
+
     // Default case - allow processing
     return {'isValid': true, 'message': 'Scanner validation passed'};
   }
+
   Future<void> _fetchStudentByRFID(String rfidUid, {String? scanner}) async {
     _cleanupCooldowns();
 
@@ -668,12 +719,13 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
       if (timeDiff < cooldownSeconds) {
         final remainingTime = cooldownSeconds - timeDiff;
-        
+
         // Log cooldown blocked scan attempt
         _guardAuditService.logRFIDScanAttempt(
           rfidUid: rfidUid,
           isSuccessful: false,
-          failureReason: 'Scan cooldown active ($remainingTime seconds remaining)',
+          failureReason:
+              'Scan cooldown active ($remainingTime seconds remaining)',
           scanMetadata: {
             'last_scan_time': lastScan.toIso8601String(),
             'cooldown_seconds': cooldownSeconds,
@@ -681,7 +733,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             'scanner': scanner ?? 'unknown',
           },
         );
-        
+
         _showErrorNotification(
           'Please wait ${remainingTime}s before scanning again',
         );
@@ -693,19 +745,20 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     if (scanner != null && lastScannerPerRfid.containsKey(rfidUid)) {
       final lastScanner = lastScannerPerRfid[rfidUid]!;
       final lastScanTime = lastScanTimePerRfid[rfidUid];
-      
+
       // Check if same scanner was used recently
       if (lastScanner == scanner && lastScanTime != null) {
         final timeDiff = now.difference(lastScanTime).inSeconds;
-        
+
         if (timeDiff < scannerCooldownSeconds) {
           final remainingTime = scannerCooldownSeconds - timeDiff;
-          
+
           // Log scanner-specific blocked scan
           _guardAuditService.logRFIDScanAttempt(
             rfidUid: rfidUid,
             isSuccessful: false,
-            failureReason: 'Same scanner used consecutively (${remainingTime}s cooldown remaining)',
+            failureReason:
+                'Same scanner used consecutively (${remainingTime}s cooldown remaining)',
             scanMetadata: {
               'current_scanner': scanner,
               'last_scanner': lastScanner,
@@ -714,7 +767,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               'remaining_seconds': remainingTime,
             },
           );
-          
+
           _showErrorNotification(
             'Cannot use same scanner consecutively. Please wait ${remainingTime}s or use a different scanner.',
           );
@@ -725,7 +778,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
     // Set cooldowns for this RFID
     rfidCooldowns[rfidUid] = now;
-    
+
     // Update scanner tracking
     if (scanner != null) {
       lastScannerPerRfid[rfidUid] = scanner;
@@ -793,12 +846,17 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
         if (action == 'entry') {
           // Entry: Check if student has already entered today
-          final hasAlreadyEntered = await _checkIfStudentAlreadyEntered(student.id);
-          
+          final hasAlreadyEntered = await _checkIfStudentAlreadyEntered(
+            student.id,
+          );
+
           if (hasAlreadyEntered) {
             // Student already entered - deny entry and gate should not open
-            await _gateControlService.denyEntry(student.rfidUid ?? '', 'Student already entered today');
-            
+            await _gateControlService.denyEntry(
+              student.rfidUid ?? '',
+              'Student already entered today',
+            );
+
             // Log denied entry attempt
             _guardAuditService.logStudentEntry(
               studentId: student.id.toString(),
@@ -808,16 +866,15 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               isSuccessful: false,
               notes: 'Entry denied - student already entered today',
             );
-            
+
             _showErrorNotification('Student has already entered today');
-            
+
             // Clear scan after showing message
             Future.delayed(Duration(seconds: 5), () {
               if (mounted) {
                 clearScan();
               }
             });
-            
           } else {
             // Student has not entered yet - allow entry and open gate
             await _processEntry(student, scanner: scanner);
@@ -834,7 +891,10 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               studentName: student.fullName,
               canExit: scheduleCheck['canExit'] ?? false,
               validationResult: scheduleCheck['message'],
-              restrictionReason: scheduleCheck['canExit'] == false ? scheduleCheck['message'] : null,
+              restrictionReason:
+                  scheduleCheck['canExit'] == false
+                      ? scheduleCheck['message']
+                      : null,
               classEndTime: scheduleCheck['lastClassEndTime'],
               currentClass: scheduleCheck['currentClass'],
               scheduleDetails: scheduleCheck,
@@ -842,8 +902,11 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
             if (!scheduleCheck['canExit']) {
               // Schedule blocked - deny exit and gate should not open
-              await _gateControlService.denyExit(student.rfidUid ?? '', scheduleCheck['message'] ?? 'Exit blocked by schedule');
-              
+              await _gateControlService.denyExit(
+                student.rfidUid ?? '',
+                scheduleCheck['message'] ?? 'Exit blocked by schedule',
+              );
+
               setState(() {
                 scheduleValidationMessage = scheduleCheck['message'];
                 lastClassEndTime = scheduleCheck['lastClassEndTime'];
@@ -855,7 +918,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           } else {
             // If override mode or validation disabled, still check for early dismissal info
             currentScheduleCheck = await _checkClassSchedule(student);
-            
+
             // Log override mode usage
             if (isOverrideMode) {
               _guardAuditService.logOverrideAuthorization(
@@ -881,7 +944,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             'scanner': scanner ?? 'unknown',
           },
         );
-        
+
         setState(() {
           isLoadingStudent = false;
         });
@@ -900,7 +963,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'scanner': scanner ?? 'unknown',
         },
       );
-      
+
       setState(() {
         isLoadingStudent = false;
       });
@@ -915,52 +978,57 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       (uid, lastScan) =>
           now.difference(lastScan).inSeconds > cooldownSeconds * 2,
     );
-    
+
     // Clean up scanner tracking maps
     lastScanTimePerRfid.removeWhere(
       (uid, lastScan) =>
           now.difference(lastScan).inSeconds > scannerCooldownSeconds * 2,
     );
-    
+
     // Remove entries from scanner map if they no longer have a timestamp
-    lastScannerPerRfid.removeWhere((uid, scanner) => 
-        !lastScanTimePerRfid.containsKey(uid));
+    lastScannerPerRfid.removeWhere(
+      (uid, scanner) => !lastScanTimePerRfid.containsKey(uid),
+    );
   }
 
   // Check if scanned RFID belongs to a guard (for override mode)
   Future<void> _checkGuardRFID(String rfidUid, {String? scanner}) async {
     try {
       print('Checking if RFID $rfidUid belongs to a guard...');
-      
+
       // First, let's check if there are any guard RFID cards in the database
       final allGuardCards = await supabase
           .from('guard_rfid_cards')
           .select('id, guard_id, rfid_uid, status')
           .limit(5);
-      
+
       print('Available guard RFID cards in database: $allGuardCards');
-      
+
       // Check if this RFID belongs to a guard
-      final guardResponse = await supabase
-          .from('guard_rfid_cards')
-          .select('guard_id, users!guard_rfid_cards_guard_id_fkey(id, fname, lname, role)')
-          .eq('rfid_uid', rfidUid)
-          .eq('status', 'active')
-          .maybeSingle();
+      final guardResponse =
+          await supabase
+              .from('guard_rfid_cards')
+              .select(
+                'guard_id, users!guard_rfid_cards_guard_id_fkey(id, fname, lname, role)',
+              )
+              .eq('rfid_uid', rfidUid)
+              .eq('status', 'active')
+              .maybeSingle();
 
       print('Guard RFID check response: $guardResponse');
 
       if (guardResponse != null && guardResponse['users'] != null) {
         // This is a guard RFID - enter override mode
         final guard = guardResponse['users'];
-        String guardName = '${guard['fname'] ?? ''} ${guard['lname'] ?? ''}'.trim();
-        
+        String guardName =
+            '${guard['fname'] ?? ''} ${guard['lname'] ?? ''}'.trim();
+
         if (guardName.isEmpty) {
           guardName = 'Guard ${guard['id']}';
         }
-        
+
         print('Guard RFID detected: $guardName');
-        
+
         // Log guard override activation
         _guardAuditService.logOverrideAuthorization(
           overrideType: 'guard_gate_override',
@@ -996,7 +1064,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'error': e.toString(),
         },
       );
-      
+
       // Fall back to student RFID processing with validation
       await _fetchStudentByRFIDWithValidation(rfidUid, scanner: scanner);
     }
@@ -1036,15 +1104,16 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
   // Exit override mode
   void _exitOverrideMode(String reason) {
-    
     // Log override mode deactivation
-    final duration = _overrideModeStartTime != null 
-        ? DateTime.now().difference(_overrideModeStartTime!).inSeconds
-        : 0;
-    
+    final duration =
+        _overrideModeStartTime != null
+            ? DateTime.now().difference(_overrideModeStartTime!).inSeconds
+            : 0;
+
     _guardAuditService.logRFIDSystemAccess(
       accessType: 'override_mode_deactivated',
-      connectionDetails: 'Guard override mode deactivated - $reason (Duration: ${duration}s)',
+      connectionDetails:
+          'Guard override mode deactivated - $reason (Duration: ${duration}s)',
       isSuccessful: true,
     );
 
@@ -1083,7 +1152,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             sections!inner(name)
           ''')
           .neq('status', 'deleted')
-          .or('fname.ilike.%$query%,lname.ilike.%$query%,grade_level.ilike.%$query%')
+          .or(
+            'fname.ilike.%$query%,lname.ilike.%$query%,grade_level.ilike.%$query%',
+          )
           .limit(10);
 
       final students = response.map((data) => Student.fromJson(data)).toList();
@@ -1096,7 +1167,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       // Log student search in override mode
       _guardAuditService.logRFIDSystemAccess(
         accessType: 'override_student_search',
-        connectionDetails: 'Student search in override mode: "$query" - ${students.length} results',
+        connectionDetails:
+            'Student search in override mode: "$query" - ${students.length} results',
         isSuccessful: true,
       );
     } catch (e) {
@@ -1133,30 +1205,33 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
     // Determine action based on current context
     final action = await _checkTodayAttendanceStatus(student.id);
-    
+
     setState(() {
       currentAction = action;
-      activeScanToken = '${student.id}_${DateTime.now().microsecondsSinceEpoch}_override';
+      activeScanToken =
+          '${student.id}_${DateTime.now().microsecondsSinceEpoch}_override';
     });
 
     // Process the selected student through normal business logic
     if (action == 'entry') {
       // Check if student has already entered today
       final hasAlreadyEntered = await _checkIfStudentAlreadyEntered(student.id);
-      
+
       if (hasAlreadyEntered) {
         // Student already entered - deny entry and gate should not open
-        await _gateControlService.denyEntry(student.rfidUid ?? '', 'Student already entered today');
-        
+        await _gateControlService.denyEntry(
+          student.rfidUid ?? '',
+          'Student already entered today',
+        );
+
         _showErrorNotification('Student has already entered today');
-        
+
         // Clear scan after showing message
         Future.delayed(Duration(seconds: 5), () {
           if (mounted) {
             clearScan();
           }
         });
-        
       } else {
         // Student has not entered yet - allow entry and open gate
         await _processEntry(student);
@@ -1169,8 +1244,11 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
         if (!scheduleCheck['canExit']) {
           // Schedule blocked - deny exit and gate should not open
-          await _gateControlService.denyExit(student.rfidUid ?? '', scheduleCheck['message'] ?? 'Exit blocked by schedule');
-          
+          await _gateControlService.denyExit(
+            student.rfidUid ?? '',
+            scheduleCheck['message'] ?? 'Exit blocked by schedule',
+          );
+
           setState(() {
             scheduleValidationMessage = scheduleCheck['message'];
             lastClassEndTime = scheduleCheck['lastClassEndTime'];
@@ -1183,7 +1261,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         // If validation disabled, still check for early dismissal info
         currentScheduleCheck = await _checkClassSchedule(student);
       }
-      
+
       // For override mode, bypass fetcher selection and immediately approve exit
       await _processGuardOverrideExit(student);
     }
@@ -1197,7 +1275,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         _manualGateOpen = true;
         _manualGateType = 'entry';
       });
-      
+
       // Log manual gate control
       _guardAuditService.logOverrideAuthorization(
         overrideType: 'manual_gate_control',
@@ -1210,7 +1288,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'timestamp': DateTime.now().toIso8601String(),
         },
       );
-      
+
       _showSuccessNotification('Entry gate opened manually');
     } catch (e) {
       _showErrorNotification('Error opening entry gate: $e');
@@ -1224,7 +1302,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         _manualGateOpen = true;
         _manualGateType = 'exit';
       });
-      
+
       // Log manual gate control
       _guardAuditService.logOverrideAuthorization(
         overrideType: 'manual_gate_control',
@@ -1237,7 +1315,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'timestamp': DateTime.now().toIso8601String(),
         },
       );
-      
+
       _showSuccessNotification('Exit gate opened manually');
     } catch (e) {
       _showErrorNotification('Error opening exit gate: $e');
@@ -1251,7 +1329,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         _manualGateOpen = false;
         _manualGateType = '';
       });
-      
+
       // Log manual gate control
       _guardAuditService.logOverrideAuthorization(
         overrideType: 'manual_gate_control',
@@ -1264,7 +1342,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'timestamp': DateTime.now().toIso8601String(),
         },
       );
-      
+
       _showSuccessNotification('Gate closed manually');
     } catch (e) {
       _showErrorNotification('Error closing gate: $e');
@@ -1302,12 +1380,11 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       );
 
       // Send RFID entry notification to parents
-      await _notificationService
-          .sendRfidTapNotification(
-            studentId: student.id,
-            action: 'entry',
-            studentName: '${student.fname} ${student.lname}',
-          );
+      await _notificationService.sendRfidTapNotification(
+        studentId: student.id,
+        action: 'entry',
+        studentName: '${student.fname} ${student.lname}',
+      );
 
       // Open entry gate
       if (student.rfidUid != null) {
@@ -1324,7 +1401,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       // Entry mode timer: hide after 8 seconds
       final currentToken = activeScanToken;
       Future.delayed(Duration(seconds: 8), () {
-        if (mounted && currentToken != null && currentToken == activeScanToken) {
+        if (mounted &&
+            currentToken != null &&
+            currentToken == activeScanToken) {
           clearScan();
         }
       });
@@ -1338,7 +1417,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         isSuccessful: false,
         notes: 'Entry failed due to database error: ${e.toString()}',
       );
-      
+
       // Log the database error
       _guardAuditService.logSystemError(
         errorType: 'database_insert_error',
@@ -1352,7 +1431,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'error': e.toString(),
         },
       );
-      
+
       _showErrorNotification('Error recording entry: ${e.toString()}');
     }
   }
@@ -1361,10 +1440,11 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
   Future<void> _processGuardOverrideExit(Student student) async {
     try {
       final now = DateTime.now();
-      
+
       // Create detailed notes for guard override exit
-      String notes = 'Guard override exit - immediate approval without fetcher selection';
-      
+      String notes =
+          'Guard override exit - immediate approval without fetcher selection';
+
       // Record the exit directly as approved
       await supabase.from('scan_records').insert({
         'student_id': student.id,
@@ -1401,16 +1481,19 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         await _gateControlService.openExitGateOverride(student.rfidUid!);
       }
 
-      _showSuccessNotification('Student checked out successfully via guard override');
+      _showSuccessNotification(
+        'Student checked out successfully via guard override',
+      );
 
       // Clear scan after showing message (shorter duration for exits)
       final currentToken = activeScanToken;
       Future.delayed(Duration(seconds: 5), () {
-        if (mounted && currentToken != null && currentToken == activeScanToken) {
+        if (mounted &&
+            currentToken != null &&
+            currentToken == activeScanToken) {
           clearScan();
         }
       });
-      
     } catch (e) {
       // Log failed guard override exit
       _guardAuditService.logStudentExit(
@@ -1419,16 +1502,18 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         rfidUid: student.rfidUid ?? '',
         sectionName: student.classSection,
         isApproved: false,
-        notes: 'Guard override exit failed due to database error: ${e.toString()}',
+        notes:
+            'Guard override exit failed due to database error: ${e.toString()}',
         fetcherName: 'Guard Override',
         denyReason: 'Database error during guard override',
         exitType: 'override',
       );
-      
+
       // Log the database error
       _guardAuditService.logSystemError(
         errorType: 'database_insert_error',
-        errorDescription: 'Failed to insert scan record during guard override exit process',
+        errorDescription:
+            'Failed to insert scan record during guard override exit process',
         systemComponent: 'database',
         errorDetails: {
           'student_id': student.id.toString(),
@@ -1438,7 +1523,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'error': e.toString(),
         },
       );
-      
+
       _showErrorNotification('Error recording exit: ${e.toString()}');
     }
   }
@@ -1694,7 +1779,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       // Log error during PIN verification
       _guardAuditService.logSystemError(
         errorType: 'pin_verification_error',
-        errorDescription: 'Error occurred during temporary fetcher PIN verification',
+        errorDescription:
+            'Error occurred during temporary fetcher PIN verification',
         systemComponent: 'database',
         errorDetails: {
           'student_id': scannedStudent!.id.toString(),
@@ -1760,17 +1846,16 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         );
 
         // Send RFID exit notification to parents
-        await _notificationService
-            .sendRfidTapNotification(
-              studentId: scannedStudent!.id,
-              action: 'exit',
-              studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
-            );
+        await _notificationService.sendRfidTapNotification(
+          studentId: scannedStudent!.id,
+          action: 'exit',
+          studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
+        );
 
         _showSuccessNotification(
           'Pickup approved for temporary fetcher: ${verifiedTempFetcher!['fetcher_name']}',
         );
-        
+
         // Control exit gate - approved
         if (scannedStudent?.rfidUid != null) {
           await _gateControlService.openExitGate(scannedStudent!.rfidUid!);
@@ -1839,23 +1924,25 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           }
         }
 
-        await _notificationService
-            .sendPickupDenialNotification(
-              studentId: scannedStudent!.id,
-              studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
-              denyReason: denyReason ?? 'No reason provided',
-              guardName: guardName,
-              fetcherName: verifiedTempFetcher!['fetcher_name'],
-              fetcherType: 'temporary',
-            );
+        await _notificationService.sendPickupDenialNotification(
+          studentId: scannedStudent!.id,
+          studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
+          denyReason: denyReason ?? 'No reason provided',
+          guardName: guardName,
+          fetcherName: verifiedTempFetcher!['fetcher_name'],
+          fetcherType: 'temporary',
+        );
 
         _showErrorNotification(
           'Pickup denied: ${denyReason ?? 'Access denied'}',
         );
-        
+
         // Control exit gate - denied
         if (scannedStudent?.rfidUid != null) {
-          await _gateControlService.denyExit(scannedStudent!.rfidUid!, denyReason ?? 'Temporary fetcher pickup denied');
+          await _gateControlService.denyExit(
+            scannedStudent!.rfidUid!,
+            denyReason ?? 'Temporary fetcher pickup denied',
+          );
         }
       }
 
@@ -1993,19 +2080,22 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
 
       String notes = "";
       String? exitType;
-      
+
       if (!approved) {
         notes = denyReason ?? "Denied by guard";
-      } else if (currentScheduleCheck != null && currentScheduleCheck!['exitType'] == 'early_dismissal') {
+      } else if (currentScheduleCheck != null &&
+          currentScheduleCheck!['exitType'] == 'early_dismissal') {
         // Early dismissal exit
         final dismissalInfo = currentScheduleCheck!['earlyDismissal'];
         notes = "Early dismissal exit - Reason: ${dismissalInfo['reason']}";
         exitType = 'early_dismissal';
-      } else if (currentScheduleCheck != null && currentScheduleCheck!['exitType'] == 'emergency_exit') {
+      } else if (currentScheduleCheck != null &&
+          currentScheduleCheck!['exitType'] == 'emergency_exit') {
         // Emergency exit
         final emergencyInfo = currentScheduleCheck!['emergencyExit'];
         final markedBy = emergencyInfo['markedBy'];
-        final teacherName = "${markedBy['fname'] ?? ''} ${markedBy['lname'] ?? ''}".trim();
+        final teacherName =
+            "${markedBy['fname'] ?? ''} ${markedBy['lname'] ?? ''}".trim();
         notes = "Emergency exit - Approved by teacher: $teacherName";
         exitType = 'emergency_exit';
       } else {
@@ -2035,7 +2125,10 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           fetcherType: fetcher.relationship,
           isVerified: approved,
           verificationMethod: 'Guard visual confirmation',
-          notes: approved ? 'Fetcher approved by guard' : 'Fetcher denied by guard: ${denyReason ?? 'No reason provided'}',
+          notes:
+              approved
+                  ? 'Fetcher approved by guard'
+                  : 'Fetcher denied by guard: ${denyReason ?? 'No reason provided'}',
         );
       }
 
@@ -2056,11 +2149,14 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       // Send RFID exit notification to parents only if approved
       if (approved) {
         // Log early dismissal exit if applicable
-        if (currentScheduleCheck != null && 
+        if (currentScheduleCheck != null &&
             currentScheduleCheck!['exitType'] == 'early_dismissal' &&
             currentScheduleCheck!['earlyDismissal'] != null) {
-          await _logEarlyDismissalExit(scannedStudent!.id, currentScheduleCheck!['earlyDismissal']);
-          
+          await _logEarlyDismissalExit(
+            scannedStudent!.id,
+            currentScheduleCheck!['earlyDismissal'],
+          );
+
           // Log emergency handling for early dismissal
           _guardAuditService.logEmergencyHandling(
             emergencyType: 'early_dismissal',
@@ -2073,11 +2169,14 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         }
 
         // Log emergency exit completion if applicable
-        if (currentScheduleCheck != null && 
+        if (currentScheduleCheck != null &&
             currentScheduleCheck!['exitType'] == 'emergency_exit' &&
             currentScheduleCheck!['emergencyExit'] != null) {
-          await _logEmergencyExitCompletion(scannedStudent!.id, currentScheduleCheck!['emergencyExit']);
-          
+          await _logEmergencyExitCompletion(
+            scannedStudent!.id,
+            currentScheduleCheck!['emergencyExit'],
+          );
+
           // Log emergency handling for emergency exit
           _guardAuditService.logEmergencyHandling(
             emergencyType: 'emergency_exit',
@@ -2089,12 +2188,11 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           );
         }
 
-        await _notificationService
-            .sendRfidTapNotification(
-              studentId: scannedStudent!.id,
-              action: 'exit',
-              studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
-            );
+        await _notificationService.sendRfidTapNotification(
+          studentId: scannedStudent!.id,
+          action: 'exit',
+          studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
+        );
       } else {
         // Log pickup denial decision for authorized fetchers
         _guardAuditService.logPickupDenialDecision(
@@ -2102,15 +2200,19 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           studentName: scannedStudent!.fullName,
           denyReason: denyReason ?? 'No reason provided',
           fetcherType: 'authorized',
-          fetcherName: fetchers?.isNotEmpty == true ? fetchers!.first.name : null,
+          fetcherName:
+              fetchers?.isNotEmpty == true ? fetchers!.first.name : null,
           additionalNotes: 'Authorized fetcher denied by guard decision',
           decisionContext: {
-            'fetcher_details': fetchers?.isNotEmpty == true ? {
-              'name': fetchers!.first.name,
-              'relationship': fetchers!.first.relationship,
-              'contact': fetchers!.first.contact,
-              'is_primary': fetchers!.first.isPrimary,
-            } : null,
+            'fetcher_details':
+                fetchers?.isNotEmpty == true
+                    ? {
+                      'name': fetchers!.first.name,
+                      'relationship': fetchers!.first.relationship,
+                      'contact': fetchers!.first.contact,
+                      'is_primary': fetchers!.first.isPrimary,
+                    }
+                    : null,
             'schedule_check': currentScheduleCheck,
           },
         );
@@ -2145,15 +2247,14 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           fetcherType = 'authorized';
         }
 
-        await _notificationService
-            .sendPickupDenialNotification(
-              studentId: scannedStudent!.id,
-              studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
-              denyReason: denyReason ?? 'No reason provided',
-              guardName: guardName,
-              fetcherName: fetcherName,
-              fetcherType: fetcherType,
-            );
+        await _notificationService.sendPickupDenialNotification(
+          studentId: scannedStudent!.id,
+          studentName: '${scannedStudent!.fname} ${scannedStudent!.lname}',
+          denyReason: denyReason ?? 'No reason provided',
+          guardName: guardName,
+          fetcherName: fetcherName,
+          fetcherType: fetcherType,
+        );
       }
     } catch (e) {
       // Log error during pickup record saving
@@ -2169,7 +2270,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
           'error': e.toString(),
         },
       );
-      
+
       print('Error saving pickup record: $e');
     }
   }
@@ -2237,7 +2338,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
       verifiedTempFetcher = null;
       isShowingTempFetcher = false;
       activeScanToken = null;
-      
+
       // Don't reset override mode here - let it timeout naturally
       // or be explicitly exited
       if (!isOverrideMode) {
@@ -2271,7 +2372,10 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         _gateControlService.openExitGate(scannedStudent!.rfidUid!);
       } else {
         // Denied - gate should not open
-        _gateControlService.denyExit(scannedStudent!.rfidUid!, denyReason ?? 'Pickup denied by guard');
+        _gateControlService.denyExit(
+          scannedStudent!.rfidUid!,
+          denyReason ?? 'Pickup denied by guard',
+        );
       }
     }
 
@@ -2482,11 +2586,12 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                       isScheduleValidationEnabled =
                           !isScheduleValidationEnabled;
                     });
-                    
+
                     // Log schedule validation control change
                     _guardAuditService.logRFIDSystemAccess(
                       accessType: 'configuration_change',
-                      connectionDetails: 'Schedule validation ${isScheduleValidationEnabled ? 'enabled' : 'disabled'} - Previous state: $previousState',
+                      connectionDetails:
+                          'Schedule validation ${isScheduleValidationEnabled ? 'enabled' : 'disabled'} - Previous state: $previousState',
                       isSuccessful: true,
                     );
                   },
@@ -2531,36 +2636,61 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                     TextButton.icon(
                       onPressed: simulateRFIDScan,
                       icon: Icon(Icons.credit_card, size: 16),
-                      label: Text('Test Entry Scan', style: TextStyle(fontSize: 14)),
+                      label: Text(
+                        'Test Entry Scan',
+                        style: TextStyle(fontSize: 14),
+                      ),
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.green[700],
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                       ),
                     ),
                     TextButton.icon(
-                      onPressed: () => _fetchStudentByRFID('1a5562cd', scanner: 'exit'),
+                      onPressed:
+                          () =>
+                              _fetchStudentByRFID('1a5562cd', scanner: 'exit'),
                       icon: Icon(Icons.credit_card, size: 16),
-                      label: Text('Test Exit Scan', style: TextStyle(fontSize: 14)),
+                      label: Text(
+                        'Test Exit Scan',
+                        style: TextStyle(fontSize: 14),
+                      ),
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.red[700],
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                       ),
                     ),
                     TextButton.icon(
-                      onPressed: isOverrideMode 
-                          ? () => _exitOverrideMode('Manual exit via debug button')
-                          : () => _activateOverrideMode('Debug Mode'),
+                      onPressed:
+                          isOverrideMode
+                              ? () => _exitOverrideMode(
+                                'Manual exit via debug button',
+                              )
+                              : () => _activateOverrideMode('Debug Mode'),
                       icon: Icon(
-                        isOverrideMode ? Icons.security_outlined : Icons.security, 
-                        size: 16
+                        isOverrideMode
+                            ? Icons.security_outlined
+                            : Icons.security,
+                        size: 16,
                       ),
                       label: Text(
-                        isOverrideMode ? 'Exit Override' : 'Test Override', 
-                        style: TextStyle(fontSize: 14)
+                        isOverrideMode ? 'Exit Override' : 'Test Override',
+                        style: TextStyle(fontSize: 14),
                       ),
                       style: TextButton.styleFrom(
-                        foregroundColor: isOverrideMode ? Colors.red[700] : Colors.orange[700],
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        foregroundColor:
+                            isOverrideMode
+                                ? Colors.red[700]
+                                : Colors.orange[700],
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                       ),
                     ),
                   ],
@@ -2699,7 +2829,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                     ],
                   ),
                 ),
-                
+
                 SizedBox(height: 24),
 
                 // Manual Override Button
@@ -2721,11 +2851,18 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                     onTap: () => _activateOverrideMode('Manual Activation'),
                     borderRadius: BorderRadius.circular(18),
                     child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.security, size: 20, color: Colors.orange[700]),
+                          Icon(
+                            Icons.security,
+                            size: 20,
+                            color: Colors.orange[700],
+                          ),
                           SizedBox(width: 10),
                           Text(
                             'MANUAL OVERRIDE',
@@ -2888,7 +3025,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     final currentTeacher = currentScheduleCheck?['currentTeacher'];
     final lastClassEndTime = currentScheduleCheck?['lastClassEndTime'];
     final subject = currentScheduleCheck?['subject'];
-    
+
     // Auto-clear timer similar to entry mode (8 seconds)
     Future.delayed(Duration(seconds: 8), () {
       if (mounted && activeScanToken != null) {
@@ -2899,7 +3036,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         }
       }
     });
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2953,11 +3090,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              Icons.block,
-                              size: 28,
-                              color: Colors.white,
-                            ),
+                            Icon(Icons.block, size: 28, color: Colors.white),
                             SizedBox(width: 12),
                             Text(
                               'EXIT BLOCKED',
@@ -3178,7 +3311,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                 SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Current Class',
@@ -3288,7 +3422,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                               SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  scheduleValidationMessage ?? 'Student cannot exit during class hours. Please wait until classes end.',
+                                  scheduleValidationMessage ??
+                                      'Student cannot exit during class hours. Please wait until classes end.',
                                   style: TextStyle(
                                     fontSize: 16,
                                     color: Colors.grey[700],
@@ -3819,7 +3954,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Icon(
-                                    currentScanner == 'entry' ? Icons.login : Icons.logout,
+                                    currentScanner == 'entry'
+                                        ? Icons.login
+                                        : Icons.logout,
                                     size: 28,
                                     color: Colors.white,
                                   ),
@@ -4182,8 +4319,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                 ),
 
                                 // Early Dismissal Indicator
-                                if (currentScheduleCheck != null && 
-                                    currentScheduleCheck!['exitType'] == 'early_dismissal') ...[
+                                if (currentScheduleCheck != null &&
+                                    currentScheduleCheck!['exitType'] ==
+                                        'early_dismissal') ...[
                                   SizedBox(height: 16),
                                   Container(
                                     padding: EdgeInsets.all(16),
@@ -4216,7 +4354,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                                 ),
                                               ),
                                               Text(
-                                                currentScheduleCheck!['earlyDismissal']['reason'] ?? 'No reason provided',
+                                                currentScheduleCheck!['earlyDismissal']['reason'] ??
+                                                    'No reason provided',
                                                 style: TextStyle(
                                                   fontSize: 14,
                                                   color: Colors.black87,
@@ -4234,8 +4373,9 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                 ],
 
                                 // Emergency Exit Indicator
-                                if (currentScheduleCheck != null && 
-                                    currentScheduleCheck!['exitType'] == 'emergency_exit') ...[
+                                if (currentScheduleCheck != null &&
+                                    currentScheduleCheck!['exitType'] ==
+                                        'emergency_exit') ...[
                                   SizedBox(height: 16),
                                   Container(
                                     padding: EdgeInsets.all(16),
@@ -4268,7 +4408,8 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                                 ),
                                               ),
                                               Text(
-                                                'Approved by teacher: ${currentScheduleCheck!['emergencyExit']['markedBy']['fname'] ?? ''} ${currentScheduleCheck!['emergencyExit']['markedBy']['lname'] ?? ''}'.trim(),
+                                                'Approved by teacher: ${currentScheduleCheck!['emergencyExit']['markedBy']['fname'] ?? ''} ${currentScheduleCheck!['emergencyExit']['markedBy']['lname'] ?? ''}'
+                                                    .trim(),
                                                 style: TextStyle(
                                                   fontSize: 14,
                                                   color: Colors.black87,
@@ -5801,11 +5942,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                     ),
                   ],
                 ),
-                child: Icon(
-                  Icons.security,
-                  size: 32,
-                  color: Colors.white,
-                ),
+                child: Icon(Icons.security, size: 32, color: Colors.white),
               ),
               SizedBox(width: 20),
               Expanded(
@@ -5824,20 +5961,18 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                     SizedBox(height: 4),
                     Text(
                       'Search and select a student to process manually',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.orange[700],
-                      ),
+                      style: TextStyle(fontSize: 16, color: Colors.orange[700]),
                     ),
                     SizedBox(height: 8),
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.green[100],
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.green[300]!,
-                        ),
+                        border: Border.all(color: Colors.green[300]!),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -5960,15 +6095,16 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           prefixIcon: Icon(Icons.search),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(Icons.clear),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    _searchStudents('');
-                                  },
-                                )
-                              : null,
+                          suffixIcon:
+                              _searchController.text.isNotEmpty
+                                  ? IconButton(
+                                    icon: Icon(Icons.clear),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      _searchStudents('');
+                                    },
+                                  )
+                                  : null,
                         ),
                         style: TextStyle(fontSize: 16),
                         onChanged: (value) {
@@ -5979,9 +6115,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                       SizedBox(height: 24),
 
                       // Search Results
-                      Expanded(
-                        child: _buildSearchResults(),
-                      ),
+                      Expanded(child: _buildSearchResults()),
                     ],
                   ),
                 ),
@@ -6018,11 +6152,16 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                               Container(
                                 padding: EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: _manualGateOpen ? Colors.green : Colors.red,
+                                  color:
+                                      _manualGateOpen
+                                          ? Colors.green
+                                          : Colors.red,
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
-                                  _manualGateOpen ? Icons.lock_open : Icons.lock,
+                                  _manualGateOpen
+                                      ? Icons.lock_open
+                                      : Icons.lock,
                                   size: 24,
                                   color: Colors.white,
                                 ),
@@ -6037,18 +6176,24 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
-                                        color: _manualGateOpen ? Colors.green[800] : Colors.red[800],
+                                        color:
+                                            _manualGateOpen
+                                                ? Colors.green[800]
+                                                : Colors.red[800],
                                         letterSpacing: 1.1,
                                       ),
                                     ),
                                     SizedBox(height: 4),
                                     Text(
-                                      _manualGateOpen 
+                                      _manualGateOpen
                                           ? '${_manualGateType.toUpperCase()} GATE OPEN'
                                           : 'Gate is closed',
                                       style: TextStyle(
                                         fontSize: 14,
-                                        color: _manualGateOpen ? Colors.green[700] : Colors.red[700],
+                                        color:
+                                            _manualGateOpen
+                                                ? Colors.green[700]
+                                                : Colors.red[700],
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -6080,7 +6225,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                               ),
                             ),
                             SizedBox(height: 12),
-                            
+
                             // Exit Gate Button
                             SizedBox(
                               width: double.infinity,
@@ -6124,28 +6269,42 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                           Container(
                             padding: EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: _manualGateOpen ? Colors.green[50] : Colors.grey[50],
+                              color:
+                                  _manualGateOpen
+                                      ? Colors.green[50]
+                                      : Colors.grey[50],
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: _manualGateOpen ? Colors.green[200]! : Colors.grey[300]!,
+                                color:
+                                    _manualGateOpen
+                                        ? Colors.green[200]!
+                                        : Colors.grey[300]!,
                               ),
                             ),
                             child: Row(
                               children: [
                                 Icon(
-                                  _manualGateOpen ? Icons.info : Icons.info_outline,
+                                  _manualGateOpen
+                                      ? Icons.info
+                                      : Icons.info_outline,
                                   size: 16,
-                                  color: _manualGateOpen ? Colors.green[700] : Colors.grey[600],
+                                  color:
+                                      _manualGateOpen
+                                          ? Colors.green[700]
+                                          : Colors.grey[600],
                                 ),
                                 SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    _manualGateOpen 
+                                    _manualGateOpen
                                         ? 'Gate will stay open until you close it manually'
                                         : 'Use manual control when needed for maintenance or emergencies',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: _manualGateOpen ? Colors.green[700] : Colors.grey[600],
+                                      color:
+                                          _manualGateOpen
+                                              ? Colors.green[700]
+                                              : Colors.grey[600],
                                     ),
                                   ),
                                 ),
@@ -6165,7 +6324,10 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.grey[200]!, width: 2),
+                          border: Border.all(
+                            color: Colors.grey[200]!,
+                            width: 2,
+                          ),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withOpacity(0.08),
@@ -6287,10 +6449,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             SizedBox(height: 16),
             Text(
               'Searching students...',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
           ],
         ),
@@ -6302,11 +6461,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.search,
-              size: 64,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.search, size: 64, color: Colors.grey[400]),
             SizedBox(height: 16),
             Text(
               'Start typing to search',
@@ -6319,10 +6474,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             SizedBox(height: 8),
             Text(
               'Enter student name, grade, or class',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
             ),
           ],
         ),
@@ -6334,11 +6486,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.search_off,
-              size: 64,
-              color: Colors.orange[400],
-            ),
+            Icon(Icons.search_off, size: 64, color: Colors.orange[400]),
             SizedBox(height: 16),
             Text(
               'No students found',
@@ -6351,10 +6499,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
             SizedBox(height: 8),
             Text(
               'Try different search terms',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
             ),
           ],
         ),
@@ -6431,10 +6576,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
                   SizedBox(height: 4),
                   Text(
                     student.studentId,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
                 ],
               ),
@@ -6451,11 +6593,7 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.touch_app,
-                    size: 16,
-                    color: Colors.blue[600],
-                  ),
+                  Icon(Icons.touch_app, size: 16, color: Colors.blue[600]),
                   SizedBox(width: 6),
                   Text(
                     'SELECT',
@@ -6474,7 +6612,12 @@ class _StudentVerificationPageState extends State<StudentVerificationPage> {
     );
   }
 
-  Widget _buildInstructionItem(IconData icon, String title, String description, Color color) {
+  Widget _buildInstructionItem(
+    IconData icon,
+    String title,
+    String description,
+    Color color,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

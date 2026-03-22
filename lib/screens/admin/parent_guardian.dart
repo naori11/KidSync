@@ -778,35 +778,44 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          content: Row(
-            children: [
-              CircularProgressIndicator(color: Color(0xFF2ECC71)),
-              SizedBox(width: 16),
-              Text('Exporting parents...'),
-            ],
-          ),
-        ),
+        builder:
+            (context) => const AlertDialog(
+              content: Row(
+                children: [
+                  CircularProgressIndicator(color: Color(0xFF2ECC71)),
+                  SizedBox(width: 16),
+                  Text('Exporting parents...'),
+                ],
+              ),
+            ),
       );
 
       // Apply current filters to determine which parents to export
       final query = _searchQuery.trim().toLowerCase();
-      List<Map<String, dynamic>> parentsToExport = parents.where((parent) {
-        final fullName = "${parent['first_name']} ${parent['last_name']} ${parent['suffix'] ?? ''}".trim().toLowerCase();
-        final matchesName = fullName.contains(query);
-        final status = (parent['status']?.toString() ?? '').toLowerCase();
-        final matchesStatus = _statusFilter == 'All Status' || status == _statusFilter.toLowerCase();
-        return matchesName && matchesStatus;
-      }).toList();
+      List<Map<String, dynamic>> parentsToExport =
+          parents.where((parent) {
+            final fullName =
+                "${parent['first_name']} ${parent['last_name']} ${parent['suffix'] ?? ''}"
+                    .trim()
+                    .toLowerCase();
+            final matchesName = fullName.contains(query);
+            final status = (parent['status']?.toString() ?? '').toLowerCase();
+            final matchesStatus =
+                _statusFilter == 'All Status' ||
+                status == _statusFilter.toLowerCase();
+            return matchesName && matchesStatus;
+          }).toList();
 
       // Sort parents by account creation date (ascending) - this is the primary sort
       parentsToExport.sort((a, b) {
-        final aDate = a['created_at'] != null 
-            ? DateTime.parse(a['created_at'].toString()) 
-            : DateTime.fromMillisecondsSinceEpoch(0);
-        final bDate = b['created_at'] != null 
-            ? DateTime.parse(b['created_at'].toString()) 
-            : DateTime.fromMillisecondsSinceEpoch(0);
+        final aDate =
+            a['created_at'] != null
+                ? DateTime.parse(a['created_at'].toString())
+                : DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate =
+            b['created_at'] != null
+                ? DateTime.parse(b['created_at'].toString())
+                : DateTime.fromMillisecondsSinceEpoch(0);
         return aDate.compareTo(bDate);
       });
 
@@ -842,11 +851,14 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
       final fileName = 'Parents_Export_${timestamp}.xlsx';
 
       // Download file
-      final blob = html.Blob([fileBytes], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      final blob = html.Blob([
+        fileBytes,
+      ], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', fileName)
-        ..style.display = 'none';
+      final anchor =
+          html.AnchorElement(href: url)
+            ..setAttribute('download', fileName)
+            ..style.display = 'none';
 
       html.document.body?.children.add(anchor);
       anchor.click();
@@ -869,7 +881,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     } catch (e) {
       // Close loading dialog if still open
       if (mounted) Navigator.of(context).pop();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -890,25 +902,33 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     int rowIndex = 0;
 
     // Add title
-    var titleCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var titleCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     titleCell.value = excel_lib.TextCellValue('PARENTS DATA EXPORT');
     titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
     rowIndex += 2;
 
     // Add export info
-    var dateCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var dateCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     dateCell.value = excel_lib.TextCellValue('Export Date:');
     dateCell.cellStyle = excel_lib.CellStyle(bold: true);
-    
-    var dateValueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
-    dateValueCell.value = excel_lib.TextCellValue(DateTime.now().toLocal().toString().split('.')[0]);
+
+    var dateValueCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex),
+    );
+    dateValueCell.value = excel_lib.TextCellValue(
+      DateTime.now().toLocal().toString().split('.')[0],
+    );
     rowIndex += 2;
 
     // Column headers based on users table schema
     final headers = [
       'User ID',
       'First Name',
-      'Middle Name', 
+      'Middle Name',
       'Last Name',
       'Suffix',
       'Full Name',
@@ -922,7 +942,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
     // Track maximum width for each column (including headers)
     List<int> columnWidths = List.filled(headers.length, 0);
-    
+
     // Calculate header widths
     for (int col = 0; col < headers.length; col++) {
       columnWidths[col] = headers[col].length;
@@ -931,15 +951,21 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     // Calculate maximum content width for each column
     for (int i = 0; i < parentsData.length; i++) {
       final parent = parentsData[i];
-      
+
       // Generate user ID (Parent prefix + index)
       final parentIndex = i + 1;
       final userId = "PAR${parentIndex.toString().padLeft(3, '0')}";
-      
-      final fullName = "${parent['first_name'] ?? ''} ${parent['middle_name'] ?? ''} ${parent['last_name'] ?? ''} ${parent['suffix'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
-      final formattedCreatedAt = parent['created_at'] != null
-          ? DateTime.parse(parent['created_at'].toString()).toLocal().toString().split('.')[0]
-          : '';
+
+      final fullName =
+          "${parent['first_name'] ?? ''} ${parent['middle_name'] ?? ''} ${parent['last_name'] ?? ''} ${parent['suffix'] ?? ''}"
+              .trim()
+              .replaceAll(RegExp(r'\s+'), ' ');
+      final formattedCreatedAt =
+          parent['created_at'] != null
+              ? DateTime.parse(
+                parent['created_at'].toString(),
+              ).toLocal().toString().split('.')[0]
+              : '';
 
       final rowData = [
         userId,
@@ -967,13 +993,21 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
     // Set column widths with some padding (add 2 characters for padding)
     for (int col = 0; col < columnWidths.length; col++) {
-      final width = (columnWidths[col] + 2).clamp(8, 50); // Min 8, Max 50 characters
+      final width = (columnWidths[col] + 2).clamp(
+        8,
+        50,
+      ); // Min 8, Max 50 characters
       sheet.setColumnWidth(col, width.toDouble());
     }
 
     // Add column headers
     for (int col = 0; col < headers.length; col++) {
-      var headerCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+      var headerCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: col,
+          rowIndex: rowIndex,
+        ),
+      );
       headerCell.value = excel_lib.TextCellValue(headers[col]);
       headerCell.cellStyle = excel_lib.CellStyle(
         bold: true,
@@ -988,15 +1022,21 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     // Add parent data rows
     for (int i = 0; i < parentsData.length; i++) {
       final parent = parentsData[i];
-      
+
       // Generate user ID (Parent prefix + index)
       final parentIndex = i + 1;
       final userId = "PAR${parentIndex.toString().padLeft(3, '0')}";
-      
-      final fullName = "${parent['first_name'] ?? ''} ${parent['middle_name'] ?? ''} ${parent['last_name'] ?? ''} ${parent['suffix'] ?? ''}".trim().replaceAll(RegExp(r'\s+'), ' ');
-      final formattedCreatedAt = parent['created_at'] != null
-          ? DateTime.parse(parent['created_at'].toString()).toLocal().toString().split('.')[0]
-          : '';
+
+      final fullName =
+          "${parent['first_name'] ?? ''} ${parent['middle_name'] ?? ''} ${parent['last_name'] ?? ''} ${parent['suffix'] ?? ''}"
+              .trim()
+              .replaceAll(RegExp(r'\s+'), ' ');
+      final formattedCreatedAt =
+          parent['created_at'] != null
+              ? DateTime.parse(
+                parent['created_at'].toString(),
+              ).toLocal().toString().split('.')[0]
+              : '';
 
       final rowData = [
         userId,
@@ -1014,13 +1054,22 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
       ];
 
       for (int col = 0; col < rowData.length; col++) {
-        var cell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+        var cell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: col,
+            rowIndex: rowIndex,
+          ),
+        );
         cell.value = excel_lib.TextCellValue(rowData[col]);
         cell.cellStyle = excel_lib.CellStyle(
           leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
           topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
       }
       rowIndex++;
@@ -1041,11 +1090,13 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     final userName =
         user?.userMetadata?['fname'] != null &&
                 user?.userMetadata?['lname'] != null
-        ? '${user?.userMetadata?['fname']} ${user?.userMetadata?['lname']}'
-        : user?.email ?? 'Unknown User';
+            ? '${user?.userMetadata?['fname']} ${user?.userMetadata?['lname']}'
+            : user?.email ?? 'Unknown User';
 
     // Add title
-    var titleCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var titleCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     titleCell.value = excel_lib.TextCellValue('PARENTS SUMMARY REPORT');
     titleCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 18);
     // Update column width for title
@@ -1055,39 +1106,68 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     rowIndex += 2;
 
     // Add export info
-    var dateCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var dateCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     dateCell.value = excel_lib.TextCellValue('Export Date:');
     dateCell.cellStyle = excel_lib.CellStyle(bold: true);
-    
-    var dateValueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
-    dateValueCell.value = excel_lib.TextCellValue(DateTime.now().toLocal().toString().split('.')[0]);
+
+    var dateValueCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex),
+    );
+    dateValueCell.value = excel_lib.TextCellValue(
+      DateTime.now().toLocal().toString().split('.')[0],
+    );
     rowIndex += 2;
 
-    var generatedByCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var generatedByCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     generatedByCell.value = excel_lib.TextCellValue('Generated By:');
     generatedByCell.cellStyle = excel_lib.CellStyle(bold: true);
-    
-    var generatedByValueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+
+    var generatedByValueCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex),
+    );
     generatedByValueCell.value = excel_lib.TextCellValue(userName);
     rowIndex += 2;
 
     // Update column widths for export info
-    if ('Export Date:'.length > columnWidths[0]) columnWidths[0] = 'Export Date:'.length;
-    if ('Generated By:'.length > columnWidths[0]) columnWidths[0] = 'Generated By:'.length;
-    if (DateTime.now().toLocal().toString().split('.')[0].length > columnWidths[1]) {
-      columnWidths[1] = DateTime.now().toLocal().toString().split('.')[0].length;
+    if ('Export Date:'.length > columnWidths[0])
+      columnWidths[0] = 'Export Date:'.length;
+    if ('Generated By:'.length > columnWidths[0])
+      columnWidths[0] = 'Generated By:'.length;
+    if (DateTime.now().toLocal().toString().split('.')[0].length >
+        columnWidths[1]) {
+      columnWidths[1] =
+          DateTime.now().toLocal().toString().split('.')[0].length;
     }
     if (userName.length > columnWidths[1]) columnWidths[1] = userName.length;
 
     // Calculate statistics
     final totalParents = parentsData.length;
-  // Count statuses case-insensitively to accept both 'Active' and 'active'
-  final activeParents = parentsData.where((p) => (p['status']?.toString().toLowerCase() ?? '') == 'active').length;
-  final inactiveParents = parentsData.where((p) => (p['status']?.toString().toLowerCase() ?? '') == 'inactive').length;
+    // Count statuses case-insensitively to accept both 'Active' and 'active'
+    final activeParents =
+        parentsData
+            .where(
+              (p) => (p['status']?.toString().toLowerCase() ?? '') == 'active',
+            )
+            .length;
+    final inactiveParents =
+        parentsData
+            .where(
+              (p) =>
+                  (p['status']?.toString().toLowerCase() ?? '') == 'inactive',
+            )
+            .length;
     final totalStudentsAssigned = parentsData.fold<int>(
-      0, (sum, parent) => sum + (parent['student_count'] as int? ?? 0),
+      0,
+      (sum, parent) => sum + (parent['student_count'] as int? ?? 0),
     );
-    final averageStudentsPerParent = totalParents > 0 ? (totalStudentsAssigned / totalParents).toStringAsFixed(1) : '0';
+    final averageStudentsPerParent =
+        totalParents > 0
+            ? (totalStudentsAssigned / totalParents).toStringAsFixed(1)
+            : '0';
 
     // Statistics section
     final stats = [
@@ -1107,31 +1187,55 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
         columnWidths[1] = stat[1].length;
       }
 
-      var labelCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+      var labelCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: rowIndex,
+        ),
+      );
       labelCell.value = excel_lib.TextCellValue(stat[0]);
       labelCell.cellStyle = excel_lib.CellStyle(bold: true);
-      
-      var valueCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: rowIndex));
+
+      var valueCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: rowIndex,
+        ),
+      );
       valueCell.value = excel_lib.TextCellValue(stat[1]);
-      
+
       rowIndex++;
     }
 
     rowIndex += 2;
 
     // Status breakdown table
-    var statusHeaderCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
+    var statusHeaderCell = sheet.cell(
+      excel_lib.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
+    );
     statusHeaderCell.value = excel_lib.TextCellValue('STATUS BREAKDOWN');
     statusHeaderCell.cellStyle = excel_lib.CellStyle(bold: true, fontSize: 14);
     rowIndex += 2;
 
     // Status table headers
     final statusHeaders = ['Status', 'Count', 'Percentage'];
-    
+
     // Status data for width calculation
-    final statusBreakdown = [      
-      ['Active', activeParents.toString(), totalParents > 0 ? '${((activeParents / totalParents) * 100).toStringAsFixed(1)}%' : '0%'],
-      ['Inactive', inactiveParents.toString(), totalParents > 0 ? '${((inactiveParents / totalParents) * 100).toStringAsFixed(1)}%' : '0%'],
+    final statusBreakdown = [
+      [
+        'Active',
+        activeParents.toString(),
+        totalParents > 0
+            ? '${((activeParents / totalParents) * 100).toStringAsFixed(1)}%'
+            : '0%',
+      ],
+      [
+        'Inactive',
+        inactiveParents.toString(),
+        totalParents > 0
+            ? '${((inactiveParents / totalParents) * 100).toStringAsFixed(1)}%'
+            : '0%',
+      ],
     ];
 
     // Update column widths for status table headers
@@ -1140,7 +1244,7 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
         columnWidths[col] = statusHeaders[col].length;
       }
     }
-    
+
     // Update column widths for status table data
     for (final statusRow in statusBreakdown) {
       for (int col = 0; col < statusRow.length; col++) {
@@ -1152,7 +1256,12 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
     // Status table headers
     for (int col = 0; col < statusHeaders.length; col++) {
-      var headerCell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+      var headerCell = sheet.cell(
+        excel_lib.CellIndex.indexByColumnRow(
+          columnIndex: col,
+          rowIndex: rowIndex,
+        ),
+      );
       headerCell.value = excel_lib.TextCellValue(statusHeaders[col]);
       headerCell.cellStyle = excel_lib.CellStyle(
         bold: true,
@@ -1167,13 +1276,22 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
     // Status data rows
     for (final statusRow in statusBreakdown) {
       for (int col = 0; col < statusRow.length; col++) {
-        var cell = sheet.cell(excel_lib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex));
+        var cell = sheet.cell(
+          excel_lib.CellIndex.indexByColumnRow(
+            columnIndex: col,
+            rowIndex: rowIndex,
+          ),
+        );
         cell.value = excel_lib.TextCellValue(statusRow[col]);
         cell.cellStyle = excel_lib.CellStyle(
           leftBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
           topBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          rightBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
-          bottomBorder: excel_lib.Border(borderStyle: excel_lib.BorderStyle.Thin),
+          rightBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
+          bottomBorder: excel_lib.Border(
+            borderStyle: excel_lib.BorderStyle.Thin,
+          ),
         );
       }
       rowIndex++;
@@ -1206,13 +1324,19 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
       filteredParents.sort(
         (a, b) => ("${a['first_name']} ${a['last_name']} ${a['suffix'] ?? ''}")
             .toLowerCase()
-            .compareTo(("${b['first_name']} ${b['last_name']} ${b['suffix'] ?? ''}").toLowerCase()),
+            .compareTo(
+              ("${b['first_name']} ${b['last_name']} ${b['suffix'] ?? ''}")
+                  .toLowerCase(),
+            ),
       );
     } else if (_sortOption == 'Name (Z-A)') {
       filteredParents.sort(
         (a, b) => ("${b['first_name']} ${b['last_name']} ${b['suffix'] ?? ''}")
             .toLowerCase()
-            .compareTo(("${a['first_name']} ${a['last_name']} ${a['suffix'] ?? ''}").toLowerCase()),
+            .compareTo(
+              ("${a['first_name']} ${a['last_name']} ${a['suffix'] ?? ''}")
+                  .toLowerCase(),
+            ),
       );
     } else if (_sortOption == 'Status') {
       filteredParents.sort(
@@ -1555,7 +1679,6 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
 
                 const SizedBox(height: 16),
 
-
                 // Parent Cards Grid
                 Expanded(
                   child:
@@ -1703,7 +1826,9 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
   }
 
   Widget _buildParentCard(Map<String, dynamic> parent) {
-    final fullName = "${parent['first_name']} ${parent['last_name']} ${parent['suffix'] ?? ''}".trim();
+    final fullName =
+        "${parent['first_name']} ${parent['last_name']} ${parent['suffix'] ?? ''}"
+            .trim();
     final initial = parent['first_name'][0].toUpperCase();
     final profileImageUrl = parent['profile_image_url'];
 
@@ -2194,7 +2319,9 @@ class _ParentGuardianPageState extends State<ParentGuardianPage> {
   Widget _buildParentDetailModal() {
     final parent = _selectedParent!;
     final students = parent['students'] as List;
-    final fullName = "${parent['first_name']} ${parent['last_name']} ${parent['suffix'] ?? ''}".trim();
+    final fullName =
+        "${parent['first_name']} ${parent['last_name']} ${parent['suffix'] ?? ''}"
+            .trim();
     final initial = parent['first_name'][0].toUpperCase();
     final profileImageUrl = parent['profile_image_url'];
 

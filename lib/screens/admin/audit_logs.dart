@@ -46,31 +46,29 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
 
     try {
       // Fetch audit logs from database using the service
-      final logs = await auditLogService.getAuditLogs(
-        limit: 100,
-        offset: 0,
-      );
+      final logs = await auditLogService.getAuditLogs(limit: 100, offset: 0);
 
       // Transform the database records to match the expected UI format
-      final transformedLogs = logs.map((log) {
-        return {
-          'timestamp': DateTime.parse(log['created_at']),
-          'user': {
-            'name': log['user_name'],
-            'role': log['user_role'],
-            'id': log['user_id'],
-          },
-          'action': log['action_description'],
-          'actionType': log['action_type'],
-          'module': log['module'],
-          'status': log['status'],
-          'details': log['action_description'],
-          'ipAddress': log['ip_address']?.toString() ?? 'Unknown',
-          'target_type': log['target_type'],
-          'target_id': log['target_id'],
-          'target_name': log['target_name'],
-        };
-      }).toList();
+      final transformedLogs =
+          logs.map((log) {
+            return {
+              'timestamp': DateTime.parse(log['created_at']),
+              'user': {
+                'name': log['user_name'],
+                'role': log['user_role'],
+                'id': log['user_id'],
+              },
+              'action': log['action_description'],
+              'actionType': log['action_type'],
+              'module': log['module'],
+              'status': log['status'],
+              'details': log['action_description'],
+              'ipAddress': log['ip_address']?.toString() ?? 'Unknown',
+              'target_type': log['target_type'],
+              'target_id': log['target_id'],
+              'target_name': log['target_name'],
+            };
+          }).toList();
 
       setState(() {
         _logEntries = transformedLogs;
@@ -83,7 +81,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
         _logEntries = [];
         isLoading = false;
       });
-      
+
       // Show error message to user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -113,32 +111,34 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
       final logs = await auditLogService.getAuditLogs(
         limit: 200,
         offset: 0,
-        actionType: _actionTypeFilter != 'All Actions' ? _actionTypeFilter : null,
+        actionType:
+            _actionTypeFilter != 'All Actions' ? _actionTypeFilter : null,
         status: _statusFilter != 'All Status' ? _statusFilter : null,
         startDate: _startDate,
         endDate: _endDate,
         searchQuery: _searchQuery.isNotEmpty ? _searchQuery : null,
       );
 
-      final transformedLogs = logs.map((log) {
-        return {
-          'timestamp': DateTime.parse(log['created_at']),
-          'user': {
-            'name': log['user_name'],
-            'role': log['user_role'],
-            'id': log['user_id'],
-          },
-          'action': log['action_description'],
-          'actionType': log['action_type'],
-          'module': log['module'],
-          'status': log['status'],
-          'details': log['action_description'],
-          'ipAddress': log['ip_address']?.toString() ?? 'Unknown',
-          'target_type': log['target_type'],
-          'target_id': log['target_id'],
-          'target_name': log['target_name'],
-        };
-      }).toList();
+      final transformedLogs =
+          logs.map((log) {
+            return {
+              'timestamp': DateTime.parse(log['created_at']),
+              'user': {
+                'name': log['user_name'],
+                'role': log['user_role'],
+                'id': log['user_id'],
+              },
+              'action': log['action_description'],
+              'actionType': log['action_type'],
+              'module': log['module'],
+              'status': log['status'],
+              'details': log['action_description'],
+              'ipAddress': log['ip_address']?.toString() ?? 'Unknown',
+              'target_type': log['target_type'],
+              'target_id': log['target_id'],
+              'target_name': log['target_name'],
+            };
+          }).toList();
 
       setState(() {
         _logEntries = transformedLogs;
@@ -174,18 +174,19 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
 
                 // Table content
                 Expanded(
-                  child: isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: Color(0xFF2ECC71),
-                          ),
-                        )
-                      : _buildLogsList(),
+                  child:
+                      isLoading
+                          ? const Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF2ECC71),
+                            ),
+                          )
+                          : _buildLogsList(),
                 ),
               ],
             ),
           ),
-          
+
           // Filter Sidebar Overlay
           if (_isFilterSidebarOpen) ...[
             // Dark overlay with animation
@@ -196,9 +197,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
               height: double.infinity,
               child: GestureDetector(
                 onTap: () => setState(() => _isFilterSidebarOpen = false),
-                child: Container(
-                  color: Colors.transparent,
-                ),
+                child: Container(color: Colors.transparent),
               ),
             ),
             // Sidebar
@@ -221,11 +220,18 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
             final Widget filterButton = Container(
               height: 44,
               decoration: BoxDecoration(
-                color: _hasActiveFilters() ? const Color(0xFF2ECC71) : Colors.white,
+                color:
+                    _hasActiveFilters()
+                        ? const Color(0xFF2ECC71)
+                        : Colors.white,
                 border: Border.all(color: const Color(0xFF2ECC71), width: 1.5),
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2)),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
                 ],
               ),
               child: Material(
@@ -234,25 +240,52 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                   borderRadius: BorderRadius.circular(8),
                   onTap: () => setState(() => _isFilterSidebarOpen = true),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.filter_list, color: _hasActiveFilters() ? Colors.white : const Color(0xFF2ECC71), size: 18),
+                        Icon(
+                          Icons.filter_list,
+                          color:
+                              _hasActiveFilters()
+                                  ? Colors.white
+                                  : const Color(0xFF2ECC71),
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
-                        Text('Filters',
-                            style: TextStyle(
-                              color: _hasActiveFilters() ? Colors.white : const Color(0xFF2ECC71),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            )),
+                        Text(
+                          'Filters',
+                          style: TextStyle(
+                            color:
+                                _hasActiveFilters()
+                                    ? Colors.white
+                                    : const Color(0xFF2ECC71),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                         if (_hasActiveFilters()) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
-                            child: Text('${_getActiveFilterCount()}',
-                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${_getActiveFilterCount()}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ],
                       ],
@@ -268,7 +301,13 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                 color: Colors.white,
                 border: Border.all(color: const Color(0xFFE0E0E0)),
                 borderRadius: BorderRadius.circular(8),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: TextField(
                 controller: _searchController,
@@ -276,9 +315,16 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                 decoration: const InputDecoration(
                   hintText: 'Search logs...',
                   hintStyle: TextStyle(fontSize: 14, color: Color(0xFF9E9E9E)),
-                  prefixIcon: Icon(Icons.search, color: Color(0xFF2ECC71), size: 20),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: Color(0xFF2ECC71),
+                    size: 20,
+                  ),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+                  contentPadding: EdgeInsets.symmetric(
+                    vertical: 12.0,
+                    horizontal: 16.0,
+                  ),
                 ),
               ),
             );
@@ -286,20 +332,38 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
             final Widget exportButton = SizedBox(
               height: 44,
               child: OutlinedButton.icon(
-                icon: const Icon(Icons.file_download_outlined, color: Color(0xFF2ECC71), size: 18),
-                label: const Text("Export",
-                    style: TextStyle(color: Color(0xFF2ECC71), fontSize: 14, fontWeight: FontWeight.w500)),
+                icon: const Icon(
+                  Icons.file_download_outlined,
+                  color: Color(0xFF2ECC71),
+                  size: 18,
+                ),
+                label: const Text(
+                  "Export",
+                  style: TextStyle(
+                    color: Color(0xFF2ECC71),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 style: OutlinedButton.styleFrom(
                   backgroundColor: Colors.white,
                   side: const BorderSide(color: Color(0xFF2ECC71), width: 1.5),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   elevation: 1,
                   shadowColor: Colors.black.withOpacity(0.05),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                 ),
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Export functionality coming soon...'), backgroundColor: Colors.orange),
+                    const SnackBar(
+                      content: Text('Export functionality coming soon...'),
+                      backgroundColor: Colors.orange,
+                    ),
                   );
                 },
               ),
@@ -310,7 +374,12 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                 children: [
                   const Text(
                     "Audit Logs",
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A), letterSpacing: 0.5),
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A1A),
+                      letterSpacing: 0.5,
+                    ),
                   ),
                   const Spacer(),
                   filterButton,
@@ -327,7 +396,12 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
               children: [
                 const Text(
                   "Audit Logs",
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A), letterSpacing: 0.5),
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1A1A1A),
+                    letterSpacing: 0.5,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -408,13 +482,13 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                   ),
                   label: const Text(
                     'Clear All',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF666666),
-                    ),
+                    style: TextStyle(fontSize: 12, color: Color(0xFF666666)),
                   ),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
@@ -458,30 +532,21 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
           child: DropdownButtonFormField<String>(
             value: value,
             decoration: InputDecoration(
-              prefixIcon: Icon(
-                icon,
-                size: 16,
-                color: const Color(0xFF2ECC71),
-              ),
+              prefixIcon: Icon(icon, size: 16, color: const Color(0xFF2ECC71)),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(
                 vertical: 8,
                 horizontal: 12,
               ),
             ),
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF1A1A1A),
-            ),
-            items: options.map((String option) {
-              return DropdownMenuItem<String>(
-                value: option,
-                child: Text(
-                  option,
-                  style: const TextStyle(fontSize: 14),
-                ),
-              );
-            }).toList(),
+            style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
+            items:
+                options.map((String option) {
+                  return DropdownMenuItem<String>(
+                    value: option,
+                    child: Text(option, style: const TextStyle(fontSize: 14)),
+                  );
+                }).toList(),
             onChanged: onChanged,
             isExpanded: true,
           ),
@@ -503,7 +568,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   // Build date range picker
   Widget _buildDateRangePicker() {
     final dateFormat = DateFormat('MMM d, yyyy');
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -533,7 +598,9 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                     onTap: () async {
                       final picked = await showDatePicker(
                         context: context,
-                        initialDate: _startDate ?? DateTime.now().subtract(const Duration(days: 30)),
+                        initialDate:
+                            _startDate ??
+                            DateTime.now().subtract(const Duration(days: 30)),
                         firstDate: DateTime(2020),
                         lastDate: DateTime.now(),
                         builder: (context, child) {
@@ -557,7 +624,10 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                       }
                     },
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       child: Row(
                         children: [
                           const Icon(
@@ -568,10 +638,15 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              _startDate != null ? dateFormat.format(_startDate!) : 'Start Date',
+                              _startDate != null
+                                  ? dateFormat.format(_startDate!)
+                                  : 'Start Date',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: _startDate != null ? const Color(0xFF1A1A1A) : const Color(0xFF9E9E9E),
+                                color:
+                                    _startDate != null
+                                        ? const Color(0xFF1A1A1A)
+                                        : const Color(0xFF9E9E9E),
                               ),
                             ),
                           ),
@@ -640,7 +715,10 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                       }
                     },
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       child: Row(
                         children: [
                           const Icon(
@@ -651,10 +729,15 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              _endDate != null ? dateFormat.format(_endDate!) : 'End Date',
+                              _endDate != null
+                                  ? dateFormat.format(_endDate!)
+                                  : 'End Date',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: _endDate != null ? const Color(0xFF1A1A1A) : const Color(0xFF9E9E9E),
+                                color:
+                                    _endDate != null
+                                        ? const Color(0xFF1A1A1A)
+                                        : const Color(0xFF9E9E9E),
                               ),
                             ),
                           ),
@@ -750,49 +833,84 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                 flex: 2,
                 child: Text(
                   'Date & Time',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF424242), letterSpacing: 0.3),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: Color(0xFF424242),
+                    letterSpacing: 0.3,
+                  ),
                 ),
               ),
               Expanded(
                 flex: 3,
                 child: Text(
                   'User & Role',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF424242), letterSpacing: 0.3),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: Color(0xFF424242),
+                    letterSpacing: 0.3,
+                  ),
                 ),
               ),
               Expanded(
                 flex: 3,
                 child: Text(
                   'Action & Type',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF424242), letterSpacing: 0.3),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: Color(0xFF424242),
+                    letterSpacing: 0.3,
+                  ),
                 ),
               ),
               Expanded(
                 flex: 2,
                 child: Text(
                   'Module',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF424242), letterSpacing: 0.3),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: Color(0xFF424242),
+                    letterSpacing: 0.3,
+                  ),
                 ),
               ),
               Expanded(
                 flex: 2,
                 child: Text(
                   'Status',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF424242), letterSpacing: 0.3),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: Color(0xFF424242),
+                    letterSpacing: 0.3,
+                  ),
                 ),
               ),
               Expanded(
                 flex: 6,
                 child: Text(
                   'Details',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF424242), letterSpacing: 0.3),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: Color(0xFF424242),
+                    letterSpacing: 0.3,
+                  ),
                 ),
               ),
               SizedBox(
                 width: 60,
                 child: Text(
                   'Actions',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF424242), letterSpacing: 0.3),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: Color(0xFF424242),
+                    letterSpacing: 0.3,
+                  ),
                 ),
               ),
             ],
@@ -804,63 +922,77 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
 
   Widget _buildLogsList() {
     // Apply all filters to log entries
-    final filteredLogs = _logEntries.where((log) {
-      final logDate = log['timestamp'] as DateTime;
-      
-      // Date range filter
-      if (_startDate != null) {
-        final startOfDay = DateTime(_startDate!.year, _startDate!.month, _startDate!.day);
-        if (logDate.isBefore(startOfDay)) return false;
-      }
-      if (_endDate != null) {
-        final endOfDay = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
-        if (logDate.isAfter(endOfDay)) return false;
-      }
+    final filteredLogs =
+        _logEntries.where((log) {
+          final logDate = log['timestamp'] as DateTime;
 
-      // Search query filter
-      if (_searchQuery.isNotEmpty) {
-        final String searchableContent =
-            '${log['user']['name']} ${log['action']} ${log['module']} ${log['details']}'
-                .toLowerCase();
-        if (!searchableContent.contains(_searchQuery)) return false;
-      }
+          // Date range filter
+          if (_startDate != null) {
+            final startOfDay = DateTime(
+              _startDate!.year,
+              _startDate!.month,
+              _startDate!.day,
+            );
+            if (logDate.isBefore(startOfDay)) return false;
+          }
+          if (_endDate != null) {
+            final endOfDay = DateTime(
+              _endDate!.year,
+              _endDate!.month,
+              _endDate!.day,
+              23,
+              59,
+              59,
+            );
+            if (logDate.isAfter(endOfDay)) return false;
+          }
 
-      // Role filter
-      if (_roleFilter != 'All Roles' && log['user']['role'] != _roleFilter) {
-        return false;
-      }
+          // Search query filter
+          if (_searchQuery.isNotEmpty) {
+            final String searchableContent =
+                '${log['user']['name']} ${log['action']} ${log['module']} ${log['details']}'
+                    .toLowerCase();
+            if (!searchableContent.contains(_searchQuery)) return false;
+          }
 
-      // User filter
-      if (_userFilter != 'All Users' && log['user']['name'] != _userFilter) {
-        return false;
-      }
+          // Role filter
+          if (_roleFilter != 'All Roles' &&
+              log['user']['role'] != _roleFilter) {
+            return false;
+          }
 
-      // Action type filter
-      if (_actionTypeFilter != 'All Actions' && log['actionType'] != _actionTypeFilter) {
-        return false;
-      }
+          // User filter
+          if (_userFilter != 'All Users' &&
+              log['user']['name'] != _userFilter) {
+            return false;
+          }
 
-      // Status filter
-      if (_statusFilter != 'All Status' && log['status'] != _statusFilter) {
-        return false;
-      }
+          // Action type filter
+          if (_actionTypeFilter != 'All Actions' &&
+              log['actionType'] != _actionTypeFilter) {
+            return false;
+          }
 
-      return true;
-    }).toList();
+          // Status filter
+          if (_statusFilter != 'All Status' && log['status'] != _statusFilter) {
+            return false;
+          }
+
+          return true;
+        }).toList();
 
     // Sort by timestamp (newest first)
-    filteredLogs.sort((a, b) => (b['timestamp'] as DateTime).compareTo(a['timestamp'] as DateTime));
+    filteredLogs.sort(
+      (a, b) =>
+          (b['timestamp'] as DateTime).compareTo(a['timestamp'] as DateTime),
+    );
 
     if (filteredLogs.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.search_off,
-              size: 64,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
               'No audit logs found',
@@ -873,10 +1005,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
             const SizedBox(height: 8),
             Text(
               'Try adjusting your filters or search criteria',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
             ),
           ],
         ),
@@ -905,17 +1034,11 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: const BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: Color(0xFFE0E0E0)),
-              ),
+              border: Border(bottom: BorderSide(color: Color(0xFFE0E0E0))),
             ),
             child: Row(
               children: [
-                Icon(
-                  Icons.info_outline,
-                  size: 16,
-                  color: Colors.grey[600],
-                ),
+                Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
                 const SizedBox(width: 8),
                 Text(
                   'Showing ${filteredLogs.length} log ${filteredLogs.length == 1 ? 'entry' : 'entries'}',
@@ -930,16 +1053,10 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                 if (_hasActiveFilters()) ...[
                   const Text(
                     'Active filters: ',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF666666),
-                    ),
+                    style: TextStyle(fontSize: 12, color: Color(0xFF666666)),
                   ),
                   const SizedBox(width: 8),
-                  Wrap(
-                    spacing: 4,
-                    children: _getActiveFilterBadges(),
-                  ),
+                  Wrap(spacing: 4, children: _getActiveFilterBadges()),
                 ],
               ],
             ),
@@ -970,18 +1087,18 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   // Check if any filters are active
   bool _hasActiveFilters() {
     return _roleFilter != 'All Roles' ||
-           _userFilter != 'All Users' ||
-           _actionTypeFilter != 'All Actions' ||
-           _statusFilter != 'All Status' ||
-           _startDate != null ||
-           _endDate != null ||
-           _searchQuery.isNotEmpty;
+        _userFilter != 'All Users' ||
+        _actionTypeFilter != 'All Actions' ||
+        _statusFilter != 'All Status' ||
+        _startDate != null ||
+        _endDate != null ||
+        _searchQuery.isNotEmpty;
   }
 
   // Get active filter badges
   List<Widget> _getActiveFilterBadges() {
     final badges = <Widget>[];
-    
+
     if (_roleFilter != 'All Roles') {
       badges.add(_buildFilterBadge(_roleFilter));
     }
@@ -1000,7 +1117,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
     if (_searchQuery.isNotEmpty) {
       badges.add(_buildFilterBadge('Search'));
     }
-    
+
     return badges;
   }
 
@@ -1036,7 +1153,9 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
         curve: Curves.easeInOut,
         width: math.min(400.0, MediaQuery.of(context).size.width * 0.9),
         transform: Matrix4.translationValues(
-          _isFilterSidebarOpen ? 0 : math.min(400.0, MediaQuery.of(context).size.width * 0.9),
+          _isFilterSidebarOpen
+              ? 0
+              : math.min(400.0, MediaQuery.of(context).size.width * 0.9),
           0,
           0,
         ),
@@ -1068,12 +1187,21 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                   const SizedBox(width: 12),
                   const Text(
                     'Filter Options',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                   const Spacer(),
                   IconButton(
-                    onPressed: () => setState(() => _isFilterSidebarOpen = false),
-                    icon: const Icon(Icons.close, color: Colors.white, size: 24),
+                    onPressed:
+                        () => setState(() => _isFilterSidebarOpen = false),
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                   ),
                 ],
               ),
@@ -1102,9 +1230,18 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                             _searchQuery = '';
                           });
                         },
-                        icon: const Icon(Icons.clear_all, size: 18, color: Color(0xFF666666)),
-                        label: const Text('Clear All Filters',
-                            style: TextStyle(fontSize: 14, color: Color(0xFF666666))),
+                        icon: const Icon(
+                          Icons.clear_all,
+                          size: 18,
+                          color: Color(0xFF666666),
+                        ),
+                        label: const Text(
+                          'Clear All Filters',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF666666),
+                          ),
+                        ),
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Color(0xFFE0E0E0)),
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1121,7 +1258,15 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                       _buildFilterDropdown(
                         'Role',
                         _roleFilter,
-                        ['All Roles', 'Admin', 'Teacher', 'Guard', 'Driver', 'Parent', 'System'],
+                        [
+                          'All Roles',
+                          'Admin',
+                          'Teacher',
+                          'Guard',
+                          'Driver',
+                          'Parent',
+                          'System',
+                        ],
                         Icons.admin_panel_settings,
                         (value) => setState(() => _roleFilter = value!),
                       ),
@@ -1151,7 +1296,17 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                       _buildFilterDropdown(
                         'Action Type',
                         _actionTypeFilter,
-                        ['All Actions', 'Create', 'Update', 'Delete', 'View', 'Export', 'Security', 'Alert', 'System'],
+                        [
+                          'All Actions',
+                          'Create',
+                          'Update',
+                          'Delete',
+                          'View',
+                          'Export',
+                          'Security',
+                          'Alert',
+                          'System',
+                        ],
                         Icons.assignment,
                         (value) => setState(() => _actionTypeFilter = value!),
                       ),
@@ -1195,20 +1350,33 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                                 child: _buildQuickFilterButton('Today', () {
                                   final today = DateTime.now();
                                   setState(() {
-                                    _startDate = DateTime(today.year, today.month, today.day);
-                                    _endDate = DateTime(today.year, today.month, today.day);
+                                    _startDate = DateTime(
+                                      today.year,
+                                      today.month,
+                                      today.day,
+                                    );
+                                    _endDate = DateTime(
+                                      today.year,
+                                      today.month,
+                                      today.day,
+                                    );
                                   });
                                 }),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: _buildQuickFilterButton('Last 7 Days', () {
-                                  final today = DateTime.now();
-                                  setState(() {
-                                    _startDate = today.subtract(const Duration(days: 7));
-                                    _endDate = today;
-                                  });
-                                }),
+                                child: _buildQuickFilterButton(
+                                  'Last 7 Days',
+                                  () {
+                                    final today = DateTime.now();
+                                    setState(() {
+                                      _startDate = today.subtract(
+                                        const Duration(days: 7),
+                                      );
+                                      _endDate = today;
+                                    });
+                                  },
+                                ),
                               ),
                             ],
                           ),
@@ -1216,19 +1384,25 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                           Row(
                             children: [
                               Expanded(
-                                child: _buildQuickFilterButton('Errors Only', () {
-                                  setState(() {
-                                    _statusFilter = 'error';
-                                  });
-                                }),
+                                child: _buildQuickFilterButton(
+                                  'Errors Only',
+                                  () {
+                                    setState(() {
+                                      _statusFilter = 'error';
+                                    });
+                                  },
+                                ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: _buildQuickFilterButton('Admin Actions', () {
-                                  setState(() {
-                                    _roleFilter = 'Admin';
-                                  });
-                                }),
+                                child: _buildQuickFilterButton(
+                                  'Admin Actions',
+                                  () {
+                                    setState(() {
+                                      _roleFilter = 'Admin';
+                                    });
+                                  },
+                                ),
                               ),
                             ],
                           ),
@@ -1245,9 +1419,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: Colors.grey[50],
-                border: const Border(
-                  top: BorderSide(color: Color(0xFFE0E0E0)),
-                ),
+                border: const Border(top: BorderSide(color: Color(0xFFE0E0E0))),
               ),
               child: Row(
                 children: [
@@ -1255,14 +1427,22 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                   const SizedBox(width: 8),
                   Text(
                     '${_getActiveFilterCount()} filter${_getActiveFilterCount() == 1 ? '' : 's'} active',
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600], fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: () => setState(() => _isFilterSidebarOpen = false),
+                    onPressed:
+                        () => setState(() => _isFilterSidebarOpen = false),
                     child: const Text(
                       'Apply Filters',
-                      style: TextStyle(color: Color(0xFF2ECC71), fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        color: Color(0xFF2ECC71),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -1281,11 +1461,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
       children: [
         Row(
           children: [
-            Icon(
-              icon,
-              size: 18,
-              color: const Color(0xFF2ECC71),
-            ),
+            Icon(icon, size: 18, color: const Color(0xFF2ECC71)),
             const SizedBox(width: 8),
             Text(
               title,
@@ -1398,13 +1574,27 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
       }
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
             const SizedBox(width: 6),
-            Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: color)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: color,
+              ),
+            ),
           ],
         ),
       );
@@ -1417,7 +1607,13 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE0E0E0)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1425,8 +1621,14 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${dateFormatter.format(timestamp)}  ${timeFormatter.format(timestamp)}',
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1A1A1A))),
+              Text(
+                '${dateFormatter.format(timestamp)}  ${timeFormatter.format(timestamp)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: Color(0xFF1A1A1A),
+                ),
+              ),
               statusPill(status),
             ],
           ),
@@ -1434,9 +1636,15 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
           Row(
             children: [
               Expanded(
-                child: Text(log['user']['name'],
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1A1A1A)),
-                    overflow: TextOverflow.ellipsis),
+                child: Text(
+                  log['user']['name'],
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(width: 8),
               Container(
@@ -1444,9 +1652,19 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                 decoration: BoxDecoration(
                   color: getRoleColor(role).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: getRoleColor(role).withOpacity(0.3), width: 0.5),
+                  border: Border.all(
+                    color: getRoleColor(role).withOpacity(0.3),
+                    width: 0.5,
+                  ),
                 ),
-                child: Text(role, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: getRoleColor(role))),
+                child: Text(
+                  role,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: getRoleColor(role),
+                  ),
+                ),
               ),
             ],
           ),
@@ -1454,21 +1672,41 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
           Row(
             children: [
               Expanded(
-                child: Text(log['module'], style: const TextStyle(fontSize: 13, color: Color(0xFF1A1A1A)), overflow: TextOverflow.ellipsis),
+                child: Text(
+                  log['module'],
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(color: const Color(0xFF2ECC71).withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
-                child: Text(log['actionType'],
-                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Color(0xFF2ECC71))),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2ECC71).withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  log['actionType'],
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF2ECC71),
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             log['details'],
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.3),
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade700,
+              height: 1.3,
+            ),
             maxLines: 4,
             overflow: TextOverflow.ellipsis,
           ),
@@ -1476,7 +1714,11 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
             alignment: Alignment.centerRight,
             child: PopupMenuButton<String>(
               color: Colors.white,
-              icon: Icon(Icons.more_vert, color: Colors.grey.shade600, size: 18),
+              icon: Icon(
+                Icons.more_vert,
+                color: Colors.grey.shade600,
+                size: 18,
+              ),
               onSelected: (value) {
                 switch (value) {
                   case 'view':
@@ -1487,18 +1729,35 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                     break;
                 }
               },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'view',
-                  child: Row(children: [Icon(Icons.visibility, size: 16, color: Colors.grey[600]), const SizedBox(width: 8), const Text('View Details')]),
-                ),
-                PopupMenuItem(
-                  value: 'copy',
-                  child: Row(children: [Icon(Icons.copy, size: 16, color: Colors.grey[600]), const SizedBox(width: 8), const Text('Copy Info')]),
-                ),
-              ],
+              itemBuilder:
+                  (context) => [
+                    PopupMenuItem(
+                      value: 'view',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.visibility,
+                            size: 16,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('View Details'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'copy',
+                      child: Row(
+                        children: [
+                          Icon(Icons.copy, size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 8),
+                          const Text('Copy Info'),
+                        ],
+                      ),
+                    ),
+                  ],
             ),
-          )
+          ),
         ],
       ),
     );
@@ -1643,12 +1902,20 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
               children: [
                 Text(
                   dateFormatter.format(timestamp),
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1A1A1A)),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: Color(0xFF1A1A1A),
+                  ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   timeFormatter.format(timestamp),
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w400),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ],
             ),
@@ -1662,19 +1929,35 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
               children: [
                 Text(
                   log['user']['name'],
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1A1A1A)),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: Color(0xFF1A1A1A),
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: getRoleColor(role).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: getRoleColor(role).withOpacity(0.3), width: 0.5),
+                    border: Border.all(
+                      color: getRoleColor(role).withOpacity(0.3),
+                      width: 0.5,
+                    ),
                   ),
-                  child: Text(role,
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: getRoleColor(role))),
+                  child: Text(
+                    role,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: getRoleColor(role),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1688,17 +1971,33 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
               children: [
                 Text(
                   _shortenAction(log['action'].toString(), max: 32),
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF1A1A1A)),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF1A1A1A),
+                  ),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
                   softWrap: false,
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(color: const Color(0xFF2ECC71).withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
-                  child: Text(log['actionType'],
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: Color(0xFF2ECC71))),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2ECC71).withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    log['actionType'],
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF2ECC71),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1709,23 +2008,28 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
             flex: 2,
             child: Text(
               log['module'],
-              style: const TextStyle(fontSize: 13, color: Color(0xFF1A1A1A), fontWeight: FontWeight.w400),
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF1A1A1A),
+                fontWeight: FontWeight.w400,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
 
           // Status column
-          Expanded(
-            flex: 2,
-            child: getStatusIndicator(status),
-          ),
+          Expanded(flex: 2, child: getStatusIndicator(status)),
 
           // Details column
           Expanded(
             flex: 6,
             child: Text(
               log['details'],
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.3),
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade700,
+                height: 1.3,
+              ),
               overflow: TextOverflow.ellipsis,
               maxLines: 2,
             ),
@@ -1751,36 +2055,33 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
                     break;
                 }
               },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'view',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.visibility,
-                        size: 16,
-                        color: Colors.grey[600],
+              itemBuilder:
+                  (context) => [
+                    PopupMenuItem(
+                      value: 'view',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.visibility,
+                            size: 16,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('View Details'),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      const Text('View Details'),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'copy',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.copy,
-                        size: 16,
-                        color: Colors.grey[600],
+                    ),
+                    PopupMenuItem(
+                      value: 'copy',
+                      child: Row(
+                        children: [
+                          Icon(Icons.copy, size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 8),
+                          const Text('Copy Info'),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      const Text('Copy Info'),
-                    ],
-                  ),
-                ),
-              ],
+                    ),
+                  ],
             ),
           ),
         ],
@@ -1792,76 +2093,74 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   void _showLogDetails(Map<String, dynamic> log) {
     final timestamp = log['timestamp'] as DateTime;
     final dateTimeFormatter = DateFormat('MMM d, yyyy \'at\' HH:mm:ss');
-    
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        title: Row(
-          children: [
-            const Icon(
-              Icons.info_outline,
-              color: Color(0xFF2ECC71),
-              size: 24,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            title: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  color: Color(0xFF2ECC71),
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Log Details',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            const Text(
-              'Log Details',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+            content: Container(
+              width: math.min(500.0, MediaQuery.of(context).size.width - 48),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildDetailRow(
+                    'Timestamp',
+                    dateTimeFormatter.format(timestamp),
+                  ),
+                  _buildDetailRow('User', log['user']['name']),
+                  _buildDetailRow('Role', log['user']['role']),
+                  _buildDetailRow('User ID', log['user']['id']),
+                  _buildDetailRow('Action', log['action']),
+                  _buildDetailRow('Action Type', log['actionType']),
+                  _buildDetailRow('Module', log['module']),
+                  _buildDetailRow('Status', log['status']),
+                  _buildDetailRow('IP Address', log['ipAddress'] ?? 'N/A'),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Details:',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: Text(
+                      log['details'],
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-        content: Container(
-          width: math.min(500.0, MediaQuery.of(context).size.width - 48),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDetailRow('Timestamp', dateTimeFormatter.format(timestamp)),
-              _buildDetailRow('User', log['user']['name']),
-              _buildDetailRow('Role', log['user']['role']),
-              _buildDetailRow('User ID', log['user']['id']),
-              _buildDetailRow('Action', log['action']),
-              _buildDetailRow('Action Type', log['actionType']),
-              _buildDetailRow('Module', log['module']),
-              _buildDetailRow('Status', log['status']),
-              _buildDetailRow('IP Address', log['ipAddress'] ?? 'N/A'),
-              const SizedBox(height: 8),
-              const Text(
-                'Details:',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[200]!),
-                ),
-                child: Text(
-                  log['details'],
-                  style: const TextStyle(fontSize: 13),
-                ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
               ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1875,18 +2174,10 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
             width: 100,
             child: Text(
               '$label:',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 13),
-            ),
-          ),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
         ],
       ),
     );
@@ -1896,7 +2187,7 @@ class _AuditLogsPageState extends State<AuditLogsPage> {
   void _copyLogDetails(Map<String, dynamic> log) {
     final timestamp = log['timestamp'] as DateTime;
     final dateTimeFormatter = DateFormat('MMM d, yyyy \'at\' HH:mm:ss');
-    
+
     final logText = '''
 Log Entry Details:
 Timestamp: ${dateTimeFormatter.format(timestamp)}

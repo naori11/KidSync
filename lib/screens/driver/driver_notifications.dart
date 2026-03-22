@@ -21,7 +21,7 @@ class DriverNotificationsTab extends StatefulWidget {
 class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
   final supabase = Supabase.instance.client;
   final DriverAuditService _auditService = DriverAuditService();
-  
+
   List<Map<String, dynamic>> todayNotifications = [];
   Map<String, List<Map<String, dynamic>>> groupedEarlierNotifications = {};
   bool isLoading = true;
@@ -48,7 +48,7 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
   Future<void> _loadNotifications() async {
     try {
       setState(() => isLoading = true);
-      
+
       final user = supabase.auth.currentUser;
       if (user == null) {
         setState(() => isLoading = false);
@@ -61,13 +61,13 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
         todayOnly: true,
         limit: 50,
       );
-      
+
       // Load all recent notifications for earlier section
       final allNotifs = await _getDriverNotifications(
         driverId: user.id,
         limit: 200,
       );
-      
+
       // Determine date ranges
       final now = DateTime.now().toLocal();
       final todayStart = DateTime(now.year, now.month, now.day);
@@ -76,23 +76,30 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
       final cutoffStart = todayStart.subtract(const Duration(days: 29));
 
       // Filter earlier notifications to those strictly before todayStart and within last 30 days
-      final earlierNotifs = allNotifs.where((notif) {
-        try {
-          final createdAt = DateTime.parse(notif['created_at']).toLocal();
-          final isBeforeToday = createdAt.isBefore(todayStart);
-          final isWithinCutoff = createdAt.isAtSameMomentAs(cutoffStart) || createdAt.isAfter(cutoffStart);
-          return isBeforeToday && isWithinCutoff;
-        } catch (e) {
-          return false;
-        }
-      }).toList();
+      final earlierNotifs =
+          allNotifs.where((notif) {
+            try {
+              final createdAt = DateTime.parse(notif['created_at']).toLocal();
+              final isBeforeToday = createdAt.isBefore(todayStart);
+              final isWithinCutoff =
+                  createdAt.isAtSameMomentAs(cutoffStart) ||
+                  createdAt.isAfter(cutoffStart);
+              return isBeforeToday && isWithinCutoff;
+            } catch (e) {
+              return false;
+            }
+          }).toList();
 
       // Group earlier notifications by date (yyyy-MM-dd)
       final Map<String, List<Map<String, dynamic>>> grouped = {};
       for (final notif in earlierNotifs) {
         try {
           final createdAt = DateTime.parse(notif['created_at']).toLocal();
-          final dateOnly = DateTime(createdAt.year, createdAt.month, createdAt.day);
+          final dateOnly = DateTime(
+            createdAt.year,
+            createdAt.month,
+            createdAt.day,
+          );
           final key = DateFormat('yyyy-MM-dd').format(dateOnly);
           grouped.putIfAbsent(key, () => []).add(notif);
         } catch (e) {
@@ -101,16 +108,20 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
       }
 
       setState(() {
-        todayNotifications = todayNotifs.where((notif) {
-          // ensure today's notifications are also within last 30 days (should be)
-          try {
-            final createdAt = DateTime.parse(notif['created_at']).toLocal();
-            return (createdAt.isAtSameMomentAs(todayStart) || (createdAt.isAfter(todayStart) && createdAt.isBefore(todayEnd))) ||
-                   createdAt.isAfter(todayStart) && createdAt.isBefore(todayEnd);
-          } catch (e) {
-            return false;
-          }
-        }).toList();
+        todayNotifications =
+            todayNotifs.where((notif) {
+              // ensure today's notifications are also within last 30 days (should be)
+              try {
+                final createdAt = DateTime.parse(notif['created_at']).toLocal();
+                return (createdAt.isAtSameMomentAs(todayStart) ||
+                        (createdAt.isAfter(todayStart) &&
+                            createdAt.isBefore(todayEnd))) ||
+                    createdAt.isAfter(todayStart) &&
+                        createdAt.isBefore(todayEnd);
+              } catch (e) {
+                return false;
+              }
+            }).toList();
         groupedEarlierNotifications = grouped;
       });
 
@@ -160,7 +171,7 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
         final today = DateTime.now();
         final todayStart = DateTime(today.year, today.month, today.day);
         final todayEnd = todayStart.add(const Duration(days: 1));
-        
+
         query = query
             .gte('created_at', todayStart.toIso8601String())
             .lt('created_at', todayEnd.toIso8601String());
@@ -171,17 +182,16 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
           .limit(limit);
 
       // Enhance notifications with student names
-      final enhancedNotifications = notifications.map<Map<String, dynamic>>((notif) {
-        final student = notif['students'];
-        final studentName = student != null 
-            ? '${student['fname']} ${student['lname']}'
-            : 'Unknown Student';
-        
-        return {
-          ...notif,
-          'student_name': studentName,
-        };
-      }).toList();
+      final enhancedNotifications =
+          notifications.map<Map<String, dynamic>>((notif) {
+            final student = notif['students'];
+            final studentName =
+                student != null
+                    ? '${student['fname']} ${student['lname']}'
+                    : 'Unknown Student';
+
+            return {...notif, 'student_name': studentName};
+          }).toList();
 
       return enhancedNotifications;
     } catch (e) {
@@ -201,7 +211,7 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
           })
           .eq('recipient_id', driverId)
           .eq('is_read', false);
-      
+
       return true;
     } catch (e) {
       print('Error marking driver notifications as read: $e');
@@ -247,11 +257,7 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        Icons.today,
-                        color: widget.primaryColor,
-                        size: 20,
-                      ),
+                      Icon(Icons.today, color: widget.primaryColor, size: 20),
                       SizedBox(width: 12),
                       Text(
                         'Today\'s Notifications',
@@ -299,13 +305,16 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
                       ),
                     )
                   else
-                    ...todayNotifications.map((notification) =>
-                        _buildNotificationItem(
-                          notification,
-                          widget.primaryColor,
-                          black,
-                          widget.isMobile,
-                        )).toList(),
+                    ...todayNotifications
+                        .map(
+                          (notification) => _buildNotificationItem(
+                            notification,
+                            widget.primaryColor,
+                            black,
+                            widget.isMobile,
+                          ),
+                        )
+                        .toList(),
                 ],
               ),
             ),
@@ -326,11 +335,7 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        Icons.history,
-                        color: Colors.grey[600],
-                        size: 20,
-                      ),
+                      Icon(Icons.history, color: Colors.grey[600], size: 20),
                       SizedBox(width: 12),
                       Text(
                         'Earlier Notifications',
@@ -398,18 +403,20 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
     bool isMobile,
   ) {
     // Sort keys (yyyy-MM-dd) descending
-    final keys = grouped.keys.toList()
-      ..sort((a, b) {
-        final da = DateTime.parse(a);
-        final db = DateTime.parse(b);
-        return db.compareTo(da);
-      });
+    final keys =
+        grouped.keys.toList()..sort((a, b) {
+          final da = DateTime.parse(a);
+          final db = DateTime.parse(b);
+          return db.compareTo(da);
+        });
 
     final List<Widget> widgets = [];
 
     for (final key in keys) {
       final date = DateTime.parse(key);
-      final headerLabel = DateFormat('EEEE, MMM d').format(date); // e.g., Friday, Aug 21
+      final headerLabel = DateFormat(
+        'EEEE, MMM d',
+      ).format(date); // e.g., Friday, Aug 21
       widgets.add(
         Container(
           margin: EdgeInsets.only(bottom: 12),
@@ -431,14 +438,18 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
       );
 
       final notifs = grouped[key]!;
-      widgets.addAll(notifs.map((notification) =>
-        _buildNotificationItem(
-          notification,
-          primaryColor,
-          black,
-          isMobile,
-        )
-      ).toList());
+      widgets.addAll(
+        notifs
+            .map(
+              (notification) => _buildNotificationItem(
+                notification,
+                primaryColor,
+                black,
+                isMobile,
+              ),
+            )
+            .toList(),
+      );
 
       widgets.add(SizedBox(height: 8));
     }
@@ -458,11 +469,11 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
     final createdAt = notification['created_at'];
     final isRead = notification['is_read'] ?? false;
     final studentName = notification['student_name'] ?? 'Unknown Student';
-    
+
     IconData icon;
     Color iconColor;
     Color backgroundColor;
-    
+
     switch (type) {
       case 'pickup_approved':
         icon = Icons.check_circle;
@@ -532,9 +543,10 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
         color: isRead ? Colors.white : backgroundColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isRead
-              ? Colors.grey.withOpacity(0.2)
-              : iconColor.withOpacity(0.3),
+          color:
+              isRead
+                  ? Colors.grey.withOpacity(0.2)
+                  : iconColor.withOpacity(0.3),
           width: 1,
         ),
         boxShadow: [
@@ -553,11 +565,7 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
               color: iconColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 20,
-            ),
+            child: Icon(icon, color: iconColor, size: 20),
           ),
           SizedBox(width: 12),
           Expanded(
@@ -575,10 +583,7 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
                 const SizedBox(height: 4),
                 Text(
                   message,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: black.withOpacity(0.7),
-                  ),
+                  style: TextStyle(fontSize: 13, color: black.withOpacity(0.7)),
                 ),
                 if (studentName != 'Unknown Student') ...[
                   const SizedBox(height: 2),
@@ -594,10 +599,7 @@ class _DriverNotificationsTabState extends State<DriverNotificationsTab> {
                 const SizedBox(height: 2),
                 Text(
                   timeText,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: black.withOpacity(0.5),
-                  ),
+                  style: TextStyle(fontSize: 11, color: black.withOpacity(0.5)),
                 ),
               ],
             ),

@@ -25,7 +25,8 @@ class TeacherAuditService {
     return await _auditService.logEvent(
       actionType: 'Update',
       actionCategory: 'Attendance Management',
-      description: 'Marked $studentName as $status for $date${previousStatus != null ? ' (changed from $previousStatus)' : ''}${isRfidAssisted ? ' - RFID assisted' : ' - Manual entry'}',
+      description:
+          'Marked $studentName as $status for $date${previousStatus != null ? ' (changed from $previousStatus)' : ''}${isRfidAssisted ? ' - RFID assisted' : ' - Manual entry'}',
       targetType: 'student_attendance',
       targetId: '${studentId}_${date}',
       targetName: '$studentName - $date Attendance',
@@ -50,7 +51,8 @@ class TeacherAuditService {
   Future<bool> logBulkAttendanceOperation({
     required String sectionId,
     required String sectionName,
-    required String operation, // 'mark_all_present', 'mark_all_absent', 'bulk_update'
+    required String
+    operation, // 'mark_all_present', 'mark_all_absent', 'bulk_update'
     required int affectedStudentCount,
     required String date,
     List<Map<String, dynamic>>? affectedStudents,
@@ -60,7 +62,8 @@ class TeacherAuditService {
     return await _auditService.logEvent(
       actionType: 'Bulk Update',
       actionCategory: 'Attendance Management',
-      description: 'Bulk operation: $operation for $sectionName on $date (affected $affectedStudentCount students)',
+      description:
+          'Bulk operation: $operation for $sectionName on $date (affected $affectedStudentCount students)',
       targetType: 'section_attendance',
       targetId: '${sectionId}_${date}_bulk',
       targetName: '$sectionName - Bulk $operation',
@@ -96,7 +99,8 @@ class TeacherAuditService {
     return await _auditService.logEvent(
       actionType: 'Authorization',
       actionCategory: 'Attendance Management',
-      description: 'Early dismissal approved for $studentName at $dismissalTime - Reason: $reason${fetcherName != null ? ' (Fetcher: $fetcherName)' : ''}',
+      description:
+          'Early dismissal approved for $studentName at $dismissalTime - Reason: $reason${fetcherName != null ? ' (Fetcher: $fetcherName)' : ''}',
       targetType: 'early_dismissal',
       targetId: '${studentId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$studentName - Early Dismissal',
@@ -136,7 +140,8 @@ class TeacherAuditService {
     return await _auditService.logEvent(
       actionType: 'Alert',
       actionCategory: 'Attendance Management',
-      description: 'Emergency exit authorized for $studentName - Type: $emergencyType, Reason: $reason${emergencyContact != null ? ' (Contact: $emergencyContact)' : ''}',
+      description:
+          'Emergency exit authorized for $studentName - Type: $emergencyType, Reason: $reason${emergencyContact != null ? ' (Contact: $emergencyContact)' : ''}',
       targetType: 'emergency_exit',
       targetId: '${studentId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$studentName - Emergency Exit',
@@ -165,7 +170,8 @@ class TeacherAuditService {
   Future<bool> logParentNotificationTrigger({
     required String studentId,
     required String studentName,
-    required String notificationType, // 'attendance_ticket', 'behavior_alert', 'academic_concern'
+    required String
+    notificationType, // 'attendance_ticket', 'behavior_alert', 'academic_concern'
     required String parentName,
     required String parentContact,
     required String notificationContent,
@@ -176,7 +182,8 @@ class TeacherAuditService {
     return await _auditService.logEvent(
       actionType: 'Create',
       actionCategory: 'Student Issue Management',
-      description: 'Parent notification sent: $notificationType for $studentName to $parentName${triggerReason != null ? ' - Reason: $triggerReason' : ''}',
+      description:
+          'Parent notification sent: $notificationType for $studentName to $parentName${triggerReason != null ? ' - Reason: $triggerReason' : ''}',
       targetType: 'parent_notification',
       targetId: '${studentId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$studentName - $notificationType Notification',
@@ -201,8 +208,10 @@ class TeacherAuditService {
     required String issueId,
     required String studentId,
     required String studentName,
-    required String issueType, // 'attendance_ticket', 'behavior_issue', 'academic_concern'
-    required String resolution, // 'resolved_by_teacher', 'escalated_to_admin', 'parent_contacted'
+    required String
+    issueType, // 'attendance_ticket', 'behavior_issue', 'academic_concern'
+    required String
+    resolution, // 'resolved_by_teacher', 'escalated_to_admin', 'parent_contacted'
     String? resolutionNotes,
     Map<String, dynamic>? followUpActions,
     Map<String, dynamic>? resolutionMetadata,
@@ -210,7 +219,8 @@ class TeacherAuditService {
     return await _auditService.logEvent(
       actionType: 'Update',
       actionCategory: 'Student Issue Management',
-      description: 'Issue resolved: $issueType for $studentName - Resolution: $resolution${resolutionNotes != null ? ' (Notes: $resolutionNotes)' : ''}',
+      description:
+          'Issue resolved: $issueType for $studentName - Resolution: $resolution${resolutionNotes != null ? ' (Notes: $resolutionNotes)' : ''}',
       targetType: 'issue_resolution',
       targetId: issueId,
       targetName: '$studentName - $issueType Resolution',
@@ -234,7 +244,8 @@ class TeacherAuditService {
   Future<bool> logTeacherAttendanceExport({
     required String sectionId,
     required String sectionName,
-    required String exportType, // 'monthly_summary', 'detailed_report', 'student_calendar'
+    required String
+    exportType, // 'monthly_summary', 'detailed_report', 'student_calendar'
     required String fileName,
     required int recordCount,
     String? dateRange,
@@ -245,7 +256,8 @@ class TeacherAuditService {
     return await _auditService.logEvent(
       actionType: 'Export',
       actionCategory: 'Data Export & Reporting',
-      description: 'Exported $exportType for $sectionName to $fileName ($recordCount records)${dateRange != null ? ' for $dateRange' : ''}',
+      description:
+          'Exported $exportType for $sectionName to $fileName ($recordCount records)${dateRange != null ? ' for $dateRange' : ''}',
       targetType: 'attendance_export',
       targetId: '${sectionId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$sectionName - $exportType',
@@ -279,7 +291,8 @@ class TeacherAuditService {
     return await _auditService.logEvent(
       actionType: 'Generate',
       actionCategory: 'Data Export & Reporting',
-      description: 'Monthly summary generated for $sectionName ($month) - $studentCount students${fileName != null ? ' exported as $fileName' : ''}',
+      description:
+          'Monthly summary generated for $sectionName ($month) - $studentCount students${fileName != null ? ' exported as $fileName' : ''}',
       targetType: 'monthly_summary',
       targetId: '${sectionId}_${month}',
       targetName: '$sectionName - $month Summary',
@@ -313,14 +326,16 @@ class TeacherAuditService {
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualTeacherId = teacherId ?? currentUser?.id;
-    final actualTeacherName = teacherName ?? currentUser?.email ?? 'Unknown Teacher';
+    final actualTeacherName =
+        teacherName ?? currentUser?.email ?? 'Unknown Teacher';
 
     return await _auditService.logEvent(
       actionType: 'Security',
       actionCategory: 'Authentication',
-      description: isSuccessful
-          ? 'Teacher $activity successful: $actualTeacherName'
-          : 'Teacher $activity failed: $actualTeacherName - ${failureReason ?? 'Unknown error'}',
+      description:
+          isSuccessful
+              ? 'Teacher $activity successful: $actualTeacherName'
+              : 'Teacher $activity failed: $actualTeacherName - ${failureReason ?? 'Unknown error'}',
       targetType: 'teacher_auth',
       targetId: actualTeacherId,
       targetName: actualTeacherName,
@@ -349,12 +364,14 @@ class TeacherAuditService {
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualTeacherId = teacherId ?? currentUser?.id;
-    final actualTeacherName = teacherName ?? currentUser?.email ?? 'Unknown Teacher';
+    final actualTeacherName =
+        teacherName ?? currentUser?.email ?? 'Unknown Teacher';
 
     return await _auditService.logEvent(
       actionType: 'Access',
       actionCategory: 'System Access',
-      description: 'Teacher dashboard accessed by $actualTeacherName${accessedSections != null ? ' (Sections: ${accessedSections.join(', ')})' : ''}',
+      description:
+          'Teacher dashboard accessed by $actualTeacherName${accessedSections != null ? ' (Sections: ${accessedSections.join(', ')})' : ''}',
       targetType: 'teacher_dashboard',
       targetId: 'dashboard_${actualTeacherId}',
       targetName: '$actualTeacherName Dashboard',
@@ -376,19 +393,22 @@ class TeacherAuditService {
   Future<bool> logSectionAccess({
     required String sectionId,
     required String sectionName,
-    required String accessType, // 'view_attendance', 'edit_attendance', 'view_students', 'export_data'
+    required String
+    accessType, // 'view_attendance', 'edit_attendance', 'view_students', 'export_data'
     String? teacherId,
     String? teacherName,
     Map<String, dynamic>? accessDetails,
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualTeacherId = teacherId ?? currentUser?.id;
-    final actualTeacherName = teacherName ?? currentUser?.email ?? 'Unknown Teacher';
+    final actualTeacherName =
+        teacherName ?? currentUser?.email ?? 'Unknown Teacher';
 
     return await _auditService.logEvent(
       actionType: 'Access',
       actionCategory: 'Section Management',
-      description: 'Section access: $accessType for $sectionName by $actualTeacherName',
+      description:
+          'Section access: $accessType for $sectionName by $actualTeacherName',
       targetType: 'section_access',
       targetId: '${sectionId}_${accessType}',
       targetName: '$sectionName - $accessType',
@@ -410,12 +430,13 @@ class TeacherAuditService {
   /// Helper method to fetch student name by ID for cases where only ID is available
   Future<String> _getStudentNameById(String studentId) async {
     try {
-      final studentData = await supabase
-          .from('students')
-          .select('fname, lname')
-          .eq('id', studentId)
-          .single();
-      
+      final studentData =
+          await supabase
+              .from('students')
+              .select('fname, lname')
+              .eq('id', studentId)
+              .single();
+
       return '${studentData['fname']} ${studentData['lname']}';
     } catch (e) {
       print('Error fetching student name for ID $studentId: $e');
@@ -434,8 +455,9 @@ class TeacherAuditService {
     Map<String, dynamic>? followUpActions,
     Map<String, dynamic>? resolutionMetadata,
   }) async {
-    final actualStudentName = studentName ?? await _getStudentNameById(studentId);
-    
+    final actualStudentName =
+        studentName ?? await _getStudentNameById(studentId);
+
     return await logIssueResolution(
       issueId: issueId,
       studentId: studentId,
@@ -460,8 +482,9 @@ class TeacherAuditService {
     Map<String, dynamic>? attendanceData,
     Map<String, dynamic>? notificationMetadata,
   }) async {
-    final actualStudentName = studentName ?? await _getStudentNameById(studentId);
-    
+    final actualStudentName =
+        studentName ?? await _getStudentNameById(studentId);
+
     return await logParentNotificationTrigger(
       studentId: studentId,
       studentName: actualStudentName,

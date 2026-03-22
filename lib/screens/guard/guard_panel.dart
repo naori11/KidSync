@@ -7,9 +7,6 @@ class GuardPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RoleProtected(
-      requiredRole: 'Guard',
-      child: GuardPanelContent(),
-    );
+    return RoleProtected(requiredRole: 'Guard', child: GuardPanelContent());
   }
 }

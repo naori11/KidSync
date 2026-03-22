@@ -14,10 +14,7 @@ class TimeRange {
   final String startTime;
   final String endTime;
 
-  TimeRange({
-    required this.startTime,
-    required this.endTime,
-  });
+  TimeRange({required this.startTime, required this.endTime});
 }
 
 class PickupDropoffPattern {

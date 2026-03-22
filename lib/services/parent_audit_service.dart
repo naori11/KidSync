@@ -33,27 +33,33 @@ class ParentAuditService {
       // Get parent user details from the users table
       String userName = 'Unknown Parent';
       String userRole = 'Parent';
-      
+
       try {
-        final userResponse = await supabase
-            .from('users')
-            .select('fname, lname, role')
-            .eq('id', currentUser.id)
-            .maybeSingle();
+        final userResponse =
+            await supabase
+                .from('users')
+                .select('fname, lname, role')
+                .eq('id', currentUser.id)
+                .maybeSingle();
 
         if (userResponse != null) {
-          userName = '${userResponse['fname'] ?? ''} ${userResponse['lname'] ?? ''}'.trim();
+          userName =
+              '${userResponse['fname'] ?? ''} ${userResponse['lname'] ?? ''}'
+                  .trim();
           userRole = userResponse['role'] ?? 'Parent';
         } else {
           // Fallback to parent table if not found in users
-          final parentResponse = await supabase
-              .from('parents')
-              .select('fname, lname')
-              .eq('user_id', currentUser.id)
-              .maybeSingle();
-          
+          final parentResponse =
+              await supabase
+                  .from('parents')
+                  .select('fname, lname')
+                  .eq('user_id', currentUser.id)
+                  .maybeSingle();
+
           if (parentResponse != null) {
-            userName = '${parentResponse['fname'] ?? ''} ${parentResponse['lname'] ?? ''}'.trim();
+            userName =
+                '${parentResponse['fname'] ?? ''} ${parentResponse['lname'] ?? ''}'
+                    .trim();
           } else {
             userName = currentUser.email ?? 'Unknown Parent';
           }
@@ -113,19 +119,24 @@ class ParentAuditService {
     String description;
     switch (action.toLowerCase()) {
       case 'add':
-        description = 'Added authorized fetcher $fetcherName for $childName${relationship != null ? ' ($relationship)' : ''}';
+        description =
+            'Added authorized fetcher $fetcherName for $childName${relationship != null ? ' ($relationship)' : ''}';
         break;
       case 'edit':
-        description = 'Updated authorized fetcher $fetcherName for $childName${relationship != null ? ' ($relationship)' : ''}';
+        description =
+            'Updated authorized fetcher $fetcherName for $childName${relationship != null ? ' ($relationship)' : ''}';
         break;
       case 'remove':
-        description = 'Removed authorized fetcher $fetcherName from $childName${reason != null ? ' (Reason: $reason)' : ''}';
+        description =
+            'Removed authorized fetcher $fetcherName from $childName${reason != null ? ' (Reason: $reason)' : ''}';
         break;
       case 'activate':
-        description = 'Activated authorized fetcher $fetcherName for $childName';
+        description =
+            'Activated authorized fetcher $fetcherName for $childName';
         break;
       case 'deactivate':
-        description = 'Deactivated authorized fetcher $fetcherName for $childName';
+        description =
+            'Deactivated authorized fetcher $fetcherName for $childName';
         break;
       default:
         description = 'Modified authorized fetcher $fetcherName for $childName';
@@ -169,7 +180,8 @@ class ParentAuditService {
     return await logParentEvent(
       actionType: 'Create',
       actionCategory: 'Child Safety & Authorization',
-      description: 'Created temporary fetcher access for $fetcherName to fetch $childName (PIN: ***${pinCode.substring(pinCode.length - 2)}) valid for $validDate',
+      description:
+          'Created temporary fetcher access for $fetcherName to fetch $childName (PIN: ***${pinCode.substring(pinCode.length - 2)}) valid for $validDate',
       targetType: 'temporary_fetcher',
       targetId: '${childId}_${pinCode}',
       targetName: '$fetcherName - $childName (Temporary)',
@@ -209,7 +221,8 @@ class ParentAuditService {
     return await logParentEvent(
       actionType: 'Create',
       actionCategory: 'Child Safety & Authorization',
-      description: 'Emergency pickup request for $childName - Reason: $emergencyReason, Requested fetcher: $requestedFetcher${approvalStatus != null ? ', Status: $approvalStatus' : ''}',
+      description:
+          'Emergency pickup request for $childName - Reason: $emergencyReason, Requested fetcher: $requestedFetcher${approvalStatus != null ? ', Status: $approvalStatus' : ''}',
       targetType: 'emergency_pickup_request',
       targetId: '${childId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$childName - Emergency Pickup',
@@ -237,7 +250,8 @@ class ParentAuditService {
   Future<bool> logTransportationScheduleChange({
     required String childId,
     required String childName,
-    required String changeType, // 'weekly_pattern', 'exception', 'emergency_change'
+    required String
+    changeType, // 'weekly_pattern', 'exception', 'emergency_change'
     required String description,
     Map<String, dynamic>? oldSchedule,
     Map<String, dynamic>? newSchedule,
@@ -247,9 +261,11 @@ class ParentAuditService {
   }) async {
     String actionDescription;
     if (isEmergency) {
-      actionDescription = 'Emergency transportation change for $childName: $description${reason != null ? ' (Reason: $reason)' : ''}';
+      actionDescription =
+          'Emergency transportation change for $childName: $description${reason != null ? ' (Reason: $reason)' : ''}';
     } else {
-      actionDescription = 'Updated transportation schedule for $childName: $description${effectiveDate != null ? ' effective $effectiveDate' : ''}';
+      actionDescription =
+          'Updated transportation schedule for $childName: $description${effectiveDate != null ? ' effective $effectiveDate' : ''}';
     }
 
     return await logParentEvent(
@@ -293,9 +309,11 @@ class ParentAuditService {
     if (verificationStatus == 'confirmed') {
       description = 'Confirmed $eventType of $childName by $driverName';
     } else if (verificationStatus == 'denied') {
-      description = 'DENIED $eventType of $childName by $driverName${parentNotes != null ? ' (Notes: $parentNotes)' : ''}';
+      description =
+          'DENIED $eventType of $childName by $driverName${parentNotes != null ? ' (Notes: $parentNotes)' : ''}';
     } else {
-      description = '$eventType verification pending for $childName with $driverName';
+      description =
+          '$eventType verification pending for $childName with $driverName';
     }
 
     return await logParentEvent(
@@ -303,7 +321,9 @@ class ParentAuditService {
       actionCategory: 'Verification & Communication',
       description: description,
       targetType: 'pickup_dropoff_verification',
-      targetId: logId ?? '${childId}_${eventType}_${DateTime.now().millisecondsSinceEpoch}',
+      targetId:
+          logId ??
+          '${childId}_${eventType}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$childName - $eventType Verification',
       module: 'Transportation Verification',
       status: verificationStatus == 'denied' ? 'warning' : 'success',
@@ -318,9 +338,10 @@ class ParentAuditService {
       metadata: {
         'child_id': childId,
         'child_name': childName,
-        'response_delay_minutes': responseTime != null && eventTime != null 
-            ? responseTime.difference(eventTime).inMinutes 
-            : null,
+        'response_delay_minutes':
+            responseTime != null && eventTime != null
+                ? responseTime.difference(eventTime).inMinutes
+                : null,
       },
     );
   }
@@ -339,7 +360,8 @@ class ParentAuditService {
     return await logParentEvent(
       actionType: 'Update',
       actionCategory: 'Verification & Communication',
-      description: '${responseType.toUpperCase()} $notificationType notification for $childName${responseNotes != null ? ' (Response: $responseNotes)' : ''}',
+      description:
+          '${responseType.toUpperCase()} $notificationType notification for $childName${responseNotes != null ? ' (Response: $responseNotes)' : ''}',
       targetType: 'notification_acknowledgment',
       targetId: notificationId,
       targetName: '$childName - $notificationType Notification',
@@ -367,7 +389,8 @@ class ParentAuditService {
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualParentId = parentId ?? currentUser?.id;
-    final actualParentName = parentName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Parent';
+    final actualParentName =
+        parentName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Parent';
 
     return await logParentEvent(
       actionType: 'View',
@@ -408,17 +431,20 @@ class ParentAuditService {
     String description;
     switch (authAction.toLowerCase()) {
       case 'login':
-        description = isSuccessful 
-            ? 'Parent portal login successful'
-            : 'Parent portal login failed${failureReason != null ? ': $failureReason' : ''}';
+        description =
+            isSuccessful
+                ? 'Parent portal login successful'
+                : 'Parent portal login failed${failureReason != null ? ': $failureReason' : ''}';
         break;
       case 'session_expired':
-        description = 'Parent portal session expired${sessionDuration != null ? ' after ${sessionDuration.inMinutes} minutes' : ''}';
+        description =
+            'Parent portal session expired${sessionDuration != null ? ' after ${sessionDuration.inMinutes} minutes' : ''}';
         break;
       case 'password_change':
-        description = isSuccessful 
-            ? 'Password changed successfully'
-            : 'Password change failed${failureReason != null ? ': $failureReason' : ''}';
+        description =
+            isSuccessful
+                ? 'Password changed successfully'
+                : 'Password change failed${failureReason != null ? ': $failureReason' : ''}';
         break;
       default:
         description = 'Parent authentication event: $authAction';
@@ -490,24 +516,23 @@ class ParentAuditService {
     return await logParentEvent(
       actionType: 'View',
       actionCategory: 'Parent Portal Activity',
-      description: previousStudentId != null 
-          ? 'Switched from $previousStudentName to $newStudentName'
-          : 'Selected student: $newStudentName',
+      description:
+          previousStudentId != null
+              ? 'Switched from $previousStudentName to $newStudentName'
+              : 'Selected student: $newStudentName',
       targetType: 'student_selection',
       targetId: newStudentId,
       targetName: newStudentName,
       module: 'Student Selection',
-      oldValues: previousStudentId != null ? {
-        'student_id': previousStudentId,
-        'student_name': previousStudentName,
-      } : null,
-      newValues: {
-        'student_id': newStudentId,
-        'student_name': newStudentName,
-      },
-      metadata: {
-        'action_type': 'student_switch',
-      },
+      oldValues:
+          previousStudentId != null
+              ? {
+                'student_id': previousStudentId,
+                'student_name': previousStudentName,
+              }
+              : null,
+      newValues: {'student_id': newStudentId, 'student_name': newStudentName},
+      metadata: {'action_type': 'student_switch'},
     );
   }
 
@@ -553,7 +578,8 @@ class ParentAuditService {
     return await logParentEvent(
       actionType: 'Export',
       actionCategory: 'Data Access',
-      description: 'Exported $exportType data${childName != null ? ' for $childName' : ''} to $fileName${recordCount != null ? ' ($recordCount records)' : ''}',
+      description:
+          'Exported $exportType data${childName != null ? ' for $childName' : ''} to $fileName${recordCount != null ? ' ($recordCount records)' : ''}',
       targetType: 'parent_export',
       targetId: '${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$exportType Export',

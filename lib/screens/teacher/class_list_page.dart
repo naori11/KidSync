@@ -24,9 +24,10 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
   // assignedSections now holds one entry per section (aggregated)
   List<Map<String, dynamic>> assignedSections = [];
   Map<int, List<Map<String, dynamic>>> sectionStudents = {};
-  Map<int, Map<String, dynamic>> studentAttendanceFlags = {}; // Track attendance issues
+  Map<int, Map<String, dynamic>> studentAttendanceFlags =
+      {}; // Track attendance issues
   bool isLoading = true;
-  
+
   // Performance optimization
   DateTime? _lastCacheTime;
   Timer? _refreshTimer;
@@ -36,7 +37,7 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
     super.initState();
     _loadClassList();
   }
-  
+
   @override
   void dispose() {
     _refreshTimer?.cancel();
@@ -160,11 +161,11 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
   Future<void> _loadClassList() async {
     // Cache check to avoid frequent database calls
     final currentTime = DateTime.now();
-    if (_lastCacheTime != null && 
+    if (_lastCacheTime != null &&
         currentTime.difference(_lastCacheTime!).inMinutes < 3) {
       return;
     }
-    
+
     setState(() => isLoading = true);
 
     final user = supabase.auth.currentUser;
@@ -233,12 +234,12 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
       // Load students for each section
       sectionStudents.clear();
       studentAttendanceFlags.clear();
-      
+
       // Process sections in parallel for better performance
       final futures = assignedSections.map((assignment) async {
         final section = assignment['sections'];
         if (section == null) return;
-        
+
         final students = await supabase
             .from('students')
             .select('id, fname, lname, rfid_uid')
@@ -250,11 +251,11 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
         sectionStudents[section['id']] = List<Map<String, dynamic>>.from(
           students,
         );
-        
+
         // Load attendance stats in batches instead of individually
         await _loadAttendanceStatsForSection(section['id'], students);
       });
-      
+
       await Future.wait(futures);
       _lastCacheTime = currentTime;
     } catch (e) {
@@ -263,49 +264,58 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
 
     setState(() => isLoading = false);
   }
-  
-  Future<void> _loadAttendanceStatsForSection(int sectionId, List<dynamic> students) async {
+
+  Future<void> _loadAttendanceStatsForSection(
+    int sectionId,
+    List<dynamic> students,
+  ) async {
     try {
       // Batch load attendance statistics for all students in this section
       final studentIds = students.map((s) => s['id'] as int).toList();
       if (studentIds.isEmpty) return;
-      
+
       // Get recent attendance data for all students at once
       final recentAttendance = await supabase
           .from('section_attendance')
           .select('student_id, date, status')
           .eq('section_id', sectionId)
           .inFilter('student_id', studentIds)
-          .gte('date', DateTime.now().subtract(Duration(days: 14)).toIso8601String().split('T')[0])
+          .gte(
+            'date',
+            DateTime.now()
+                .subtract(Duration(days: 14))
+                .toIso8601String()
+                .split('T')[0],
+          )
           .order('date', ascending: false);
-      
+
       // Process attendance data to find consecutive absences
       for (final student in students) {
         final studentId = student['id'] as int;
-        final studentAttendance = recentAttendance
-            .where((a) => a['student_id'] == studentId)
-            .toList();
-        
+        final studentAttendance =
+            recentAttendance
+                .where((a) => a['student_id'] == studentId)
+                .toList();
+
         // Count consecutive absences from most recent date
         int consecutiveAbsences = 0;
         final now = DateTime.now();
         for (int i = 0; i < 14; i++) {
           final checkDate = now.subtract(Duration(days: i));
           final dateStr = checkDate.toIso8601String().split('T')[0];
-          
-          final dayAttendance = studentAttendance
-              .where((a) => a['date'] == dateStr)
-              .isEmpty ? null : studentAttendance
-              .where((a) => a['date'] == dateStr)
-              .first;
-          
+
+          final dayAttendance =
+              studentAttendance.where((a) => a['date'] == dateStr).isEmpty
+                  ? null
+                  : studentAttendance.where((a) => a['date'] == dateStr).first;
+
           if (dayAttendance == null || dayAttendance['status'] == 'Absent') {
             consecutiveAbsences++;
           } else {
             break; // Found a non-absent day, stop counting
           }
         }
-        
+
         // Only flag students with 3+ consecutive absences and no notification ticket sent
         if (consecutiveAbsences >= 3) {
           // Check if there's an unresolved notification (simplified check)
@@ -322,17 +332,21 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
       print('Error loading attendance stats for section $sectionId: $e');
     }
   }
-  
+
   Future<bool> _hasUnresolvedNotification(int studentId) async {
     try {
       final notifications = await supabase
           .from('notifications')
           .select('type, created_at')
           .eq('student_id', studentId)
-          .inFilter('type', ['attendance_alert', 'attendance_ticket', 'attendance_resolved'])
+          .inFilter('type', [
+            'attendance_alert',
+            'attendance_ticket',
+            'attendance_resolved',
+          ])
           .order('created_at', ascending: false)
           .limit(1);
-      
+
       if (notifications.isEmpty) return false;
       return notifications.first['type'] != 'attendance_resolved';
     } catch (e) {
@@ -345,13 +359,13 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
     int totalIssues = 0;
     int urgentIssues = 0;
     int highPriorityIssues = 0;
-    
+
     for (final student in students) {
       final flags = studentAttendanceFlags[student['id']];
       if (flags != null && flags['needsTeacherAlert'] == true) {
         final consecutiveAbsences = flags['consecutiveAbsences'] as int? ?? 0;
         totalIssues++;
-        
+
         if (consecutiveAbsences >= 8) {
           urgentIssues++;
         } else if (consecutiveAbsences >= 5) {
@@ -359,7 +373,7 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
         }
       }
     }
-    
+
     return {
       'total': totalIssues,
       'urgent': urgentIssues,
@@ -440,7 +454,10 @@ class _TeacherClassListPageState extends State<TeacherClassListPage> {
                                       sectionStudents[assignment['sections']['id']]
                                           ?.length ??
                                       0,
-                                  attendanceIssues: _getAttendanceIssuesForSection(assignment['sections']['id']),
+                                  attendanceIssues:
+                                      _getAttendanceIssuesForSection(
+                                        assignment['sections']['id'],
+                                      ),
                                   gradeLevel:
                                       assignment['sections']['grade_level']
                                           ?.toString() ??
@@ -729,13 +746,13 @@ class _SectionListCard extends StatelessWidget {
     final total = attendanceIssues['total']!;
     final urgent = attendanceIssues['urgent']!;
     final high = attendanceIssues['high']!;
-    
+
     if (total == 0) return const SizedBox.shrink();
-    
+
     Color badgeColor;
     IconData icon;
     String text;
-    
+
     if (urgent > 0) {
       badgeColor = const Color(0xFFDC2626);
       icon = Icons.priority_high;
@@ -749,25 +766,18 @@ class _SectionListCard extends StatelessWidget {
       icon = Icons.info_outline;
       text = total == 1 ? "$total attention needed" : "$total need attention";
     }
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: badgeColor.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: badgeColor.withOpacity(0.3),
-          width: 1,
-        ),
+        border: Border.all(color: badgeColor.withOpacity(0.3), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 14,
-            color: badgeColor,
-          ),
+          Icon(icon, size: 14, color: badgeColor),
           const SizedBox(width: 4),
           Text(
             text,

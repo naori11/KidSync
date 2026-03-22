@@ -32,7 +32,8 @@ class TeacherSectionAttendanceSummaryPage extends StatefulWidget {
 class _TeacherSectionAttendanceSummaryPageState
     extends State<TeacherSectionAttendanceSummaryPage> {
   final supabase = Supabase.instance.client;
-  final AttendanceMonitoringService _attendanceService = AttendanceMonitoringService();
+  final AttendanceMonitoringService _attendanceService =
+      AttendanceMonitoringService();
   final TeacherAuditService _teacherAuditService = TeacherAuditService();
   DateTime selectedMonth = DateTime(
     DateTime.now().year,
@@ -45,7 +46,8 @@ class _TeacherSectionAttendanceSummaryPageState
   Map<int, Map<String, int>> studentAttendanceStats = {};
   Map<int, Map<String, dynamic>> studentUrgentStatus = {};
   Map<int, Map<String, dynamic>> studentBadgeStatus = {};
-  Map<int, bool> studentNotificationStatus = {}; // Track notification status for each student
+  Map<int, bool> studentNotificationStatus =
+      {}; // Track notification status for each student
 
   int totalPresent = 0;
   int totalLate = 0;
@@ -101,8 +103,12 @@ class _TeacherSectionAttendanceSummaryPageState
           .order('lname', ascending: true);
 
       students = List<Map<String, dynamic>>.from(studentRows);
-      print('Loaded ${students.length} students for notification status tracking');
-      print('Loaded ${students.length} students: ${students.map((s) => '${s['fname']} ${s['lname']} (ID: ${s['id']})').toList()}');
+      print(
+        'Loaded ${students.length} students for notification status tracking',
+      );
+      print(
+        'Loaded ${students.length} students: ${students.map((s) => '${s['fname']} ${s['lname']} (ID: ${s['id']})').toList()}',
+      );
 
       // Load class schedule information from section_teachers table
       final assignmentRows = await supabase
@@ -209,7 +215,10 @@ class _TeacherSectionAttendanceSummaryPageState
           .eq('section_id', widget.sectionId)
           .gte('date', DateFormat('yyyy-MM-dd').format(startOfMonth))
           .lte('date', DateFormat('yyyy-MM-dd').format(endOfMonth))
-          .order('date', ascending: true); // Order by date for better processing
+          .order(
+            'date',
+            ascending: true,
+          ); // Order by date for better processing
 
       studentAttendanceStats.clear();
       for (final s in students) {
@@ -235,22 +244,28 @@ class _TeacherSectionAttendanceSummaryPageState
         final studentId = student['id'] as int;
         final stats = studentAttendanceStats[studentId]!;
         final studentAttendanceList = attendanceByStudent[studentId] ?? [];
-        
+
         for (int day = 1; day <= endOfMonth.day; day++) {
           final date = DateTime(selectedMonth.year, selectedMonth.month, day);
-          
+
           // Check if this is a class day
           if (_isClassDay(date)) {
             final dateStr = DateFormat('yyyy-MM-dd').format(date);
-            
+
             // Find attendance record for this day
-            final dayRecord = studentAttendanceList.where((r) => r['date'] == dateStr).isEmpty ? null : studentAttendanceList.where((r) => r['date'] == dateStr).first;
-            
+            final dayRecord =
+                studentAttendanceList.where((r) => r['date'] == dateStr).isEmpty
+                    ? null
+                    : studentAttendanceList
+                        .where((r) => r['date'] == dateStr)
+                        .first;
+
             if (dayRecord != null) {
               // Process existing attendance record
-              final status = (dayRecord['status'] ?? '').toString().toLowerCase();
+              final status =
+                  (dayRecord['status'] ?? '').toString().toLowerCase();
               stats['total'] = (stats['total'] ?? 0) + 1;
-              
+
               if (status == 'present')
                 stats['present'] = (stats['present'] ?? 0) + 1;
               else if (status == 'absent')
@@ -261,11 +276,12 @@ class _TeacherSectionAttendanceSummaryPageState
                 stats['excused'] = (stats['excused'] ?? 0) + 1;
             } else {
               // No attendance record - check if this should count as absent
-              final isToday = date.year == now.year && 
-                            date.month == now.month && 
-                            date.day == now.day;
+              final isToday =
+                  date.year == now.year &&
+                  date.month == now.month &&
+                  date.day == now.day;
               final isPastDate = date.isBefore(now);
-              
+
               // Count as absent if it's a past date or today after class time
               bool shouldMarkAbsent = false;
               if (isPastDate) {
@@ -277,12 +293,18 @@ class _TeacherSectionAttendanceSummaryPageState
                   final hour = int.tryParse(parts[0]);
                   final minute = int.tryParse(parts[1]);
                   if (hour != null && minute != null) {
-                    final classEnd = DateTime(now.year, now.month, now.day, hour, minute);
+                    final classEnd = DateTime(
+                      now.year,
+                      now.month,
+                      now.day,
+                      hour,
+                      minute,
+                    );
                     shouldMarkAbsent = now.isAfter(classEnd);
                   }
                 }
               }
-              
+
               if (shouldMarkAbsent) {
                 stats['total'] = (stats['total'] ?? 0) + 1;
                 stats['absent'] = (stats['absent'] ?? 0) + 1;
@@ -311,22 +333,33 @@ class _TeacherSectionAttendanceSummaryPageState
 
       // Calculate urgent status for each student
       studentUrgentStatus.clear();
-      print('Processing ${students.length} students for notification status...');
+      print(
+        'Processing ${students.length} students for notification status...',
+      );
       for (final student in students) {
         final studentId = student['id'] as int;
-        print('Processing student ${student['fname']} ${student['lname']} (ID: $studentId)');
+        print(
+          'Processing student ${student['fname']} ${student['lname']} (ID: $studentId)',
+        );
         try {
           // Try to get attendance stats, but don't let errors block notification checking
           Map<String, dynamic> attendanceStats = {};
           try {
-            attendanceStats = await _attendanceService.getStudentAttendanceStats(
-              studentId: studentId,
-              sectionId: widget.sectionId,
-              startDate: selectedMonth,
-              endDate: DateTime(selectedMonth.year, selectedMonth.month + 1, 0),
-            );
+            attendanceStats = await _attendanceService
+                .getStudentAttendanceStats(
+                  studentId: studentId,
+                  sectionId: widget.sectionId,
+                  startDate: selectedMonth,
+                  endDate: DateTime(
+                    selectedMonth.year,
+                    selectedMonth.month + 1,
+                    0,
+                  ),
+                );
           } catch (statsError) {
-            print('Error getting student attendance stats for $studentId: $statsError');
+            print(
+              'Error getting student attendance stats for $studentId: $statsError',
+            );
             // Set default values if stats can't be retrieved
             attendanceStats = {
               'isUrgentIssue': false,
@@ -334,10 +367,11 @@ class _TeacherSectionAttendanceSummaryPageState
               'lastNotificationDate': null,
             };
           }
-          
+
           studentUrgentStatus[studentId] = {
             'isUrgentIssue': attendanceStats['isUrgentIssue'] ?? false,
-            'hasParentNotificationSent': attendanceStats['hasParentNotificationSent'] ?? false,
+            'hasParentNotificationSent':
+                attendanceStats['hasParentNotificationSent'] ?? false,
             'lastNotificationDate': attendanceStats['lastNotificationDate'],
           };
 
@@ -347,12 +381,14 @@ class _TeacherSectionAttendanceSummaryPageState
             sectionId: widget.sectionId,
           );
           studentBadgeStatus[studentId] = badgeStatus;
-          
+
           // Check notification status for this student - ALWAYS run this
           final hasUnresolved = await _hasUnresolvedNotification(studentId);
           studentNotificationStatus[studentId] = hasUnresolved;
           if (hasUnresolved) {
-            print('✓ Student ${student['fname']} ${student['lname']} has unresolved notification');
+            print(
+              '✓ Student ${student['fname']} ${student['lname']} has unresolved notification',
+            );
           }
         } catch (e) {
           print('Error getting urgent status for student $studentId: $e');
@@ -419,7 +455,7 @@ class _TeacherSectionAttendanceSummaryPageState
       // Generate filename and log export action
       final monthLabel = DateFormat('yyyy-MM').format(selectedMonth);
       final fileName = '${widget.sectionName}_Attendance_${monthLabel}.xlsx';
-      
+
       await _teacherAuditService.logTeacherAttendanceExport(
         sectionId: widget.sectionId.toString(),
         sectionName: widget.sectionName,
@@ -717,24 +753,25 @@ class _TeacherSectionAttendanceSummaryPageState
     int studentsWithIssues = 0;
     int urgentCases = 0;
     int notificationsSent = 0;
-    
+
     for (final student in students) {
       final studentId = student['id'] as int;
       final badgeStatus = studentBadgeStatus[studentId];
       final urgentStatus = studentUrgentStatus[studentId];
       final hasNotification = studentNotificationStatus[studentId] ?? false;
-      
+
       if (badgeStatus != null) {
         final stats = badgeStatus['stats'] as Map<String, dynamic>? ?? {};
         final consecutiveAbsences = stats['consecutiveAbsences'] as int? ?? 0;
-        
+
         // Count students with issues (3+ consecutive absences)
         if (consecutiveAbsences >= 3) {
           studentsWithIssues++;
-          
+
           // Count urgent cases (5+ consecutive absences OR still urgent after notification)
           if (urgentStatus != null) {
-            final isUrgentIssue = urgentStatus['isUrgentIssue'] as bool? ?? false;
+            final isUrgentIssue =
+                urgentStatus['isUrgentIssue'] as bool? ?? false;
             if (consecutiveAbsences >= 5 || isUrgentIssue) {
               urgentCases++;
             }
@@ -743,15 +780,17 @@ class _TeacherSectionAttendanceSummaryPageState
           }
         }
       }
-      
+
       // Count students with unresolved notifications
       if (hasNotification) {
         notificationsSent++;
       }
     }
-    
-    print('Statistics - Notifications sent/pending: $notificationsSent out of ${students.length} students');
-    
+
+    print(
+      'Statistics - Notifications sent/pending: $notificationsSent out of ${students.length} students',
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 0),
       child: AttendanceQuickStats(
@@ -761,7 +800,9 @@ class _TeacherSectionAttendanceSummaryPageState
         notificationsSent: notificationsSent,
       ),
     );
-  }  void _showStudentAttendanceCalendar(int studentId, String studentName) {
+  }
+
+  void _showStudentAttendanceCalendar(int studentId, String studentName) {
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -1370,9 +1411,9 @@ class _TeacherSectionAttendanceSummaryPageState
 
               // Attendance stats summary row
               _buildSummaryStats(),
-              
+
               const SizedBox(height: 16),
-              
+
               // Quick attendance insights
               _buildAttendanceQuickStats(),
 
@@ -1586,57 +1627,103 @@ class _TeacherSectionAttendanceSummaryPageState
                                                                   overflow:
                                                                       TextOverflow
                                                                           .ellipsis,
-                                                                  style:
-                                                                      const TextStyle(
-                                                                        color: Color(
-                                                                          0xFF222B45,
-                                                                        ),
-                                                                        fontWeight:
-                                                                            FontWeight
-                                                                                .w600,
-                                                                        fontSize: 14,
-                                                                      ),
+                                                                  style: const TextStyle(
+                                                                    color: Color(
+                                                                      0xFF222B45,
+                                                                    ),
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w600,
+                                                                    fontSize:
+                                                                        14,
+                                                                  ),
                                                                 ),
                                                               ),
                                                               // Attendance status badge
-                                                              if (studentBadgeStatus.containsKey(s['id']))
+                                                              if (studentBadgeStatus
+                                                                  .containsKey(
+                                                                    s['id'],
+                                                                  ))
                                                                 Padding(
-                                                                  padding: const EdgeInsets.only(left: 8),
+                                                                  padding:
+                                                                      const EdgeInsets.only(
+                                                                        left: 8,
+                                                                      ),
                                                                   child: AttendanceStatusBadgeFromService(
-                                                                    badgeStatus: studentBadgeStatus[s['id']]!,
+                                                                    badgeStatus:
+                                                                        studentBadgeStatus[s['id']]!,
                                                                     fontSize: 8,
-                                                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                                    padding: const EdgeInsets.symmetric(
+                                                                      horizontal:
+                                                                          4,
+                                                                      vertical:
+                                                                          2,
+                                                                    ),
                                                                   ),
                                                                 ),
                                                               // Notification pending indicator
-                                                              if (studentNotificationStatus[s['id']] == true)
+                                                              if (studentNotificationStatus[s['id']] ==
+                                                                  true)
                                                                 Padding(
-                                                                  padding: const EdgeInsets.only(left: 4),
+                                                                  padding:
+                                                                      const EdgeInsets.only(
+                                                                        left: 4,
+                                                                      ),
                                                                   child: Container(
-                                                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                                    padding: const EdgeInsets.symmetric(
+                                                                      horizontal:
+                                                                          4,
+                                                                      vertical:
+                                                                          2,
+                                                                    ),
                                                                     decoration: BoxDecoration(
-                                                                      color: const Color(0xFF3B82F6).withOpacity(0.1),
-                                                                      borderRadius: BorderRadius.circular(6),
+                                                                      color: const Color(
+                                                                        0xFF3B82F6,
+                                                                      ).withOpacity(
+                                                                        0.1,
+                                                                      ),
+                                                                      borderRadius:
+                                                                          BorderRadius.circular(
+                                                                            6,
+                                                                          ),
                                                                       border: Border.all(
-                                                                        color: const Color(0xFF3B82F6).withOpacity(0.3),
-                                                                        width: 1,
+                                                                        color: const Color(
+                                                                          0xFF3B82F6,
+                                                                        ).withOpacity(
+                                                                          0.3,
+                                                                        ),
+                                                                        width:
+                                                                            1,
                                                                       ),
                                                                     ),
                                                                     child: Row(
-                                                                      mainAxisSize: MainAxisSize.min,
+                                                                      mainAxisSize:
+                                                                          MainAxisSize
+                                                                              .min,
                                                                       children: [
                                                                         Icon(
-                                                                          Icons.notifications_active,
-                                                                          size: 8,
-                                                                          color: const Color(0xFF3B82F6),
+                                                                          Icons
+                                                                              .notifications_active,
+                                                                          size:
+                                                                              8,
+                                                                          color: const Color(
+                                                                            0xFF3B82F6,
+                                                                          ),
                                                                         ),
-                                                                        const SizedBox(width: 2),
+                                                                        const SizedBox(
+                                                                          width:
+                                                                              2,
+                                                                        ),
                                                                         Text(
                                                                           'Notified',
                                                                           style: TextStyle(
-                                                                            fontSize: 8,
-                                                                            color: const Color(0xFF3B82F6),
-                                                                            fontWeight: FontWeight.w500,
+                                                                            fontSize:
+                                                                                8,
+                                                                            color: const Color(
+                                                                              0xFF3B82F6,
+                                                                            ),
+                                                                            fontWeight:
+                                                                                FontWeight.w500,
                                                                           ),
                                                                         ),
                                                                       ],
@@ -1738,63 +1825,86 @@ class _TeacherSectionAttendanceSummaryPageState
           .select('type, created_at, title, message')
           .eq('student_id', studentId)
           .order('created_at', ascending: false);
-          
-      print('Found ${notifications.length} notifications for student $studentId');
+
+      print(
+        'Found ${notifications.length} notifications for student $studentId',
+      );
       if (notifications.isNotEmpty) {
         print('All notifications for student $studentId:');
         for (int i = 0; i < notifications.length && i < 10; i++) {
           final notif = notifications[i];
-          print('  ${i + 1}. Type: ${notif['type']}, Date: ${notif['created_at']}, Title: ${notif['title']}');
+          print(
+            '  ${i + 1}. Type: ${notif['type']}, Date: ${notif['created_at']}, Title: ${notif['title']}',
+          );
         }
       }
-      
+
       // Filter to only the types we care about
-      final relevantNotifications = notifications.where((n) => [
-        'attendance_alert',
-        'attendance_ticket', 
-        'system_log_attendance_alert',
-        'system_log_ticket_ticket_created',  // This is the actual type being created!
-        'attendance_resolved',
-        'system_log_ticket_ticket_resolved'
-      ].contains(n['type'])).toList();
-      
-      print('Found ${relevantNotifications.length} relevant notifications for student $studentId');
+      final relevantNotifications =
+          notifications
+              .where(
+                (n) => [
+                  'attendance_alert',
+                  'attendance_ticket',
+                  'system_log_attendance_alert',
+                  'system_log_ticket_ticket_created', // This is the actual type being created!
+                  'attendance_resolved',
+                  'system_log_ticket_ticket_resolved',
+                ].contains(n['type']),
+              )
+              .toList();
+
+      print(
+        'Found ${relevantNotifications.length} relevant notifications for student $studentId',
+      );
       if (relevantNotifications.isNotEmpty) {
-        print('Relevant notification types: ${relevantNotifications.map((n) => n['type']).toList()}');
+        print(
+          'Relevant notification types: ${relevantNotifications.map((n) => n['type']).toList()}',
+        );
         // Look for the most recent notification that's not a resolution
         Map<String, dynamic>? latestAlert;
         Map<String, dynamic>? latestResolution;
-        
+
         for (final notification in notifications) {
           final type = notification['type'] as String;
-          if (['attendance_alert', 'attendance_ticket', 'system_log_attendance_alert', 'system_log_ticket_ticket_created'].contains(type)) {
+          if ([
+            'attendance_alert',
+            'attendance_ticket',
+            'system_log_attendance_alert',
+            'system_log_ticket_ticket_created',
+          ].contains(type)) {
             latestAlert ??= notification;
-          } else if (['attendance_resolved', 'system_log_ticket_ticket_resolved'].contains(type)) {
+          } else if ([
+            'attendance_resolved',
+            'system_log_ticket_ticket_resolved',
+          ].contains(type)) {
             latestResolution ??= notification;
           }
         }
-        
+
         // If no alert found, no unresolved notifications
         if (latestAlert == null) {
           return false;
         }
-        
+
         // If no resolution found, alert is unresolved
         if (latestResolution == null) {
           return true;
         }
-        
+
         // Compare dates to see if resolution is after the latest alert
         final alertDate = DateTime.parse(latestAlert['created_at']);
         final resolutionDate = DateTime.parse(latestResolution['created_at']);
-        
+
         final isUnresolved = alertDate.isAfter(resolutionDate);
         return isUnresolved;
       }
-      
+
       return false;
     } catch (e) {
-      print('Error checking unresolved notifications for student $studentId: $e');
+      print(
+        'Error checking unresolved notifications for student $studentId: $e',
+      );
       return false;
     }
   }

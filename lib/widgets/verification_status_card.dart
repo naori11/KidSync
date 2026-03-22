@@ -19,7 +19,7 @@ class VerificationStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     const Color white = Color(0xFFFFFFFF);
     const Color black = Color(0xFF000000);
-    
+
     if (pendingVerifications.isEmpty) {
       return const SizedBox.shrink(); // Don't show card if no pending verifications
     }
@@ -126,7 +126,7 @@ class VerificationStatusCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Verification details
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -144,8 +144,13 @@ class VerificationStatusCard extends StatelessWidget {
                         Row(
                           children: [
                             Icon(
-                              eventType == 'pickup' ? Icons.directions_car : Icons.home,
-                              color: eventType == 'pickup' ? primaryColor : Colors.orange,
+                              eventType == 'pickup'
+                                  ? Icons.directions_car
+                                  : Icons.home,
+                              color:
+                                  eventType == 'pickup'
+                                      ? primaryColor
+                                      : Colors.orange,
                               size: isMobile ? 18 : 20,
                             ),
                             const SizedBox(width: 8),
@@ -160,7 +165,7 @@ class VerificationStatusCard extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        
+
                         // Student and time info
                         Row(
                           children: [
@@ -207,7 +212,8 @@ class VerificationStatusCard extends StatelessWidget {
                                       color: black,
                                     ),
                                   ),
-                                  if (plateNumber != null && plateNumber.toString().isNotEmpty) ...[
+                                  if (plateNumber != null &&
+                                      plateNumber.toString().isNotEmpty) ...[
                                     const SizedBox(height: 2),
                                     Text(
                                       'Plate: $plateNumber',
@@ -224,7 +230,7 @@ class VerificationStatusCard extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        
+
                         // Time info
                         Row(
                           children: [
@@ -248,7 +254,7 @@ class VerificationStatusCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Action button
                   SizedBox(
                     width: double.infinity,

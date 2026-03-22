@@ -11,7 +11,8 @@ class CustomNotificationModal extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _CustomNotificationModalState createState() => _CustomNotificationModalState();
+  _CustomNotificationModalState createState() =>
+      _CustomNotificationModalState();
 }
 
 class _CustomNotificationModalState extends State<CustomNotificationModal> {
@@ -40,7 +41,7 @@ class _CustomNotificationModalState extends State<CustomNotificationModal> {
     setState(() {
       _selectedQuickReason = reason;
       _isCustomSelected = reason == 'Other (custom reason)';
-      
+
       if (!_isCustomSelected) {
         _reasonController.text = reason;
       } else {
@@ -66,7 +67,7 @@ class _CustomNotificationModalState extends State<CustomNotificationModal> {
 
     try {
       await widget.onSendNotification(_reasonController.text.trim());
-      
+
       if (mounted) {
         Navigator.of(context).pop();
         // Don't show success message here since the smart button will handle it
@@ -89,9 +90,7 @@ class _CustomNotificationModalState extends State<CustomNotificationModal> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         width: MediaQuery.of(context).size.width * 0.9,
         constraints: const BoxConstraints(maxWidth: 500),
@@ -127,18 +126,18 @@ class _CustomNotificationModalState extends State<CustomNotificationModal> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             Text(
               'Student: ',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Colors.grey[600],
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: Colors.grey[600]),
             ),
-            
+
             const SizedBox(height: 8),
-            
+
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -163,78 +162,89 @@ class _CustomNotificationModalState extends State<CustomNotificationModal> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Quick Reason Selection
             Text(
               'Select a reason or enter custom message:',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             Container(
               constraints: const BoxConstraints(maxHeight: 200),
               child: SingleChildScrollView(
                 child: Column(
-                  children: _quickReasons.map((reason) {
-                    final isSelected = _selectedQuickReason == reason;
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: InkWell(
-                        onTap: () => _onQuickReasonSelected(reason),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: isSelected ? Colors.blue : Colors.grey[300]!,
-                              width: isSelected ? 2 : 1,
-                            ),
+                  children:
+                      _quickReasons.map((reason) {
+                        final isSelected = _selectedQuickReason == reason;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: InkWell(
+                            onTap: () => _onQuickReasonSelected(reason),
                             borderRadius: BorderRadius.circular(8),
-                            color: isSelected ? Colors.blue[50] : null,
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                isSelected 
-                                    ? Icons.radio_button_checked 
-                                    : Icons.radio_button_unchecked,
-                                color: isSelected ? Colors.blue : Colors.grey,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  reason,
-                                  style: TextStyle(
-                                    color: isSelected ? Colors.blue[800] : null,
-                                    fontWeight: isSelected ? FontWeight.w500 : null,
-                                  ),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color:
+                                      isSelected
+                                          ? Colors.blue
+                                          : Colors.grey[300]!,
+                                  width: isSelected ? 2 : 1,
                                 ),
+                                borderRadius: BorderRadius.circular(8),
+                                color: isSelected ? Colors.blue[50] : null,
                               ),
-                            ],
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isSelected
+                                        ? Icons.radio_button_checked
+                                        : Icons.radio_button_unchecked,
+                                    color:
+                                        isSelected ? Colors.blue : Colors.grey,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      reason,
+                                      style: TextStyle(
+                                        color:
+                                            isSelected
+                                                ? Colors.blue[800]
+                                                : null,
+                                        fontWeight:
+                                            isSelected ? FontWeight.w500 : null,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                        );
+                      }).toList(),
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Custom message input
             if (_isCustomSelected || _selectedQuickReason != null)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _isCustomSelected ? 'Custom message:' : 'Message to parents:',
+                    _isCustomSelected
+                        ? 'Custom message:'
+                        : 'Message to parents:',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -243,11 +253,13 @@ class _CustomNotificationModalState extends State<CustomNotificationModal> {
                   TextField(
                     controller: _reasonController,
                     maxLines: 4,
-                    readOnly: !_isCustomSelected && _selectedQuickReason != null,
+                    readOnly:
+                        !_isCustomSelected && _selectedQuickReason != null,
                     decoration: InputDecoration(
-                      hintText: _isCustomSelected 
-                          ? 'Enter custom reason for contacting parents...'
-                          : 'Review the message that will be sent',
+                      hintText:
+                          _isCustomSelected
+                              ? 'Enter custom reason for contacting parents...'
+                              : 'Review the message that will be sent',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -257,39 +269,47 @@ class _CustomNotificationModalState extends State<CustomNotificationModal> {
                   ),
                 ],
               ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Action buttons
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed: _isSending ? null : () => Navigator.of(context).pop(),
+                  onPressed:
+                      _isSending ? null : () => Navigator.of(context).pop(),
                   child: const Text('Cancel'),
                 ),
-                
+
                 const SizedBox(width: 12),
-                
+
                 ElevatedButton(
-                  onPressed: _isSending || _reasonController.text.trim().isEmpty 
-                      ? null 
-                      : _sendNotification,
+                  onPressed:
+                      _isSending || _reasonController.text.trim().isEmpty
+                          ? null
+                          : _sendNotification,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
                   ),
-                  child: _isSending
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text('Send Notification Ticket'),
+                  child:
+                      _isSending
+                          ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          )
+                          : const Text('Send Notification Ticket'),
                 ),
               ],
             ),
@@ -309,9 +329,10 @@ Future<void> showCustomNotificationModal({
   return showDialog(
     context: context,
     barrierDismissible: false,
-    builder: (context) => CustomNotificationModal(
-      studentName: studentName,
-      onSendNotification: onSendNotification,
-    ),
+    builder:
+        (context) => CustomNotificationModal(
+          studentName: studentName,
+          onSendNotification: onSendNotification,
+        ),
   );
 }

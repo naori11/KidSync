@@ -8,7 +8,10 @@ class NotificationService {
   final supabase = Supabase.instance.client;
   final PushNotificationService _pushService = PushNotificationService();
   final SmsGatewayService smsService = SmsGatewayService(
-    supabaseFunctionUrl: SUPABASE_FUNCTIONS_BASE.isNotEmpty ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms' : null,
+    supabaseFunctionUrl:
+        SUPABASE_FUNCTIONS_BASE.isNotEmpty
+            ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms'
+            : null,
     username: '',
     password: '',
   );
@@ -127,7 +130,7 @@ class NotificationService {
             .subscribe();
   }
 
-  // Legacy notification methods removed - notifications are now handled 
+  // Legacy notification methods removed - notifications are now handled
   // directly in driver_service._notifyParents() method
 
   /// Format time for display
@@ -177,7 +180,7 @@ class NotificationService {
         final today = DateTime.now();
         final todayStart = DateTime(today.year, today.month, today.day);
         final todayEnd = todayStart.add(const Duration(days: 1));
-        
+
         query = query
             .gte('created_at', todayStart.toIso8601String())
             .lt('created_at', todayEnd.toIso8601String());
@@ -482,12 +485,7 @@ class NotificationService {
       };
     } catch (e) {
       print('Error getting today RFID status: $e');
-      return {
-        'entry': null,
-        'exit': null,
-        'all_records': [],
-        'date': null,
-      };
+      return {'entry': null, 'exit': null, 'all_records': [], 'date': null};
     }
   }
 
@@ -500,13 +498,16 @@ class NotificationService {
   }) async {
     try {
       // Try using the RPC function first (better for RLS and performance)
-      final result = await supabase.rpc('create_rfid_notification', params: {
-        'p_student_id': studentId,
-        'p_action': action,
-        'p_student_name': studentName,
-        'p_guard_name': guardName,
-      });
-      
+      final result = await supabase.rpc(
+        'create_rfid_notification',
+        params: {
+          'p_student_id': studentId,
+          'p_action': action,
+          'p_student_name': studentName,
+          'p_guard_name': guardName,
+        },
+      );
+
       if (result == true) {
         // RPC succeeded in creating notifications server-side.
         // Attempt to fetch parent phone numbers so we can enqueue SMS from the client as well.
@@ -523,16 +524,21 @@ class NotificationService {
             } catch (_) {}
           }
           if (phones.isNotEmpty) {
-            final smsMsg = action == 'entry'
-                ? '$studentName has arrived at school and tapped in.'
-                : '$studentName has left school and tapped out.';
+            final smsMsg =
+                action == 'entry'
+                    ? '$studentName has arrived at school and tapped in.'
+                    : '$studentName has left school and tapped out.';
             try {
-              print('NotificationService: RPC created RFID notification; enqueuing SMS -> recipients=${phones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
+              print(
+                'NotificationService: RPC created RFID notification; enqueuing SMS -> recipients=${phones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"',
+              );
             } catch (_) {}
             smsService.sendSms(recipients: phones, message: smsMsg);
           }
         } catch (e) {
-          print('NotificationService: failed to enqueue SMS after RPC create_rfid_notification: $e');
+          print(
+            'NotificationService: failed to enqueue SMS after RPC create_rfid_notification: $e',
+          );
         }
 
         return true;
@@ -541,7 +547,7 @@ class NotificationService {
       }
     } catch (rpcError) {
       print('Error calling create_rfid_notification RPC: $rpcError');
-      
+
       // Fallback to direct insert if RPC fails
       try {
         // Get all parents for this student
@@ -576,7 +582,6 @@ class NotificationService {
           message = '$studentName has left school and tapped out.';
           notificationType = 'rfid_exit';
         } else {
-
           return false;
         }
 
@@ -615,9 +620,13 @@ class NotificationService {
               } catch (_) {}
             }
             if (parentPhones.isNotEmpty) {
-              final smsMsg = message + (guardName != null ? ' Verified by: $guardName' : '');
+              final smsMsg =
+                  message +
+                  (guardName != null ? ' Verified by: $guardName' : '');
               try {
-                print('NotificationService: enqueuing SMS for RFID tap -> recipients=${parentPhones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
+                print(
+                  'NotificationService: enqueuing SMS for RFID tap -> recipients=${parentPhones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"',
+                );
               } catch (_) {}
               smsService.sendSms(recipients: parentPhones, message: smsMsg);
             }
@@ -632,10 +641,7 @@ class NotificationService {
                   message: message,
                   type: notificationType,
                   studentId: studentId,
-                  extraData: {
-                    'guard_name': guardName ?? '',
-                    'action': action,
-                  },
+                  extraData: {'guard_name': guardName ?? '', 'action': action},
                 );
               }
             }
@@ -665,19 +671,20 @@ class NotificationService {
     String? fetcherType, // 'authorized' or 'temporary'
   }) async {
     try {
-
-      
       // Try using the RPC function first (better for RLS)
       try {
-        final result = await supabase.rpc('create_pickup_denial_notification', params: {
-          'p_student_id': studentId,
-          'p_student_name': studentName,
-          'p_deny_reason': denyReason,
-          'p_guard_name': guardName,
-          'p_fetcher_name': fetcherName,
-          'p_fetcher_type': fetcherType,
-        });
-        
+        final result = await supabase.rpc(
+          'create_pickup_denial_notification',
+          params: {
+            'p_student_id': studentId,
+            'p_student_name': studentName,
+            'p_deny_reason': denyReason,
+            'p_guard_name': guardName,
+            'p_fetcher_name': fetcherName,
+            'p_fetcher_type': fetcherType,
+          },
+        );
+
         if (result == true) {
           // RPC succeeded; attempt to enqueue SMS from client for visibility/debugging
           try {
@@ -693,27 +700,27 @@ class NotificationService {
               } catch (_) {}
             }
             if (phones.isNotEmpty) {
-              final smsMsg = 'Your pickup request for $studentName has been denied. Reason: $denyReason';
+              final smsMsg =
+                  'Your pickup request for $studentName has been denied. Reason: $denyReason';
               try {
-                print('NotificationService: RPC created pickup_denial notification; enqueuing SMS -> recipients=${phones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
+                print(
+                  'NotificationService: RPC created pickup_denial notification; enqueuing SMS -> recipients=${phones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"',
+                );
               } catch (_) {}
               smsService.sendSms(recipients: phones, message: smsMsg);
             }
           } catch (e) {
-            print('NotificationService: failed to enqueue SMS after RPC create_pickup_denial_notification: $e');
+            print(
+              'NotificationService: failed to enqueue SMS after RPC create_pickup_denial_notification: $e',
+            );
           }
 
           return true;
-        } else {
+        } else {}
+      } catch (rpcError) {}
 
-        }
-      } catch (rpcError) {
-
-      }
-      
       // Fallback to direct insert if RPC fails or returns false
 
-      
       try {
         // Get all parents for this student
         final parentStudentResponse = await supabase
@@ -733,12 +740,15 @@ class NotificationService {
           return false;
         }
 
-        print('DEBUG: Found ${parentStudentResponse.length} parents for student $studentId');
+        print(
+          'DEBUG: Found ${parentStudentResponse.length} parents for student $studentId',
+        );
 
         // Prepare notification data
         String title = 'Pickup Request Denied';
-        String message = 'Your pickup request for $studentName has been denied.';
-        
+        String message =
+            'Your pickup request for $studentName has been denied.';
+
         // Add fetcher information if available
         if (fetcherName != null && fetcherName.isNotEmpty) {
           if (fetcherType == 'temporary') {
@@ -747,10 +757,10 @@ class NotificationService {
             message += ' Fetcher: $fetcherName';
           }
         }
-        
+
         // Add denial reason
         message += ' Reason: $denyReason';
-        
+
         // Add guard info if available
         if (guardName != null && guardName.isNotEmpty) {
           message += ' Denied by: $guardName';
@@ -782,7 +792,9 @@ class NotificationService {
           try {
             // Insert notifications directly as fallback
             await supabase.from('notifications').insert(notifications);
-            print('DEBUG: Pickup denial notification sent successfully via direct insert for student $studentId');
+            print(
+              'DEBUG: Pickup denial notification sent successfully via direct insert for student $studentId',
+            );
 
             // Collect parent phones and send SMS (non-blocking)
             final List<String> parentPhones = [];
@@ -793,12 +805,14 @@ class NotificationService {
               } catch (_) {}
             }
             if (parentPhones.isNotEmpty) {
-                final smsMsg = message;
-                try {
-                  print('NotificationService: enqueuing SMS for pickup denial -> recipients=${parentPhones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"');
-                } catch (_) {}
-                // Enqueue SMS without await to avoid blocking
-                smsService.sendSms(recipients: parentPhones, message: smsMsg);
+              final smsMsg = message;
+              try {
+                print(
+                  'NotificationService: enqueuing SMS for pickup denial -> recipients=${parentPhones.length}, preview="${smsMsg.substring(0, smsMsg.length > 80 ? 80 : smsMsg.length)}"',
+                );
+              } catch (_) {}
+              // Enqueue SMS without await to avoid blocking
+              smsService.sendSms(recipients: parentPhones, message: smsMsg);
             }
 
             // Send push notifications to each parent
@@ -830,9 +844,10 @@ class NotificationService {
           print('DEBUG: No valid notifications to insert');
           return false;
         }
-
       } catch (fallbackError) {
-        print('Error in fallback pickup denial notification method: $fallbackError');
+        print(
+          'Error in fallback pickup denial notification method: $fallbackError',
+        );
         return false;
       }
     } catch (e) {
@@ -852,7 +867,7 @@ class NotificationService {
       print('  - Driver ID: $driverId');
       print('  - Student ID: $studentId');
       print('  - Student Name: $studentName');
-      
+
       // Test pickup approval notification
       print('\\nTesting pickup approval notification...');
       final pickupApprovalResult = await sendPickupApprovalNotification(
@@ -864,9 +879,9 @@ class NotificationService {
         isApproved: true,
         notes: 'Test approval from Flutter app',
       );
-      
+
       print('Pickup approval notification result: $pickupApprovalResult');
-      
+
       // Test pickup decline notification
       print('\\nTesting pickup decline notification...');
       final pickupDeclineResult = await sendPickupApprovalNotification(
@@ -878,9 +893,9 @@ class NotificationService {
         isApproved: false,
         notes: 'Test decline from Flutter app',
       );
-      
+
       print('Pickup decline notification result: $pickupDeclineResult');
-      
+
       // Test dropoff approval notification
       print('\\nTesting dropoff approval notification...');
       final dropoffApprovalResult = await sendDropoffApprovalNotification(
@@ -892,9 +907,9 @@ class NotificationService {
         isApproved: true,
         notes: 'Test approval from Flutter app',
       );
-      
+
       print('Dropoff approval notification result: $dropoffApprovalResult');
-      
+
       // Test dropoff decline notification
       print('\\nTesting dropoff decline notification...');
       final dropoffDeclineResult = await sendDropoffApprovalNotification(
@@ -906,9 +921,9 @@ class NotificationService {
         isApproved: false,
         notes: 'Test decline from Flutter app',
       );
-      
+
       print('Dropoff decline notification result: $dropoffDeclineResult');
-      
+
       // Check if notifications were created in database
       print('\\nChecking database for inserted notifications...');
       final notifications = await supabase
@@ -916,18 +931,31 @@ class NotificationService {
           .select('id, type, title, message, created_at')
           .eq('recipient_id', driverId)
           .eq('student_id', studentId)
-          .inFilter('type', ['pickup_approved', 'pickup_declined', 'dropoff_approved', 'dropoff_declined'])
+          .inFilter('type', [
+            'pickup_approved',
+            'pickup_declined',
+            'dropoff_approved',
+            'dropoff_declined',
+          ])
           .order('created_at', ascending: false)
           .limit(10);
-          
-      print('DEBUG: Found ${notifications.length} approval/decline notifications for driver $driverId, student $studentId');
+
+      print(
+        'DEBUG: Found ${notifications.length} approval/decline notifications for driver $driverId, student $studentId',
+      );
       for (final notification in notifications) {
-        print('  - ${notification['type']}: ${notification['title']} (${notification['created_at']})');
+        print(
+          '  - ${notification['type']}: ${notification['title']} (${notification['created_at']})',
+        );
       }
-      
-      final allTestsPassed = pickupApprovalResult && pickupDeclineResult && dropoffApprovalResult && dropoffDeclineResult;
+
+      final allTestsPassed =
+          pickupApprovalResult &&
+          pickupDeclineResult &&
+          dropoffApprovalResult &&
+          dropoffDeclineResult;
       print('\\nAll notification tests passed: $allTestsPassed');
-      
+
       return allTestsPassed;
     } catch (e) {
       print('DEBUG: Test approval notification system error: $e');
@@ -942,7 +970,7 @@ class NotificationService {
   }) async {
     try {
       print('DEBUG: Testing notification system for student $studentId');
-      
+
       // Test direct database access first
       final parentStudentResponse = await supabase
           .from('parent_student')
@@ -957,26 +985,33 @@ class NotificationService {
           ''')
           .eq('student_id', studentId);
 
-      print('DEBUG: Parent-student relationship query result: $parentStudentResponse');
+      print(
+        'DEBUG: Parent-student relationship query result: $parentStudentResponse',
+      );
 
       if (parentStudentResponse.isEmpty) {
-        print('DEBUG: No parent-student relationships found for student $studentId');
+        print(
+          'DEBUG: No parent-student relationships found for student $studentId',
+        );
         return false;
       }
 
       // Test RPC function
       try {
-        final rpcResult = await supabase.rpc('create_pickup_denial_notification', params: {
-          'p_student_id': studentId,
-          'p_student_name': studentName,
-          'p_deny_reason': 'Test notification from Flutter app',
-          'p_guard_name': 'Test Guard',
-          'p_fetcher_name': 'Test Fetcher',
-          'p_fetcher_type': 'authorized',
-        });
-        
+        final rpcResult = await supabase.rpc(
+          'create_pickup_denial_notification',
+          params: {
+            'p_student_id': studentId,
+            'p_student_name': studentName,
+            'p_deny_reason': 'Test notification from Flutter app',
+            'p_guard_name': 'Test Guard',
+            'p_fetcher_name': 'Test Fetcher',
+            'p_fetcher_type': 'authorized',
+          },
+        );
+
         print('DEBUG: RPC function test result: $rpcResult');
-        
+
         // Check if notifications were created
         final notifications = await supabase
             .from('notifications')
@@ -985,9 +1020,11 @@ class NotificationService {
             .eq('type', 'pickup_denied')
             .order('created_at', ascending: false)
             .limit(5);
-            
-        print('DEBUG: Found ${notifications.length} pickup denial notifications for student $studentId');
-        
+
+        print(
+          'DEBUG: Found ${notifications.length} pickup denial notifications for student $studentId',
+        );
+
         return rpcResult == true;
       } catch (rpcError) {
         print('DEBUG: RPC function test failed: $rpcError');
@@ -1020,7 +1057,7 @@ class NotificationService {
         final today = DateTime.now();
         final todayStart = DateTime(today.year, today.month, today.day);
         final todayEnd = todayStart.add(const Duration(days: 1));
-        
+
         query = query
             .gte('created_at', todayStart.toIso8601String())
             .lt('created_at', todayEnd.toIso8601String());
@@ -1089,7 +1126,8 @@ class NotificationService {
 
       if (isApproved) {
         title = 'Pickup Approved';
-        message = '$parentName has approved the pickup of $studentName at ${_formatTime(approvalTime)}.';
+        message =
+            '$parentName has approved the pickup of $studentName at ${_formatTime(approvalTime)}.';
         notificationType = 'pickup_approved';
       } else {
         title = 'Pickup Declined';
@@ -1119,12 +1157,18 @@ class NotificationService {
       };
 
       try {
-        final insertResult = await supabase.from('notifications').insert(notificationData);
-        
+        final insertResult = await supabase
+            .from('notifications')
+            .insert(notificationData);
+
         print('DEBUG: Notification insert result: $insertResult');
-        print('✅ Pickup approval notification inserted successfully via direct insert');
-        print('DEBUG: Pickup ${isApproved ? 'approval' : 'denial'} notification sent to driver $driverId for student $studentName');
-        
+        print(
+          '✅ Pickup approval notification inserted successfully via direct insert',
+        );
+        print(
+          'DEBUG: Pickup ${isApproved ? 'approval' : 'denial'} notification sent to driver $driverId for student $studentName',
+        );
+
         // Send push notification
         await _sendPushNotification(
           recipientId: driverId,
@@ -1136,26 +1180,31 @@ class NotificationService {
         );
 
         // If this notification is tied to a student/parent flow and parentPhones available elsewhere, consider sending SMS from caller.
-        
+
         return true;
       } catch (insertError) {
         print('⚠️  Direct insert failed (likely RLS issue): $insertError');
         print('DEBUG: Attempting RPC function fallback...');
-        
+
         // Fallback to RPC function which bypasses RLS
         try {
-          final rpcResult = await supabase.rpc('create_verification_notification', params: {
-            'p_recipient_id': driverId,
-            'p_title': title,
-            'p_message': message,
-            'p_type': notificationType,
-            'p_student_id': studentId,
-          });
-          
+          final rpcResult = await supabase.rpc(
+            'create_verification_notification',
+            params: {
+              'p_recipient_id': driverId,
+              'p_title': title,
+              'p_message': message,
+              'p_type': notificationType,
+              'p_student_id': studentId,
+            },
+          );
+
           if (rpcResult == true) {
-            print('✅ Pickup approval notification sent successfully via RPC function');
+            print(
+              '✅ Pickup approval notification sent successfully via RPC function',
+            );
             print('DEBUG: RPC fallback successful for driver $driverId');
-            
+
             // Send push notification
             await _sendPushNotification(
               recipientId: driverId,
@@ -1165,7 +1214,7 @@ class NotificationService {
               studentId: studentId,
               extraData: {'parent_name': parentName},
             );
-            
+
             return true;
           } else {
             print('❌ RPC function returned false');
@@ -1200,7 +1249,8 @@ class NotificationService {
 
       if (isApproved) {
         title = 'Dropoff Approved';
-        message = '$parentName has approved the dropoff of $studentName at ${_formatTime(approvalTime)}.';
+        message =
+            '$parentName has approved the dropoff of $studentName at ${_formatTime(approvalTime)}.';
         notificationType = 'dropoff_approved';
       } else {
         title = 'Dropoff Declined';
@@ -1230,12 +1280,18 @@ class NotificationService {
       };
 
       try {
-        final insertResult = await supabase.from('notifications').insert(notificationData);
-        
+        final insertResult = await supabase
+            .from('notifications')
+            .insert(notificationData);
+
         print('DEBUG: Notification insert result: $insertResult');
-        print('✅ Dropoff approval notification inserted successfully via direct insert');
-        print('DEBUG: Dropoff ${isApproved ? 'approval' : 'denial'} notification sent to driver $driverId for student $studentName');
-        
+        print(
+          '✅ Dropoff approval notification inserted successfully via direct insert',
+        );
+        print(
+          'DEBUG: Dropoff ${isApproved ? 'approval' : 'denial'} notification sent to driver $driverId for student $studentName',
+        );
+
         // Send push notification
         await _sendPushNotification(
           recipientId: driverId,
@@ -1250,19 +1306,24 @@ class NotificationService {
       } catch (insertError) {
         print('⚠️  Direct insert failed (likely RLS issue): $insertError');
         print('DEBUG: Attempting RPC function fallback...');
-        
+
         // Fallback to RPC function which bypasses RLS
         try {
-          final rpcResult = await supabase.rpc('create_verification_notification', params: {
-            'p_recipient_id': driverId,
-            'p_title': title,
-            'p_message': message,
-            'p_type': notificationType,
-            'p_student_id': studentId,
-          });
-          
+          final rpcResult = await supabase.rpc(
+            'create_verification_notification',
+            params: {
+              'p_recipient_id': driverId,
+              'p_title': title,
+              'p_message': message,
+              'p_type': notificationType,
+              'p_student_id': studentId,
+            },
+          );
+
           if (rpcResult == true) {
-            print('✅ Dropoff approval notification sent successfully via RPC function');
+            print(
+              '✅ Dropoff approval notification sent successfully via RPC function',
+            );
             print('DEBUG: RPC fallback successful for driver $driverId');
             return true;
           } else {
@@ -1290,8 +1351,10 @@ class NotificationService {
     required DateTime eventTime,
   }) async {
     try {
-      String title = '${eventType[0].toUpperCase() + eventType.substring(1)} Verification Required';
-      String message = 'Please wait for parent verification of $studentName ${eventType} at ${_formatTime(eventTime)}.';
+      String title =
+          '${eventType[0].toUpperCase() + eventType.substring(1)} Verification Required';
+      String message =
+          'Please wait for parent verification of $studentName ${eventType} at ${_formatTime(eventTime)}.';
       String notificationType = '${eventType}_verification';
 
       await supabase.from('notifications').insert({
@@ -1315,7 +1378,9 @@ class NotificationService {
         extraData: {'student_id': studentId.toString()},
       );
       // Driver-facing notification; parent SMS should be triggered in parent flows, not here.
-      print('DEBUG: Verification request notification sent to driver $driverId for student $studentName');
+      print(
+        'DEBUG: Verification request notification sent to driver $driverId for student $studentName',
+      );
       return true;
     } catch (e) {
       print('Error sending verification request notification to driver: $e');
@@ -1331,8 +1396,10 @@ class NotificationService {
     String? routeNotes,
   }) async {
     try {
-      String title = 'New ${routeType[0].toUpperCase() + routeType.substring(1)} Route Assignment';
-      String message = 'You have been assigned to ${studentNames.length} students for $routeType: ${studentNames.join(', ')}.';
+      String title =
+          'New ${routeType[0].toUpperCase() + routeType.substring(1)} Route Assignment';
+      String message =
+          'You have been assigned to ${studentNames.length} students for $routeType: ${studentNames.join(', ')}.';
       String notificationType = 'route_assignment';
 
       if (routeNotes != null && routeNotes.isNotEmpty) {
@@ -1382,19 +1449,15 @@ class NotificationService {
     Map<String, dynamic>? extraData,
   }) async {
     try {
-
-      
       // Get FCM token for the recipient
-      final tokenResponse = await supabase
-          .from('user_fcm_tokens')
-          .select('fcm_token, platform')
-          .eq('user_id', recipientId)
-          .maybeSingle();
-
-
+      final tokenResponse =
+          await supabase
+              .from('user_fcm_tokens')
+              .select('fcm_token, platform')
+              .eq('user_id', recipientId)
+              .maybeSingle();
 
       if (tokenResponse == null || tokenResponse['fcm_token'] == null) {
-
         return;
       }
 
@@ -1417,39 +1480,28 @@ class NotificationService {
           'click_action': 'FLUTTER_NOTIFICATION_CLICK',
           ...?extraData,
         },
-        if (platform == 'android') 'android': {
-          'notification': {
-            'channel_id': _getChannelId(type),
-            'color': '#19AE61', // KidSync primary green
-            'priority': 'high',
-            'visibility': 'public',
+        if (platform == 'android')
+          'android': {
+            'notification': {
+              'channel_id': _getChannelId(type),
+              'color': '#19AE61', // KidSync primary green
+              'priority': 'high',
+              'visibility': 'public',
+            },
           },
-        },
       };
 
       // Send via Firebase Cloud Functions or your backend FCM service
       // This would typically call your backend API that has FCM server key
       await _sendFCMMessage(payload);
-
-
-    } catch (e) {
-
-    }
+    } catch (e) {}
   }
 
   /// Send FCM message via backend API
   Future<void> _sendFCMMessage(Map<String, dynamic> payload) async {
     try {
-
-      
-      await supabase.functions.invoke(
-        'send-push-notification',
-        body: payload,
-      );
-      
-
+      await supabase.functions.invoke('send-push-notification', body: payload);
     } catch (e) {
-
       rethrow;
     }
   }

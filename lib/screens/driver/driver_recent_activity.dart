@@ -77,13 +77,13 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
           .limit(50); // Increased limit for better data
 
       final logs = List<Map<String, dynamic>>.from(response);
-      
+
       // Group logs by date
       final Map<String, List<Map<String, dynamic>>> grouped = {};
       for (final log in logs) {
         final createdAt = DateTime.parse(log['created_at']);
         final dateKey = DateFormat('yyyy-MM-dd').format(createdAt);
-        
+
         if (!grouped.containsKey(dateKey)) {
           grouped[dateKey] = [];
         }
@@ -143,7 +143,7 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
       final today = DateTime(now.year, now.month, now.day);
       final yesterday = today.subtract(const Duration(days: 1));
       final dateToCheck = DateTime(date.year, date.month, date.day);
-      
+
       if (dateToCheck == today) {
         return 'Today';
       } else if (dateToCheck == yesterday) {
@@ -161,7 +161,7 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
       final dateTime = DateTime.parse(createdAt);
       final now = DateTime.now();
       final difference = now.difference(dateTime);
-      
+
       if (difference.inMinutes < 60) {
         return '${difference.inMinutes} min ago';
       } else if (difference.inHours < 24) {
@@ -226,7 +226,9 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
                           SizedBox(width: widget.isMobile ? 8 : 12),
                           Text(
                             'Recent Activity',
-                            style: DriverTheme.subHeaderTextStyle(widget.isMobile),
+                            style: DriverTheme.subHeaderTextStyle(
+                              widget.isMobile,
+                            ),
                           ),
                           const Spacer(),
                           IconButton(
@@ -238,7 +240,7 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
                         ],
                       ),
                       SizedBox(height: widget.isMobile ? 12 : 16),
-                      
+
                       // Filter Chips - Professional alignment
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -254,9 +256,9 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
                           ],
                         ),
                       ),
-                      
+
                       SizedBox(height: widget.isMobile ? 12 : 16),
-                      
+
                       // Summary Stats - Professional alignment
                       if (_logs.isNotEmpty) ...[
                         Container(
@@ -270,7 +272,7 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
                             children: [
                               Expanded(
                                 child: _buildStatItem(
-                                  'Total Activities', 
+                                  'Total Activities',
                                   _logs.length.toString(),
                                   Icons.timeline,
                                   widget.primaryColor,
@@ -280,12 +282,17 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
                                 width: 1,
                                 height: 40,
                                 color: Colors.grey[300],
-                                margin: const EdgeInsets.symmetric(horizontal: 16),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
                               ),
                               Expanded(
                                 child: _buildStatItem(
-                                  'Pickups', 
-                                  _logs.where((l) => l['event_type'] == 'pickup').length.toString(),
+                                  'Pickups',
+                                  _logs
+                                      .where((l) => l['event_type'] == 'pickup')
+                                      .length
+                                      .toString(),
                                   Icons.directions_car,
                                   Colors.blue[600]!,
                                 ),
@@ -294,12 +301,19 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
                                 width: 1,
                                 height: 40,
                                 color: Colors.grey[300],
-                                margin: const EdgeInsets.symmetric(horizontal: 16),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
                               ),
                               Expanded(
                                 child: _buildStatItem(
-                                  'Dropoffs', 
-                                  _logs.where((l) => l['event_type'] == 'dropoff').length.toString(),
+                                  'Dropoffs',
+                                  _logs
+                                      .where(
+                                        (l) => l['event_type'] == 'dropoff',
+                                      )
+                                      .length
+                                      .toString(),
                                   Icons.home,
                                   Colors.green[600]!,
                                 ),
@@ -313,9 +327,9 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Activity Content
             if (_logs.isEmpty)
               Card(
@@ -332,9 +346,9 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
                       Expanded(
                         child: Text(
                           _getEmptyMessage(),
-                          style: DriverTheme.bodyTextStyle(widget.isMobile).copyWith(
-                            color: DriverTheme.greyMedium,
-                          ),
+                          style: DriverTheme.bodyTextStyle(
+                            widget.isMobile,
+                          ).copyWith(color: DriverTheme.greyMedium),
                         ),
                       ),
                     ],
@@ -352,28 +366,35 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
   Widget _buildFilterChip(String filter, String label) {
     final isSelected = _selectedFilter == filter;
     final isToday = filter == 'today';
-    
+
     return Expanded(
       child: Container(
         height: 40,
         decoration: BoxDecoration(
-          color: isSelected 
-              ? (isToday ? Colors.white : widget.primaryColor.withOpacity(0.1))
-              : Colors.grey[100],
+          color:
+              isSelected
+                  ? (isToday
+                      ? Colors.white
+                      : widget.primaryColor.withOpacity(0.1))
+                  : Colors.grey[100],
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: isSelected 
-                ? (isToday ? widget.primaryColor : widget.primaryColor)
-                : Colors.grey[300]!,
+            color:
+                isSelected
+                    ? (isToday ? widget.primaryColor : widget.primaryColor)
+                    : Colors.grey[300]!,
             width: isSelected ? 2 : 1,
           ),
-          boxShadow: isSelected ? [
-            BoxShadow(
-              color: widget.primaryColor.withOpacity(0.2),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ] : null,
+          boxShadow:
+              isSelected
+                  ? [
+                    BoxShadow(
+                      color: widget.primaryColor.withOpacity(0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                  : null,
         ),
         child: Material(
           color: Colors.transparent,
@@ -384,9 +405,12 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
               child: Text(
                 label,
                 style: TextStyle(
-                  color: isSelected 
-                      ? (isToday ? widget.primaryColor : widget.primaryColor)
-                      : Colors.grey[600],
+                  color:
+                      isSelected
+                          ? (isToday
+                              ? widget.primaryColor
+                              : widget.primaryColor)
+                          : Colors.grey[600],
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   fontSize: 14,
                 ),
@@ -398,7 +422,12 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
+  Widget _buildStatItem(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Column(
       children: [
         Container(
@@ -456,28 +485,25 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
 
   List<Widget> _buildGroupedActivities() {
     final widgets = <Widget>[];
-    final sortedDates = _groupedLogs.keys.toList()..sort((a, b) => b.compareTo(a));
-    
+    final sortedDates =
+        _groupedLogs.keys.toList()..sort((a, b) => b.compareTo(a));
+
     for (final dateKey in sortedDates) {
       final dayLogs = _groupedLogs[dateKey]!;
-      
+
       // Date Header
       widgets.add(
         Padding(
           padding: const EdgeInsets.only(top: 8, bottom: 8),
           child: Row(
             children: [
-              Icon(
-                Icons.calendar_today,
-                size: 16,
-                color: widget.primaryColor,
-              ),
+              Icon(Icons.calendar_today, size: 16, color: widget.primaryColor),
               const SizedBox(width: 8),
               Text(
                 _formatDate(dateKey),
-                style: DriverTheme.subHeaderTextStyle(widget.isMobile).copyWith(
-                  color: widget.primaryColor,
-                ),
+                style: DriverTheme.subHeaderTextStyle(
+                  widget.isMobile,
+                ).copyWith(color: widget.primaryColor),
               ),
               const SizedBox(width: 8),
               Container(
@@ -509,13 +535,13 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
           ),
         ),
       );
-      
+
       // Activity Items for this date
       for (final log in dayLogs) {
         widgets.add(_buildEnhancedActivityItem(log));
       }
     }
-    
+
     return widgets;
   }
 
@@ -525,28 +551,30 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
     final String firstName = (student['fname'] ?? '').toString();
     final String middleName = (student['mname'] ?? '').toString();
     final String lastName = (student['lname'] ?? '').toString();
-    
-    final String studentName = [firstName, middleName, lastName]
-        .where((name) => name.isNotEmpty)
-        .join(' ');
-    
+
+    final String studentName = [
+      firstName,
+      middleName,
+      lastName,
+    ].where((name) => name.isNotEmpty).join(' ');
+
     final String gradeLevel = (student['grade_level'] ?? '').toString();
     final String sectionName = (student['sections']?['name'] ?? '').toString();
     final String notes = (log['notes'] ?? '').toString();
     final String createdAt = (log['created_at'] ?? '').toString();
-    
-    final dynamic eventTime = eventType == 'pickup' ? log['pickup_time'] : log['dropoff_time'];
-    
+
+    final dynamic eventTime =
+        eventType == 'pickup' ? log['pickup_time'] : log['dropoff_time'];
+
     final bool isPickup = eventType == 'pickup';
-    final Color eventColor = isPickup ? widget.primaryColor : DriverTheme.successGreen;
+    final Color eventColor =
+        isPickup ? widget.primaryColor : DriverTheme.successGreen;
     final IconData eventIcon = isPickup ? Icons.directions_car : Icons.home;
     final String actionText = isPickup ? 'Picked up' : 'Dropped off';
-    
+
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -565,9 +593,10 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
                     radius: 18,
                     backgroundColor: eventColor.withOpacity(0.1),
                     backgroundImage: _getStudentProfileImage(student),
-                    child: _getStudentProfileImage(student) == null
-                        ? Icon(eventIcon, color: eventColor, size: 18)
-                        : null,
+                    child:
+                        _getStudentProfileImage(student) == null
+                            ? Icon(eventIcon, color: eventColor, size: 18)
+                            : null,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -576,16 +605,19 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
                       children: [
                         Text(
                           '$actionText $studentName',
-                          style: DriverTheme.bodyTextStyle(widget.isMobile).copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: DriverTheme.bodyTextStyle(
+                            widget.isMobile,
+                          ).copyWith(fontWeight: FontWeight.w600),
                         ),
                         if (gradeLevel.isNotEmpty || sectionName.isNotEmpty)
                           Text(
-                            [gradeLevel, sectionName]
-                                .where((s) => s.isNotEmpty)
-                                .join(' • '),
-                            style: DriverTheme.captionTextStyle(widget.isMobile),
+                            [
+                              gradeLevel,
+                              sectionName,
+                            ].where((s) => s.isNotEmpty).join(' • '),
+                            style: DriverTheme.captionTextStyle(
+                              widget.isMobile,
+                            ),
                           ),
                       ],
                     ),
@@ -595,7 +627,9 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
                     children: [
                       Text(
                         _formatTime(eventTime),
-                        style: DriverTheme.bodyTextStyle(widget.isMobile).copyWith(
+                        style: DriverTheme.bodyTextStyle(
+                          widget.isMobile,
+                        ).copyWith(
                           fontWeight: FontWeight.w600,
                           color: eventColor,
                         ),
@@ -608,21 +642,17 @@ class _DriverRecentActivityState extends State<DriverRecentActivity> {
                   ),
                 ],
               ),
-              
+
               // Additional Details
               if (notes.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 const Divider(height: 1),
                 const SizedBox(height: 8),
-                
+
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.notes,
-                      size: 16,
-                      color: DriverTheme.greyMedium,
-                    ),
+                    Icon(Icons.notes, size: 16, color: DriverTheme.greyMedium),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(

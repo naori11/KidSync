@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // Provide stub classes for web-only screens on mobile
 class AdminPanel extends StatelessWidget {
   const AdminPanel({super.key});
-  
+
   @override
   Widget build(BuildContext context) {
     return _buildWebOnlyScreen(context, 'Admin');
@@ -14,7 +14,7 @@ class AdminPanel extends StatelessWidget {
 
 class GuardPanel extends StatelessWidget {
   const GuardPanel({super.key});
-  
+
   @override
   Widget build(BuildContext context) {
     return _buildWebOnlyScreen(context, 'Guard');
@@ -23,7 +23,7 @@ class GuardPanel extends StatelessWidget {
 
 class TeacherPanel extends StatelessWidget {
   const TeacherPanel({super.key});
-  
+
   @override
   Widget build(BuildContext context) {
     return _buildWebOnlyScreen(context, 'Teacher');
@@ -33,7 +33,7 @@ class TeacherPanel extends StatelessWidget {
 class SetPasswordScreen extends StatelessWidget {
   const SetPasswordScreen({super.key});
   static const String routeName = '/set-password';
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -82,18 +82,11 @@ Widget _buildWebOnlyScreen(BuildContext context, String role) {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.computer,
-              size: 80,
-              color: Colors.blue,
-            ),
+            const Icon(Icons.computer, size: 80, color: Colors.blue),
             const SizedBox(height: 24),
             Text(
               '$role features require a web browser',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -119,7 +112,10 @@ Widget _buildWebOnlyScreen(BuildContext context, String role) {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red.shade600,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 12,
+                ),
               ),
             ),
           ],

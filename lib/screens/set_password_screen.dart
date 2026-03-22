@@ -81,7 +81,11 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       try {
         final meta = currentUser.userMetadata;
         if (meta != null) {
-          _targetUserName = meta['full_name'] ?? meta['name'] ?? meta['displayName'] ?? meta['display_name'];
+          _targetUserName =
+              meta['full_name'] ??
+              meta['name'] ??
+              meta['displayName'] ??
+              meta['display_name'];
         }
       } catch (_) {}
       _userId = currentUser.id;
@@ -98,7 +102,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       _accessToken = html.window.sessionStorage['supabase_access_token'];
       _refreshToken = html.window.sessionStorage['supabase_refresh_token'];
       // If there's an access token, check if it's expired (JWT "exp" claim)
-  if (_accessToken != null && _isJwtExpired(_accessToken!)) {
+      if (_accessToken != null && _isJwtExpired(_accessToken!)) {
         // token expired — remove stored tokens and don't show this screen
         if (kIsWeb) {
           html.window.sessionStorage.remove('supabase_access_token');
@@ -129,7 +133,9 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       // If the URL contains an error param from the provider (e.g. token expired), treat as expired/used
       if (url.contains('error=') || url.contains('error_description=')) {
         final lower = url.toLowerCase();
-        if (lower.contains('expired') || lower.contains('otp_expired') || lower.contains('token has expired')) {
+        if (lower.contains('expired') ||
+            lower.contains('otp_expired') ||
+            lower.contains('token has expired')) {
           // clear any reset/session values and avoid showing this screen
           if (kIsWeb) {
             html.window.sessionStorage.remove('supabase_access_token');
@@ -139,7 +145,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
           }
           setState(() {
             _isLoading = false;
-            _errorMessage = "Link expired or already used. Please request a new link.";
+            _errorMessage =
+                "Link expired or already used. Please request a new link.";
           });
           return;
         }
@@ -196,7 +203,11 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         } else if (json is Map && json.containsKey('user_metadata')) {
           final meta = json['user_metadata'];
           if (meta is Map) {
-            _targetUserName = meta['full_name'] ?? meta['name'] ?? meta['displayName'] ?? meta['display_name'];
+            _targetUserName =
+                meta['full_name'] ??
+                meta['name'] ??
+                meta['displayName'] ??
+                meta['display_name'];
           }
         }
         _userId = json['sub'];
@@ -222,7 +233,9 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
 
     // Extra guard: ensure password strength is acceptable
     if (_passwordScore < 2) {
-      _showError('Please choose a stronger password before continuing. See suggestions below.');
+      _showError(
+        'Please choose a stronger password before continuing. See suggestions below.',
+      );
       return;
     }
 
@@ -235,7 +248,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     if (_targetUserName != null) {
       final nameParts = _targetUserName!.split(RegExp(r"\s+"));
       for (final part in nameParts) {
-        if (part.isNotEmpty && newPasswordPreview.toLowerCase().contains(part.toLowerCase())) {
+        if (part.isNotEmpty &&
+            newPasswordPreview.toLowerCase().contains(part.toLowerCase())) {
           _showError('Your password should not contain your name.');
           return;
         }
@@ -270,7 +284,11 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             try {
               final meta = response.user!.userMetadata;
               if (meta != null) {
-                _targetUserName = meta['full_name'] ?? meta['name'] ?? meta['displayName'] ?? meta['display_name'];
+                _targetUserName =
+                    meta['full_name'] ??
+                    meta['name'] ??
+                    meta['displayName'] ??
+                    meta['display_name'];
               }
             } catch (_) {}
             print(
@@ -292,7 +310,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             }
           } else {
             _showError(
-                "Failed to verify the recovery code. It may be expired or invalid.");
+              "Failed to verify the recovery code. It may be expired or invalid.",
+            );
             return;
           }
         } catch (e) {
@@ -369,7 +388,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       }
 
       _showError(
-          "Missing authentication details. Please try again or contact your administrator.");
+        "Missing authentication details. Please try again or contact your administrator.",
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -396,22 +416,29 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     final lower = raw.toLowerCase();
 
     // Common OTP / token expiry
-    if (lower.contains('otp_expired') || (lower.contains('token') && lower.contains('expired')) || lower.contains('expired')) {
+    if (lower.contains('otp_expired') ||
+        (lower.contains('token') && lower.contains('expired')) ||
+        lower.contains('expired')) {
       return 'This link has expired or is invalid. Please request a new password reset link.';
     }
 
     // Common auth/forbidden
-    if (lower.contains('403') || lower.contains('forbidden') || lower.contains('not authorized')) {
+    if (lower.contains('403') ||
+        lower.contains('forbidden') ||
+        lower.contains('not authorized')) {
       return 'Unable to use this link. It may have already been used or is not valid.';
     }
 
     // Password same as current
-    if (lower.contains('same') && lower.contains('password') || lower.contains('current password')) {
+    if (lower.contains('same') && lower.contains('password') ||
+        lower.contains('current password')) {
       return 'Your new password must be different from your current password.';
     }
 
     // Generic known messages
-    if (lower.contains('invalid') || lower.contains('invalid code') || lower.contains('invalid token')) {
+    if (lower.contains('invalid') ||
+        lower.contains('invalid code') ||
+        lower.contains('invalid token')) {
       return 'The code or link appears to be invalid. Please request a new link.';
     }
 
@@ -506,7 +533,9 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
 
     // If password contains email or name parts, reduce score and add suggestion
     final low = pwd.toLowerCase();
-    if (_userEmail != null && _userEmail!.isNotEmpty && low.contains(_userEmail!.toLowerCase())) {
+    if (_userEmail != null &&
+        _userEmail!.isNotEmpty &&
+        low.contains(_userEmail!.toLowerCase())) {
       suggestions.add('Do not include your email address');
       score = (score - 1).clamp(0, 4);
     }
@@ -532,7 +561,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     _confirmPasswordController.dispose();
     // ensure any in-progress flag is cleared if the screen is disposed
     try {
-      if (kIsWeb) html.window.sessionStorage.remove('kidsync_reset_in_progress');
+      if (kIsWeb)
+        html.window.sessionStorage.remove('kidsync_reset_in_progress');
     } catch (_) {}
     super.dispose();
   }
@@ -672,9 +702,17 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                             radius: 20,
                             backgroundColor: Colors.green[200],
                             child: Text(
-                              _targetUserName != null && _targetUserName!.isNotEmpty
-                                  ? (_targetUserName!.split(' ').map((s) => s.isNotEmpty ? s[0] : '').take(2).join()).toUpperCase()
-                                  : (_userEmail != null ? _userEmail![0].toUpperCase() : '?'),
+                              _targetUserName != null &&
+                                      _targetUserName!.isNotEmpty
+                                  ? (_targetUserName!
+                                          .split(' ')
+                                          .map((s) => s.isNotEmpty ? s[0] : '')
+                                          .take(2)
+                                          .join())
+                                      .toUpperCase()
+                                  : (_userEmail != null
+                                      ? _userEmail![0].toUpperCase()
+                                      : '?'),
                               style: const TextStyle(color: Colors.white),
                             ),
                           ),
@@ -685,7 +723,10 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                               if (_targetUserName != null) ...[
                                 Text(
                                   _targetUserName!,
-                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ],
                               Text(
@@ -731,8 +772,15 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                           decoration: InputDecoration(
                             hintText: "Enter your password",
                             suffixIcon: IconButton(
-                              icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
-                              onPressed: () => setState(() => _showPassword = !_showPassword),
+                              icon: Icon(
+                                _showPassword
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                              ),
+                              onPressed:
+                                  () => setState(
+                                    () => _showPassword = !_showPassword,
+                                  ),
                             ),
                             contentPadding: const EdgeInsets.symmetric(
                               vertical: 15,
@@ -772,9 +820,12 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                           children: [
                             LinearProgressIndicator(
                               value: (_passwordScore / 4).clamp(0.0, 1.0),
-                              color: _passwordScore >= 3
-                                  ? Colors.green
-                                  : (_passwordScore == 2 ? Colors.orange : Colors.red),
+                              color:
+                                  _passwordScore >= 3
+                                      ? Colors.green
+                                      : (_passwordScore == 2
+                                          ? Colors.orange
+                                          : Colors.red),
                               backgroundColor: Colors.grey[200],
                               minHeight: 6,
                             ),
@@ -782,12 +833,17 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                             Text(
                               _passwordScore >= 3
                                   ? 'Strong password'
-                                  : (_passwordScore == 2 ? 'Medium strength' : 'Weak password'),
+                                  : (_passwordScore == 2
+                                      ? 'Medium strength'
+                                      : 'Weak password'),
                               style: TextStyle(
                                 fontSize: 12,
-                                color: _passwordScore >= 3
-                                    ? Colors.green[700]
-                                    : (_passwordScore == 2 ? Colors.orange[700] : Colors.red[700]),
+                                color:
+                                    _passwordScore >= 3
+                                        ? Colors.green[700]
+                                        : (_passwordScore == 2
+                                            ? Colors.orange[700]
+                                            : Colors.red[700]),
                               ),
                             ),
                             if (_passwordSuggestions.isNotEmpty) ...[
@@ -795,9 +851,15 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                               Wrap(
                                 spacing: 8,
                                 runSpacing: 6,
-                                children: _passwordSuggestions
-                                    .map((s) => Chip(label: Text(s), backgroundColor: Colors.grey[100]))
-                                    .toList(),
+                                children:
+                                    _passwordSuggestions
+                                        .map(
+                                          (s) => Chip(
+                                            label: Text(s),
+                                            backgroundColor: Colors.grey[100],
+                                          ),
+                                        )
+                                        .toList(),
                               ),
                             ],
                           ],
@@ -819,8 +881,17 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                           decoration: InputDecoration(
                             hintText: "Confirm your password",
                             suffixIcon: IconButton(
-                              icon: Icon(_showConfirmPassword ? Icons.visibility_off : Icons.visibility),
-                              onPressed: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
+                              icon: Icon(
+                                _showConfirmPassword
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                              ),
+                              onPressed:
+                                  () => setState(
+                                    () =>
+                                        _showConfirmPassword =
+                                            !_showConfirmPassword,
+                                  ),
                             ),
                             contentPadding: const EdgeInsets.symmetric(
                               vertical: 15,
@@ -866,47 +937,50 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                             borderRadius: BorderRadius.circular(4),
                           ),
                         ),
-                        child: _isSubmitting
-                            ? Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor:
-                                          AlwaysStoppedAnimation<Color>(
-                                              Colors.white),
+                        child:
+                            _isSubmitting
+                                ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    _resetCode != null
-                                        ? "Resetting..."
-                                        : (_accessToken != null
-                                            ? "Creating..."
-                                            : "Updating..."),
-                                    style: const TextStyle(fontSize: 16),
-                                  ),
-                                ],
-                              )
-                            : Text(
-                                _resetCode != null
-                                    ? "Reset Password"
-                                    : (_accessToken != null
-                                        ? "Create Account"
-                                        : "Update Password"),
-                                style: const TextStyle(fontSize: 16),
-                              ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      _resetCode != null
+                                          ? "Resetting..."
+                                          : (_accessToken != null
+                                              ? "Creating..."
+                                              : "Updating..."),
+                                      style: const TextStyle(fontSize: 16),
+                                    ),
+                                  ],
+                                )
+                                : Text(
+                                  _resetCode != null
+                                      ? "Reset Password"
+                                      : (_accessToken != null
+                                          ? "Create Account"
+                                          : "Update Password"),
+                                  style: const TextStyle(fontSize: 16),
+                                ),
                       ),
                     ),
                     const SizedBox(height: 16),
                     TextButton(
-                      onPressed: _isSubmitting
-                          ? null
-                          : () => Navigator.of(
+                      onPressed:
+                          _isSubmitting
+                              ? null
+                              : () => Navigator.of(
                                 context,
                               ).pushReplacementNamed(LoginScreen.routeName),
                       style: TextButton.styleFrom(

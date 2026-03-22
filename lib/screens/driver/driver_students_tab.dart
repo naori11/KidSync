@@ -35,7 +35,7 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
   Future<void> _loadTodayStudents() async {
     int retryCount = 0;
     const maxRetries = 3;
-    
+
     while (retryCount < maxRetries) {
       try {
         setState(() {
@@ -51,9 +51,9 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
         final currentUserId = currentUser.id;
 
         // Use the new service method with timeout
-        final studentsData = await _driverService.getTodaysStudentsWithPatterns(
-          currentUserId,
-        ).timeout(Duration(seconds: 10)); // Add timeout
+        final studentsData = await _driverService
+            .getTodaysStudentsWithPatterns(currentUserId)
+            .timeout(Duration(seconds: 10)); // Add timeout
 
         setState(() {
           todayStudents = studentsData['all_students'];
@@ -66,17 +66,19 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
         print('Morning pickup tasks: ${morningPickupStudents.length}');
         print('Afternoon dropoff tasks: ${afternoonDropoffStudents.length}');
         break; // Success, exit retry loop
-        
       } catch (e) {
         retryCount++;
         print('Error loading today\'s students (attempt $retryCount): $e');
-        
+
         if (retryCount >= maxRetries) {
           setState(() {
-            error = 'Failed to load students after $maxRetries attempts: ${e.toString()}';
+            error =
+                'Failed to load students after $maxRetries attempts: ${e.toString()}';
             isLoading = false;
           });
-          _showErrorSnackBar('Failed to load students after $maxRetries attempts');
+          _showErrorSnackBar(
+            'Failed to load students after $maxRetries attempts',
+          );
         } else {
           // Exponential backoff
           await Future.delayed(Duration(seconds: retryCount * 2));
@@ -407,16 +409,17 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
                 backgroundColor: color.withOpacity(0.1),
                 radius: 24,
                 backgroundImage: _getStudentProfileImage(student),
-                child: _getStudentProfileImage(student) == null
-                    ? Text(
-                        '${student['fname'][0]}${student['lname'][0]}',
-                        style: TextStyle(
-                          color: color,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      )
-                    : null,
+                child:
+                    _getStudentProfileImage(student) == null
+                        ? Text(
+                          '${student['fname'][0]}${student['lname'][0]}',
+                          style: TextStyle(
+                            color: color,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        )
+                        : null,
               ),
               const SizedBox(width: 12),
 
@@ -720,16 +723,17 @@ class _DriverStudentsTabState extends State<DriverStudentsTab> {
                 backgroundColor: widget.primaryColor.withOpacity(0.1),
                 radius: 24,
                 backgroundImage: _getStudentProfileImage(student),
-                child: _getStudentProfileImage(student) == null
-                    ? Text(
-                        '${student['fname'][0]}${student['lname'][0]}',
-                        style: TextStyle(
-                          color: widget.primaryColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      )
-                    : null,
+                child:
+                    _getStudentProfileImage(student) == null
+                        ? Text(
+                          '${student['fname'][0]}${student['lname'][0]}',
+                          style: TextStyle(
+                            color: widget.primaryColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        )
+                        : null,
               ),
               const SizedBox(width: 16),
               Expanded(

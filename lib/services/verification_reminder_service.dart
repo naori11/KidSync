@@ -2,7 +2,8 @@ import 'dart:async';
 import 'verification_service.dart';
 
 class VerificationReminderService {
-  static final VerificationReminderService _instance = VerificationReminderService._internal();
+  static final VerificationReminderService _instance =
+      VerificationReminderService._internal();
   factory VerificationReminderService() => _instance;
   VerificationReminderService._internal();
 
@@ -14,15 +15,15 @@ class VerificationReminderService {
   /// This will check for pending verifications every 15 minutes and send reminders
   void startReminderService() {
     if (_isRunning) return;
-    
+
     _isRunning = true;
     print('Starting verification reminder service...');
-    
+
     // Send reminders every 15 minutes
     _reminderTimer = Timer.periodic(const Duration(minutes: 15), (timer) {
       _sendReminders();
     });
-    
+
     // Send initial reminders immediately
     _sendReminders();
   }
@@ -30,7 +31,7 @@ class VerificationReminderService {
   /// Stop the reminder service
   void stopReminderService() {
     if (!_isRunning) return;
-    
+
     _isRunning = false;
     _reminderTimer?.cancel();
     _reminderTimer = null;

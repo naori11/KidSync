@@ -24,9 +24,11 @@ class FetchersScreen extends StatefulWidget {
 class _FetchersScreenState extends State<FetchersScreen> {
   // Enhanced controllers for all fields
   final TextEditingController _fetcherNameController = TextEditingController();
-  final TextEditingController _contactNumberController = TextEditingController();
+  final TextEditingController _contactNumberController =
+      TextEditingController();
   final TextEditingController _idNumberController = TextEditingController();
-  final TextEditingController _emergencyContactController = TextEditingController();
+  final TextEditingController _emergencyContactController =
+      TextEditingController();
   final TextEditingController _notesController = TextEditingController();
 
   final supabase = Supabase.instance.client;
@@ -42,13 +44,25 @@ class _FetchersScreenState extends State<FetchersScreen> {
 
   // Dropdown options
   final List<String> _relationships = [
-    'Parent', 'Guardian', 'Grandparent', 'Uncle', 'Aunt',
-    'Sibling', 'Family Friend', 'Relative', 'Other',
+    'Parent',
+    'Guardian',
+    'Grandparent',
+    'Uncle',
+    'Aunt',
+    'Sibling',
+    'Family Friend',
+    'Relative',
+    'Other',
   ];
 
   final List<String> _idTypes = [
-    'Driver\'s License', 'Government ID', 'Passport', 'Senior Citizen ID',
-    'PWD ID', 'Company ID', 'Other Valid ID',
+    'Driver\'s License',
+    'Government ID',
+    'Passport',
+    'Senior Citizen ID',
+    'PWD ID',
+    'Company ID',
+    'Other Valid ID',
   ];
 
   // Add these new variables for fetchers data
@@ -101,18 +115,20 @@ class _FetchersScreenState extends State<FetchersScreen> {
       setState(() => isLoadingFetchers = true);
 
       // Get student name for display
-      final studentResponse = await supabase
-          .from('students')
-          .select('fname, mname, lname')
-          .eq('id', currentStudentId!)
-          .maybeSingle();
+      final studentResponse =
+          await supabase
+              .from('students')
+              .select('fname, mname, lname')
+              .eq('id', currentStudentId!)
+              .maybeSingle();
 
       if (studentResponse != null) {
         final fname = studentResponse['fname'] ?? '';
         final mname = studentResponse['mname'] ?? '';
         final lname = studentResponse['lname'] ?? '';
         setState(() {
-          childName = '$fname${mname.isNotEmpty ? ' $mname' : ''} $lname'.trim();
+          childName =
+              '$fname${mname.isNotEmpty ? ' $mname' : ''} $lname'.trim();
         });
       }
 
@@ -134,7 +150,9 @@ class _FetchersScreenState extends State<FetchersScreen> {
           .eq('parents.users.role', 'Parent');
 
       final List<AuthorizedFetcher> fetchers =
-          fetchersResponse.map((data) => AuthorizedFetcher.fromJson(data)).toList();
+          fetchersResponse
+              .map((data) => AuthorizedFetcher.fromJson(data))
+              .toList();
 
       // Sort: primary first, then by relationship type
       fetchers.sort((a, b) {
@@ -197,11 +215,17 @@ class _FetchersScreenState extends State<FetchersScreen> {
           .from('temporary_fetchers')
           .select('status, is_used, created_at')
           .eq('student_id', studentId)
-          .gte('created_at', DateTime.now().subtract(Duration(days: 30)).toIso8601String());
+          .gte(
+            'created_at',
+            DateTime.now().subtract(Duration(days: 30)).toIso8601String(),
+          );
 
       final total = response.length;
       final used = response.where((r) => r['is_used'] == true).length;
-      final active = response.where((r) => r['status'] == 'active' && r['is_used'] != true).length;
+      final active =
+          response
+              .where((r) => r['status'] == 'active' && r['is_used'] != true)
+              .length;
 
       return {
         'total': total,
@@ -254,7 +278,10 @@ class _FetchersScreenState extends State<FetchersScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     if (currentStudentId == null) {
-      _showErrorDialog('Error', 'Student information not found. Please try again.');
+      _showErrorDialog(
+        'Error',
+        'Student information not found. Please try again.',
+      );
       return;
     }
 
@@ -264,18 +291,21 @@ class _FetchersScreenState extends State<FetchersScreen> {
       final user = supabase.auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
-      final parentResponse = await supabase
-          .from('parents')
-          .select('id')
-          .eq('user_id', user.id)
-          .single();
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('id')
+              .eq('user_id', user.id)
+              .single();
 
       final parentId = parentResponse['id'];
 
       // Check daily limit
       final canCreate = await _checkDailyLimit(parentId, currentStudentId!);
       if (!canCreate) {
-        throw Exception('Daily limit reached. You can only create 3 temporary fetchers per day.');
+        throw Exception(
+          'Daily limit reached. You can only create 3 temporary fetchers per day.',
+        );
       }
 
       // Generate unique PIN
@@ -287,13 +317,14 @@ class _FetchersScreenState extends State<FetchersScreen> {
         pin = _generatePin();
         final today = DateTime.now().toIso8601String().split('T')[0];
 
-        final existingPin = await supabase
-            .from('temporary_fetchers')
-            .select('id')
-            .eq('pin_code', pin)
-            .eq('valid_date', today)
-            .eq('status', 'active')
-            .maybeSingle();
+        final existingPin =
+            await supabase
+                .from('temporary_fetchers')
+                .select('id')
+                .eq('pin_code', pin)
+                .eq('valid_date', today)
+                .eq('status', 'active')
+                .maybeSingle();
 
         isUnique = existingPin == null;
         attempts++;
@@ -313,12 +344,14 @@ class _FetchersScreenState extends State<FetchersScreen> {
         'id_type': _selectedIdType,
         'id_number': _idNumberController.text.trim(),
         'pin_code': pin,
-        'emergency_contact': _emergencyContactController.text.trim().isEmpty
-            ? null
-            : _emergencyContactController.text.trim(),
-        'notes': _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
+        'emergency_contact':
+            _emergencyContactController.text.trim().isEmpty
+                ? null
+                : _emergencyContactController.text.trim(),
+        'notes':
+            _notesController.text.trim().isEmpty
+                ? null
+                : _notesController.text.trim(),
         'valid_date': DateTime.now().toIso8601String().split('T')[0],
         'status': 'active',
       };
@@ -342,12 +375,14 @@ class _FetchersScreenState extends State<FetchersScreen> {
         contactNumber: _contactNumberController.text.trim(),
         idType: _selectedIdType,
         idNumber: _idNumberController.text.trim(),
-        emergencyContact: _emergencyContactController.text.trim().isEmpty
-            ? null
-            : _emergencyContactController.text.trim(),
-        notes: _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
+        emergencyContact:
+            _emergencyContactController.text.trim().isEmpty
+                ? null
+                : _emergencyContactController.text.trim(),
+        notes:
+            _notesController.text.trim().isEmpty
+                ? null
+                : _notesController.text.trim(),
       );
 
       // Refresh the temporary fetchers list
@@ -386,7 +421,9 @@ class _FetchersScreenState extends State<FetchersScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Row(
             children: [
               Icon(Icons.check_circle, color: widget.primaryColor, size: 24),
@@ -401,7 +438,9 @@ class _FetchersScreenState extends State<FetchersScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: widget.primaryColor,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               child: Text('OK'),
             ),
@@ -416,7 +455,9 @@ class _FetchersScreenState extends State<FetchersScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Row(
             children: [
               Icon(Icons.error_outline, color: Colors.red, size: 24),
@@ -431,7 +472,9 @@ class _FetchersScreenState extends State<FetchersScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: widget.primaryColor,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               child: Text('OK'),
             ),
@@ -476,7 +519,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
     const Color white = Color(0xFFFFFFFF);
     const Color greenWithOpacity = Color.fromRGBO(25, 174, 97, 0.6);
 
-        // Show message if no student selected
+    // Show message if no student selected
     if (currentStudentId == null) {
       return Center(
         child: Column(
@@ -598,8 +641,15 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                   label: 'Relationship *',
                                   hint: 'Select relationship',
                                   items: _relationships,
-                                  onChanged: (value) => setState(() => _selectedRelationship = value),
-                                  validator: (value) => value == null ? 'Relationship is required' : null,
+                                  onChanged:
+                                      (value) => setState(
+                                        () => _selectedRelationship = value,
+                                      ),
+                                  validator:
+                                      (value) =>
+                                          value == null
+                                              ? 'Relationship is required'
+                                              : null,
                                 ),
                               ] else ...[
                                 Row(
@@ -620,8 +670,16 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                         label: 'Relationship *',
                                         hint: 'Select relationship',
                                         items: _relationships,
-                                        onChanged: (value) => setState(() => _selectedRelationship = value),
-                                        validator: (value) => value == null ? 'Relationship is required' : null,
+                                        onChanged:
+                                            (value) => setState(
+                                              () =>
+                                                  _selectedRelationship = value,
+                                            ),
+                                        validator:
+                                            (value) =>
+                                                value == null
+                                                    ? 'Relationship is required'
+                                                    : null,
                                       ),
                                     ),
                                   ],
@@ -680,8 +738,15 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                   label: 'Valid ID Type *',
                                   hint: 'Select ID type',
                                   items: _idTypes,
-                                  onChanged: (value) => setState(() => _selectedIdType = value),
-                                  validator: (value) => value == null ? 'ID type is required' : null,
+                                  onChanged:
+                                      (value) => setState(
+                                        () => _selectedIdType = value,
+                                      ),
+                                  validator:
+                                      (value) =>
+                                          value == null
+                                              ? 'ID type is required'
+                                              : null,
                                 ),
                                 SizedBox(height: 12),
                                 _buildTextFormField(
@@ -699,8 +764,15 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                         label: 'Valid ID Type *',
                                         hint: 'Select ID type',
                                         items: _idTypes,
-                                        onChanged: (value) => setState(() => _selectedIdType = value),
-                                        validator: (value) => value == null ? 'ID type is required' : null,
+                                        onChanged:
+                                            (value) => setState(
+                                              () => _selectedIdType = value,
+                                            ),
+                                        validator:
+                                            (value) =>
+                                                value == null
+                                                    ? 'ID type is required'
+                                                    : null,
                                       ),
                                     ),
                                     SizedBox(width: 12),
@@ -743,29 +815,36 @@ class _FetchersScreenState extends State<FetchersScreen> {
                                     ),
                                     elevation: 2,
                                   ),
-                                  icon: _isGeneratingPin
-                                      ? SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(
-                                              white,
+                                  icon:
+                                      _isGeneratingPin
+                                          ? SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    white,
+                                                  ),
                                             ),
+                                          )
+                                          : Icon(
+                                            Icons.security,
+                                            size: widget.isMobile ? 18 : 20,
                                           ),
-                                        )
-                                      : Icon(
-                                          Icons.security,
-                                          size: widget.isMobile ? 18 : 20,
-                                        ),
                                   label: Text(
-                                    _isGeneratingPin ? 'Generating...' : 'Generate Secure PIN',
+                                    _isGeneratingPin
+                                        ? 'Generating...'
+                                        : 'Generate Secure PIN',
                                     style: TextStyle(
                                       fontSize: widget.isMobile ? 14 : 15,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  onPressed: _isGeneratingPin ? null : _generateAndSaveTemporaryFetcher,
+                                  onPressed:
+                                      _isGeneratingPin
+                                          ? null
+                                          : _generateAndSaveTemporaryFetcher,
                                 ),
                               ),
                             ],
@@ -1127,7 +1206,7 @@ class _FetchersScreenState extends State<FetchersScreen> {
     const Color black = Color(0xFF000000);
     const Color white = Color(0xFFFFFFFF);
 
-  final bool isUsed = fetcher['is_used'] == true;
+    final bool isUsed = fetcher['is_used'] == true;
 
     return Container(
       margin: EdgeInsets.only(bottom: 12),

@@ -75,9 +75,10 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
         break;
       case 'This Month':
         start = DateTime(now.year, now.month, 1);
-        end = (now.month < 12)
-            ? DateTime(now.year, now.month + 1, 1)
-            : DateTime(now.year + 1, 1, 1);
+        end =
+            (now.month < 12)
+                ? DateTime(now.year, now.month + 1, 1)
+                : DateTime(now.year + 1, 1, 1);
         break;
       default:
         start = DateTime(now.year, now.month, now.day);
@@ -100,17 +101,21 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
       ),
       builder: (context) {
         final timeFiltered = _applyTimePeriodFilter(activities);
-        final tempCount = timeFiltered.where((a) => a.isTemporaryFetcher).length;
-        final earlyCount = timeFiltered
-            .where((a) => a.isEarlyDismissal || a.isVeryEarlyDismissal)
-            .length;
-        final emergencyCount = timeFiltered.where((a) => a.isEmergencyExit).length;
+        final tempCount =
+            timeFiltered.where((a) => a.isTemporaryFetcher).length;
+        final earlyCount =
+            timeFiltered
+                .where((a) => a.isEarlyDismissal || a.isVeryEarlyDismissal)
+                .length;
+        final emergencyCount =
+            timeFiltered.where((a) => a.isEmergencyExit).length;
 
-        String selected = showTempFetchersOnly
-            ? 'Temp Fetchers'
-            : (showEarlyDismissalOnly
-                ? 'Early Dismissal'
-                : (showEmergencyExitOnly ? 'Emergency' : 'All'));
+        String selected =
+            showTempFetchersOnly
+                ? 'Temp Fetchers'
+                : (showEarlyDismissalOnly
+                    ? 'Early Dismissal'
+                    : (showEmergencyExitOnly ? 'Emergency' : 'All'));
 
         Widget buildOption({
           required String label,
@@ -150,7 +155,10 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                     const SizedBox(width: 8),
                     const Text(
                       'Filter',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const Spacer(),
                     TextButton(
@@ -162,7 +170,10 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                         });
                         Navigator.pop(context);
                       },
-                      child: const Text('Clear', style: TextStyle(color: Colors.redAccent)),
+                      child: const Text(
+                        'Clear',
+                        style: TextStyle(color: Colors.redAccent),
+                      ),
                     ),
                   ],
                 ),
@@ -217,21 +228,27 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
 
           bool matchesTempFilter =
               !showTempFetchersOnly || activity.isTemporaryFetcher;
-              
+
           bool matchesEarlyDismissalFilter =
-              !showEarlyDismissalOnly || (activity.isEarlyDismissal || activity.isVeryEarlyDismissal);
-              
+              !showEarlyDismissalOnly ||
+              (activity.isEarlyDismissal || activity.isVeryEarlyDismissal);
+
           bool matchesEmergencyExitFilter =
               !showEmergencyExitOnly || activity.isEmergencyExit;
 
-          return matchesSearch && matchesTempFilter && matchesEarlyDismissalFilter && matchesEmergencyExitFilter;
+          return matchesSearch &&
+              matchesTempFilter &&
+              matchesEarlyDismissalFilter &&
+              matchesEmergencyExitFilter;
         }).toList();
 
     // Count different activity types
     final tempFetcherCount =
         timeFiltered.where((a) => a.isTemporaryFetcher).length;
     final earlyDismissalCount =
-        timeFiltered.where((a) => a.isEarlyDismissal || a.isVeryEarlyDismissal).length;
+        timeFiltered
+            .where((a) => a.isEarlyDismissal || a.isVeryEarlyDismissal)
+            .length;
     final emergencyExitCount =
         timeFiltered.where((a) => a.isEmergencyExit).length;
 
@@ -259,12 +276,12 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
 
               // Temporary Fetcher Filter Toggle (removed in favor of dropdown menu)
               const SizedBox.shrink(),
-              
+
               SizedBox(width: 8),
 
               // Emergency Exit Filter Toggle (removed in favor of dropdown menu)
               const SizedBox.shrink(),
-              
+
               Spacer(),
 
               SizedBox(
@@ -281,7 +298,11 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                     ),
                     suffixIcon: IconButton(
                       tooltip: 'Clear search',
-                      icon: Icon(Icons.clear, size: 16, color: Colors.grey[600]),
+                      icon: Icon(
+                        Icons.clear,
+                        size: 16,
+                        color: Colors.grey[600],
+                      ),
                       onPressed: () {
                         widget.searchController.clear();
                         widget.onSearchChanged('');
@@ -343,16 +364,27 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                   constraints: const BoxConstraints(minWidth: 240),
                   itemBuilder: (context) {
                     final bool none =
-                        !showTempFetchersOnly && !showEarlyDismissalOnly && !showEmergencyExitOnly;
+                        !showTempFetchersOnly &&
+                        !showEarlyDismissalOnly &&
+                        !showEmergencyExitOnly;
                     return [
                       PopupMenuItem<String>(
                         value: 'All',
                         child: Row(
                           children: [
-                            Icon(Icons.select_all, color: Colors.grey[700], size: 18),
+                            Icon(
+                              Icons.select_all,
+                              color: Colors.grey[700],
+                              size: 18,
+                            ),
                             const SizedBox(width: 8),
                             const Expanded(child: Text('All')),
-                            if (none) Icon(Icons.check, size: 16, color: Colors.green[700]),
+                            if (none)
+                              Icon(
+                                Icons.check,
+                                size: 16,
+                                color: Colors.green[700],
+                              ),
                           ],
                         ),
                       ),
@@ -361,11 +393,21 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                         value: 'Temp',
                         child: Row(
                           children: [
-                            const Icon(Icons.pin, color: Colors.orange, size: 18),
+                            const Icon(
+                              Icons.pin,
+                              color: Colors.orange,
+                              size: 18,
+                            ),
                             const SizedBox(width: 8),
-                            Expanded(child: Text('Temp Fetchers ($tempFetcherCount)')),
+                            Expanded(
+                              child: Text('Temp Fetchers ($tempFetcherCount)'),
+                            ),
                             if (showTempFetchersOnly)
-                              Icon(Icons.check, size: 16, color: Colors.green[700]),
+                              Icon(
+                                Icons.check,
+                                size: 16,
+                                color: Colors.green[700],
+                              ),
                           ],
                         ),
                       ),
@@ -373,11 +415,23 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                         value: 'Early',
                         child: Row(
                           children: [
-                            Icon(Icons.schedule_outlined, color: Colors.amber[700], size: 18),
+                            Icon(
+                              Icons.schedule_outlined,
+                              color: Colors.amber[700],
+                              size: 18,
+                            ),
                             const SizedBox(width: 8),
-                            Expanded(child: Text('Early Dismissal ($earlyDismissalCount)')),
+                            Expanded(
+                              child: Text(
+                                'Early Dismissal ($earlyDismissalCount)',
+                              ),
+                            ),
                             if (showEarlyDismissalOnly)
-                              Icon(Icons.check, size: 16, color: Colors.green[700]),
+                              Icon(
+                                Icons.check,
+                                size: 16,
+                                color: Colors.green[700],
+                              ),
                           ],
                         ),
                       ),
@@ -385,18 +439,31 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                         value: 'Emergency',
                         child: Row(
                           children: [
-                            Icon(Icons.emergency, color: Colors.red[700], size: 18),
+                            Icon(
+                              Icons.emergency,
+                              color: Colors.red[700],
+                              size: 18,
+                            ),
                             const SizedBox(width: 8),
-                            Expanded(child: Text('Emergency ($emergencyExitCount)')),
+                            Expanded(
+                              child: Text('Emergency ($emergencyExitCount)'),
+                            ),
                             if (showEmergencyExitOnly)
-                              Icon(Icons.check, size: 16, color: Colors.green[700]),
+                              Icon(
+                                Icons.check,
+                                size: 16,
+                                color: Colors.green[700],
+                              ),
                           ],
                         ),
                       ),
                     ];
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       border: Border.all(color: Colors.grey[300]!),
@@ -412,14 +479,22 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.filter_list, size: 18, color: Color(0xFF19AE61)),
+                        const Icon(
+                          Icons.filter_list,
+                          size: 18,
+                          color: Color(0xFF19AE61),
+                        ),
                         const SizedBox(width: 8),
                         const Text(
                           'Filter',
                           style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(width: 6),
-                        Icon(Icons.keyboard_arrow_down, size: 18, color: Colors.grey[700]),
+                        Icon(
+                          Icons.keyboard_arrow_down,
+                          size: 18,
+                          color: Colors.grey[700],
+                        ),
                       ],
                     ),
                   ),
@@ -446,7 +521,10 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
               ),
               child: Table(
                 border: TableBorder(
-                  horizontalInside: BorderSide(color: Colors.grey[200]!, width: 1),
+                  horizontalInside: BorderSide(
+                    color: Colors.grey[200]!,
+                    width: 1,
+                  ),
                 ),
                 columnWidths: {
                   0: const FlexColumnWidth(1.5), // Time
@@ -463,7 +541,10 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8F9FA),
                       border: Border(
-                        bottom: BorderSide(color: const Color(0xFFE0E0E0), width: 2),
+                        bottom: BorderSide(
+                          color: const Color(0xFFE0E0E0),
+                          width: 2,
+                        ),
                       ),
                     ),
                     children: [
@@ -533,17 +614,29 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                                   children: [
                                     // Show special exit type badges
                                     if (activity.isVeryEarlyDismissal) ...[
-                                      _buildExitTypeBadge('Very Early', Colors.red),
+                                      _buildExitTypeBadge(
+                                        'Very Early',
+                                        Colors.red,
+                                      ),
                                       const SizedBox(width: 4),
                                     ] else if (activity.isEarlyDismissal) ...[
-                                      _buildExitTypeBadge('Early Dismissal', Colors.orange),
+                                      _buildExitTypeBadge(
+                                        'Early Dismissal',
+                                        Colors.orange,
+                                      ),
                                       const SizedBox(width: 4),
                                     ] else if (activity.isEmergencyExit) ...[
-                                      _buildExitTypeBadge('Emergency', Colors.red[800]!),
+                                      _buildExitTypeBadge(
+                                        'Emergency',
+                                        Colors.red[800]!,
+                                      ),
                                       const SizedBox(width: 4),
                                     ],
                                     if (activity.isTemporaryFetcher) ...[
-                                      _buildExitTypeBadge('Temp', Colors.orange),
+                                      _buildExitTypeBadge(
+                                        'Temp',
+                                        Colors.orange,
+                                      ),
                                       const SizedBox(width: 4),
                                     ],
                                   ],
@@ -1038,26 +1131,34 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                     ],
 
                     // Additional Information Section for Special Exit Types
-                    if (activity.isEarlyDismissal || activity.isVeryEarlyDismissal || activity.isEmergencyExit) ...[
+                    if (activity.isEarlyDismissal ||
+                        activity.isVeryEarlyDismissal ||
+                        activity.isEmergencyExit) ...[
                       SizedBox(height: 20),
                       _buildSectionHeader(
-                        activity.isEmergencyExit ? 'Emergency Exit Details' : 'Early Dismissal Details',
-                        activity.isEmergencyExit ? Icons.emergency : Icons.schedule_outlined,
+                        activity.isEmergencyExit
+                            ? 'Emergency Exit Details'
+                            : 'Early Dismissal Details',
+                        activity.isEmergencyExit
+                            ? Icons.emergency
+                            : Icons.schedule_outlined,
                       ),
                       Container(
                         width: double.infinity,
                         padding: EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: activity.isEmergencyExit 
-                              ? Colors.red[50] 
-                              : activity.isVeryEarlyDismissal 
+                          color:
+                              activity.isEmergencyExit
+                                  ? Colors.red[50]
+                                  : activity.isVeryEarlyDismissal
                                   ? Colors.red[50]
                                   : Colors.amber[50],
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: activity.isEmergencyExit 
-                                ? Colors.red[200]! 
-                                : activity.isVeryEarlyDismissal 
+                            color:
+                                activity.isEmergencyExit
+                                    ? Colors.red[200]!
+                                    : activity.isVeryEarlyDismissal
                                     ? Colors.red[200]!
                                     : Colors.amber[200]!,
                           ),
@@ -1073,9 +1174,10 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: activity.isEmergencyExit
-                                        ? Colors.red[100]
-                                        : activity.isVeryEarlyDismissal
+                                    color:
+                                        activity.isEmergencyExit
+                                            ? Colors.red[100]
+                                            : activity.isVeryEarlyDismissal
                                             ? Colors.red[100]
                                             : Colors.amber[100],
                                     borderRadius: BorderRadius.circular(4),
@@ -1084,14 +1186,15 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                                     activity.isEmergencyExit
                                         ? 'EMERGENCY EXIT'
                                         : activity.isVeryEarlyDismissal
-                                            ? 'VERY EARLY DISMISSAL'
-                                            : 'EARLY DISMISSAL',
+                                        ? 'VERY EARLY DISMISSAL'
+                                        : 'EARLY DISMISSAL',
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
-                                      color: activity.isEmergencyExit
-                                          ? Colors.red[700]
-                                          : activity.isVeryEarlyDismissal
+                                      color:
+                                          activity.isEmergencyExit
+                                              ? Colors.red[700]
+                                              : activity.isVeryEarlyDismissal
                                               ? Colors.red[700]
                                               : Colors.amber[700],
                                     ),
@@ -1186,12 +1289,16 @@ class _RecentActivityPageState extends State<RecentActivityPage> {
                             activity.isTemporaryFetcher
                                 ? 'PIN Verification'
                                 : (activity.action == 'exit'
-                                    ? (activity.isEmergencyExit || activity.isEarlyDismissal || activity.isVeryEarlyDismissal
+                                    ? (activity.isEmergencyExit ||
+                                            activity.isEarlyDismissal ||
+                                            activity.isVeryEarlyDismissal
                                         ? 'Guard Override Authorization'
                                         : 'Guard Approval')
                                     : 'RFID Entry'),
                           ),
-                          if (activity.isEarlyDismissal || activity.isVeryEarlyDismissal || activity.isEmergencyExit)
+                          if (activity.isEarlyDismissal ||
+                              activity.isVeryEarlyDismissal ||
+                              activity.isEmergencyExit)
                             _detailRowInContainer(
                               'Schedule Override',
                               'Schedule validation bypassed - Special authorization',

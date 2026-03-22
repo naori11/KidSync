@@ -56,11 +56,22 @@ class TimeUtils {
   /// Get end of day in PST (23:59:59.999)
   static DateTime endOfDayPST([DateTime? date]) {
     final targetDate = date ?? nowPST();
-    return DateTime(targetDate.year, targetDate.month, targetDate.day, 23, 59, 59, 999);
+    return DateTime(
+      targetDate.year,
+      targetDate.month,
+      targetDate.day,
+      23,
+      59,
+      59,
+      999,
+    );
   }
 
   /// Format PST DateTime for display
-  static String formatForDisplay(DateTime? pstDateTime, [String pattern = 'MMM dd, yyyy h:mm a']) {
+  static String formatForDisplay(
+    DateTime? pstDateTime, [
+    String pattern = 'MMM dd, yyyy h:mm a',
+  ]) {
     if (pstDateTime == null) return '';
     return DateFormat(pattern).format(pstDateTime);
   }
@@ -87,8 +98,8 @@ class TimeUtils {
   static bool isToday(DateTime pstDateTime) {
     final today = todayPST();
     return pstDateTime.year == today.year &&
-           pstDateTime.month == today.month &&
-           pstDateTime.day == today.day;
+        pstDateTime.month == today.month &&
+        pstDateTime.day == today.day;
   }
 
   /// Check if a PST DateTime is in the past (before current PST time)
@@ -105,24 +116,36 @@ class TimeUtils {
   static int daysDifference(DateTime pstDateTime) {
     final now = nowPST();
     final nowDate = DateTime(now.year, now.month, now.day);
-    final targetDate = DateTime(pstDateTime.year, pstDateTime.month, pstDateTime.day);
+    final targetDate = DateTime(
+      pstDateTime.year,
+      pstDateTime.month,
+      pstDateTime.day,
+    );
     return targetDate.difference(nowDate).inDays;
   }
 
   /// Create a PST DateTime from date and time components
-  static DateTime createPST(int year, int month, int day, [int hour = 0, int minute = 0, int second = 0]) {
+  static DateTime createPST(
+    int year,
+    int month,
+    int day, [
+    int hour = 0,
+    int minute = 0,
+    int second = 0,
+  ]) {
     return DateTime(year, month, day, hour, minute, second);
   }
 
   /// Parse time string (HH:MM or HH:MM:SS) and create PST DateTime for today
   static DateTime parseTimeForToday(String timeString) {
     final parts = timeString.split(':');
-    if (parts.length < 2) throw FormatException('Invalid time format: $timeString');
-    
+    if (parts.length < 2)
+      throw FormatException('Invalid time format: $timeString');
+
     final hour = int.parse(parts[0]);
     final minute = int.parse(parts[1]);
     final second = parts.length > 2 ? int.parse(parts[2]) : 0;
-    
+
     final today = todayPST();
     return DateTime(today.year, today.month, today.day, hour, minute, second);
   }
@@ -131,12 +154,12 @@ class TimeUtils {
   static SchoolDayStatus getSchoolDayStatus() {
     final now = nowPST();
     final currentTime = DateTime(2000, 1, 1, now.hour, now.minute);
-    
+
     // Define school hours in PST
     final schoolStart = DateTime(2000, 1, 1, 7, 0); // 7:00 AM
-    final schoolEnd = DateTime(2000, 1, 1, 17, 0);  // 5:00 PM
+    final schoolEnd = DateTime(2000, 1, 1, 17, 0); // 5:00 PM
     final lateThreshold = DateTime(2000, 1, 1, 8, 0); // 8:00 AM
-    
+
     if (currentTime.isBefore(schoolStart)) {
       return SchoolDayStatus.beforeSchool;
     } else if (currentTime.isBefore(lateThreshold)) {
@@ -149,7 +172,10 @@ class TimeUtils {
   }
 
   /// Convert UTC timestamp from database to PST and format for display
-  static String formatDatabaseTimestamp(String? utcTimestamp, [String pattern = 'MMM dd, yyyy h:mm a']) {
+  static String formatDatabaseTimestamp(
+    String? utcTimestamp, [
+    String pattern = 'MMM dd, yyyy h:mm a',
+  ]) {
     if (utcTimestamp == null) return '';
     final pstDateTime = parseFromDatabase(utcTimestamp);
     return formatForDisplay(pstDateTime, pattern);
@@ -166,7 +192,7 @@ class TimeUtils {
     final localNow = DateTime.now();
     final utcNow = DateTime.now().toUtc();
     final pstNow = nowPST();
-    
+
     return {
       'local_time': localNow.toString(),
       'utc_time': utcNow.toString(),
@@ -180,9 +206,4 @@ class TimeUtils {
 }
 
 /// Enum for school day status
-enum SchoolDayStatus {
-  beforeSchool,
-  onTime,
-  duringSchool,
-  afterSchool
-}
+enum SchoolDayStatus { beforeSchool, onTime, duringSchool, afterSchool }

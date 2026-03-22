@@ -20,12 +20,14 @@ class StudentRowWithTicketing extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<StudentRowWithTicketing> createState() => _StudentRowWithTicketingState();
+  State<StudentRowWithTicketing> createState() =>
+      _StudentRowWithTicketingState();
 }
 
 class _StudentRowWithTicketingState extends State<StudentRowWithTicketing> {
-  final AttendanceTicketingService _ticketingService = AttendanceTicketingService();
-  
+  final AttendanceTicketingService _ticketingService =
+      AttendanceTicketingService();
+
   bool _isLoading = true;
   int _consecutiveAbsences = 0;
   NotificationStatusType _notificationStatus = NotificationStatusType.none;
@@ -43,10 +45,11 @@ class _StudentRowWithTicketingState extends State<StudentRowWithTicketing> {
 
     try {
       // Load consecutive absences
-      final consecutiveAbsences = await _ticketingService.getConsecutiveAbsences(
-        studentId: widget.student['id'],
-        sectionId: widget.section['id'],
-      );
+      final consecutiveAbsences = await _ticketingService
+          .getConsecutiveAbsences(
+            studentId: widget.student['id'],
+            sectionId: widget.section['id'],
+          );
 
       // Load ticket status
       final ticketStatus = await _ticketingService.getTicketStatus(
@@ -56,11 +59,12 @@ class _StudentRowWithTicketingState extends State<StudentRowWithTicketing> {
 
       setState(() {
         _consecutiveAbsences = consecutiveAbsences;
-        
+
         if (ticketStatus['hasTicket']) {
-          _notificationStatus = ticketStatus['isResolved'] 
-              ? NotificationStatusType.resolved 
-              : NotificationStatusType.pending;
+          _notificationStatus =
+              ticketStatus['isResolved']
+                  ? NotificationStatusType.resolved
+                  : NotificationStatusType.pending;
         } else {
           _notificationStatus = NotificationStatusType.none;
         }
@@ -97,23 +101,25 @@ class _StudentRowWithTicketingState extends State<StudentRowWithTicketing> {
           CircleAvatar(
             radius: 24,
             backgroundColor: const Color(0xFFE5E7EB),
-            backgroundImage: widget.student['profile_image_url'] != null 
-                ? NetworkImage(widget.student['profile_image_url'])
-                : null,
-            child: widget.student['profile_image_url'] == null
-                ? Text(
-                    studentName[0].toUpperCase(),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF374151),
-                      fontSize: 18,
-                    ),
-                  )
-                : null,
+            backgroundImage:
+                widget.student['profile_image_url'] != null
+                    ? NetworkImage(widget.student['profile_image_url'])
+                    : null,
+            child:
+                widget.student['profile_image_url'] == null
+                    ? Text(
+                      studentName[0].toUpperCase(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF374151),
+                        fontSize: 18,
+                      ),
+                    )
+                    : null,
           ),
-          
+
           const SizedBox(width: 16),
-          
+
           // Student info
           Expanded(
             child: Column(
@@ -145,9 +151,9 @@ class _StudentRowWithTicketingState extends State<StudentRowWithTicketing> {
                     ],
                   ],
                 ),
-                
+
                 const SizedBox(height: 4),
-                
+
                 Text(
                   widget.section['name'],
                   style: const TextStyle(
@@ -156,7 +162,7 @@ class _StudentRowWithTicketingState extends State<StudentRowWithTicketing> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                
+
                 if (!_isLoading && _consecutiveAbsences > 0) ...[
                   const SizedBox(height: 6),
                   Text(
@@ -171,9 +177,9 @@ class _StudentRowWithTicketingState extends State<StudentRowWithTicketing> {
               ],
             ),
           ),
-          
+
           const SizedBox(width: 16),
-          
+
           // Action buttons
           if (!_isLoading)
             SmartAttendanceButton(
@@ -192,11 +198,7 @@ class _StudentRowWithTicketingState extends State<StudentRowWithTicketing> {
             const SizedBox(
               width: 120,
               height: 36,
-              child: Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                ),
-              ),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             ),
         ],
       ),

@@ -289,18 +289,24 @@ class DriverAssignment {
         pickupTime: json['pickup_time']?.toString(),
         dropoffTime: json['dropoff_time']?.toString(),
         pickupAddress: json['pickup_address']?.toString(),
-        scheduleDays: json['schedule_days'] != null 
-            ? List<String>.from(json['schedule_days'])
-            : null,
+        scheduleDays:
+            json['schedule_days'] != null
+                ? List<String>.from(json['schedule_days'])
+                : null,
         status: json['status']?.toString() ?? 'active',
         notes: json['notes']?.toString(),
-        createdAt: json['created_at'] != null 
-            ? DateTime.parse(json['created_at'].toString()) 
-            : DateTime.now(),
-        updatedAt: json['updated_at'] != null 
-            ? DateTime.parse(json['updated_at'].toString()) 
-            : DateTime.now(),
-        student: json['students'] != null ? StudentDb.fromJson(json['students']) : null,
+        createdAt:
+            json['created_at'] != null
+                ? DateTime.parse(json['created_at'].toString())
+                : DateTime.now(),
+        updatedAt:
+            json['updated_at'] != null
+                ? DateTime.parse(json['updated_at'].toString())
+                : DateTime.now(),
+        student:
+            json['students'] != null
+                ? StudentDb.fromJson(json['students'])
+                : null,
       );
     } catch (e) {
       print('Error in DriverAssignment.fromJson: $e');
@@ -344,7 +350,10 @@ class StudentDb {
         sectionId: json['section_id'],
         rfidUid: json['rfid_uid']?.toString(),
         profileImageUrl: json['profile_image_url']?.toString(),
-        section: json['sections'] != null ? SectionDb.fromJson(json['sections']) : null,
+        section:
+            json['sections'] != null
+                ? SectionDb.fromJson(json['sections'])
+                : null,
       );
     } catch (e) {
       print('Error in StudentDb.fromJson: $e');
@@ -381,9 +390,10 @@ class SectionDb {
         gradeLevel: json['grade_level']?.toString() ?? '',
         teacherId: json['teacher_id']?.toString(),
         schedule: json['schedule']?.toString(),
-        createdAt: json['created_at'] != null 
-            ? DateTime.parse(json['created_at'].toString()) 
-            : DateTime.now(),
+        createdAt:
+            json['created_at'] != null
+                ? DateTime.parse(json['created_at'].toString())
+                : DateTime.now(),
         isTesting: json['is_testing'] ?? false,
       );
     } catch (e) {
@@ -422,12 +432,21 @@ class PickupDropoffLog {
       id: json['id'],
       studentId: json['student_id'],
       driverId: json['driver_id'],
-      pickupTime: json['pickup_time'] != null ? DateTime.parse(json['pickup_time']) : null,
-      dropoffTime: json['dropoff_time'] != null ? DateTime.parse(json['dropoff_time']) : null,
+      pickupTime:
+          json['pickup_time'] != null
+              ? DateTime.parse(json['pickup_time'])
+              : null,
+      dropoffTime:
+          json['dropoff_time'] != null
+              ? DateTime.parse(json['dropoff_time'])
+              : null,
       eventType: json['event_type'],
       notes: json['notes'],
       createdAt: DateTime.parse(json['created_at']),
-      student: json['students'] != null ? StudentDb.fromJson(json['students']) : null,
+      student:
+          json['students'] != null
+              ? StudentDb.fromJson(json['students'])
+              : null,
     );
   }
 }

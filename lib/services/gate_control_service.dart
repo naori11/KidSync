@@ -141,7 +141,9 @@ class GateControlService {
     try {
       final jsonMessage = json.encode(command);
       _channel!.sink.add(jsonMessage);
-      print('Gate Control: ${command['gate']} ${command['action']} (${command['uid']})');
+      print(
+        'Gate Control: ${command['gate']} ${command['action']} (${command['uid']})',
+      );
     } catch (e) {
       print('Gate Control Error: $e');
     }

@@ -42,7 +42,11 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
   }
 
   // Add this method to handle verification responses
-  Future<void> _verifyEvent(ConfirmationLog log, String status, {String? notes}) async {
+  Future<void> _verifyEvent(
+    ConfirmationLog log,
+    String status, {
+    String? notes,
+  }) async {
     try {
       // Get current user and parent ID
       final user = supabase.auth.currentUser;
@@ -50,11 +54,12 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
         throw Exception('User not authenticated');
       }
 
-      final parentResponse = await supabase
-          .from('parents')
-          .select('id')
-          .eq('user_id', user.id)
-          .maybeSingle();
+      final parentResponse =
+          await supabase
+              .from('parents')
+              .select('id')
+              .eq('user_id', user.id)
+              .maybeSingle();
 
       if (parentResponse == null) {
         throw Exception('Parent information not found');
@@ -63,30 +68,39 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
       final parentId = parentResponse['id'];
 
       // Find the verification record for this log
-      final verificationResponse = await supabase
-          .from('pickup_dropoff_verifications')
-          .select('id')
-          .eq('pickup_dropoff_log_id', int.parse(log.id))
-          .eq('parent_id', parentId)
-          .eq('status', 'pending')
-          .maybeSingle();
+      final verificationResponse =
+          await supabase
+              .from('pickup_dropoff_verifications')
+              .select('id')
+              .eq('pickup_dropoff_log_id', int.parse(log.id))
+              .eq('parent_id', parentId)
+              .eq('status', 'pending')
+              .maybeSingle();
 
-      print('🔍 DEBUG: Parent verification - Log ID: ${log.id}, Parent ID: $parentId, Status: $status');
-      print('🔍 DEBUG: Found verification record: ${verificationResponse != null ? verificationResponse['id'] : 'null'}');
+      print(
+        '🔍 DEBUG: Parent verification - Log ID: ${log.id}, Parent ID: $parentId, Status: $status',
+      );
+      print(
+        '🔍 DEBUG: Found verification record: ${verificationResponse != null ? verificationResponse['id'] : 'null'}',
+      );
 
       if (verificationResponse != null) {
         // Use the verification service to handle confirmation/denial and send driver notifications
         final verificationService = VerificationService();
         bool success;
-        
+
         if (status == 'confirmed') {
-          print('🔍 DEBUG: Calling confirmVerification for ID ${verificationResponse['id']}');
+          print(
+            '🔍 DEBUG: Calling confirmVerification for ID ${verificationResponse['id']}',
+          );
           success = await verificationService.confirmVerification(
             verificationResponse['id'],
             parentNotes: notes,
           );
         } else {
-          print('🔍 DEBUG: Calling denyVerification for ID ${verificationResponse['id']}');
+          print(
+            '🔍 DEBUG: Calling denyVerification for ID ${verificationResponse['id']}',
+          );
           success = await verificationService.denyVerification(
             verificationResponse['id'],
             parentNotes: notes,
@@ -99,16 +113,14 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
         }
       } else {
         // Fallback: Update verification status in database directly (for old records)
-        await supabase
-            .from('pickup_dropoff_verifications')
-            .upsert({
-              'pickup_dropoff_log_id': int.parse(log.id),
-              'student_id': int.parse(log.studentId),
-              'parent_id': parentId,
-              'status': status,
-              'parent_response_time': DateTime.now().toIso8601String(),
-              'parent_notes': notes,
-            });
+        await supabase.from('pickup_dropoff_verifications').upsert({
+          'pickup_dropoff_log_id': int.parse(log.id),
+          'student_id': int.parse(log.studentId),
+          'parent_id': parentId,
+          'status': status,
+          'parent_response_time': DateTime.now().toIso8601String(),
+          'parent_notes': notes,
+        });
       }
 
       // Log the verification action
@@ -130,7 +142,9 @@ class _ConfirmationLogsScreenState extends State<ConfirmationLogsScreen> {
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${log.eventType.capitalizeFirst()} ${status.toLowerCase()} successfully'),
+          content: Text(
+            '${log.eventType.capitalizeFirst()} ${status.toLowerCase()} successfully',
+          ),
           backgroundColor: status == 'confirmed' ? Colors.green : Colors.orange,
         ),
       );

@@ -182,42 +182,43 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
         if (item.label == "Logout") {
           final shouldLogout = await showDialog<bool>(
             context: context,
-            builder: (context) => AlertDialog(
-              backgroundColor: Colors.white,
-              title: Text(
-                'Confirm Logout',
-                style: TextStyle(color: Colors.black),
-              ),
-              content: Text(
-                'Are you sure you want to logout?',
-                style: TextStyle(color: Colors.black),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: Text(
-                    'Cancel',
+            builder:
+                (context) => AlertDialog(
+                  backgroundColor: Colors.white,
+                  title: Text(
+                    'Confirm Logout',
                     style: TextStyle(color: Colors.black),
                   ),
-                ),
-                TextButton(
-                  style: ButtonStyle(
-                    foregroundColor:
-                        MaterialStateProperty.resolveWith<Color>((states) {
-                          if (states.contains(MaterialState.hovered)) {
-                            return Color(0xFF19AE61);
-                          }
-                          return Colors.black;
-                        }),
-                  ),
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: Text(
-                    'Logout',
+                  content: Text(
+                    'Are you sure you want to logout?',
                     style: TextStyle(color: Colors.black),
                   ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(color: Colors.black),
+                      ),
+                    ),
+                    TextButton(
+                      style: ButtonStyle(
+                        foregroundColor:
+                            MaterialStateProperty.resolveWith<Color>((states) {
+                              if (states.contains(MaterialState.hovered)) {
+                                return Color(0xFF19AE61);
+                              }
+                              return Colors.black;
+                            }),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: Text(
+                        'Logout',
+                        style: TextStyle(color: Colors.black),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
           );
           if (shouldLogout == true) {
             await _handleLogout(context);
@@ -228,19 +229,22 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
       },
       child: Container(
         margin: EdgeInsets.fromLTRB(
-          isMobile ? 4 : 8, 
-          isMobile ? 2 : 4, 
-          isMobile ? 4 : 8, 
-          isMobile ? 2 : 4
+          isMobile ? 4 : 8,
+          isMobile ? 2 : 4,
+          isMobile ? 4 : 8,
+          isMobile ? 2 : 4,
         ),
         padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 8 : 16, 
-          vertical: isMobile ? 8 : 12
+          horizontal: isMobile ? 8 : 16,
+          vertical: isMobile ? 8 : 12,
         ),
         decoration: BoxDecoration(
           color: isSelected ? Colors.blue.withOpacity(0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
-          border: isSelected ? Border.all(color: Colors.blue.withOpacity(0.3)) : null,
+          border:
+              isSelected
+                  ? Border.all(color: Colors.blue.withOpacity(0.3))
+                  : null,
         ),
         child: Row(
           children: [
@@ -256,7 +260,8 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                   item.label,
                   style: TextStyle(
                     color: isSelected ? Colors.blue : Colors.black87,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.normal,
                     fontSize: 14,
                   ),
                 ),
@@ -277,7 +282,7 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
           final isTablet = constraints.maxWidth >= 768;
           final isMobile = constraints.maxWidth < 768;
           final isLargeScreen = constraints.maxWidth >= 1200;
-          
+
           return Row(
             children: [
               // Sidebar Navigation
@@ -291,10 +296,11 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                     sidebarWidth = constraints.maxWidth * 0.2; // 20% on tablet
                     sidebarWidth = sidebarWidth.clamp(150.0, 200.0);
                   } else {
-                    sidebarWidth = constraints.maxWidth * 0.15; // 15% on desktop
+                    sidebarWidth =
+                        constraints.maxWidth * 0.15; // 15% on desktop
                     sidebarWidth = sidebarWidth.clamp(180.0, 250.0);
                   }
-                  
+
                   return Container(
                     width: sidebarWidth,
                     color: Colors.white,
@@ -339,7 +345,9 @@ class _GuardPanelContentState extends State<GuardPanelContent> {
                           ),
                         ),
                         Padding(
-                          padding: EdgeInsets.only(bottom: isMobile ? 12.0 : 24.0),
+                          padding: EdgeInsets.only(
+                            bottom: isMobile ? 12.0 : 24.0,
+                          ),
                           child: _buildNavItem(
                             NavItem("Logout", Icons.logout),
                             navItems.length,

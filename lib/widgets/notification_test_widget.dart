@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class NotificationTestWidget extends StatefulWidget {
   final Color primaryColor;
-  
+
   const NotificationTestWidget({
     Key? key,
     this.primaryColor = const Color(0xFF19AE61),
@@ -23,9 +23,12 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
   final SmsGatewayService _smsService = SmsGatewayService(
     username: 'ASTVXO',
     password: 'm_cfb-t4kqx4wt',
-    supabaseFunctionUrl: SUPABASE_FUNCTIONS_BASE.isNotEmpty ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms' : null,
+    supabaseFunctionUrl:
+        SUPABASE_FUNCTIONS_BASE.isNotEmpty
+            ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms'
+            : null,
   );
-  
+
   String _status = 'Ready to test notifications';
   bool _isLoading = false;
 
@@ -69,7 +72,7 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
             ],
           ),
           const SizedBox(height: 16),
-          
+
           // Status display
           Container(
             width: double.infinity,
@@ -86,9 +89,9 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Test buttons
           Wrap(
             spacing: 8,
@@ -99,11 +102,7 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
                 Icons.phone_android,
                 _testLocalNotification,
               ),
-              _buildTestButton(
-                'Check FCM Token',
-                Icons.token,
-                _checkFCMToken,
-              ),
+              _buildTestButton('Check FCM Token', Icons.token, _checkFCMToken),
               _buildTestButton(
                 'Test Permission',
                 Icons.security,
@@ -121,12 +120,10 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
               ),
             ],
           ),
-          
+
           if (_isLoading) ...[
             const SizedBox(height: 16),
-            const Center(
-              child: CircularProgressIndicator(),
-            ),
+            const Center(child: CircularProgressIndicator()),
           ],
         ],
       ),
@@ -142,9 +139,7 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
         backgroundColor: widget.primaryColor,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
@@ -161,7 +156,7 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
         body: 'This is a test notification from KidSync!',
         type: 'pickup',
       );
-      
+
       setState(() {
         _status = '✅ Local notification sent successfully!';
       });
@@ -214,7 +209,7 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
       // This would typically check permission status
       // For now, just simulate the check
       await Future.delayed(const Duration(seconds: 1));
-      
+
       setState(() {
         _status = '✅ Notification permissions OK';
       });
@@ -239,11 +234,8 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
       final user = supabase.auth.currentUser;
       if (user != null) {
         // Test if we can query notifications
-        await supabase
-            .from('notifications')
-            .select('id')
-            .limit(1);
-        
+        await supabase.from('notifications').select('id').limit(1);
+
         setState(() {
           _status = '✅ Database connection OK. User: ${user.email}';
         });
@@ -281,12 +273,13 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
       String? phone;
 
       // First try to find a parent record linked to this user
-      final parentRes = await supabase
-          .from('parents')
-          .select('phone')
-          .eq('user_id', user.id)
-          .limit(1)
-          .maybeSingle();
+      final parentRes =
+          await supabase
+              .from('parents')
+              .select('phone')
+              .eq('user_id', user.id)
+              .limit(1)
+              .maybeSingle();
 
       if (parentRes != null) {
         final parentMap = parentRes;
@@ -297,12 +290,13 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
 
       // Fallback: use users.contact_number
       if (phone == null) {
-        final userRes = await supabase
-            .from('users')
-            .select('contact_number')
-            .eq('id', user.id)
-            .limit(1)
-            .maybeSingle();
+        final userRes =
+            await supabase
+                .from('users')
+                .select('contact_number')
+                .eq('id', user.id)
+                .limit(1)
+                .maybeSingle();
         if (userRes != null) {
           final userMap = userRes;
           if (userMap['contact_number'] != null) {
@@ -326,7 +320,8 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
       );
       print('notification_test_widget: sms send result=$success');
       setState(() {
-        _status = success ? '✅ SMS queued to $phone' : '❌ SMS failed to queue/send';
+        _status =
+            success ? '✅ SMS queued to $phone' : '❌ SMS failed to queue/send';
       });
     } catch (e) {
       setState(() {

@@ -180,7 +180,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
 
     // Initialize notifications
     _initializeNotifications();
-    
+
     // Load all data
     _loadUserProfile();
     _loadStudents();
@@ -273,7 +273,7 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
     setState(() {
       selectedStudent = student;
     });
-    
+
     // Reload dashboard data for the new student
     _loadDashboardFetchers();
     _loadNotificationCount();
@@ -1128,418 +1128,425 @@ class _ParentHomeTabsState extends State<_ParentHomeTabs>
       userRole: 'parent',
       primaryColor: widget.primaryColor,
       child: Scaffold(
-      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              // Top Bar
-              Container(
-                decoration: BoxDecoration(
-                  color: white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF000000).withOpacity(0.15),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                      spreadRadius: 2,
-                    ),
-                    BoxShadow(
-                      color: widget.primaryColor.withOpacity(0.08),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      height: 32,
-                      width: 32,
-                      child: Image.asset(
-                        'assets/logo.png',
-                        fit: BoxFit.contain,
-                        errorBuilder:
-                            (context, error, stackTrace) => Icon(
-                              Icons.school,
-                              color: widget.primaryColor,
-                              size: 28,
-                            ),
+        backgroundColor: const Color.fromARGB(10, 78, 241, 157),
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                // Top Bar
+                Container(
+                  decoration: BoxDecoration(
+                    color: white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF000000).withOpacity(0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                        spreadRadius: 2,
                       ),
-                    ),
-                    SizedBox(width: 12),
-                    // Panel Name
-                    Text(
-                      widget.navItems[selectedIndex].label,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF000000),
+                      BoxShadow(
+                        color: widget.primaryColor.withOpacity(0.08),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                        spreadRadius: 1,
                       ),
-                    ),
-
-                    SizedBox(width: 16),
-                    // Student Selector
-                    _buildStudentSelector(isMobile),
-
-                    Spacer(),
-                    // Notification Bell
-                    GestureDetector(
-                      onTap: () => _navigateToNotifications(),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
+                    ],
+                  ),
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        height: 32,
+                        width: 32,
+                        child: Image.asset(
+                          'assets/logo.png',
+                          fit: BoxFit.contain,
+                          errorBuilder:
+                              (context, error, stackTrace) => Icon(
+                                Icons.school,
+                                color: widget.primaryColor,
+                                size: 28,
+                              ),
                         ),
-                        child: Stack(
-                          children: [
-                            Icon(
-                              unreadNotificationCount > 0
-                                  ? Icons.notifications
-                                  : Icons.notifications_none,
-                              color: const Color(0xFF000000),
-                              size: 28,
-                            ),
-                            // Notification count badge
-                            if (unreadNotificationCount > 0)
-                              Positioned(
-                                right: 0,
-                                top: 0,
-                                child: Container(
-                                  padding: EdgeInsets.all(4),
-                                  constraints: BoxConstraints(
-                                    minWidth: 16,
-                                    minHeight: 16,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    unreadNotificationCount > 99
-                                        ? '99+'
-                                        : unreadNotificationCount.toString(),
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
+                      ),
+                      SizedBox(width: 12),
+                      // Panel Name
+                      Text(
+                        widget.navItems[selectedIndex].label,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF000000),
+                        ),
+                      ),
+
+                      SizedBox(width: 16),
+                      // Student Selector
+                      _buildStudentSelector(isMobile),
+
+                      Spacer(),
+                      // Notification Bell
+                      GestureDetector(
+                        onTap: () => _navigateToNotifications(),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Stack(
+                            children: [
+                              Icon(
+                                unreadNotificationCount > 0
+                                    ? Icons.notifications
+                                    : Icons.notifications_none,
+                                color: const Color(0xFF000000),
+                                size: 28,
+                              ),
+                              // Notification count badge
+                              if (unreadNotificationCount > 0)
+                                Positioned(
+                                  right: 0,
+                                  top: 0,
+                                  child: Container(
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(
+                                      minWidth: 16,
+                                      minHeight: 16,
                                     ),
-                                    textAlign: TextAlign.center,
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      unreadNotificationCount > 99
+                                          ? '99+'
+                                          : unreadNotificationCount.toString(),
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
                                   ),
                                 ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 16),
-                    GestureDetector(
-                      onTap: _toggleProfile,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color:
-                              showProfile
-                                  ? greenWithOpacity
-                                  : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: CircleAvatar(
-                          backgroundColor: greenWithOpacity,
-                          radius: 16,
-                          backgroundImage:
-                              profileImageUrl != null
-                                  ? NetworkImage(profileImageUrl!)
-                                  : null,
-                          child:
-                              profileImageUrl == null
-                                  ? Icon(
-                                    Icons.person,
-                                    color: widget.primaryColor,
-                                    size: 18,
-                                  )
-                                  : null,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Main Content
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  onPageChanged: (index) {
-                    setState(() => selectedIndex = index);
-                  },
-                  itemCount: widget.navItems.length,
-                  itemBuilder: (context, index) {
-                    return Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                      child: _buildTabContent(
-                        index,
-                        widget.primaryColor,
-                        isMobile,
-                      ),
-                    );
-                  },
-                ),
-              ),
-              // Bottom Navigation Bar
-              Container(
-                decoration: BoxDecoration(
-                  color: white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF000000).withOpacity(0.15),
-                      blurRadius: 12,
-                      offset: const Offset(0, -4),
-                      spreadRadius: 2,
-                    ),
-                    BoxShadow(
-                      color: widget.primaryColor.withOpacity(0.08),
-                      blurRadius: 6,
-                      offset: const Offset(0, -2),
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                padding: EdgeInsets.only(top: 8, bottom: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: List.generate(4, (i) {
-                    final item = widget.navItems[i];
-                    final bool selected = i == selectedIndex;
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: selected ? greenWithOpacity : Colors.transparent,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: IconButton(
-                        icon: Icon(
-                          item.icon,
-                          color:
-                              selected
-                                  ? widget.primaryColor
-                                  : const Color(0xFF000000).withOpacity(0.6),
-                          size: 24,
-                        ),
-                        onPressed: () {
-                          setState(() => selectedIndex = i);
-                          _pageController.animateToPage(
-                            i,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        },
-                      ),
-                    );
-                  }),
-                ),
-              ),
-            ],
-          ),
-          // Notification and Profile Popovers
-          if (showNotifications)
-            Positioned(
-              top: 56,
-              right: 56,
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: SlideTransition(
-                  position: _slideAnimation,
-                  child: Material(
-                    elevation: 12,
-                    borderRadius: BorderRadius.circular(16),
-                    shadowColor: const Color(0xFF000000).withOpacity(0.2),
-                    child: Container(
-                      width: 280,
-                      padding: EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF000000).withOpacity(0.1),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Notifications',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: const Color(0xFF000000),
-                            ),
+                      SizedBox(width: 16),
+                      GestureDetector(
+                        onTap: _toggleProfile,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color:
+                                showProfile
+                                    ? greenWithOpacity
+                                    : Colors.transparent,
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          const SizedBox(height: 12),
-                          ...List.generate(
-                            3,
-                            (i) => Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(
-                                    Icons.circle,
-                                    color:
-                                        i == 0
-                                            ? widget.primaryColor
-                                            : const Color(
-                                              0xFF000000,
-                                            ).withOpacity(0.3),
-                                    size: 10,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Notification message ${i + 1}',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: const Color(0xFF000000),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                          child: CircleAvatar(
+                            backgroundColor: greenWithOpacity,
+                            radius: 16,
+                            backgroundImage:
+                                profileImageUrl != null
+                                    ? NetworkImage(profileImageUrl!)
+                                    : null,
+                            child:
+                                profileImageUrl == null
+                                    ? Icon(
+                                      Icons.person,
+                                      color: widget.primaryColor,
+                                      size: 18,
+                                    )
+                                    : null,
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-              ),
-            ),
-          if (showProfile)
-            Positioned(
-              top: 56,
-              right: 16,
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: SlideTransition(
-                  position: _slideAnimation,
-                  child: Material(
-                    elevation: 12,
-                    borderRadius: BorderRadius.circular(16),
-                    shadowColor: const Color(0xFF000000).withOpacity(0.2),
-                    child: Container(
-                      width: 240,
-                      padding: EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF000000).withOpacity(0.1),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
+                // Main Content
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    onPageChanged: (index) {
+                      setState(() => selectedIndex = index);
+                    },
+                    itemCount: widget.navItems.length,
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 8,
+                        ),
+                        child: _buildTabContent(
+                          index,
+                          widget.primaryColor,
+                          isMobile,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                // Bottom Navigation Bar
+                Container(
+                  decoration: BoxDecoration(
+                    color: white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF000000).withOpacity(0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, -4),
+                        spreadRadius: 2,
                       ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: greenWithOpacity,
-                                radius: 20,
-                                backgroundImage:
-                                    profileImageUrl != null
-                                        ? NetworkImage(profileImageUrl!)
-                                        : null,
-                                child:
-                                    profileImageUrl == null
-                                        ? Icon(
-                                          Icons.person,
-                                          color: widget.primaryColor,
-                                          size: 22,
-                                        )
-                                        : null,
+                      BoxShadow(
+                        color: widget.primaryColor.withOpacity(0.08),
+                        blurRadius: 6,
+                        offset: const Offset(0, -2),
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  padding: EdgeInsets.only(top: 8, bottom: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: List.generate(4, (i) {
+                      final item = widget.navItems[i];
+                      final bool selected = i == selectedIndex;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              selected ? greenWithOpacity : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            item.icon,
+                            color:
+                                selected
+                                    ? widget.primaryColor
+                                    : const Color(0xFF000000).withOpacity(0.6),
+                            size: 24,
+                          ),
+                          onPressed: () {
+                            setState(() => selectedIndex = i);
+                            _pageController.animateToPage(
+                              i,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          },
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ],
+            ),
+            // Notification and Profile Popovers
+            if (showNotifications)
+              Positioned(
+                top: 56,
+                right: 56,
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: Material(
+                      elevation: 12,
+                      borderRadius: BorderRadius.circular(16),
+                      shadowColor: const Color(0xFF000000).withOpacity(0.2),
+                      child: Container(
+                        width: 280,
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF000000).withOpacity(0.1),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Notifications',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: const Color(0xFF000000),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
+                            ),
+                            const SizedBox(height: 12),
+                            ...List.generate(
+                              3,
+                              (i) => Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 6,
+                                ),
+                                child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      isLoadingProfile
-                                          ? 'Loading...'
-                                          : userName,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: const Color(0xFF000000),
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
+                                    Icon(
+                                      Icons.circle,
+                                      color:
+                                          i == 0
+                                              ? widget.primaryColor
+                                              : const Color(
+                                                0xFF000000,
+                                              ).withOpacity(0.3),
+                                      size: 10,
                                     ),
-                                    Text(
-                                      isLoadingProfile
-                                          ? 'Loading...'
-                                          : userEmail,
-                                      style: TextStyle(
-                                        color: const Color(
-                                          0xFF000000,
-                                        ).withOpacity(0.6),
-                                        fontSize: 13,
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Notification message ${i + 1}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: const Color(0xFF000000),
+                                        ),
                                       ),
-                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
                                 ),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Divider(
-                            color: const Color(0xFF000000).withOpacity(0.2),
-                          ),
-                          SizedBox(height: 8),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: widget.primaryColor,
-                                foregroundColor: white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                elevation: 2,
-                              ),
-                              icon: Icon(Icons.logout),
-                              label: Text('Logout'),
-                              onPressed: () {
-                                _showLogoutConfirmation(context);
-                              },
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-        ],
+            if (showProfile)
+              Positioned(
+                top: 56,
+                right: 16,
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: Material(
+                      elevation: 12,
+                      borderRadius: BorderRadius.circular(16),
+                      shadowColor: const Color(0xFF000000).withOpacity(0.2),
+                      child: Container(
+                        width: 240,
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF000000).withOpacity(0.1),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: greenWithOpacity,
+                                  radius: 20,
+                                  backgroundImage:
+                                      profileImageUrl != null
+                                          ? NetworkImage(profileImageUrl!)
+                                          : null,
+                                  child:
+                                      profileImageUrl == null
+                                          ? Icon(
+                                            Icons.person,
+                                            color: widget.primaryColor,
+                                            size: 22,
+                                          )
+                                          : null,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        isLoadingProfile
+                                            ? 'Loading...'
+                                            : userName,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: const Color(0xFF000000),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        isLoadingProfile
+                                            ? 'Loading...'
+                                            : userEmail,
+                                        style: TextStyle(
+                                          color: const Color(
+                                            0xFF000000,
+                                          ).withOpacity(0.6),
+                                          fontSize: 13,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            Divider(
+                              color: const Color(0xFF000000).withOpacity(0.2),
+                            ),
+                            SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: widget.primaryColor,
+                                  foregroundColor: white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  elevation: 2,
+                                ),
+                                icon: Icon(Icons.logout),
+                                label: Text('Logout'),
+                                onPressed: () {
+                                  _showLogoutConfirmation(context);
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
-    ),
     );
   }
 

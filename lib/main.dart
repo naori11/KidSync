@@ -77,13 +77,10 @@ Future<void> main() async {
 
   // Initialize timezone data for proper PST handling
   tz.initializeTimeZones();
-  
-
 
   // Capture the initial URL as early as possible in Dart.
   if (kIsWeb) {
     initialUrlFromMain = html.window.location.href;
-
   }
 
   setHashUrlStrategy();
@@ -144,20 +141,19 @@ class _KidSyncAppState extends State<KidSyncApp> {
   @override
   void initState() {
     super.initState();
-    
-
 
     // For invite flows with double hash pattern, navigate directly to set password screen
-  if (kIsWeb && widget.initialUrl.contains('#/set-password#access_token=') && _resetCodeValid()) {
-
-
+    if (kIsWeb &&
+        widget.initialUrl.contains('#/set-password#access_token=') &&
+        _resetCodeValid()) {
       // Just navigate directly to set password screen
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           final navigator = _navigatorKey.currentState;
           try {
             // mark reset navigation as in-progress to avoid repeated pushes
-            if (kIsWeb) html.window.sessionStorage['kidsync_reset_in_progress'] = '1';
+            if (kIsWeb)
+              html.window.sessionStorage['kidsync_reset_in_progress'] = '1';
           } catch (_) {}
           if (navigator != null) {
             navigator.pushReplacementNamed(SetPasswordScreen.routeName);
@@ -174,8 +170,6 @@ class _KidSyncAppState extends State<KidSyncApp> {
       final authEvent = data.event;
       final session = data.session;
       final user = session?.user;
-
-
 
       // Handle routing based on auth state
       _handleNavigation(session, user, authEvent, widget.initialUrl);
@@ -194,13 +188,13 @@ class _KidSyncAppState extends State<KidSyncApp> {
       return;
     }
 
-
-
     // NEW CODE: Check for password reset code in session storage
-  if (kIsWeb &&
-    html.window.sessionStorage.containsKey('kidsync_reset_code') && _resetCodeValid()) {
+    if (kIsWeb &&
+        html.window.sessionStorage.containsKey('kidsync_reset_code') &&
+        _resetCodeValid()) {
       // If a prior navigation to the reset screen is already in progress, don't navigate again
-      if (kIsWeb && html.window.sessionStorage.containsKey('kidsync_reset_in_progress')) {
+      if (kIsWeb &&
+          html.window.sessionStorage.containsKey('kidsync_reset_in_progress')) {
         print(
           "[DEBUG] _checkInitialSessionAfterDelay: reset in progress flag set, skipping navigation",
         );
@@ -292,14 +286,18 @@ class _KidSyncAppState extends State<KidSyncApp> {
     );
 
     // NEW CODE: Check for reset code in session storage
-  if (kIsWeb &&
-    html.window.sessionStorage.containsKey('kidsync_reset_code') && _resetCodeValid()) {
+    if (kIsWeb &&
+        html.window.sessionStorage.containsKey('kidsync_reset_code') &&
+        _resetCodeValid()) {
       print(
         "[DEBUG] _handleNavigation: Found reset code in session storage, navigating to SetPasswordScreen",
       );
       // Avoid repeatedly navigating if another navigation is already in progress
-      if (kIsWeb && html.window.sessionStorage.containsKey('kidsync_reset_in_progress')) {
-        print("[DEBUG] _handleNavigation: reset in-progress flag set, skipping navigation");
+      if (kIsWeb &&
+          html.window.sessionStorage.containsKey('kidsync_reset_in_progress')) {
+        print(
+          "[DEBUG] _handleNavigation: reset in-progress flag set, skipping navigation",
+        );
         return;
       }
       try {
@@ -387,9 +385,8 @@ class _KidSyncAppState extends State<KidSyncApp> {
   // Initialize push notifications for logged-in user
   Future<void> _initializePushNotificationsForUser(String userId) async {
     try {
-
       final pushService = PushNotificationService();
-      
+
       // Refresh and store FCM token in database
       await pushService.refreshFCMToken();
       print("✅ FCM token stored for user: $userId");

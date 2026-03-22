@@ -8,7 +8,6 @@ import 'driver_assignment.dart';
 import 'bulk_import.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-
 class AdminPanelContent extends StatefulWidget {
   final String userName;
 
@@ -27,7 +26,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
 
   int selectedIndex = 0;
   late final List<_NavItem> navItems;
-  
+
   // Dynamic dashboard data
   int totalStudents = 0;
   int totalParents = 0;
@@ -105,9 +104,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       // Load total students from students table first, fallback to users table
       var studentsResponse;
       try {
-        studentsResponse = await supabase
-            .from('students')
-            .select('id');
+        studentsResponse = await supabase.from('students').select('id');
       } catch (e) {
         // Fallback to users table if students table doesn't exist
         studentsResponse = await supabase
@@ -115,13 +112,13 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
             .select('id')
             .eq('role', 'Student');
       }
-      
+
       // Load total parents from users table
       final parentsResponse = await supabase
           .from('users')
           .select('id')
           .eq('role', 'Parent');
-      
+
       // Load total drivers from users table
       final driversResponse = await supabase
           .from('users')
@@ -150,7 +147,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       // Get attendance data for the last 12 months
       final now = DateTime.now();
       final startDate = DateTime(now.year, now.month - 11, 1);
-      
+
       final response = await supabase
           .from('attendance')
           .select('date, status, student_id')
@@ -159,16 +156,17 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
 
       // Process attendance data by month
       Map<int, Map<String, int>> monthlyStats = {};
-      
+
       for (var record in response) {
         final date = DateTime.parse(record['date']);
         final month = date.month;
         final status = record['status'] as String;
-        
+
         monthlyStats[month] ??= {'present': 0, 'absent': 0};
-        
+
         if (status.toLowerCase() == 'present') {
-          monthlyStats[month]!['present'] = monthlyStats[month]!['present']! + 1;
+          monthlyStats[month]!['present'] =
+              monthlyStats[month]!['present']! + 1;
         } else if (status.toLowerCase() == 'absent') {
           monthlyStats[month]!['absent'] = monthlyStats[month]!['absent']! + 1;
         }
@@ -177,11 +175,22 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       // Convert to list format for chart
       List<Map<String, dynamic>> chartData = [];
       for (int i = 1; i <= 12; i++) {
-        final monthName = [
-          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-        ][i - 1];
-        
+        final monthName =
+            [
+              'Jan',
+              'Feb',
+              'Mar',
+              'Apr',
+              'May',
+              'Jun',
+              'Jul',
+              'Aug',
+              'Sep',
+              'Oct',
+              'Nov',
+              'Dec',
+            ][i - 1];
+
         final stats = monthlyStats[i] ?? {'present': 0, 'absent': 0};
         chartData.add({
           'month': monthName,
@@ -224,7 +233,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           .limit(4);
 
       print('Audit logs response: $response'); // Debug log
-      
+
       setState(() {
         recentAuditLogs = List<Map<String, dynamic>>.from(response);
       });
@@ -236,30 +245,42 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           {
             'action': 'UPDATE',
             'table_name': 'users',
-            'created_at': DateTime.now().subtract(const Duration(minutes: 2)).toIso8601String(),
+            'created_at':
+                DateTime.now()
+                    .subtract(const Duration(minutes: 2))
+                    .toIso8601String(),
             'user_id': 'admin',
-            'details': 'User profile updated'
+            'details': 'User profile updated',
           },
           {
             'action': 'INSERT',
             'table_name': 'students',
-            'created_at': DateTime.now().subtract(const Duration(minutes: 15)).toIso8601String(),
+            'created_at':
+                DateTime.now()
+                    .subtract(const Duration(minutes: 15))
+                    .toIso8601String(),
             'user_id': 'admin',
-            'details': 'New student registered'
+            'details': 'New student registered',
           },
           {
             'action': 'UPDATE',
             'table_name': 'attendance',
-            'created_at': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
+            'created_at':
+                DateTime.now()
+                    .subtract(const Duration(hours: 1))
+                    .toIso8601String(),
             'user_id': 'admin',
-            'details': 'Attendance record modified'
+            'details': 'Attendance record modified',
           },
           {
             'action': 'INSERT',
             'table_name': 'driver_assignments',
-            'created_at': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
+            'created_at':
+                DateTime.now()
+                    .subtract(const Duration(hours: 2))
+                    .toIso8601String(),
             'user_id': 'admin',
-            'details': 'Driver route assigned'
+            'details': 'Driver route assigned',
           },
         ];
       });
@@ -299,15 +320,16 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 768;
-        final isTablet = constraints.maxWidth >= 768 && constraints.maxWidth < 1200;
-        
+        final isTablet =
+            constraints.maxWidth >= 768 && constraints.maxWidth < 1200;
+
         return Container(
           width: double.infinity,
           padding: EdgeInsets.fromLTRB(
-            isMobile ? 16 : (isTablet ? 20 : 24), 
-            isMobile ? 12 : 16, 
-            isMobile ? 16 : (isTablet ? 20 : 24), 
-            isMobile ? 12 : 16
+            isMobile ? 16 : (isTablet ? 20 : 24),
+            isMobile ? 12 : 16,
+            isMobile ? 16 : (isTablet ? 20 : 24),
+            isMobile ? 12 : 16,
           ),
           margin: const EdgeInsets.all(0),
           decoration: BoxDecoration(
@@ -390,9 +412,10 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 768;
-        final isTablet = constraints.maxWidth >= 768 && constraints.maxWidth < 1200;
+        final isTablet =
+            constraints.maxWidth >= 768 && constraints.maxWidth < 1200;
         final isDesktop = constraints.maxWidth >= 1200;
-        
+
         return Column(
           children: [
             // Profile greeting with top spacing
@@ -405,7 +428,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
               ),
               child: _buildDashboardHeader(),
             ),
-            
+
             // Scrollable content below
             Expanded(
               child: SingleChildScrollView(
@@ -414,9 +437,9 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                   children: [
                     // Overview Section (inspired by image layout)
                     _buildOverviewSection(isMobile, isTablet),
-                    
+
                     SizedBox(height: isMobile ? 16 : 24),
-                    
+
                     // Main dashboard content grid
                     _buildDashboardGrid(isMobile, isTablet, isDesktop),
                   ],
@@ -428,7 +451,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       },
     );
   }
-  
+
   Widget _buildOverviewSection(bool isMobile, bool isTablet) {
     return Container(
       padding: EdgeInsets.all(isMobile ? 16 : 20),
@@ -486,12 +509,13 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       ),
     );
   }
-  
+
   Widget _buildOverviewTable(bool isMobile, bool isTablet) {
     // Format date as DD/MM/YYYY like in the image
     final now = DateTime.now();
-    final formattedDate = "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
-    
+    final formattedDate =
+        "${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}";
+
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey[300]!),
@@ -678,7 +702,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       ),
     );
   }
-  
+
   Widget _buildDashboardGrid(bool isMobile, bool isTablet, bool isDesktop) {
     return Column(
       children: [
@@ -688,7 +712,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       ],
     );
   }
-  
+
   Widget _buildAttendanceSection(bool isMobile, bool isTablet) {
     return Container(
       padding: EdgeInsets.all(isMobile ? 16 : 20),
@@ -754,43 +778,55 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       ),
     );
   }
-  
+
   Widget _buildAttendanceChart() {
     // Use dynamic attendance data if available, otherwise fallback to sample data
-    final chartData = attendanceData.isNotEmpty ? attendanceData : [
-      {"month": "Jan", "present": 85, "absent": 15},
-      {"month": "Feb", "present": 88, "absent": 12},
-      {"month": "Mar", "present": 82, "absent": 18},
-      {"month": "Apr", "present": 90, "absent": 10},
-      {"month": "May", "present": 87, "absent": 13},
-      {"month": "Jun", "present": 92, "absent": 8},
-      {"month": "Jul", "present": 89, "absent": 11},
-      {"month": "Aug", "present": 91, "absent": 9},
-      {"month": "Sep", "present": 86, "absent": 14},
-      {"month": "Oct", "present": 93, "absent": 7},
-      {"month": "Nov", "present": 88, "absent": 12},
-      {"month": "Dec", "present": 90, "absent": 10},
-    ];
-    
+    final chartData =
+        attendanceData.isNotEmpty
+            ? attendanceData
+            : [
+              {"month": "Jan", "present": 85, "absent": 15},
+              {"month": "Feb", "present": 88, "absent": 12},
+              {"month": "Mar", "present": 82, "absent": 18},
+              {"month": "Apr", "present": 90, "absent": 10},
+              {"month": "May", "present": 87, "absent": 13},
+              {"month": "Jun", "present": 92, "absent": 8},
+              {"month": "Jul", "present": 89, "absent": 11},
+              {"month": "Aug", "present": 91, "absent": 9},
+              {"month": "Sep", "present": 86, "absent": 14},
+              {"month": "Oct", "present": 93, "absent": 7},
+              {"month": "Nov", "present": 88, "absent": 12},
+              {"month": "Dec", "present": 90, "absent": 10},
+            ];
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: chartData.map((data) => 
-        _buildDualChartBar(
-          data["present"] as int,
-          data["absent"] as int,
-          data["month"] as String,
-        ),
-      ).toList(),
+      children:
+          chartData
+              .map(
+                (data) => _buildDualChartBar(
+                  data["present"] as int,
+                  data["absent"] as int,
+                  data["month"] as String,
+                ),
+              )
+              .toList(),
     );
   }
-  
+
   Widget _buildDualChartBar(int presentCount, int absentCount, String month) {
     final maxHeight = 100.0;
     final total = presentCount + absentCount;
-    final presentHeight = total > 0 ? (presentCount / (presentCount + absentCount + 20)) * maxHeight : 20.0;
-    final absentHeight = total > 0 ? (absentCount / (presentCount + absentCount + 20)) * maxHeight : 0.0;
-    
+    final presentHeight =
+        total > 0
+            ? (presentCount / (presentCount + absentCount + 20)) * maxHeight
+            : 20.0;
+    final absentHeight =
+        total > 0
+            ? (absentCount / (presentCount + absentCount + 20)) * maxHeight
+            : 0.0;
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
@@ -849,17 +885,11 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           ),
         ),
         const SizedBox(height: 8),
-        Text(
-          month,
-          style: TextStyle(
-            fontSize: 9,
-            color: Colors.grey[600],
-          ),
-        ),
+        Text(month, style: TextStyle(fontSize: 9, color: Colors.grey[600])),
       ],
     );
   }
-  
+
   Widget _buildChartBar(double height, String month) {
     final isCurrentMonth = month == "Dec";
     return Column(
@@ -869,22 +899,19 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           width: 16,
           height: height,
           decoration: BoxDecoration(
-            color: isCurrentMonth ? const Color(0xFF2563EB) : const Color(0xFF94A3B8),
+            color:
+                isCurrentMonth
+                    ? const Color(0xFF2563EB)
+                    : const Color(0xFF94A3B8),
             borderRadius: BorderRadius.circular(2),
           ),
         ),
         const SizedBox(height: 8),
-        Text(
-          month,
-          style: TextStyle(
-            fontSize: 10,
-            color: Colors.grey[600],
-          ),
-        ),
+        Text(month, style: TextStyle(fontSize: 10, color: Colors.grey[600])),
       ],
     );
   }
-  
+
   Widget _buildChartLegend(String label, Color color) {
     return Row(
       children: [
@@ -897,18 +924,11 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           ),
         ),
         const SizedBox(width: 8),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       ],
     );
   }
-  
-  
+
   Widget _buildAdminActivitiesSection(bool isMobile, bool isTablet) {
     return Container(
       width: double.infinity,
@@ -951,10 +971,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
               child: Center(
                 child: Text(
                   'No recent activities',
-                  style: TextStyle(
-                    color: Colors.grey[500],
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.grey[500], fontSize: 14),
                 ),
               ),
             )
@@ -968,7 +985,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                 const Color(0xFFF59E0B),
                 const Color(0xFF8B5CF6),
               ];
-              
+
               return Column(
                 children: [
                   if (index > 0) const SizedBox(height: 16),
@@ -986,8 +1003,12 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
       ),
     );
   }
-  
-  Widget _buildResponsiveMainContent(bool isMobile, bool isTablet, bool isDesktop) {
+
+  Widget _buildResponsiveMainContent(
+    bool isMobile,
+    bool isTablet,
+    bool isDesktop,
+  ) {
     final systemOverview = Container(
       padding: EdgeInsets.all(isMobile ? 16 : (isTablet ? 20 : 24)),
       decoration: BoxDecoration(
@@ -1023,7 +1044,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
         ],
       ),
     );
-    
+
     final recentActivity = Container(
       padding: EdgeInsets.all(isMobile ? 16 : (isTablet ? 20 : 24)),
       decoration: BoxDecoration(
@@ -1072,7 +1093,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
         ],
       ),
     );
-    
+
     if (isMobile || isTablet) {
       // Stack vertically on mobile and tablet
       return Column(
@@ -1348,7 +1369,13 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
   }
 
   // Admin activity item widget (more square design)
-  Widget _buildAdminActivityItem(String title, String type, String date, String status, Color color) {
+  Widget _buildAdminActivityItem(
+    String title,
+    String type,
+    String date,
+    String status,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1392,10 +1419,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                 const SizedBox(height: 2),
                 Text(
                   type,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -1421,10 +1445,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
               const SizedBox(height: 2),
               Text(
                 date,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey[500],
-                ),
+                style: TextStyle(fontSize: 10, color: Colors.grey[500]),
               ),
             ],
           ),
@@ -1510,7 +1531,7 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           final isTablet = constraints.maxWidth >= 768;
           final isMobile = constraints.maxWidth < 768;
           final isLargeScreen = constraints.maxWidth >= 1200;
-          
+
           return Row(
             children: [
               // Sidebar Navigation
@@ -1524,10 +1545,11 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                     sidebarWidth = constraints.maxWidth * 0.2; // 20% on tablet
                     sidebarWidth = sidebarWidth.clamp(150.0, 200.0);
                   } else {
-                    sidebarWidth = constraints.maxWidth * 0.15; // 15% on desktop
+                    sidebarWidth =
+                        constraints.maxWidth * 0.15; // 15% on desktop
                     sidebarWidth = sidebarWidth.clamp(180.0, 250.0);
                   }
-                  
+
                   return Container(
                     width: sidebarWidth,
                     color: const Color.fromARGB(255, 255, 255, 255),
@@ -1575,7 +1597,9 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
                           ),
                           // Logout button at the bottom
                           Padding(
-                            padding: EdgeInsets.only(bottom: isMobile ? 12.0 : 24.0),
+                            padding: EdgeInsets.only(
+                              bottom: isMobile ? 12.0 : 24.0,
+                            ),
                             child: _buildNavItem(
                               _NavItem("Logout", Icons.logout, null),
                               navItems.length,
@@ -1669,34 +1693,36 @@ class _AdminPanelContentState extends State<AdminPanelContent> {
           horizontal: isMobile ? 8 : 16,
           vertical: isMobile ? 8 : 12,
         ),
-        child: isMobile
-            ? Icon(
-                item.icon,
-                color: isSelected ? Colors.white : Colors.grey[600],
-                size: 18,
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    item.icon,
-                    color: isSelected ? Colors.white : Colors.grey[600],
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      item.label,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isSelected ? Colors.white : Colors.grey[800],
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        child:
+            isMobile
+                ? Icon(
+                  item.icon,
+                  color: isSelected ? Colors.white : Colors.grey[600],
+                  size: 18,
+                )
+                : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      item.icon,
+                      color: isSelected ? Colors.white : Colors.grey[600],
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        item.label,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isSelected ? Colors.white : Colors.grey[800],
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.normal,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
       ),
     );
   }

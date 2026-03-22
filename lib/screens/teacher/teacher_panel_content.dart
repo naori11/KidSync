@@ -175,34 +175,36 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
           horizontal: isMobile ? 8 : 16,
           vertical: isMobile ? 8 : 12,
         ),
-        child: isMobile
-            ? Icon(
-                item.icon,
-                color: isSelected ? Colors.white : Colors.grey[600],
-                size: 18,
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    item.icon,
-                    color: isSelected ? Colors.white : Colors.grey[600],
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      item.label,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isSelected ? Colors.white : Colors.grey[800],
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        child:
+            isMobile
+                ? Icon(
+                  item.icon,
+                  color: isSelected ? Colors.white : Colors.grey[600],
+                  size: 18,
+                )
+                : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      item.icon,
+                      color: isSelected ? Colors.white : Colors.grey[600],
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        item.label,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: isSelected ? Colors.white : Colors.grey[800],
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.normal,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
       ),
     );
   }
@@ -277,92 +279,97 @@ class _TeacherPanelContentState extends State<TeacherPanelContent> {
       userRole: 'teacher',
       primaryColor: const Color(0xFF19AE61),
       child: Scaffold(
-      backgroundColor: const Color.fromARGB(10, 78, 241, 157),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isTablet = constraints.maxWidth >= 768;
-          final isMobile = constraints.maxWidth < 768;
-          // ignore: unused_local_variable\n          final isLargeScreen = constraints.maxWidth >= 1200; // Used for future features
-          
-          return Row(
-            children: [
-              // Sidebar Navigation
-              LayoutBuilder(
-                builder: (context, sidebarConstraints) {
-                  double sidebarWidth;
-                  if (isMobile) {
-                    sidebarWidth = constraints.maxWidth * 0.25; // 25% on mobile
-                    sidebarWidth = sidebarWidth.clamp(60.0, 120.0);
-                  } else if (isTablet) {
-                    sidebarWidth = constraints.maxWidth * 0.2; // 20% on tablet
-                    sidebarWidth = sidebarWidth.clamp(150.0, 200.0);
-                  } else {
-                    sidebarWidth = constraints.maxWidth * 0.15; // 15% on desktop
-                    sidebarWidth = sidebarWidth.clamp(180.0, 250.0);
-                  }
-                  
-                  return Container(
-                    width: sidebarWidth,
-                    color: Colors.white,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // App title
-                        Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            isMobile ? 8 : 16,
-                            isMobile ? 16 : 24,
-                            isMobile ? 8 : 16,
-                            isMobile ? 20 : 32,
-                          ),
-                          child: Text(
-                            isMobile ? "KS" : "KidSync",
-                            style: TextStyle(
-                              fontSize: isMobile ? 16 : (isTablet ? 18 : 20),
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+        backgroundColor: const Color.fromARGB(10, 78, 241, 157),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final isTablet = constraints.maxWidth >= 768;
+            final isMobile = constraints.maxWidth < 768;
+            // ignore: unused_local_variable\n          final isLargeScreen = constraints.maxWidth >= 1200; // Used for future features
+
+            return Row(
+              children: [
+                // Sidebar Navigation
+                LayoutBuilder(
+                  builder: (context, sidebarConstraints) {
+                    double sidebarWidth;
+                    if (isMobile) {
+                      sidebarWidth =
+                          constraints.maxWidth * 0.25; // 25% on mobile
+                      sidebarWidth = sidebarWidth.clamp(60.0, 120.0);
+                    } else if (isTablet) {
+                      sidebarWidth =
+                          constraints.maxWidth * 0.2; // 20% on tablet
+                      sidebarWidth = sidebarWidth.clamp(150.0, 200.0);
+                    } else {
+                      sidebarWidth =
+                          constraints.maxWidth * 0.15; // 15% on desktop
+                      sidebarWidth = sidebarWidth.clamp(180.0, 250.0);
+                    }
+
+                    return Container(
+                      width: sidebarWidth,
+                      color: Colors.white,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // App title
+                          Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              isMobile ? 8 : 16,
+                              isMobile ? 16 : 24,
+                              isMobile ? 8 : 16,
+                              isMobile ? 20 : 32,
+                            ),
+                            child: Text(
+                              isMobile ? "KS" : "KidSync",
+                              style: TextStyle(
+                                fontSize: isMobile ? 16 : (isTablet ? 18 : 20),
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
                             ),
                           ),
-                        ),
-                        // Navigation items
-                        Expanded(
-                          child: ListView.builder(
-                            itemCount: navItems.length,
-                            padding: EdgeInsets.zero,
-                            itemBuilder: (context, index) {
-                              final item = navItems[index];
-                              if (item.label == "Logout" && index > 0) {
-                                return Column(
-                                  children: [
-                                    SizedBox(height: isMobile ? 8 : 16),
-                                    _buildNavItem(item, index, isMobile),
-                                  ],
-                                );
-                              }
-                              return _buildNavItem(item, index, isMobile);
-                            },
+                          // Navigation items
+                          Expanded(
+                            child: ListView.builder(
+                              itemCount: navItems.length,
+                              padding: EdgeInsets.zero,
+                              itemBuilder: (context, index) {
+                                final item = navItems[index];
+                                if (item.label == "Logout" && index > 0) {
+                                  return Column(
+                                    children: [
+                                      SizedBox(height: isMobile ? 8 : 16),
+                                      _buildNavItem(item, index, isMobile),
+                                    ],
+                                  );
+                                }
+                                return _buildNavItem(item, index, isMobile);
+                              },
+                            ),
                           ),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.only(bottom: isMobile ? 12.0 : 24.0),
-                          child: _buildNavItem(
-                            _TeacherNavItem("Logout", Icons.logout),
-                            navItems.length,
-                            isMobile,
+                          Padding(
+                            padding: EdgeInsets.only(
+                              bottom: isMobile ? 12.0 : 24.0,
+                            ),
+                            child: _buildNavItem(
+                              _TeacherNavItem("Logout", Icons.logout),
+                              navItems.length,
+                              isMobile,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              // Main Content
-              Expanded(child: _getContentForIndex(selectedIndex)),
-            ],
-          );
-        },
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                // Main Content
+                Expanded(child: _getContentForIndex(selectedIndex)),
+              ],
+            );
+          },
+        ),
       ),
-    ),
     );
   }
 }

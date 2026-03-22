@@ -36,7 +36,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
   final SmsGatewayService _smsService = SmsGatewayService(
     username: 'ASTVXO',
     password: 'm_cfb-t4kqx4wt',
-    supabaseFunctionUrl: SUPABASE_FUNCTIONS_BASE.isNotEmpty ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms' : null,
+    supabaseFunctionUrl:
+        SUPABASE_FUNCTIONS_BASE.isNotEmpty
+            ? '${SUPABASE_FUNCTIONS_BASE.replaceAll(RegExp(r'\/$'), '')}/send-sms'
+            : null,
   );
   bool _isLoading = true;
   bool _isProcessing = false;
@@ -209,7 +212,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
     String selectedReason = 'Student not present';
     String customReason = '';
     bool useCustomReason = false;
-    
+
     final predefinedReasons = [
       'Student not present',
       'Student sick/absent',
@@ -219,7 +222,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       'Vehicle issue',
       'Emergency situation',
       'Student no longer needs pickup',
-      'Other'
+      'Other',
     ];
 
     showDialog(
@@ -227,149 +230,191 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       barrierDismissible: true,
       builder: (BuildContext context) {
         return StatefulBuilder(
-          builder: (context, setModalState) => AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-            scrollable: true,
-            title: Row(
-              children: [
-                Icon(Icons.event_busy, color: Colors.orange, size: 24),
-                const SizedBox(width: 8),
-                const Text(
-                  'Skip Pickup',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          builder:
+              (context, setModalState) => AlertDialog(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Please select a reason for skipping ${student.name}\'s pickup:',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedReason,
-                  decoration: InputDecoration(
-                    labelText: 'Skip Reason',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  items: predefinedReasons.map((reason) => DropdownMenuItem(
-                    value: reason,
-                    child: Text(reason),
-                  )).toList(),
-                  onChanged: (value) {
-                    setModalState(() {
-                      selectedReason = value!;
-                      useCustomReason = value == 'Other';
-                      if (!useCustomReason) customReason = '';
-                    });
-                  },
-                ),
-                if (useCustomReason) ...[
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    decoration: InputDecoration(
-                      labelText: 'Please specify',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    onChanged: (value) => customReason = value,
-                    maxLength: 100,
-                  ),
-                ],
-                const SizedBox(height: 12),
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'This will skip the pickup and notify parents. If student is also scheduled for dropoff, that will be cancelled too.',
-                          style: TextStyle(
-                            color: Colors.orange.shade700,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
+                insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+                scrollable: true,
+                title: Row(
                   children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _isProcessing ? null : () {
-                          final reason = useCustomReason && customReason.isNotEmpty 
-                              ? customReason 
-                              : selectedReason;
-                          Navigator.of(context).pop();
-                          _skipPickup(student, reason);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 4,
-                          shadowColor: Colors.orange.withOpacity(0.3),
-                        ),
-                        icon: _isProcessing 
-                            ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Icon(Icons.event_busy, color: Colors.white),
-                        label: Text(
-                          _isProcessing ? 'Skipping...' : 'Skip Pickup',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey[600],
-                          side: BorderSide(color: Colors.grey[400]!, width: 2),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        icon: Icon(Icons.close, color: Colors.grey[600]),
-                        label: Text(
-                          'Keep Pickup',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[600],
-                          ),
-                        ),
+                    Icon(Icons.event_busy, color: Colors.orange, size: 24),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Skip Pickup',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Please select a reason for skipping ${student.name}\'s pickup:',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedReason,
+                      decoration: InputDecoration(
+                        labelText: 'Skip Reason',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      ),
+                      items:
+                          predefinedReasons
+                              .map(
+                                (reason) => DropdownMenuItem(
+                                  value: reason,
+                                  child: Text(reason),
+                                ),
+                              )
+                              .toList(),
+                      onChanged: (value) {
+                        setModalState(() {
+                          selectedReason = value!;
+                          useCustomReason = value == 'Other';
+                          if (!useCustomReason) customReason = '';
+                        });
+                      },
+                    ),
+                    if (useCustomReason) ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        decoration: InputDecoration(
+                          labelText: 'Please specify',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                        onChanged: (value) => customReason = value,
+                        maxLength: 100,
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: Colors.orange.shade700,
+                            size: 20,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'This will skip the pickup and notify parents. If student is also scheduled for dropoff, that will be cancelled too.',
+                              style: TextStyle(
+                                color: Colors.orange.shade700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed:
+                                _isProcessing
+                                    ? null
+                                    : () {
+                                      final reason =
+                                          useCustomReason &&
+                                                  customReason.isNotEmpty
+                                              ? customReason
+                                              : selectedReason;
+                                      Navigator.of(context).pop();
+                                      _skipPickup(student, reason);
+                                    },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 4,
+                              shadowColor: Colors.orange.withOpacity(0.3),
+                            ),
+                            icon:
+                                _isProcessing
+                                    ? SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                    : const Icon(
+                                      Icons.event_busy,
+                                      color: Colors.white,
+                                    ),
+                            label: Text(
+                              _isProcessing ? 'Skipping...' : 'Skip Pickup',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey[600],
+                              side: BorderSide(
+                                color: Colors.grey[400]!,
+                                width: 2,
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            icon: Icon(Icons.close, color: Colors.grey[600]),
+                            label: Text(
+                              'Keep Pickup',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
         );
       },
     );
@@ -379,7 +424,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
     String selectedReason = 'Change of plans';
     String customReason = '';
     bool useCustomReason = false;
-    
+
     final predefinedReasons = [
       'Change of plans',
       'Student no longer needs pickup',
@@ -387,7 +432,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       'Emergency situation',
       'Schedule change',
       'Vehicle issue',
-      'Other'
+      'Other',
     ];
 
     showDialog(
@@ -395,149 +440,191 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       barrierDismissible: true,
       builder: (BuildContext context) {
         return StatefulBuilder(
-          builder: (context, setModalState) => AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-            scrollable: true,
-            title: Row(
-              children: [
-                Icon(Icons.cancel, color: Colors.orange, size: 24),
-                const SizedBox(width: 8),
-                const Text(
-                  'Cancel Pickup',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          builder:
+              (context, setModalState) => AlertDialog(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Please select a reason for cancelling ${student.name}\'s pickup:',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedReason,
-                  decoration: InputDecoration(
-                    labelText: 'Cancellation Reason',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  items: predefinedReasons.map((reason) => DropdownMenuItem(
-                    value: reason,
-                    child: Text(reason),
-                  )).toList(),
-                  onChanged: (value) {
-                    setModalState(() {
-                      selectedReason = value!;
-                      useCustomReason = value == 'Other';
-                      if (!useCustomReason) customReason = '';
-                    });
-                  },
-                ),
-                if (useCustomReason) ...[
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    decoration: InputDecoration(
-                      labelText: 'Please specify',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    onChanged: (value) => customReason = value,
-                    maxLength: 100,
-                  ),
-                ],
-                const SizedBox(height: 12),
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'This will cancel the completed pickup and notify parents. If student is also scheduled for dropoff, that will be cancelled too.',
-                          style: TextStyle(
-                            color: Colors.orange.shade700,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
+                insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+                scrollable: true,
+                title: Row(
                   children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _isProcessing ? null : () {
-                          final reason = useCustomReason && customReason.isNotEmpty 
-                              ? customReason 
-                              : selectedReason;
-                          Navigator.of(context).pop();
-                          _cancelPickup(student, reason);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 4,
-                          shadowColor: Colors.orange.withOpacity(0.3),
-                        ),
-                        icon: _isProcessing 
-                            ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Icon(Icons.cancel, color: Colors.white),
-                        label: Text(
-                          _isProcessing ? 'Cancelling...' : 'Cancel Pickup',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey[600],
-                          side: BorderSide(color: Colors.grey[400]!, width: 2),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        icon: Icon(Icons.close, color: Colors.grey[600]),
-                        label: Text(
-                          'Keep Pickup',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[600],
-                          ),
-                        ),
+                    Icon(Icons.cancel, color: Colors.orange, size: 24),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Cancel Pickup',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Please select a reason for cancelling ${student.name}\'s pickup:',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedReason,
+                      decoration: InputDecoration(
+                        labelText: 'Cancellation Reason',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      ),
+                      items:
+                          predefinedReasons
+                              .map(
+                                (reason) => DropdownMenuItem(
+                                  value: reason,
+                                  child: Text(reason),
+                                ),
+                              )
+                              .toList(),
+                      onChanged: (value) {
+                        setModalState(() {
+                          selectedReason = value!;
+                          useCustomReason = value == 'Other';
+                          if (!useCustomReason) customReason = '';
+                        });
+                      },
+                    ),
+                    if (useCustomReason) ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        decoration: InputDecoration(
+                          labelText: 'Please specify',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                        onChanged: (value) => customReason = value,
+                        maxLength: 100,
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: Colors.orange.shade700,
+                            size: 20,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'This will cancel the completed pickup and notify parents. If student is also scheduled for dropoff, that will be cancelled too.',
+                              style: TextStyle(
+                                color: Colors.orange.shade700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed:
+                                _isProcessing
+                                    ? null
+                                    : () {
+                                      final reason =
+                                          useCustomReason &&
+                                                  customReason.isNotEmpty
+                                              ? customReason
+                                              : selectedReason;
+                                      Navigator.of(context).pop();
+                                      _cancelPickup(student, reason);
+                                    },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 4,
+                              shadowColor: Colors.orange.withOpacity(0.3),
+                            ),
+                            icon:
+                                _isProcessing
+                                    ? SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                    : const Icon(
+                                      Icons.cancel,
+                                      color: Colors.white,
+                                    ),
+                            label: Text(
+                              _isProcessing ? 'Cancelling...' : 'Cancel Pickup',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey[600],
+                              side: BorderSide(
+                                color: Colors.grey[400]!,
+                                width: 2,
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            icon: Icon(Icons.close, color: Colors.grey[600]),
+                            label: Text(
+                              'Keep Pickup',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
         );
       },
     );
@@ -549,8 +636,13 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       barrierDismissible: true,
       builder: (BuildContext context) {
         return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: Column(
@@ -559,10 +651,15 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                 // Header
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 18,
+                  ),
                   decoration: BoxDecoration(
                     color: widget.primaryColor.withOpacity(0.06),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(14),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -570,9 +667,13 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                         radius: 22,
                         backgroundColor: widget.primaryColor,
                         backgroundImage: _getStudentProfileImage(null),
-                        child: _getStudentProfileImage(null) == null
-                            ? Icon(Icons.directions_car, color: Colors.white)
-                            : null,
+                        child:
+                            _getStudentProfileImage(null) == null
+                                ? Icon(
+                                  Icons.directions_car,
+                                  color: Colors.white,
+                                )
+                                : null,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -605,7 +706,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
 
                 // Body
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 18,
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -628,8 +732,12 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: widget.primaryColor,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                                 elevation: 4,
                               ),
                             ),
@@ -638,12 +746,21 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                           Expanded(
                             child: OutlinedButton(
                               onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.grey[800],
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                side: BorderSide(color: Colors.grey.withOpacity(0.3)),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                side: BorderSide(
+                                  color: Colors.grey.withOpacity(0.3),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                               ),
                             ),
                           ),
@@ -666,8 +783,13 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       barrierDismissible: true,
       builder: (BuildContext context) {
         return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: Column(
@@ -675,10 +797,15 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               children: [
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 18,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.blue.withOpacity(0.06),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(14),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -686,9 +813,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                         radius: 22,
                         backgroundColor: Colors.blue,
                         backgroundImage: _getStudentProfileImage(null),
-                        child: _getStudentProfileImage(null) == null
-                            ? Icon(Icons.undo, color: Colors.white)
-                            : null,
+                        child:
+                            _getStudentProfileImage(null) == null
+                                ? Icon(Icons.undo, color: Colors.white)
+                                : null,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -719,7 +847,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 18,
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -742,8 +873,12 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blue,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                                 elevation: 4,
                               ),
                             ),
@@ -752,12 +887,21 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                           Expanded(
                             child: OutlinedButton(
                               onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Keep Pickup', style: TextStyle(fontWeight: FontWeight.w600)),
+                              child: const Text(
+                                'Keep Pickup',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.blue.shade700,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                side: BorderSide(color: Colors.blue.withOpacity(0.25)),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                side: BorderSide(
+                                  color: Colors.blue.withOpacity(0.25),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                               ),
                             ),
                           ),
@@ -778,7 +922,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
     String selectedReason = 'Student not at school';
     String customReason = '';
     bool useCustomReason = false;
-    
+
     final predefinedReasons = [
       'Student not at school',
       'Student left early',
@@ -787,7 +931,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       'Schedule change',
       'Vehicle issue',
       'Emergency situation',
-      'Other'
+      'Other',
     ];
 
     showDialog(
@@ -795,149 +939,191 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       barrierDismissible: true,
       builder: (BuildContext context) {
         return StatefulBuilder(
-          builder: (context, setModalState) => AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-            scrollable: true,
-            title: Row(
-              children: [
-                Icon(Icons.cancel, color: Colors.orange, size: 24),
-                const SizedBox(width: 8),
-                const Text(
-                  'Cancel Dropoff',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          builder:
+              (context, setModalState) => AlertDialog(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Please select a reason for cancelling ${student.name}\'s dropoff:',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedReason,
-                  decoration: InputDecoration(
-                    labelText: 'Cancellation Reason',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  items: predefinedReasons.map((reason) => DropdownMenuItem(
-                    value: reason,
-                    child: Text(reason),
-                  )).toList(),
-                  onChanged: (value) {
-                    setModalState(() {
-                      selectedReason = value!;
-                      useCustomReason = value == 'Other';
-                      if (!useCustomReason) customReason = '';
-                    });
-                  },
-                ),
-                if (useCustomReason) ...[
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    decoration: InputDecoration(
-                      labelText: 'Please specify',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    onChanged: (value) => customReason = value,
-                    maxLength: 100,
-                  ),
-                ],
-                const SizedBox(height: 12),
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'This will cancel the dropoff and notify parents.',
-                          style: TextStyle(
-                            color: Colors.orange.shade700,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
+                insetPadding: const EdgeInsets.symmetric(horizontal: 16),
+                scrollable: true,
+                title: Row(
                   children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _isProcessing ? null : () {
-                          final reason = useCustomReason && customReason.isNotEmpty 
-                              ? customReason 
-                              : selectedReason;
-                          Navigator.of(context).pop();
-                          _cancelDropoff(student, reason);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          elevation: 4,
-                          shadowColor: Colors.orange.withOpacity(0.3),
-                        ),
-                        icon: _isProcessing 
-                            ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Icon(Icons.cancel, color: Colors.white),
-                        label: Text(
-                          _isProcessing ? 'Cancelling...' : 'Yes, Cancel',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey[600],
-                          side: BorderSide(color: Colors.grey[400]!, width: 2),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        icon: Icon(Icons.close, color: Colors.grey[600]),
-                        label: Text(
-                          'Keep Dropoff',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[600],
-                          ),
-                        ),
+                    Icon(Icons.cancel, color: Colors.orange, size: 24),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Cancel Dropoff',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Please select a reason for cancelling ${student.name}\'s dropoff:',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedReason,
+                      decoration: InputDecoration(
+                        labelText: 'Cancellation Reason',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      ),
+                      items:
+                          predefinedReasons
+                              .map(
+                                (reason) => DropdownMenuItem(
+                                  value: reason,
+                                  child: Text(reason),
+                                ),
+                              )
+                              .toList(),
+                      onChanged: (value) {
+                        setModalState(() {
+                          selectedReason = value!;
+                          useCustomReason = value == 'Other';
+                          if (!useCustomReason) customReason = '';
+                        });
+                      },
+                    ),
+                    if (useCustomReason) ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        decoration: InputDecoration(
+                          labelText: 'Please specify',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                        onChanged: (value) => customReason = value,
+                        maxLength: 100,
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: Colors.orange.shade700,
+                            size: 20,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'This will cancel the dropoff and notify parents.',
+                              style: TextStyle(
+                                color: Colors.orange.shade700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed:
+                                _isProcessing
+                                    ? null
+                                    : () {
+                                      final reason =
+                                          useCustomReason &&
+                                                  customReason.isNotEmpty
+                                              ? customReason
+                                              : selectedReason;
+                                      Navigator.of(context).pop();
+                                      _cancelDropoff(student, reason);
+                                    },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 4,
+                              shadowColor: Colors.orange.withOpacity(0.3),
+                            ),
+                            icon:
+                                _isProcessing
+                                    ? SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                    : const Icon(
+                                      Icons.cancel,
+                                      color: Colors.white,
+                                    ),
+                            label: Text(
+                              _isProcessing ? 'Cancelling...' : 'Yes, Cancel',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey[600],
+                              side: BorderSide(
+                                color: Colors.grey[400]!,
+                                width: 2,
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            icon: Icon(Icons.close, color: Colors.grey[600]),
+                            label: Text(
+                              'Keep Dropoff',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
         );
       },
     );
@@ -952,14 +1138,19 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       );
       return;
     }
-    
+
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (BuildContext context) {
         return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: Column(
@@ -967,10 +1158,15 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               children: [
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 18,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.green.withOpacity(0.06),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(14),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -978,9 +1174,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                         radius: 22,
                         backgroundColor: Colors.green,
                         backgroundImage: _getStudentProfileImage(null),
-                        child: _getStudentProfileImage(null) == null
-                            ? Icon(Icons.home, color: Colors.white)
-                            : null,
+                        child:
+                            _getStudentProfileImage(null) == null
+                                ? Icon(Icons.home, color: Colors.white)
+                                : null,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1011,7 +1208,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 18,
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1034,8 +1234,12 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.green,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                                 elevation: 4,
                               ),
                             ),
@@ -1044,12 +1248,21 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                           Expanded(
                             child: OutlinedButton(
                               onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.green.shade700,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                side: BorderSide(color: Colors.green.withOpacity(0.25)),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                side: BorderSide(
+                                  color: Colors.green.withOpacity(0.25),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                               ),
                             ),
                           ),
@@ -1072,8 +1285,13 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       barrierDismissible: true,
       builder: (BuildContext context) {
         return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: Column(
@@ -1081,10 +1299,15 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               children: [
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 18,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.blue.withOpacity(0.06),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(14),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -1092,9 +1315,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                         radius: 22,
                         backgroundColor: Colors.blue,
                         backgroundImage: _getStudentProfileImage(null),
-                        child: _getStudentProfileImage(null) == null
-                            ? Icon(Icons.undo, color: Colors.white)
-                            : null,
+                        child:
+                            _getStudentProfileImage(null) == null
+                                ? Icon(Icons.undo, color: Colors.white)
+                                : null,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1125,7 +1349,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 18,
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1148,8 +1375,12 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blue,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                                 elevation: 4,
                               ),
                             ),
@@ -1158,12 +1389,22 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                           Expanded(
                             child: OutlinedButton(
                               onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Keep Skip', style: TextStyle(fontWeight: FontWeight.w600)),
+                              child: const Text(
+                                'Keep Skip',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.grey[600],
-                                side: BorderSide(color: Colors.grey[400]!, width: 2),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                side: BorderSide(
+                                  color: Colors.grey[400]!,
+                                  width: 2,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                               ),
                             ),
                           ),
@@ -1195,7 +1436,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
 
     try {
       final user = Supabase.instance.client.auth.currentUser!;
-      
+
       // Record pickup in database
       final pickupTime = DateTime.now();
       final success = await _driverService.recordPickup(
@@ -1254,7 +1495,9 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               final pid = r['parent_id'];
               if (pid != null) parentIds.add(pid as int);
             }
-            print('driver_pickup_tab: parentIds=$parentIds for student=${student.studentDbId}');
+            print(
+              'driver_pickup_tab: parentIds=$parentIds for student=${student.studentDbId}',
+            );
 
             final phones = <String>[];
             if (parentIds.isNotEmpty) {
@@ -1265,29 +1508,37 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               for (final p in parents) {
                 if (p['phone'] != null) phones.add(p['phone'] as String);
               }
-              print('driver_pickup_tab: parent phones=$phones for student=${student.studentDbId}');
+              print(
+                'driver_pickup_tab: parent phones=$phones for student=${student.studentDbId}',
+              );
             }
 
             // Driver phone fallback
             String? driverPhone;
-            final userRow = await Supabase.instance.client
-                .from('users')
-                .select('contact_number')
-                .eq('id', user.id)
-                .maybeSingle();
+            final userRow =
+                await Supabase.instance.client
+                    .from('users')
+                    .select('contact_number')
+                    .eq('id', user.id)
+                    .maybeSingle();
             if (userRow != null && userRow['contact_number'] != null) {
               driverPhone = userRow['contact_number'] as String;
             }
 
             if (phones.isNotEmpty) {
-              print('driver_pickup_tab: sending SMS to parents; driverPhone=$driverPhone');
+              print(
+                'driver_pickup_tab: sending SMS to parents; driverPhone=$driverPhone',
+              );
               final smsOk = await _smsService.sendSms(
                 recipients: phones,
-                message: 'Verification request: Your child ${student.name} was picked up by driver ${user.userMetadata?['fname'] ?? 'Driver'}.',
+                message:
+                    'Verification request: Your child ${student.name} was picked up by driver ${user.userMetadata?['fname'] ?? 'Driver'}.',
               );
               print('driver_pickup_tab: sms send result=$smsOk');
             } else {
-              print('driver_pickup_tab: no parent phones found to send SMS for student=${student.studentDbId}');
+              print(
+                'driver_pickup_tab: no parent phones found to send SMS for student=${student.studentDbId}',
+              );
             }
           } catch (smsError) {
             print('SMS send failed: $smsError');
@@ -1315,7 +1566,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           );
         } catch (verificationError) {
           print('Error creating verification request: $verificationError');
-          
+
           // Log verification request failure
           try {
             await _driverAuditService.logVerificationRequestCreation(
@@ -1331,7 +1582,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           } catch (auditError) {
             print('Error logging verification request failure: $auditError');
           }
-          
+
           _showConfirmationDialog(
             '✓ ${student.name} marked as picked up - Warning: Could not send verification request',
             Colors.orange,
@@ -1380,7 +1631,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           studentId: student.studentDbId!,
           driverId: user.id,
           reason: 'Manual cancellation via driver app',
-          notes: 'Driver manually cancelled dropoff operation'
+          notes: 'Driver manually cancelled dropoff operation',
         );
 
         // Log dropoff cancellation (HIGH PRIORITY - Transportation Safety & Compliance)
@@ -1472,7 +1723,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             );
           } catch (verificationError) {
             print('Error creating verification request: $verificationError');
-            
+
             // Log verification request failure
             try {
               await _driverAuditService.logVerificationRequestCreation(
@@ -1488,7 +1739,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             } catch (auditError) {
               print('Error logging verification request failure: $auditError');
             }
-            
+
             _showConfirmationDialog(
               '✓ ${student.name} marked as dropped off - Warning: Could not send verification request',
               Colors.orange,
@@ -1519,7 +1770,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
   }
 
   /// Check if student pickup was skipped today by looking at pickup_dropoff_logs
-  Future<bool> _wasStudentPickupSkippedToday(int studentId, String driverId) async {
+  Future<bool> _wasStudentPickupSkippedToday(
+    int studentId,
+    String driverId,
+  ) async {
     try {
       final today = DateTime.now();
       final startOfDay = DateTime(today.year, today.month, today.day);
@@ -1530,7 +1784,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           .select('id')
           .eq('student_id', studentId)
           .eq('driver_id', driverId)
-          .eq('event_type', 'pickup_skipped')  // Only look for active skips, not cancelled ones
+          .eq(
+            'event_type',
+            'pickup_skipped',
+          ) // Only look for active skips, not cancelled ones
           .gte('created_at', startOfDay.toIso8601String())
           .lt('created_at', endOfDay.toIso8601String())
           .limit(1);
@@ -1561,7 +1818,14 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       try {
         final today = DateTime.now();
         final startOfDay = DateTime(today.year, today.month, today.day);
-        final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
+        final endOfDay = DateTime(
+          today.year,
+          today.month,
+          today.day,
+          23,
+          59,
+          59,
+        );
 
         // First, let's check what records exist before deletion
         final existingRecords = await Supabase.instance.client
@@ -1573,14 +1837,17 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             .gte('created_at', startOfDay.toIso8601String())
             .lt('created_at', endOfDay.toIso8601String());
 
-        print('Found ${existingRecords.length} skip records to delete: $existingRecords');
+        print(
+          'Found ${existingRecords.length} skip records to delete: $existingRecords',
+        );
 
         if (existingRecords.isNotEmpty) {
           // Delete using the specific IDs we found
-          final recordIds = existingRecords.map((record) => record['id']).toList();
-          
+          final recordIds =
+              existingRecords.map((record) => record['id']).toList();
+
           print('Attempting to delete records with IDs: $recordIds');
-          
+
           final deleteResponse = await Supabase.instance.client
               .from('pickup_dropoff_logs')
               .delete()
@@ -1588,23 +1855,31 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
 
           print('Delete response: $deleteResponse');
           print('Delete response type: ${deleteResponse.runtimeType}');
-          
+
           // Verify deletion by checking if records still exist
           final verificationRecords = await Supabase.instance.client
               .from('pickup_dropoff_logs')
               .select('id')
               .inFilter('id', recordIds);
-              
-          print('Records remaining after delete: ${verificationRecords.length} - $verificationRecords');
-          
+
+          print(
+            'Records remaining after delete: ${verificationRecords.length} - $verificationRecords',
+          );
+
           if (verificationRecords.isEmpty) {
-            print('✓ Successfully deleted ${recordIds.length} skip records for student ${student.studentDbId}');
+            print(
+              '✓ Successfully deleted ${recordIds.length} skip records for student ${student.studentDbId}',
+            );
           } else {
-            print('⚠️ Delete command executed but ${verificationRecords.length} records still exist');
+            print(
+              '⚠️ Delete command executed but ${verificationRecords.length} records still exist',
+            );
             throw 'Records still exist after delete operation - possible RLS policy issue or database constraint violation';
           }
         } else {
-          print('No skip records found to delete for student ${student.studentDbId}');
+          print(
+            'No skip records found to delete for student ${student.studentDbId}',
+          );
         }
       } catch (dbError) {
         print('Error handling skip record: $dbError');
@@ -1616,7 +1891,14 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       try {
         final today = DateTime.now();
         final startOfDay = DateTime(today.year, today.month, today.day);
-        final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
+        final endOfDay = DateTime(
+          today.year,
+          today.month,
+          today.day,
+          23,
+          59,
+          59,
+        );
 
         // Delete parent notifications related to this skip
         await Supabase.instance.client
@@ -1637,7 +1919,9 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             .gte('created_at', startOfDay.toIso8601String())
             .lt('created_at', endOfDay.toIso8601String());
 
-        print('Deleted skip-related notifications for student ${student.studentDbId}');
+        print(
+          'Deleted skip-related notifications for student ${student.studentDbId}',
+        );
       } catch (notificationError) {
         print('Error deleting notifications: $notificationError');
         // Continue even if notification deletion fails
@@ -1651,7 +1935,8 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           reason: 'Skip cancelled - restored to waiting',
           driverId: user.id,
           driverName: user.userMetadata?['fname'] ?? 'Driver',
-          notes: 'Driver cancelled skip operation - skip record and notifications deleted, student restored to pickup queue',
+          notes:
+              'Driver cancelled skip operation - skip record and notifications deleted, student restored to pickup queue',
         );
       } catch (auditError) {
         print('Error logging skip cancellation: $auditError');
@@ -1677,10 +1962,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) throw 'User not authenticated';
-      
+
       // Check if student is also scheduled for driver dropoff
       final isScheduledForDropoff = afternoonDropoffStudents.any(
-        (studentData) => studentData['students']['id'].toString() == student.id
+        (studentData) => studentData['students']['id'].toString() == student.id,
       );
 
       // Create a skip record using direct database insertion
@@ -1714,13 +1999,16 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
         // Instead, send a direct notification
         try {
           // Get student information
-          final studentResponse = await Supabase.instance.client
-              .from('students')
-              .select('fname, mname, lname')
-              .eq('id', student.studentDbId!)
-              .single();
+          final studentResponse =
+              await Supabase.instance.client
+                  .from('students')
+                  .select('fname, mname, lname')
+                  .eq('id', student.studentDbId!)
+                  .single();
 
-          final studentName = '${studentResponse['fname']} ${studentResponse['mname'] ?? ''} ${studentResponse['lname']}'.trim();
+          final studentName =
+              '${studentResponse['fname']} ${studentResponse['mname'] ?? ''} ${studentResponse['lname']}'
+                  .trim();
 
           // Get parent information
           final parentResponse = await Supabase.instance.client
@@ -1743,7 +2031,8 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               await Supabase.instance.client.from('notifications').insert({
                 'recipient_id': parent['user_id'],
                 'title': 'Pickup Skipped',
-                'message': 'Your child $studentName\'s pickup has been skipped by the driver. Reason: $reason',
+                'message':
+                    'Your child $studentName\'s pickup has been skipped by the driver. Reason: $reason',
                 'type': 'pickup_skipped',
                 'is_read': false,
                 'created_at': DateTime.now().toIso8601String(),
@@ -1760,7 +2049,8 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           if (parentPhones.isNotEmpty) {
             _smsService.sendSms(
               recipients: parentPhones,
-              message: 'Your child $studentName\'s pickup has been skipped by the driver. Reason: $reason',
+              message:
+                  'Your child $studentName\'s pickup has been skipped by the driver. Reason: $reason',
             );
           }
 
@@ -1778,7 +2068,8 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             reason: reason,
             driverId: user.id,
             driverName: user.userMetadata?['fname'] ?? 'Driver',
-            notes: 'Driver skipped scheduled pickup operation via app - no existing record',
+            notes:
+                'Driver skipped scheduled pickup operation via app - no existing record',
           );
         } catch (auditError) {
           print('Error logging pickup skip: $auditError');
@@ -1793,7 +2084,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               reason: 'Pickup skipped - dropoff automatically cancelled',
               notes: 'Dropoff cancelled due to pickup being skipped',
             );
-            
+
             // Log dropoff cancellation too
             await _driverAuditService.logDropoffCancellation(
               studentId: student.studentDbId!.toString(),
@@ -1808,15 +2099,14 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           }
         }
 
-        final statusMessage = '✓ ${student.name} pickup skipped - Parents notified';
-        final statusMessageWithDropoff = isScheduledForDropoff
-            ? '$statusMessage\nDropoff also cancelled.'
-            : statusMessage;
+        final statusMessage =
+            '✓ ${student.name} pickup skipped - Parents notified';
+        final statusMessageWithDropoff =
+            isScheduledForDropoff
+                ? '$statusMessage\nDropoff also cancelled.'
+                : statusMessage;
 
-        _showConfirmationDialog(
-          statusMessageWithDropoff,
-          Colors.orange,
-        );
+        _showConfirmationDialog(statusMessageWithDropoff, Colors.orange);
       } else {
         _showConfirmationDialog(
           'Error skipping pickup for ${student.name}',
@@ -1839,10 +2129,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) throw 'User not authenticated';
-      
+
       // Check if student is also scheduled for driver dropoff
       final isScheduledForDropoff = afternoonDropoffStudents.any(
-        (studentData) => studentData['students']['id'].toString() == student.id
+        (studentData) => studentData['students']['id'].toString() == student.id,
       );
 
       // Cancel the existing pickup record (this function should only be called for picked up students)
@@ -1857,12 +2147,12 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
         setState(() {
           // Remove from picked up list
           pickedUpStudents.removeWhere((s) => s.id == student.id);
-          
+
           // Also remove from dropped off list if they were dropped off
           if (droppedOffStudents.any((s) => s.id == student.id)) {
             droppedOffStudents.removeWhere((s) => s.id == student.id);
           }
-          
+
           // Add to skipped list if not already there
           if (!skippedPickupStudents.any((s) => s.id == student.id)) {
             skippedPickupStudents.add(student);
@@ -1892,7 +2182,7 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
               reason: 'Pickup cancelled - dropoff automatically cancelled',
               notes: 'Dropoff cancelled due to pickup cancellation',
             );
-            
+
             // Log dropoff cancellation too
             await _driverAuditService.logDropoffCancellation(
               studentId: student.studentDbId!.toString(),
@@ -1907,15 +2197,14 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           }
         }
 
-        final statusMessage = '✓ ${student.name} pickup cancelled - Parents notified';
-        final statusMessageWithDropoff = isScheduledForDropoff
-            ? '$statusMessage\nDropoff also cancelled.'
-            : statusMessage;
+        final statusMessage =
+            '✓ ${student.name} pickup cancelled - Parents notified';
+        final statusMessageWithDropoff =
+            isScheduledForDropoff
+                ? '$statusMessage\nDropoff also cancelled.'
+                : statusMessage;
 
-        _showConfirmationDialog(
-          statusMessageWithDropoff,
-          Colors.orange,
-        );
+        _showConfirmationDialog(statusMessageWithDropoff, Colors.orange);
       } else {
         _showConfirmationDialog(
           'Error cancelling pickup for ${student.name}',
@@ -1956,7 +2245,14 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       try {
         final today = DateTime.now();
         final startOfDay = DateTime(today.year, today.month, today.day);
-        final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
+        final endOfDay = DateTime(
+          today.year,
+          today.month,
+          today.day,
+          23,
+          59,
+          59,
+        );
 
         // Find pickup records to delete
         final existingRecords = await Supabase.instance.client
@@ -1968,30 +2264,37 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             .gte('created_at', startOfDay.toIso8601String())
             .lt('created_at', endOfDay.toIso8601String());
 
-        print('Found ${existingRecords.length} pickup records to delete: $existingRecords');
+        print(
+          'Found ${existingRecords.length} pickup records to delete: $existingRecords',
+        );
 
         if (existingRecords.isNotEmpty) {
-          final recordIds = existingRecords.map((record) => record['id']).toList();
-          
+          final recordIds =
+              existingRecords.map((record) => record['id']).toList();
+
           print('Attempting to delete pickup records with IDs: $recordIds');
-          
+
           final deleteResponse = await Supabase.instance.client
               .from('pickup_dropoff_logs')
               .delete()
               .inFilter('id', recordIds);
 
           print('Delete response: $deleteResponse');
-          
+
           // Verify deletion
           final verificationRecords = await Supabase.instance.client
               .from('pickup_dropoff_logs')
               .select('id')
               .inFilter('id', recordIds);
-              
+
           if (verificationRecords.isEmpty) {
-            print('✓ Successfully deleted ${recordIds.length} pickup records for student ${student.studentDbId}');
+            print(
+              '✓ Successfully deleted ${recordIds.length} pickup records for student ${student.studentDbId}',
+            );
           } else {
-            print('⚠️ Delete command executed but ${verificationRecords.length} pickup records still exist');
+            print(
+              '⚠️ Delete command executed but ${verificationRecords.length} pickup records still exist',
+            );
             throw 'Pickup records still exist after delete operation - possible RLS policy issue';
           }
         }
@@ -2005,7 +2308,14 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       try {
         final today = DateTime.now();
         final startOfDay = DateTime(today.year, today.month, today.day);
-        final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59);
+        final endOfDay = DateTime(
+          today.year,
+          today.month,
+          today.day,
+          23,
+          59,
+          59,
+        );
 
         // Delete parent notifications related to this pickup
         await Supabase.instance.client
@@ -2026,13 +2336,13 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
             .gte('created_at', startOfDay.toIso8601String())
             .lt('created_at', endOfDay.toIso8601String());
 
-        print('Deleted pickup-related notifications for student ${student.studentDbId}');
+        print(
+          'Deleted pickup-related notifications for student ${student.studentDbId}',
+        );
       } catch (notificationError) {
         print('Error deleting notifications: $notificationError');
         // Continue even if notification deletion fails
       }
-
-
 
       // Log accidental pickup cancellation (HIGH PRIORITY - Transportation Safety & Compliance)
       try {
@@ -2042,7 +2352,8 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
           reason: 'Accidental pickup - driver error',
           driverId: user.id,
           driverName: user.userMetadata?['fname'] ?? 'Driver',
-          notes: 'Driver accidentally marked wrong student - pickup record and notifications deleted',
+          notes:
+              'Driver accidentally marked wrong student - pickup record and notifications deleted',
         );
       } catch (auditError) {
         print('Error logging accidental pickup cancellation: $auditError');
@@ -2708,16 +3019,21 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                       backgroundColor: statusColor.withOpacity(0.1),
                       radius: 24,
                       backgroundImage: _getStudentProfileImage(studentData),
-                      child: _getStudentProfileImage(studentData) == null
-                          ? Text(
-                              student.name.split(' ').map((n) => n[0]).take(2).join(),
-                              style: TextStyle(
-                                color: statusColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            )
-                          : null,
+                      child:
+                          _getStudentProfileImage(studentData) == null
+                              ? Text(
+                                student.name
+                                    .split(' ')
+                                    .map((n) => n[0])
+                                    .take(2)
+                                    .join(),
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              )
+                              : null,
                     ),
                     const SizedBox(width: 12),
 
@@ -2990,15 +3306,23 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                     ] else ...[
                       // Morning Pickup Buttons
                       if (isMorningPickup) ...[
-                        if (!isPickedUp && !isDroppedOff && !isPickupSkipped) ...[
+                        if (!isPickedUp &&
+                            !isDroppedOff &&
+                            !isPickupSkipped) ...[
                           // Skip Pickup with Reason button (before pickup)
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () => _showSkipPickupConfirmation(student),
+                              onPressed:
+                                  () => _showSkipPickupConfirmation(student),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.orange,
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                side: BorderSide(color: Colors.orange.withOpacity(0.4), width: 1.5),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
+                                side: BorderSide(
+                                  color: Colors.orange.withOpacity(0.4),
+                                  width: 1.5,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -3022,7 +3346,9 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: widget.primaryColor,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -3042,11 +3368,16 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                           // Only Cancel Pickup (accidental) button after pickup
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: () => _showAccidentalPickupCancellation(student),
+                              onPressed:
+                                  () => _showAccidentalPickupCancellation(
+                                    student,
+                                  ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blue,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -3066,11 +3397,14 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                           // Cancel Skip button for skipped pickup
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: () => _showCancelSkipConfirmation(student),
+                              onPressed:
+                                  () => _showCancelSkipConfirmation(student),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blue,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -3096,8 +3430,12 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                             onPressed:
                                 isPickedUp
                                     ? (isDroppedOff
-                                        ? () => _showDropoffCancellationConfirmation(student)
-                                        : () => _showDropoffConfirmation(student))
+                                        ? () =>
+                                            _showDropoffCancellationConfirmation(
+                                              student,
+                                            )
+                                        : () =>
+                                            _showDropoffConfirmation(student))
                                     : null,
                             style: ElevatedButton.styleFrom(
                               backgroundColor:
@@ -3105,7 +3443,9 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                                       ? Colors.orange.withOpacity(0.8)
                                       : Colors.green,
                               foregroundColor: Colors.white,
-                              disabledBackgroundColor: Colors.grey.withOpacity(0.3),
+                              disabledBackgroundColor: Colors.grey.withOpacity(
+                                0.3,
+                              ),
                               disabledForegroundColor: Colors.grey[600],
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
@@ -3114,19 +3454,19 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                               elevation: 2,
                             ),
                             icon: Icon(
-                              isDroppedOff 
-                                  ? Icons.cancel 
-                                  : isPickedUp 
-                                      ? Icons.home 
-                                      : Icons.block,
+                              isDroppedOff
+                                  ? Icons.cancel
+                                  : isPickedUp
+                                  ? Icons.home
+                                  : Icons.block,
                               size: 18,
                             ),
                             label: Text(
                               isDroppedOff
                                   ? 'Cancel Dropoff'
                                   : isPickedUp
-                                      ? 'Mark as Dropped Off'
-                                      : 'Pick up first',
+                                  ? 'Mark as Dropped Off'
+                                  : 'Pick up first',
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
@@ -3234,21 +3574,26 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       for (final studentData in afternoonDropoffStudents) {
         uniqueStudents.add(studentData['students']['id']);
       }
-      
+
       final totalStudents = uniqueStudents.length;
       final completedStudents = pickedUpStudents.length;
-      final routeType = morningPickupStudents.isNotEmpty && afternoonDropoffStudents.isNotEmpty 
-          ? 'mixed' 
-          : morningPickupStudents.isNotEmpty 
-              ? 'morning_pickup' 
+      final routeType =
+          morningPickupStudents.isNotEmpty &&
+                  afternoonDropoffStudents.isNotEmpty
+              ? 'mixed'
+              : morningPickupStudents.isNotEmpty
+              ? 'morning_pickup'
               : 'afternoon_dropoff';
-      
+
       // Calculate completion time based on first pickup
-      final firstPickupTime = pickedUpStudents.isNotEmpty 
-          ? pickedUpStudents.first.pickupTime 
-          : DateTime.now();
-      final completionTime = DateTime.now().difference(firstPickupTime ?? DateTime.now());
-      
+      final firstPickupTime =
+          pickedUpStudents.isNotEmpty
+              ? pickedUpStudents.first.pickupTime
+              : DateTime.now();
+      final completionTime = DateTime.now().difference(
+        firstPickupTime ?? DateTime.now(),
+      );
+
       await _driverAuditService.logTaskCompletion(
         totalStudents: totalStudents,
         completionTime: completionTime,
@@ -3258,7 +3603,9 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
         routeEfficiencyMetrics: {
           'completed_students': completedStudents,
           'completion_rate': completedStudents / totalStudents,
-          'minutes_per_student': completionTime.inMinutes / (completedStudents > 0 ? completedStudents : 1),
+          'minutes_per_student':
+              completionTime.inMinutes /
+              (completedStudents > 0 ? completedStudents : 1),
         },
         completedStudentIds: pickedUpStudents.map((s) => s.id).toList(),
         performanceMetrics: {
@@ -3336,8 +3683,13 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
       barrierDismissible: true,
       builder: (BuildContext context) {
         return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 20,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 640),
             child: SingleChildScrollView(
@@ -3353,12 +3705,20 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                           radius: 28,
                           backgroundColor: widget.primaryColor.withOpacity(0.9),
                           backgroundImage: _getStudentProfileImage(null),
-                          child: _getStudentProfileImage(null) == null
-                              ? Text(
-                                  student.name.split(' ').map((n) => n[0]).take(2).join(),
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                )
-                              : null,
+                          child:
+                              _getStudentProfileImage(null) == null
+                                  ? Text(
+                                    student.name
+                                        .split(' ')
+                                        .map((n) => n[0])
+                                        .take(2)
+                                        .join(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  )
+                                  : null,
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -3367,7 +3727,10 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                             children: [
                               Text(
                                 student.name,
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               const SizedBox(height: 4),
                               Text(
@@ -3387,58 +3750,118 @@ class _DriverPickupTabState extends State<DriverPickupTab> {
                     FutureBuilder<Map<String, dynamic>>(
                       future: _getStudentDetails(student),
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 20),
-                            child: CircularProgressIndicator(),
-                          ));
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 20),
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
                         }
 
                         final studentDetails = snapshot.data ?? {};
-                        final parents = studentDetails['parents'] as List<dynamic>? ?? [];
+                        final parents =
+                            studentDetails['parents'] as List<dynamic>? ?? [];
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildInfoRow('Student ID', student.id),
                             _buildInfoRow('Grade', student.grade),
-                            if (student.sectionName != null) _buildInfoRow('Section', student.sectionName!),
+                            if (student.sectionName != null)
+                              _buildInfoRow('Section', student.sectionName!),
                             const SizedBox(height: 8),
                             if (parents.isNotEmpty) ...[
                               const Divider(),
                               const SizedBox(height: 8),
-                              Text('Parent / Guardian', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: widget.primaryColor)),
+                              Text(
+                                'Parent / Guardian',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: widget.primaryColor,
+                                ),
+                              ),
                               const SizedBox(height: 8),
-                              ...parents.map((parent) => Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildInfoRow('Name', '${parent['fname']} ${parent['lname']}'),
-                                  _buildInfoRow('Phone', parent['phone'] ?? 'N/A'),
-                                  _buildInfoRow('Email', parent['email'] ?? 'N/A'),
-                                  const SizedBox(height: 8),
-                                ],
-                              )).toList(),
+                              ...parents
+                                  .map(
+                                    (parent) => Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        _buildInfoRow(
+                                          'Name',
+                                          '${parent['fname']} ${parent['lname']}',
+                                        ),
+                                        _buildInfoRow(
+                                          'Phone',
+                                          parent['phone'] ?? 'N/A',
+                                        ),
+                                        _buildInfoRow(
+                                          'Email',
+                                          parent['email'] ?? 'N/A',
+                                        ),
+                                        const SizedBox(height: 8),
+                                      ],
+                                    ),
+                                  )
+                                  .toList(),
                             ],
-                            if (_isStudentPickedUp(student) || _isStudentDroppedOff(student)) ...[
+                            if (_isStudentPickedUp(student) ||
+                                _isStudentDroppedOff(student)) ...[
                               const Divider(),
                               const SizedBox(height: 8),
                             ],
-                            if (_isStudentPickedUp(student)) _buildInfoRow('Pickup Time', DateFormat('h:mm a').format(pickedUpStudents.firstWhere((s) => s.id == student.id).pickupTime!)),
-                            if (_isStudentPickedUp(student)) _buildInfoRow('Driver', Supabase.instance.client.auth.currentUser?.userMetadata?['fname'] ?? 'Driver'),
-                            if (_isStudentDroppedOff(student)) _buildInfoRow('Dropoff Time', DateFormat('h:mm a').format(DateTime.now())),
-                            if (_isStudentDroppedOff(student)) _buildInfoRow('Status', 'Completed'),
+                            if (_isStudentPickedUp(student))
+                              _buildInfoRow(
+                                'Pickup Time',
+                                DateFormat('h:mm a').format(
+                                  pickedUpStudents
+                                      .firstWhere((s) => s.id == student.id)
+                                      .pickupTime!,
+                                ),
+                              ),
+                            if (_isStudentPickedUp(student))
+                              _buildInfoRow(
+                                'Driver',
+                                Supabase
+                                        .instance
+                                        .client
+                                        .auth
+                                        .currentUser
+                                        ?.userMetadata?['fname'] ??
+                                    'Driver',
+                              ),
+                            if (_isStudentDroppedOff(student))
+                              _buildInfoRow(
+                                'Dropoff Time',
+                                DateFormat('h:mm a').format(DateTime.now()),
+                              ),
+                            if (_isStudentDroppedOff(student))
+                              _buildInfoRow('Status', 'Completed'),
                             const SizedBox(height: 14),
                             Row(
                               children: [
                                 Expanded(
                                   child: ElevatedButton(
-                                    onPressed: () => Navigator.of(context).pop(),
-                                    child: const Text('Close', style: TextStyle(fontWeight: FontWeight.w600)),
+                                    onPressed:
+                                        () => Navigator.of(context).pop(),
+                                    child: const Text(
+                                      'Close',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: widget.primaryColor,
                                       foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
                                     ),
                                   ),
                                 ),

@@ -7,9 +7,6 @@ class DriverPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RoleProtected(
-      requiredRole: 'Driver',
-      child: DriverHomeScreen(),
-    );
+    return RoleProtected(requiredRole: 'Driver', child: DriverHomeScreen());
   }
 }

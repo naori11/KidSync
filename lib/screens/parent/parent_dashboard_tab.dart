@@ -737,7 +737,8 @@ class _ParentDashboardTabState extends State<ParentDashboardTab> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            if (plateNumber != null && plateNumber.isNotEmpty) ...[
+                            if (plateNumber != null &&
+                                plateNumber.isNotEmpty) ...[
                               Row(
                                 children: [
                                   Icon(

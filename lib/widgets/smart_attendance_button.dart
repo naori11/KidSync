@@ -28,11 +28,12 @@ class SmartAttendanceButton extends StatefulWidget {
 }
 
 class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
-  final AttendanceTicketingService _ticketingService = AttendanceTicketingService();
+  final AttendanceTicketingService _ticketingService =
+      AttendanceTicketingService();
   bool _isLoading = true;
   bool _isNotifyLoading = false;
   bool _isResolveLoading = false;
-  
+
   // Ticket status
   bool _hasTicket = false;
   bool _isResolved = false;
@@ -94,17 +95,19 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
             teacherId: widget.teacherId,
             // no senderPhone parameter - SMS payload must only contain phoneNumbers and textMessage
           );
-          
+
           // Reload ticket status after sending notification (with small delay to ensure DB commit)
           await Future.delayed(const Duration(milliseconds: 1000));
           await _loadTicketStatus();
           widget.onActionComplete?.call();
-          
+
           // Show success message
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Notification ticket sent to ${widget.studentName}\'s parents'),
+                content: Text(
+                  'Notification ticket sent to ${widget.studentName}\'s parents',
+                ),
                 backgroundColor: Colors.green,
               ),
             );
@@ -114,10 +117,7 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: '),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: '), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -148,7 +148,7 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
             backgroundColor: Colors.green,
           ),
         );
-        
+
         // Reload ticket status after resolution
         await _loadTicketStatus();
         widget.onActionComplete?.call();
@@ -156,10 +156,7 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: '),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: '), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -176,7 +173,10 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
       text: 'Notify Parent',
       icon: Icons.send,
       color: _canSendNotification ? const Color(0xFFF59E0B) : Colors.grey,
-      onPressed: (_canSendNotification && !_isNotifyLoading) ? _showNotificationModal : null,
+      onPressed:
+          (_canSendNotification && !_isNotifyLoading)
+              ? _showNotificationModal
+              : null,
       isLoading: _isNotifyLoading,
       width: 110,
       height: 32,
@@ -188,7 +188,8 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
       text: 'Mark Resolved',
       icon: Icons.check_circle,
       color: _canMarkResolved ? const Color(0xFF10B981) : Colors.grey,
-      onPressed: (_canMarkResolved && !_isResolveLoading) ? _markAsResolved : null,
+      onPressed:
+          (_canMarkResolved && !_isResolveLoading) ? _markAsResolved : null,
       isLoading: _isResolveLoading,
       width: 110,
       height: 32,
@@ -267,7 +268,7 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
       builder: (context, constraints) {
         // Determine if we should use vertical layout for very small screens
         final isVerySmall = constraints.maxWidth < 280;
-        
+
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: Column(
@@ -281,7 +282,7 @@ class _SmartAttendanceButtonState extends State<SmartAttendanceButton> {
                   child: _buildStatusIndicator(),
                 ),
               ],
-              
+
               // Action buttons with responsive layout
               if (isVerySmall)
                 // Vertical layout for very small screens

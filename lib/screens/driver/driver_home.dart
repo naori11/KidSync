@@ -11,7 +11,6 @@ import '../../services/driver_audit_service.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/in_app_notification_widget.dart';
 
-
 class DriverHomeScreen extends StatelessWidget {
   DriverHomeScreen({Key? key}) : super(key: key);
 
@@ -20,7 +19,7 @@ class DriverHomeScreen extends StatelessWidget {
   Future<void> _logout(BuildContext context) async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
-      
+
       // Log logout activity (HIGH PRIORITY - Driver Authentication)
       if (user != null) {
         try {
@@ -209,7 +208,8 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
-        final count = await _notificationService.getUnreadDriverNotificationCount(user.id);
+        final count = await _notificationService
+            .getUnreadDriverNotificationCount(user.id);
         if (mounted) {
           setState(() {
             unreadNotificationCount = count;
@@ -226,13 +226,14 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) return null;
-      
-      final response = await Supabase.instance.client
-          .from('users')
-          .select('profile_image_url')
-          .eq('id', user.id)
-          .maybeSingle();
-      
+
+      final response =
+          await Supabase.instance.client
+              .from('users')
+              .select('profile_image_url')
+              .eq('id', user.id)
+              .maybeSingle();
+
       return response?['profile_image_url'];
     } catch (e) {
       print('Error getting driver profile image: $e');
@@ -241,13 +242,13 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
   }
 
   void _setupAuthListener() {
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen(
-      (AuthState data) {
-        if (data.event == AuthChangeEvent.signedOut) {
-          Navigator.pushReplacementNamed(context, '/login');
-        }
-      },
-    );
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      AuthState data,
+    ) {
+      if (data.event == AuthChangeEvent.signedOut) {
+        Navigator.pushReplacementNamed(context, '/login');
+      }
+    });
   }
 
   /// Log dashboard access for driver authentication tracking
@@ -350,7 +351,7 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
         showNotifications = false;
         showProfile = false;
       });
-      
+
       _pageController.animateToPage(
         index,
         duration: const Duration(milliseconds: 300),
@@ -455,8 +456,8 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
                                 minHeight: 16,
                               ),
                               child: Text(
-                                unreadNotificationCount > 9 
-                                    ? '9+' 
+                                unreadNotificationCount > 9
+                                    ? '9+'
                                     : unreadNotificationCount.toString(),
                                 style: const TextStyle(
                                   color: Colors.white,
@@ -479,16 +480,20 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
                           return CircleAvatar(
                             backgroundColor: Color.fromRGBO(25, 174, 97, 0.171),
                             radius: 16,
-                            backgroundImage: profileImageUrl != null && profileImageUrl.isNotEmpty
-                                ? NetworkImage(profileImageUrl)
-                                : null,
-                            child: profileImageUrl == null || profileImageUrl.isEmpty
-                                ? Icon(
-                                    Icons.person,
-                                    color: Color(0xFF19AE61),
-                                    size: 18,
-                                  )
-                                : null,
+                            backgroundImage:
+                                profileImageUrl != null &&
+                                        profileImageUrl.isNotEmpty
+                                    ? NetworkImage(profileImageUrl)
+                                    : null,
+                            child:
+                                profileImageUrl == null ||
+                                        profileImageUrl.isEmpty
+                                    ? Icon(
+                                      Icons.person,
+                                      color: Color(0xFF19AE61),
+                                      size: 18,
+                                    )
+                                    : null,
                           );
                         },
                       ),
@@ -604,7 +609,6 @@ class _DriverHomeTabsState extends State<_DriverHomeTabs> {
             ),
         ],
       ),
-
     );
   }
 

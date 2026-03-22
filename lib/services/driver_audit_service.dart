@@ -23,12 +23,14 @@ class DriverAuditService {
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualDriverId = driverId ?? currentUser?.id;
-    final actualDriverName = driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
+    final actualDriverName =
+        driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
 
     return await _auditService.logEvent(
       actionType: 'Create',
       actionCategory: 'Transportation Safety & Compliance',
-      description: 'Student pickup completed: $studentName picked up by $actualDriverName at ${_formatTime(pickupTime)}${location != null ? ' from $location' : ''}',
+      description:
+          'Student pickup completed: $studentName picked up by $actualDriverName at ${_formatTime(pickupTime)}${location != null ? ' from $location' : ''}',
       targetType: 'student_pickup',
       targetId: '${studentId}_${pickupTime.millisecondsSinceEpoch}',
       targetName: '$studentName - Pickup',
@@ -65,12 +67,14 @@ class DriverAuditService {
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualDriverId = driverId ?? currentUser?.id;
-    final actualDriverName = driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
+    final actualDriverName =
+        driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
 
     return await _auditService.logEvent(
       actionType: 'Create',
       actionCategory: 'Transportation Safety & Compliance',
-      description: 'Student dropoff completed: $studentName dropped off by $actualDriverName at ${_formatTime(dropoffTime)}${location != null ? ' at $location' : ''}',
+      description:
+          'Student dropoff completed: $studentName dropped off by $actualDriverName at ${_formatTime(dropoffTime)}${location != null ? ' at $location' : ''}',
       targetType: 'student_dropoff',
       targetId: '${studentId}_${dropoffTime.millisecondsSinceEpoch}',
       targetName: '$studentName - Dropoff',
@@ -107,12 +111,14 @@ class DriverAuditService {
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualDriverId = driverId ?? currentUser?.id;
-    final actualDriverName = driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
+    final actualDriverName =
+        driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
 
     return await _auditService.logEvent(
       actionType: 'Create',
       actionCategory: 'Transportation Safety & Compliance',
-      description: 'Verification request created: $eventType verification for $studentName - Parent notification ${parentNotificationStatus ?? 'sent'}',
+      description:
+          'Verification request created: $eventType verification for $studentName - Parent notification ${parentNotificationStatus ?? 'sent'}',
       targetType: 'verification_request',
       targetId: '${studentId}_${eventType}_${eventTime.millisecondsSinceEpoch}',
       targetName: '$studentName - $eventType Verification',
@@ -147,12 +153,14 @@ class DriverAuditService {
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualDriverId = driverId ?? currentUser?.id;
-    final actualDriverName = driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
+    final actualDriverName =
+        driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
 
     return await _auditService.logEvent(
       actionType: 'Update',
       actionCategory: 'Transportation Safety & Compliance',
-      description: 'Pickup cancelled: $studentName pickup cancelled by $actualDriverName - Reason: $reason',
+      description:
+          'Pickup cancelled: $studentName pickup cancelled by $actualDriverName - Reason: $reason',
       targetType: 'pickup_cancellation',
       targetId: '${studentId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$studentName - Pickup Cancelled',
@@ -184,12 +192,14 @@ class DriverAuditService {
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualDriverId = driverId ?? currentUser?.id;
-    final actualDriverName = driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
+    final actualDriverName =
+        driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
 
     return await _auditService.logEvent(
       actionType: 'Update',
       actionCategory: 'Transportation Safety & Compliance',
-      description: 'Dropoff cancelled: $studentName dropoff cancelled by $actualDriverName - Reason: $reason',
+      description:
+          'Dropoff cancelled: $studentName dropoff cancelled by $actualDriverName - Reason: $reason',
       targetType: 'dropoff_cancellation',
       targetId: '${studentId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$studentName - Dropoff Cancelled',
@@ -230,14 +240,16 @@ class DriverAuditService {
 
     final currentUser = supabase.auth.currentUser;
     final actualDriverId = driverId ?? currentUser?.id;
-    final actualDriverName = driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
+    final actualDriverName =
+        driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
 
     return await _auditService.logEvent(
       actionType: 'Security',
       actionCategory: 'Authentication',
-      description: isSuccessful
-          ? 'Driver $activity successful: $actualDriverName${sessionDuration != null ? ' (session: ${sessionDuration.inMinutes}min)' : ''}'
-          : 'Driver $activity failed: $actualDriverName - ${failureReason ?? 'Unknown error'}',
+      description:
+          isSuccessful
+              ? 'Driver $activity successful: $actualDriverName${sessionDuration != null ? ' (session: ${sessionDuration.inMinutes}min)' : ''}'
+              : 'Driver $activity failed: $actualDriverName - ${failureReason ?? 'Unknown error'}',
       targetType: 'driver_auth',
       targetId: actualDriverId,
       targetName: actualDriverName,
@@ -270,7 +282,8 @@ class DriverAuditService {
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualDriverId = driverId ?? currentUser?.id;
-    final actualDriverName = driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
+    final actualDriverName =
+        driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
 
     return await _auditService.logEvent(
       actionType: 'View',
@@ -307,12 +320,14 @@ class DriverAuditService {
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualDriverId = driverId ?? currentUser?.id;
-    final actualDriverName = driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
+    final actualDriverName =
+        driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
 
     return await _auditService.logEvent(
       actionType: 'Complete',
       actionCategory: 'Operational Tracking',
-      description: 'Route task completed: $actualDriverName completed $routeType route with $totalStudents students in ${completionTime.inMinutes} minutes',
+      description:
+          'Route task completed: $actualDriverName completed $routeType route with $totalStudents students in ${completionTime.inMinutes} minutes',
       targetType: 'task_completion',
       targetId: '${routeType}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$actualDriverName - $routeType Route',
@@ -328,7 +343,10 @@ class DriverAuditService {
         'completed_student_ids': completedStudentIds,
         'performance_metrics': performanceMetrics,
         'operational_status': 'completed',
-        'efficiency_rating': _calculateEfficiencyRating(totalStudents, completionTime),
+        'efficiency_rating': _calculateEfficiencyRating(
+          totalStudents,
+          completionTime,
+        ),
         'timestamp': DateTime.now().toIso8601String(),
       },
     );
@@ -345,13 +363,15 @@ class DriverAuditService {
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualDriverId = driverId ?? currentUser?.id;
-    final actualDriverName = driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
+    final actualDriverName =
+        driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
     final actualStartTime = startTime ?? DateTime.now();
 
     return await _auditService.logEvent(
       actionType: 'Start',
       actionCategory: 'Operational Tracking',
-      description: 'Route started: $actualDriverName began $routeType route with $scheduledStudents scheduled students',
+      description:
+          'Route started: $actualDriverName began $routeType route with $scheduledStudents scheduled students',
       targetType: 'route_start',
       targetId: '${routeType}_${actualStartTime.millisecondsSinceEpoch}',
       targetName: '$actualDriverName - $routeType Start',
@@ -374,21 +394,25 @@ class DriverAuditService {
   Future<bool> logStudentInfoAccess({
     required String studentId,
     required String studentName,
-    required String accessType, // 'view_details', 'view_contact', 'view_schedule'
+    required String
+    accessType, // 'view_details', 'view_contact', 'view_schedule'
     String? driverId,
     String? driverName,
     Map<String, dynamic>? accessDetails,
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualDriverId = driverId ?? currentUser?.id;
-    final actualDriverName = driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
+    final actualDriverName =
+        driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
 
     return await _auditService.logEvent(
       actionType: 'View',
       actionCategory: 'Data Access',
-      description: 'Student information accessed: $actualDriverName viewed $accessType for $studentName',
+      description:
+          'Student information accessed: $actualDriverName viewed $accessType for $studentName',
       targetType: 'student_info_access',
-      targetId: '${studentId}_${accessType}_${DateTime.now().millisecondsSinceEpoch}',
+      targetId:
+          '${studentId}_${accessType}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$studentName - Info Access',
       module: 'Driver - Student Information',
       status: 'info',
@@ -411,7 +435,8 @@ class DriverAuditService {
   Future<bool> logDriverSystemError({
     required String errorType,
     required String errorDescription,
-    String? systemComponent, // 'app', 'verification_service', 'database', 'network'
+    String?
+    systemComponent, // 'app', 'verification_service', 'database', 'network'
     String? errorCode,
     String? driverResponse,
     String? resolutionAction,
@@ -421,12 +446,14 @@ class DriverAuditService {
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualDriverId = driverId ?? currentUser?.id;
-    final actualDriverName = driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
+    final actualDriverName =
+        driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
 
     return await _auditService.logEvent(
       actionType: 'System',
       actionCategory: 'System Error',
-      description: 'Driver system error: $errorType in ${systemComponent ?? 'unknown component'} - $errorDescription (Driver: $actualDriverName)',
+      description:
+          'Driver system error: $errorType in ${systemComponent ?? 'unknown component'} - $errorDescription (Driver: $actualDriverName)',
       targetType: 'driver_system_error',
       targetId: '${errorType}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$errorType - Driver System',
@@ -450,7 +477,8 @@ class DriverAuditService {
   Future<bool> logValidationFailure({
     required String studentId,
     required String studentName,
-    required String validationType, // 'pickup_time', 'dropoff_sequence', 'authorization'
+    required String
+    validationType, // 'pickup_time', 'dropoff_sequence', 'authorization'
     required String failureReason,
     String? driverId,
     String? driverName,
@@ -460,14 +488,17 @@ class DriverAuditService {
   }) async {
     final currentUser = supabase.auth.currentUser;
     final actualDriverId = driverId ?? currentUser?.id;
-    final actualDriverName = driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
+    final actualDriverName =
+        driverName ?? currentUser?.userMetadata?['fname'] ?? 'Unknown Driver';
 
     return await _auditService.logEvent(
       actionType: 'Alert',
       actionCategory: 'Validation Error',
-      description: 'Validation failure: $validationType validation failed for $studentName - $failureReason (Driver: $actualDriverName)',
+      description:
+          'Validation failure: $validationType validation failed for $studentName - $failureReason (Driver: $actualDriverName)',
       targetType: 'validation_failure',
-      targetId: '${studentId}_${validationType}_${DateTime.now().millisecondsSinceEpoch}',
+      targetId:
+          '${studentId}_${validationType}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$studentName - $validationType Validation',
       module: 'Driver - Validation',
       status: 'warning',
@@ -494,11 +525,14 @@ class DriverAuditService {
   }
 
   /// Calculate efficiency rating based on students and time
-  String _calculateEfficiencyRating(int totalStudents, Duration completionTime) {
+  String _calculateEfficiencyRating(
+    int totalStudents,
+    Duration completionTime,
+  ) {
     if (totalStudents == 0) return 'N/A';
-    
+
     final minutesPerStudent = completionTime.inMinutes / totalStudents;
-    
+
     if (minutesPerStudent <= 3) return 'Excellent';
     if (minutesPerStudent <= 5) return 'Good';
     if (minutesPerStudent <= 8) return 'Average';

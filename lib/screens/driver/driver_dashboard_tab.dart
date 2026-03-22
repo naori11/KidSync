@@ -89,7 +89,8 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
     _refreshTimer?.cancel(); // Cancel existing timer first
     // Refresh data every 30 seconds
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      if (mounted) { // Check if widget is still mounted
+      if (mounted) {
+        // Check if widget is still mounted
         _refreshData();
       } else {
         timer.cancel();
@@ -184,7 +185,7 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
       // Add null safety checks
       final todaysData = this.todaysTasksData;
       final assignedStudents = this.assignedStudents;
-      
+
       if (todaysData.isEmpty) {
         return _getEmptyTaskStats();
       }
@@ -272,8 +273,6 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
       ),
     );
   }
-
-
 
   Widget _buildTodaysTasksCard(Color primaryColor, bool isMobile) {
     const Color white = Color(0xFFFFFFFF);
@@ -425,9 +424,12 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
           final time = task['pickup_time'] ?? task['dropoff_time'] ?? 'N/A';
           final address = task['pickup_address'] ?? student['address'] ?? 'N/A';
 
-          final profileImage = (student != null && student['profile_image_url'] != null && student['profile_image_url'].toString().isNotEmpty)
-              ? NetworkImage(student['profile_image_url'].toString())
-              : null;
+          final profileImage =
+              (student != null &&
+                      student['profile_image_url'] != null &&
+                      student['profile_image_url'].toString().isNotEmpty)
+                  ? NetworkImage(student['profile_image_url'].toString())
+                  : null;
 
           return Container(
             margin: EdgeInsets.only(bottom: 8),
@@ -443,13 +445,14 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
                   backgroundColor: primaryColor.withOpacity(0.1),
                   radius: isMobile ? 16 : 20,
                   backgroundImage: profileImage,
-                  child: profileImage == null
-                      ? Icon(
-                          Icons.person,
-                          color: primaryColor,
-                          size: isMobile ? 16 : 20,
-                        )
-                      : null,
+                  child:
+                      profileImage == null
+                          ? Icon(
+                            Icons.person,
+                            color: primaryColor,
+                            size: isMobile ? 16 : 20,
+                          )
+                          : null,
                 ),
                 SizedBox(width: 12),
                 Expanded(
@@ -814,7 +817,4 @@ class _DriverDashboardTabState extends State<DriverDashboardTab> {
       ),
     );
   }
-
-  
-
 }

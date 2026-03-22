@@ -111,7 +111,9 @@ class Fetcher {
   ) {
     return Fetcher(
       id: parentData['id'],
-      name: '${parentData['fname']} ${parentData['mname'] ?? ''} ${parentData['lname']}'.trim(),
+      name:
+          '${parentData['fname']} ${parentData['mname'] ?? ''} ${parentData['lname']}'
+              .trim(),
       relationship: relationshipData['relationship_type'] ?? 'Parent',
       contact: parentData['phone'] ?? '',
       email: parentData['email'] ?? '',
@@ -182,38 +184,44 @@ class Activity {
     String? tempName;
     String? tempRelationship;
     String? tempPin;
-    
+
     final verifiedBy = json['verified_by'] ?? '';
     if (verifiedBy.contains('Temporary Fetcher:')) {
       // Extract temporary fetcher name
-      final nameMatch = RegExp(r'Temporary Fetcher: ([^,\n]+)').firstMatch(verifiedBy);
+      final nameMatch = RegExp(
+        r'Temporary Fetcher: ([^,\n]+)',
+      ).firstMatch(verifiedBy);
       tempName = nameMatch?.group(1)?.trim();
     }
-    
+
     // Parse from notes field for additional details
     final notes = json['notes'] ?? '';
     if (notes.contains('Temporary fetcher verification')) {
       // Extract PIN
       final pinMatch = RegExp(r'PIN: (\d+)').firstMatch(notes);
       tempPin = pinMatch?.group(1);
-      
+
       // Extract relationship
-      final relationshipMatch = RegExp(r'Relationship: ([^,\n]+)').firstMatch(notes);
+      final relationshipMatch = RegExp(
+        r'Relationship: ([^,\n]+)',
+      ).firstMatch(notes);
       tempRelationship = relationshipMatch?.group(1)?.trim();
     }
 
     // Parse student information
     final student = json['students'];
-    final studentName = student != null
-        ? '${student['fname']} ${student['mname'] ?? ''} ${student['lname']}'.trim()
-        : 'Unknown Student';
+    final studentName =
+        student != null
+            ? '${student['fname']} ${student['mname'] ?? ''} ${student['lname']}'
+                .trim()
+            : 'Unknown Student';
 
     final gradeLevel = student?['grade_level'] ?? '';
     final gradeClass = gradeLevel.isNotEmpty ? gradeLevel : 'Unknown Class';
 
     // Format time
     final scanTime = DateTime.parse(json['scan_time']);
-    final timeFormatted = 
+    final timeFormatted =
         "${scanTime.hour.toString().padLeft(2, '0')}:${scanTime.minute.toString().padLeft(2, '0')}";
 
     // Map action to status
@@ -248,21 +256,21 @@ class Activity {
   }
 
   bool get isTemporaryFetcher => tempFetcherName != null;
-  
+
   // Add detection methods for special exit types
   bool get isEarlyDismissal {
-    return reason.contains('Early dismissal exit') || 
-           reason.contains('Early dismissal override');
+    return reason.contains('Early dismissal exit') ||
+        reason.contains('Early dismissal override');
   }
-  
+
   bool get isVeryEarlyDismissal {
     return reason.contains('Very early dismissal override');
   }
-  
+
   bool get isEmergencyExit {
     return reason.contains('Emergency exit');
   }
-  
+
   // Get the specific dismissal/exit type for display
   String get exitType {
     if (isVeryEarlyDismissal) return 'Very Early';
@@ -271,20 +279,26 @@ class Activity {
     if (isTemporaryFetcher) return 'Temp Fetcher';
     return 'Regular';
   }
-  
+
   // Get dismissal reason if available
   String? get dismissalReason {
     if (isEarlyDismissal || isVeryEarlyDismissal) {
-      final reasonMatch = RegExp(r'Reason: (.+)$', multiLine: true).firstMatch(reason);
+      final reasonMatch = RegExp(
+        r'Reason: (.+)$',
+        multiLine: true,
+      ).firstMatch(reason);
       return reasonMatch?.group(1)?.trim();
     }
     return null;
   }
-  
+
   // Get emergency exit teacher if available
   String? get emergencyExitTeacher {
     if (isEmergencyExit) {
-      final teacherMatch = RegExp(r'Approved by teacher: (.+)$', multiLine: true).firstMatch(reason);
+      final teacherMatch = RegExp(
+        r'Approved by teacher: (.+)$',
+        multiLine: true,
+      ).firstMatch(reason);
       return teacherMatch?.group(1)?.trim();
     }
     return null;

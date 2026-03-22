@@ -7,9 +7,10 @@ class ParentService {
   /// Get student's assigned driver information
   Future<Map<String, dynamic>?> getStudentDriver(int studentId) async {
     try {
-      final response = await supabase
-          .from('driver_assignments')
-          .select('''
+      final response =
+          await supabase
+              .from('driver_assignments')
+              .select('''
             pickup_time,
             dropoff_time,
             schedule_days,
@@ -24,9 +25,9 @@ class ParentService {
               plate_number
             )
           ''')
-          .eq('student_id', studentId)
-          .eq('status', 'active')
-          .maybeSingle();
+              .eq('student_id', studentId)
+              .eq('status', 'active')
+              .maybeSingle();
 
       return response;
     } catch (e) {
@@ -39,33 +40,36 @@ class ParentService {
   Future<Map<String, dynamic>> getTodayPickupStatus(int studentId) async {
     try {
       final today = DateTime.now();
-      final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final todayStr =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
       // Check pickup status
-      final pickupResponse = await supabase
-          .from('pickup_records')
-          .select('''
+      final pickupResponse =
+          await supabase
+              .from('pickup_records')
+              .select('''
             pickup_time,
             driver_id,
             drivers!inner(fname, lname)
           ''')
-          .eq('student_id', studentId)
-          .gte('pickup_time', '${todayStr}T00:00:00')
-          .lt('pickup_time', '${todayStr}T23:59:59')
-          .maybeSingle();
+              .eq('student_id', studentId)
+              .gte('pickup_time', '${todayStr}T00:00:00')
+              .lt('pickup_time', '${todayStr}T23:59:59')
+              .maybeSingle();
 
       // Check dropoff status
-      final dropoffResponse = await supabase
-          .from('dropoff_records')
-          .select('''
+      final dropoffResponse =
+          await supabase
+              .from('dropoff_records')
+              .select('''
             dropoff_time,
             driver_id,
             drivers!inner(fname, lname)
           ''')
-          .eq('student_id', studentId)
-          .gte('dropoff_time', '${todayStr}T00:00:00')
-          .lt('dropoff_time', '${todayStr}T23:59:59')
-          .maybeSingle();
+              .eq('student_id', studentId)
+              .gte('dropoff_time', '${todayStr}T00:00:00')
+              .lt('dropoff_time', '${todayStr}T23:59:59')
+              .maybeSingle();
 
       return {
         'pickup': pickupResponse,
@@ -74,11 +78,7 @@ class ParentService {
       };
     } catch (e) {
       print('Error getting today pickup status: $e');
-      return {
-        'pickup': null,
-        'dropoff': null,
-        'date': null,
-      };
+      return {'pickup': null, 'dropoff': null, 'date': null};
     }
   }
 
@@ -87,15 +87,17 @@ class ParentService {
     try {
       final today = DateTime.now();
       final dayOfWeek = today.weekday; // 1 = Monday, 7 = Sunday
-      final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final todayStr =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
       // Check for exceptions first
-      final exceptionResponse = await supabase
-          .from('pickup_dropoff_exceptions')
-          .select('pickup_person, dropoff_person, reason')
-          .eq('student_id', studentId)
-          .eq('exception_date', todayStr)
-          .maybeSingle();
+      final exceptionResponse =
+          await supabase
+              .from('pickup_dropoff_exceptions')
+              .select('pickup_person, dropoff_person, reason')
+              .eq('student_id', studentId)
+              .eq('exception_date', todayStr)
+              .maybeSingle();
 
       if (exceptionResponse != null) {
         return {
@@ -107,12 +109,13 @@ class ParentService {
       }
 
       // Check regular patterns
-      final patternResponse = await supabase
-          .from('pickup_dropoff_patterns')
-          .select('pickup_person, dropoff_person')
-          .eq('student_id', studentId)
-          .eq('day_of_week', dayOfWeek)
-          .maybeSingle();
+      final patternResponse =
+          await supabase
+              .from('pickup_dropoff_patterns')
+              .select('pickup_person, dropoff_person')
+              .eq('student_id', studentId)
+              .eq('day_of_week', dayOfWeek)
+              .maybeSingle();
 
       if (patternResponse != null) {
         return {
@@ -144,9 +147,10 @@ class ParentService {
   /// Get student's basic information
   Future<Map<String, dynamic>?> getStudentInfo(int studentId) async {
     try {
-      final response = await supabase
-          .from('students')
-          .select('''
+      final response =
+          await supabase
+              .from('students')
+              .select('''
             id,
             fname,
             lname,
@@ -154,8 +158,8 @@ class ParentService {
             address,
             sections(name, grade_level)
           ''')
-          .eq('id', studentId)
-          .maybeSingle();
+              .eq('id', studentId)
+              .maybeSingle();
 
       return response;
     } catch (e) {
@@ -165,7 +169,10 @@ class ParentService {
   }
 
   /// Get parent's notifications for a specific student
-  Future<List<Map<String, dynamic>>> getStudentNotifications(int studentId, {int limit = 20}) async {
+  Future<List<Map<String, dynamic>>> getStudentNotifications(
+    int studentId, {
+    int limit = 20,
+  }) async {
     try {
       final response = await supabase
           .from('notifications')

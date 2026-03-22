@@ -9,27 +9,33 @@ Future<String?> getCurrentUserPhone() async {
   if (user == null) return null;
 
   try {
-    final parentRes = await supabase
-        .from('parents')
-        .select('phone')
-        .eq('user_id', user.id)
-        .limit(1)
-        .maybeSingle();
+    final parentRes =
+        await supabase
+            .from('parents')
+            .select('phone')
+            .eq('user_id', user.id)
+            .limit(1)
+            .maybeSingle();
     if (parentRes != null && parentRes['phone'] != null) {
       final phone = parentRes['phone'] as String;
-      print('user_contact_helper: found parent phone=$phone for user=${user.id}');
+      print(
+        'user_contact_helper: found parent phone=$phone for user=${user.id}',
+      );
       return phone;
     }
 
-    final userRes = await supabase
-        .from('users')
-        .select('contact_number')
-        .eq('id', user.id)
-        .limit(1)
-        .maybeSingle();
+    final userRes =
+        await supabase
+            .from('users')
+            .select('contact_number')
+            .eq('id', user.id)
+            .limit(1)
+            .maybeSingle();
     if (userRes != null && userRes['contact_number'] != null) {
       final phone = userRes['contact_number'] as String;
-      print('user_contact_helper: found user.contact_number=$phone for user=${user.id}');
+      print(
+        'user_contact_helper: found user.contact_number=$phone for user=${user.id}',
+      );
       return phone;
     }
   } catch (e) {

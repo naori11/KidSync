@@ -23,10 +23,12 @@ class AuthorizedFetcher {
   factory AuthorizedFetcher.fromJson(Map<String, dynamic> json) {
     final parent = json['parents'];
     final users = parent['users'];
-    
+
     return AuthorizedFetcher(
       id: parent['id'].toString(),
-      name: '${parent['fname'] ?? ''} ${parent['mname'] ?? ''} ${parent['lname'] ?? ''}'.trim(),
+      name:
+          '${parent['fname'] ?? ''} ${parent['mname'] ?? ''} ${parent['lname'] ?? ''}'
+              .trim(),
       relationship: json['relationship_type'] ?? 'Parent',
       phone: parent['phone'],
       email: parent['email'],

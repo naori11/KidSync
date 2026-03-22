@@ -9,7 +9,7 @@ class InAppNotificationWidget extends StatefulWidget {
   final String userRole; // 'parent', 'teacher', 'driver'
   final Widget child;
   final Color primaryColor;
-  
+
   const InAppNotificationWidget({
     Key? key,
     required this.userRole,
@@ -18,7 +18,8 @@ class InAppNotificationWidget extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<InAppNotificationWidget> createState() => _InAppNotificationWidgetState();
+  State<InAppNotificationWidget> createState() =>
+      _InAppNotificationWidgetState();
 }
 
 class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
@@ -26,18 +27,18 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
   final PushNotificationService _pushService = PushNotificationService();
   final NotificationService _notificationService = NotificationService();
   final supabase = Supabase.instance.client;
-  
+
   late AnimationController _slideController;
   late AnimationController _fadeController;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
-  
+
   StreamSubscription? _notificationSubscription;
   StreamSubscription? _badgeSubscription;
-  
+
   OverlayEntry? _overlayEntry;
   Timer? _autoHideTimer;
-  
+
   int _unreadCount = 0;
 
   @override
@@ -64,27 +65,23 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    
+
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 200),
       vsync: this,
     );
-    
+
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0.0, -1.0),
       end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _slideController,
-      curve: Curves.easeOutBack,
-    ));
-    
+    ).animate(
+      CurvedAnimation(parent: _slideController, curve: Curves.easeOutBack),
+    );
+
     _fadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _fadeController,
-      curve: Curves.easeOut,
-    ));
+    ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOut));
   }
 
   void _setupNotificationListeners() {
@@ -92,7 +89,7 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
     _notificationSubscription = _pushService.notificationStream.listen((data) {
       _handleNotification(data);
     });
-    
+
     // Listen to badge count updates
     _badgeSubscription = _pushService.badgeCountStream.listen((count) {
       if (mounted) {
@@ -101,50 +98,54 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
         });
       }
     });
-    
+
     // ✅ ADD REAL-TIME DATABASE SUBSCRIPTION
     _setupRealtimeSubscription();
   }
-  
+
   void _setupRealtimeSubscription() {
     final currentUser = supabase.auth.currentUser;
     if (currentUser == null) return;
-    
+
     // Listen to real-time notifications from database
-    supabase
-        .from('notifications')
-        .stream(primaryKey: ['id'])
-        .listen((data) {
-          if (mounted && data.isNotEmpty) {
-            // Filter for current user's unread notifications
-            final userNotifications = data.where((notification) =>
-                notification['recipient_id'] == currentUser.id &&
-                notification['is_read'] == false).toList();
-            
-            if (userNotifications.isNotEmpty) {
-              // Get the most recent notification
-              final latestNotification = userNotifications.last;
-              print('📱 Real-time notification received: ${latestNotification['message']}');
-              
-              // Show in-app notification
-              _showInAppNotification({
-                'title': latestNotification['title'] ?? 'KidSync Notification',
-                'body': latestNotification['message'] ?? '',
-                'type': latestNotification['type'] ?? 'info',
-                'data': latestNotification['extra_data'] ?? {},
-                'id': latestNotification['id'],
-              });
-              
-              _updateBadgeCount();
-            }
-          }
-        });
+    supabase.from('notifications').stream(primaryKey: ['id']).listen((data) {
+      if (mounted && data.isNotEmpty) {
+        // Filter for current user's unread notifications
+        final userNotifications =
+            data
+                .where(
+                  (notification) =>
+                      notification['recipient_id'] == currentUser.id &&
+                      notification['is_read'] == false,
+                )
+                .toList();
+
+        if (userNotifications.isNotEmpty) {
+          // Get the most recent notification
+          final latestNotification = userNotifications.last;
+          print(
+            '📱 Real-time notification received: ${latestNotification['message']}',
+          );
+
+          // Show in-app notification
+          _showInAppNotification({
+            'title': latestNotification['title'] ?? 'KidSync Notification',
+            'body': latestNotification['message'] ?? '',
+            'type': latestNotification['type'] ?? 'info',
+            'data': latestNotification['extra_data'] ?? {},
+            'id': latestNotification['id'],
+          });
+
+          _updateBadgeCount();
+        }
+      }
+    });
   }
 
   void _handleNotification(Map<String, dynamic> data) {
     final type = data['type'];
     final notificationData = data['data'] ?? {};
-    
+
     // Only show in-app notifications for foreground messages
     if (type == 'foreground') {
       _showInAppNotification(notificationData);
@@ -152,7 +153,7 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
       // Handle notification tap - navigate to appropriate screen
       _handleNotificationTap(notificationData);
     }
-    
+
     _updateBadgeCount();
   }
 
@@ -160,13 +161,13 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
     if (_overlayEntry != null) {
       _hideInAppNotification(); // Hide current notification first
     }
-    
+
     _overlayEntry = _createOverlayEntry(data);
     Overlay.of(context).insert(_overlayEntry!);
-    
+
     _slideController.forward();
     _fadeController.forward();
-    
+
     // Auto hide after 5 seconds
     _autoHideTimer = Timer(const Duration(seconds: 5), () {
       _hideInAppNotification();
@@ -175,18 +176,19 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
 
   OverlayEntry _createOverlayEntry(Map<String, dynamic> data) {
     return OverlayEntry(
-      builder: (context) => Positioned(
-        top: MediaQuery.of(context).padding.top + 10,
-        left: 16,
-        right: 16,
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: _buildNotificationCard(data),
+      builder:
+          (context) => Positioned(
+            top: MediaQuery.of(context).padding.top + 10,
+            left: 16,
+            right: 16,
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: _buildNotificationCard(data),
+              ),
+            ),
           ),
-        ),
-      ),
     );
   }
 
@@ -195,10 +197,10 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
     final body = data['message'] ?? data['body'] ?? '';
     final type = data['type'] ?? 'general';
     final studentName = data['student_name'] ?? '';
-    
+
     IconData icon;
     Color iconColor;
-    
+
     switch (type) {
       case 'pickup':
       case 'pickup_approved':
@@ -249,10 +251,7 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
               offset: const Offset(0, 4),
             ),
           ],
-          border: Border.all(
-            color: iconColor.withOpacity(0.2),
-            width: 1,
-          ),
+          border: Border.all(color: iconColor.withOpacity(0.2), width: 1),
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
@@ -268,11 +267,7 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
                   color: iconColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(
-                  icon,
-                  color: iconColor,
-                  size: 24,
-                ),
+                child: Icon(icon, color: iconColor, size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -319,10 +314,7 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
                 icon: const Icon(Icons.close),
                 color: Colors.grey[600],
                 onPressed: _hideInAppNotification,
-                constraints: const BoxConstraints(
-                  minWidth: 32,
-                  minHeight: 32,
-                ),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 padding: EdgeInsets.zero,
               ),
             ],
@@ -334,7 +326,7 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
 
   void _hideInAppNotification() {
     _autoHideTimer?.cancel();
-    
+
     if (_overlayEntry != null) {
       _slideController.reverse().then((_) {
         _fadeController.reverse().then((_) {
@@ -347,7 +339,7 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
 
   void _handleNotificationTap(Map<String, dynamic> data) {
     final studentId = data['student_id'];
-    
+
     // Navigate based on user role and notification type
     switch (widget.userRole) {
       case 'parent':
@@ -380,17 +372,18 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: const Text('Notifications'),
-            backgroundColor: widget.primaryColor,
-            foregroundColor: Colors.white,
-          ),
-          body: DriverNotificationsTab(
-            primaryColor: widget.primaryColor,
-            isMobile: MediaQuery.of(context).size.width < 600,
-          ),
-        ),
+        builder:
+            (context) => Scaffold(
+              appBar: AppBar(
+                title: const Text('Notifications'),
+                backgroundColor: widget.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              body: DriverNotificationsTab(
+                primaryColor: widget.primaryColor,
+                isMobile: MediaQuery.of(context).size.width < 600,
+              ),
+            ),
       ),
     );
   }
@@ -408,16 +401,17 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
   void _showNotificationDetails(Map<String, dynamic> data) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(data['title'] ?? 'Notification'),
-        content: Text(data['message'] ?? data['body'] ?? 'No message'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+      builder:
+          (context) => AlertDialog(
+            title: Text(data['title'] ?? 'Notification'),
+            content: Text(data['message'] ?? data['body'] ?? 'No message'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -427,16 +421,17 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
       if (user == null) return;
 
       int count = 0;
-      
+
       switch (widget.userRole) {
         case 'parent':
           // Get parent ID first
-          final parentResponse = await supabase
-              .from('parents')
-              .select('id')
-              .eq('user_id', user.id)
-              .maybeSingle();
-          
+          final parentResponse =
+              await supabase
+                  .from('parents')
+                  .select('id')
+                  .eq('user_id', user.id)
+                  .maybeSingle();
+
           if (parentResponse != null) {
             count = await _notificationService.getUnreadNotificationCount(
               parentResponse['id'],
@@ -444,13 +439,15 @@ class _InAppNotificationWidgetState extends State<InAppNotificationWidget>
           }
           break;
         case 'driver':
-          count = await _notificationService.getUnreadDriverNotificationCount(user.id);
+          count = await _notificationService.getUnreadDriverNotificationCount(
+            user.id,
+          );
           break;
         case 'teacher':
           // Implement teacher notification count if needed
           break;
       }
-      
+
       if (mounted) {
         setState(() {
           _unreadCount = count;
@@ -521,10 +518,7 @@ class NotificationBadge extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: Colors.white, width: 1),
               ),
-              constraints: const BoxConstraints(
-                minWidth: 20,
-                minHeight: 20,
-              ),
+              constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
               child: Text(
                 count > 99 ? '99+' : count.toString(),
                 style: const TextStyle(

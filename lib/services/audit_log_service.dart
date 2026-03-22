@@ -33,20 +33,27 @@ class AuditLogService {
       // Get user details from the users table with fallback
       String userName = 'Unknown User';
       String userRole = 'Unknown';
-      
+
       try {
-        final userResponse = await supabase
-            .from('users')
-            .select('fname, lname, role')
-            .eq('id', currentUser.id)
-            .maybeSingle(); // Use maybeSingle() to handle no results gracefully
+        final userResponse =
+            await supabase
+                .from('users')
+                .select('fname, lname, role')
+                .eq('id', currentUser.id)
+                .maybeSingle(); // Use maybeSingle() to handle no results gracefully
 
         if (userResponse != null) {
-          userName = '${userResponse['fname'] ?? ''} ${userResponse['lname'] ?? ''}'.trim();
+          userName =
+              '${userResponse['fname'] ?? ''} ${userResponse['lname'] ?? ''}'
+                  .trim();
           userRole = userResponse['role'] ?? 'Unknown';
-          print('Successfully fetched user details for audit: $userName ($userRole)');
+          print(
+            'Successfully fetched user details for audit: $userName ($userRole)',
+          );
         } else {
-          print('Warning: User details not found in users table for ID: ${currentUser.id}');
+          print(
+            'Warning: User details not found in users table for ID: ${currentUser.id}',
+          );
           // Fallback to auth user metadata or email
           userName = currentUser.email ?? 'Unknown User';
           userRole = currentUser.userMetadata?['role'] ?? 'Unknown';
@@ -84,7 +91,9 @@ class AuditLogService {
       };
 
       // Insert the audit log
-      print('Attempting to insert audit log: ${auditData['action_description']}'); // Debug log
+      print(
+        'Attempting to insert audit log: ${auditData['action_description']}',
+      ); // Debug log
       await supabase.from('audit_logs').insert(auditData);
       print('Audit log inserted successfully'); // Debug log
 
@@ -92,7 +101,9 @@ class AuditLogService {
     } catch (e) {
       print('Error logging audit event: $e');
       print('Action: ${actionType} - ${description}'); // Enhanced error logging
-      print('Stack trace: ${StackTrace.current}'); // Add stack trace for debugging
+      print(
+        'Stack trace: ${StackTrace.current}',
+      ); // Add stack trace for debugging
       return false;
     }
   }
@@ -108,9 +119,10 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Security',
       actionCategory: 'Security & Authentication',
-      description: isReset 
-          ? 'Password reset ${targetUserName != null ? 'for $targetUserName' : ''}'
-          : 'Password changed ${targetUserName != null ? 'for $targetUserName' : ''}',
+      description:
+          isReset
+              ? 'Password reset ${targetUserName != null ? 'for $targetUserName' : ''}'
+              : 'Password changed ${targetUserName != null ? 'for $targetUserName' : ''}',
       targetType: 'user',
       targetId: targetUserId,
       targetName: targetUserName,
@@ -181,7 +193,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Update',
       actionCategory: 'Security & Authentication',
-      description: 'Account status changed from $oldStatus to $newStatus for $targetUserName',
+      description:
+          'Account status changed from $oldStatus to $newStatus for $targetUserName',
       targetType: 'user',
       targetId: targetUserId,
       targetName: targetUserName,
@@ -259,9 +272,10 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Update',
       actionCategory: 'Student Management',
-      description: oldRFID != null 
-          ? 'Changed RFID tag for $studentName from $oldRFID to $newRFID'
-          : 'Assigned RFID tag $newRFID to $studentName',
+      description:
+          oldRFID != null
+              ? 'Changed RFID tag for $studentName from $oldRFID to $newRFID'
+              : 'Assigned RFID tag $newRFID to $studentName',
       targetType: 'student',
       targetId: studentId,
       targetName: studentName,
@@ -282,7 +296,8 @@ class AuditLogService {
     return await logEvent(
       actionType: action == 'removed' ? 'Delete' : 'Update',
       actionCategory: 'Student Management',
-      description: '${action.capitalizeFirst()} parent relationship: $parentName ${action == 'removed' ? 'removed from' : 'linked to'} $studentName',
+      description:
+          '${action.capitalizeFirst()} parent relationship: $parentName ${action == 'removed' ? 'removed from' : 'linked to'} $studentName',
       targetType: 'student_parent_relationship',
       targetId: '${studentId}_$parentId',
       targetName: '$studentName - $parentName',
@@ -306,7 +321,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Import',
       actionCategory: 'Student Management',
-      description: 'Bulk imported students: $successCount successful, $errorCount failed out of $totalRecords total',
+      description:
+          'Bulk imported students: $successCount successful, $errorCount failed out of $totalRecords total',
       module: 'Bulk Import',
       status: errorCount > 0 ? 'warning' : 'success',
       metadata: {
@@ -336,7 +352,8 @@ class AuditLogService {
     switch (action.toLowerCase()) {
       case 'create':
         actionType = 'Create';
-        description = 'Created new user account for $targetUserName${role != null ? ' with role $role' : ''}';
+        description =
+            'Created new user account for $targetUserName${role != null ? ' with role $role' : ''}';
         break;
       case 'update':
         actionType = 'Update';
@@ -372,7 +389,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Update',
       actionCategory: 'User Management',
-      description: 'Bulk $operation performed on $affectedCount users${criteria != null ? ' ($criteria)' : ''}',
+      description:
+          'Bulk $operation performed on $affectedCount users${criteria != null ? ' ($criteria)' : ''}',
       module: 'Bulk Operations',
       metadata: {
         'operation': operation,
@@ -399,7 +417,8 @@ class AuditLogService {
     switch (action.toLowerCase()) {
       case 'create':
         actionType = 'Create';
-        description = 'Created new section $sectionName${gradeLevel != null ? ' for grade $gradeLevel' : ''}';
+        description =
+            'Created new section $sectionName${gradeLevel != null ? ' for grade $gradeLevel' : ''}';
         break;
       case 'update':
         actionType = 'Update';
@@ -438,7 +457,8 @@ class AuditLogService {
     return await logEvent(
       actionType: action == 'unassign' ? 'Delete' : 'Update',
       actionCategory: 'Section Management',
-      description: '${action.capitalizeFirst()}ed teacher $teacherName ${action == 'unassign' ? 'from' : 'to'} section $sectionName${subject != null ? ' for $subject' : ''}',
+      description:
+          '${action.capitalizeFirst()}ed teacher $teacherName ${action == 'unassign' ? 'from' : 'to'} section $sectionName${subject != null ? ' for $subject' : ''}',
       targetType: 'teacher_section_assignment',
       targetId: '${teacherId}_$sectionId',
       targetName: '$teacherName - $sectionName',
@@ -542,7 +562,8 @@ class AuditLogService {
     return await logEvent(
       actionType: action == 'unassign' ? 'Delete' : 'Update',
       actionCategory: 'Driver Assignment',
-      description: '$actionVerb driver $driverName ${action == 'unassign' ? 'from' : 'to'} student $studentName',
+      description:
+          '$actionVerb driver $driverName ${action == 'unassign' ? 'from' : 'to'} student $studentName',
       targetType: 'driver_assignment',
       targetId: '${studentId}_$driverId',
       targetName: '$studentName - $driverName',
@@ -566,7 +587,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Update',
       actionCategory: 'Driver Assignment',
-      description: 'Updated transportation schedule for $studentName with driver $driverName',
+      description:
+          'Updated transportation schedule for $studentName with driver $driverName',
       targetType: 'driver_assignment',
       targetId: assignmentId,
       targetName: '$studentName - $driverName',
@@ -587,7 +609,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Update',
       actionCategory: 'System Configuration',
-      description: 'Changed system setting $settingName from "$oldValue" to "$newValue"',
+      description:
+          'Changed system setting $settingName from "$oldValue" to "$newValue"',
       targetType: 'system_setting',
       targetId: settingName,
       targetName: settingName,
@@ -608,7 +631,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Export',
       actionCategory: 'Data Access & Privacy',
-      description: 'Exported $exportType data to $fileName ($recordCount records)',
+      description:
+          'Exported $exportType data to $fileName ($recordCount records)',
       module: 'Data Export',
       metadata: {
         'export_type': exportType,
@@ -631,7 +655,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Import',
       actionCategory: 'Data Access & Privacy',
-      description: 'Bulk imported $importType: $successCount successful, $errorCount failed out of $totalRecords total',
+      description:
+          'Bulk imported $importType: $successCount successful, $errorCount failed out of $totalRecords total',
       module: 'Bulk Import',
       status: errorCount > 0 ? 'warning' : 'success',
       metadata: {
@@ -656,13 +681,15 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Update',
       actionCategory: 'Data Access & Privacy',
-      description: oldImageUrl != null 
-          ? 'Updated profile image for $targetName'
-          : 'Added profile image for $targetName',
+      description:
+          oldImageUrl != null
+              ? 'Updated profile image for $targetName'
+              : 'Added profile image for $targetName',
       targetType: targetType,
       targetId: targetId,
       targetName: targetName,
-      oldValues: oldImageUrl != null ? {'profile_image_url': oldImageUrl} : null,
+      oldValues:
+          oldImageUrl != null ? {'profile_image_url': oldImageUrl} : null,
       newValues: {'profile_image_url': newImageUrl},
     );
   }
@@ -725,11 +752,12 @@ class AuditLogService {
   }) async {
     String description;
     if (previousStatus != null && previousStatus != status) {
-      description = 'Updated attendance for $studentName in $sectionName from $previousStatus to $status for $date';
+      description =
+          'Updated attendance for $studentName in $sectionName from $previousStatus to $status for $date';
     } else {
       description = 'Marked $studentName as $status in $sectionName for $date';
     }
-    
+
     if (isRfidAssisted) {
       description += ' (RFID-assisted)';
     }
@@ -766,7 +794,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Update',
       actionCategory: 'Attendance Management',
-      description: 'Bulk $operation: marked $studentCount students as $status in $sectionName for $date',
+      description:
+          'Bulk $operation: marked $studentCount students as $status in $sectionName for $date',
       targetType: 'section_attendance_bulk',
       targetId: '${sectionId}_$date',
       targetName: '$sectionName - Bulk Operation ($date)',
@@ -797,7 +826,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Create',
       actionCategory: 'Attendance Management',
-      description: 'Authorized early dismissal for $studentName from $sectionName. Reason: $reason, Pickup: $pickupPerson',
+      description:
+          'Authorized early dismissal for $studentName from $sectionName. Reason: $reason, Pickup: $pickupPerson',
       targetType: 'early_dismissal',
       targetId: dismissalId,
       targetName: '$studentName - Early Dismissal',
@@ -830,7 +860,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Create',
       actionCategory: 'Attendance Management',
-      description: 'Processed emergency exit for $studentName from $sectionName at $exitTime',
+      description:
+          'Processed emergency exit for $studentName from $sectionName at $exitTime',
       targetType: 'emergency_exit',
       targetId: '${studentId}_$exitTime',
       targetName: '$studentName - Emergency Exit',
@@ -865,7 +896,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Update',
       actionCategory: 'Attendance Management',
-      description: 'Overrode RFID attendance for $studentName in $sectionName: $originalStatus → $newStatus${overrideReason != null ? ' (Reason: $overrideReason)' : ''}',
+      description:
+          'Overrode RFID attendance for $studentName in $sectionName: $originalStatus → $newStatus${overrideReason != null ? ' (Reason: $overrideReason)' : ''}',
       targetType: 'rfid_attendance_override',
       targetId: '${sectionId}_${studentId}_$date',
       targetName: '$studentName - RFID Override',
@@ -898,7 +930,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Create',
       actionCategory: 'Student Issue Management',
-      description: 'Flagged $issueType issue for $studentName in $sectionName (Severity: $severity)',
+      description:
+          'Flagged $issueType issue for $studentName in $sectionName (Severity: $severity)',
       targetType: 'attendance_issue',
       targetId: '${studentId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$studentName - $issueType',
@@ -921,7 +954,8 @@ class AuditLogService {
   Future<bool> logParentNotificationTrigger({
     required String studentId,
     required String studentName,
-    required String notificationType, // 'attendance_alert', 'absence_warning', etc.
+    required String
+    notificationType, // 'attendance_alert', 'absence_warning', etc.
     required String parentName,
     String? parentContact,
     String? notificationContent,
@@ -930,7 +964,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Create',
       actionCategory: 'Student Issue Management',
-      description: 'Triggered $notificationType notification to $parentName for $studentName',
+      description:
+          'Triggered $notificationType notification to $parentName for $studentName',
       targetType: 'parent_notification',
       targetId: '${studentId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$studentName - Parent Notification',
@@ -941,10 +976,7 @@ class AuditLogService {
         'parent_contact': parentContact,
         'content': notificationContent,
       },
-      metadata: {
-        'student_id': studentId,
-        'attendance_data': attendanceData,
-      },
+      metadata: {'student_id': studentId, 'attendance_data': attendanceData},
     );
   }
 
@@ -961,7 +993,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Update',
       actionCategory: 'Student Issue Management',
-      description: 'Resolved $issueType issue for $studentName. Resolution: $resolution',
+      description:
+          'Resolved $issueType issue for $studentName. Resolution: $resolution',
       targetType: 'issue_resolution',
       targetId: issueId,
       targetName: '$studentName - Issue Resolved',
@@ -985,7 +1018,8 @@ class AuditLogService {
   Future<bool> logTeacherAttendanceExport({
     required String sectionId,
     required String sectionName,
-    required String exportType, // 'monthly_summary', 'detailed_report', 'student_calendar'
+    required String
+    exportType, // 'monthly_summary', 'detailed_report', 'student_calendar'
     required String fileName,
     required int recordCount,
     String? dateRange,
@@ -995,7 +1029,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Export',
       actionCategory: 'Data Export & Reporting',
-      description: 'Exported $exportType for $sectionName to $fileName ($recordCount records)${dateRange != null ? ' for $dateRange' : ''}',
+      description:
+          'Exported $exportType for $sectionName to $fileName ($recordCount records)${dateRange != null ? ' for $dateRange' : ''}',
       targetType: 'attendance_export',
       targetId: '${sectionId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$sectionName - $exportType',
@@ -1024,7 +1059,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'View',
       actionCategory: 'Data Export & Reporting',
-      description: 'Generated monthly attendance summary for $sectionName ($month) - $totalStudents students',
+      description:
+          'Generated monthly attendance summary for $sectionName ($month) - $totalStudents students',
       targetType: 'monthly_summary',
       targetId: '${sectionId}_$month',
       targetName: '$sectionName - Monthly Summary ($month)',
@@ -1051,7 +1087,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'View',
       actionCategory: 'Data Export & Reporting',
-      description: 'Accessed attendance calendar for $studentName in $sectionName ($viewedMonth)',
+      description:
+          'Accessed attendance calendar for $studentName in $sectionName ($viewedMonth)',
       targetType: 'student_calendar_access',
       targetId: '${studentId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$studentName - Calendar Access',
@@ -1069,7 +1106,8 @@ class AuditLogService {
   Future<bool> logScheduleModification({
     required String sectionId,
     required String sectionName,
-    required String modificationType, // 'class_time', 'class_days', 'schedule_override'
+    required String
+    modificationType, // 'class_time', 'class_days', 'schedule_override'
     Map<String, dynamic>? oldSchedule,
     Map<String, dynamic>? newSchedule,
     String? reason,
@@ -1077,7 +1115,8 @@ class AuditLogService {
     return await logEvent(
       actionType: 'Update',
       actionCategory: 'Section Management',
-      description: 'Modified $modificationType for $sectionName${reason != null ? ' (Reason: $reason)' : ''}',
+      description:
+          'Modified $modificationType for $sectionName${reason != null ? ' (Reason: $reason)' : ''}',
       targetType: 'schedule_modification',
       targetId: '${sectionId}_${DateTime.now().millisecondsSinceEpoch}',
       targetName: '$sectionName - Schedule Change',
@@ -1127,7 +1166,9 @@ class AuditLogService {
         query = query.lte('created_at', endDate.toIso8601String());
       }
       if (searchQuery != null && searchQuery.isNotEmpty) {
-        query = query.or('action_description.ilike.%$searchQuery%,user_name.ilike.%$searchQuery%,target_name.ilike.%$searchQuery%');
+        query = query.or(
+          'action_description.ilike.%$searchQuery%,user_name.ilike.%$searchQuery%,target_name.ilike.%$searchQuery%',
+        );
       }
 
       final response = await query

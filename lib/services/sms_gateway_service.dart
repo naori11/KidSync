@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// Do NOT hardcode credentials in production; use secure storage or environment config.
 class SmsGatewayService {
   final String baseUrl;
+
   /// Optional: when provided, the client will call this server-side function URL
   /// which proxies to the SMS provider. This avoids CORS and keeps credentials
   /// server-side. When set, username/password are not used.
@@ -43,14 +44,19 @@ class SmsGatewayService {
     _queue.add(job);
     // DEBUG: log queue enqueue for tracing
     try {
-      print('SmsGatewayService: queued SMS job -> recipients=${job.recipients.length}, preview="${job.message.length} chars"');
+      print(
+        'SmsGatewayService: queued SMS job -> recipients=${job.recipients.length}, preview="${job.message.length} chars"',
+      );
     } catch (_) {}
     _ensureWorker();
     return true;
   }
 
   void _ensureWorker() {
-    _workerTimer ??= Timer.periodic(const Duration(seconds: 2), (_) => _processQueue());
+    _workerTimer ??= Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _processQueue(),
+    );
   }
 
   Future<void> _processQueue() async {
@@ -81,7 +87,8 @@ class SmsGatewayService {
   }
 
   Future<bool> _doSend(_SmsJob job) async {
-    final useFunction = (supabaseFunctionUrl != null && supabaseFunctionUrl!.isNotEmpty);
+    final useFunction =
+        (supabaseFunctionUrl != null && supabaseFunctionUrl!.isNotEmpty);
     final uri = Uri.parse(useFunction ? supabaseFunctionUrl! : baseUrl);
     final headers = <String, String>{'Content-Type': 'application/json'};
     if (useFunction) {
@@ -105,11 +112,17 @@ class SmsGatewayService {
 
     // DEBUG: indicate which transport is used and whether Authorization header is present
     try {
-      print('SmsGatewayService: sending via ${useFunction ? 'function-mode' : 'direct-mode'}; Authorization header present=${headers.containsKey('Authorization')}');
+      print(
+        'SmsGatewayService: sending via ${useFunction ? 'function-mode' : 'direct-mode'}; Authorization header present=${headers.containsKey('Authorization')}',
+      );
     } catch (_) {}
 
     // Normalize recipients into E.164-like format expected by SMSGate
-    final normalized = job.recipients.map((r) => _normalizeNumber(r)).where((r) => r.isNotEmpty).toList();
+    final normalized =
+        job.recipients
+            .map((r) => _normalizeNumber(r))
+            .where((r) => r.isNotEmpty)
+            .toList();
     print('SMS Gateway: normalized recipients=$normalized');
 
     final Map<String, dynamic> payload = {
@@ -123,7 +136,9 @@ class SmsGatewayService {
       print('SMS Gateway: POST $uri');
       print('SMS Gateway: payload=${body}');
 
-  final resp = await _http.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 10));
+      final resp = await _http
+          .post(uri, headers: headers, body: body)
+          .timeout(const Duration(seconds: 10));
 
       print('SMS Gateway: response status=${resp.statusCode}');
       if (resp.body.isNotEmpty) {
@@ -184,5 +199,9 @@ class _SmsJob {
   final List<String> recipients;
   final String message;
   int attempts;
-  _SmsJob({required this.recipients, required this.message, required this.attempts});
+  _SmsJob({
+    required this.recipients,
+    required this.message,
+    required this.attempts,
+  });
 }

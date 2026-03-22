@@ -498,7 +498,8 @@ class _VerificationModalState extends State<VerificationModal>
                                   color: black,
                                 ),
                               ),
-                              if (plateNumber != null && plateNumber.toString().isNotEmpty) ...[
+                              if (plateNumber != null &&
+                                  plateNumber.toString().isNotEmpty) ...[
                                 const SizedBox(height: 2),
                                 Row(
                                   children: [
@@ -634,7 +635,8 @@ class _VerificationModalState extends State<VerificationModal>
                                     color: black,
                                   ),
                                 ),
-                                if (plateNumber != null && plateNumber.toString().isNotEmpty) ...[
+                                if (plateNumber != null &&
+                                    plateNumber.toString().isNotEmpty) ...[
                                   const SizedBox(height: 2),
                                   Row(
                                     children: [
