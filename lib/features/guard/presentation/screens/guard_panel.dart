@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kidsync/widgets/role_protection.dart';
-import '../../features/guard/presentation/screens/guard_panel_content.dart';
+import 'guard_panel_content.dart';
 
 class GuardPanel extends StatelessWidget {
   const GuardPanel({super.key});

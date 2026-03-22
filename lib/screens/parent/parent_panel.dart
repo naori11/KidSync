@@ -1,12 +1,3 @@
-import 'package:flutter/material.dart';
-import '../../widgets/role_protection.dart';
-import 'parent_home.dart';
-
-class ParentPanel extends StatelessWidget {
-  const ParentPanel({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return RoleProtected(requiredRole: 'Parent', child: ParentHomeScreen());
-  }
-}
+// This file has been migrated to lib/features/parent/presentation/screens/parent_panel.dart
+// Re-export for backwards compatibility
+export '../../features/parent/presentation/screens/parent_panel.dart';

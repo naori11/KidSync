@@ -1,12 +1,3 @@
-import 'package:flutter/material.dart';
-import 'package:kidsync/widgets/role_protection.dart';
-import 'driver_home.dart';
-
-class DriverPanel extends StatelessWidget {
-  const DriverPanel({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return RoleProtected(requiredRole: 'Driver', child: DriverHomeScreen());
-  }
-}
+// This file has been migrated to lib/features/driver/presentation/screens/driver_panel.dart
+// Re-export for backwards compatibility
+export '../../features/driver/presentation/screens/driver_panel.dart';
