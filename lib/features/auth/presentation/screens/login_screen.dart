@@ -1,74 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'signup_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../controllers/auth_controller.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
   static const String routeName = '/login';
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  final supabase = Supabase.instance.client;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   void _handleLogin() async {
     if (_formKey.currentState!.validate()) {
-      try {
-        final response = await supabase.auth.signInWithPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
-        );
-
-        final user = response.user;
-        if (user == null) {
-          throw Exception("User not found");
-        }
-
-        final role = user.userMetadata?['role'];
-
-        if (role == null) {
-          throw Exception("User role not found in metadata");
-        }
-
-        switch (role) {
-          case 'Admin':
-            Navigator.pushReplacementNamed(context, '/admin');
-            break;
-          case 'Parent':
-            Navigator.pushReplacementNamed(context, '/parent');
-            break;
-          case 'Teacher':
-            Navigator.pushReplacementNamed(context, '/teacher');
-            break;
-          case 'Guard':
-            Navigator.pushReplacementNamed(context, '/guard');
-            break;
-          case 'Driver':
-            Navigator.pushReplacementNamed(context, '/driver');
-            break;
-          default:
-            throw Exception("Unknown role: $role");
-        }
-      } on AuthException catch (e) {
-        // Supabase specific authentication errors
-        print('Supabase Auth error: ${e.message}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Invalid email or password. Please try again."),
-          ),
-        );
-      } catch (e) {
-        // Other errors (could be network, parsing, etc)
-        print('Login error: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Login failed. Please try again.")),
-        );
-      }
+      await ref.read(authControllerProvider.notifier).login(
+            _emailController.text.trim(),
+            _passwordController.text.trim(),
+          );
+      // Navigation is handled by main.dart's auth state listener
     }
   }
 
@@ -102,7 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const Icon(
                   Icons.lock_reset,
                   size: 64,
-                  color: Color(0xFF2ECC71), // Changed to green to match design
+                  color: Color(0xFF2ECC71),
                 ),
                 const SizedBox(height: 20),
                 const Text(
@@ -124,9 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(
-                        0xFF2ECC71,
-                      ), // Green color from design
+                      backgroundColor: const Color(0xFF2ECC71),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -151,8 +109,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Listen for auth errors
+    ref.listen(authControllerProvider, (previous, next) {
+      next.whenOrNull(
+        error: (error, stackTrace) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Invalid email or password. Please try again."),
+            ),
+          );
+        },
+      );
+    });
+
+    final authState = ref.watch(authControllerProvider);
+    final isLoading = authState.isLoading;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F8F5), // Light mint background
+      backgroundColor: const Color(0xFFF5F8F5),
       body: Center(
         child: Container(
           width: 400,
@@ -175,7 +149,6 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Logo or App name section
                 const Center(
                   child: Text(
                     'KidSync',
@@ -187,7 +160,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Instructions text
                 const Center(
                   child: Text(
                     'Enter your email id and password to login',
@@ -195,7 +167,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 30),
-                // Username/Email field label
                 const Text(
                   'Username',
                   style: TextStyle(
@@ -205,9 +176,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                // Email textfield
                 TextFormField(
                   controller: _emailController,
+                  enabled: !isLoading,
                   decoration: InputDecoration(
                     hintText: 'Enter your username',
                     hintStyle: TextStyle(color: Colors.grey[400]),
@@ -228,14 +199,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       vertical: 16,
                     ),
                   ),
-                  validator:
-                      (value) =>
-                          value == null || !value.contains('@')
-                              ? 'Enter a valid email'
-                              : null,
+                  validator: (value) =>
+                      value == null || !value.contains('@')
+                          ? 'Enter a valid email'
+                          : null,
                 ),
                 const SizedBox(height: 20),
-                // Password field label
                 const Text(
                   'Password',
                   style: TextStyle(
@@ -245,10 +214,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                // Password textfield
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
+                  enabled: !isLoading,
                   decoration: InputDecoration(
                     hintText: 'Enter your password',
                     hintStyle: TextStyle(color: Colors.grey[400]),
@@ -269,14 +238,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       vertical: 16,
                     ),
                   ),
-                  validator:
-                      (value) =>
-                          value == null || value.isEmpty
-                              ? 'Enter your password'
-                              : null,
+                  validator: (value) =>
+                      value == null || value.isEmpty
+                          ? 'Enter your password'
+                          : null,
                 ),
                 const SizedBox(height: 24),
-                // Login button
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -288,18 +255,27 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       elevation: 0,
                     ),
-                    onPressed: _handleLogin,
-                    child: const Text(
-                      "Sign In",
-                      style: TextStyle(fontSize: 16, color: Colors.white),
-                    ),
+                    onPressed: isLoading ? null : _handleLogin,
+                    child: isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text(
+                            "Sign In",
+                            style: TextStyle(fontSize: 16, color: Colors.white),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Forgot password link
                 Center(
                   child: TextButton(
-                    onPressed: _showForgotPasswordModal,
+                    onPressed: isLoading ? null : _showForgotPasswordModal,
                     style: TextButton.styleFrom(
                       foregroundColor: const Color(0xFF2ECC71),
                     ),

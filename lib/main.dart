@@ -4,7 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'screens/login_screen.dart';
+import 'features/auth/presentation/screens/login_screen.dart';
 import 'screens/conditional_screens.dart';
 import 'screens/parent/parent_home.dart';
 import 'screens/driver/driver_panel.dart';
