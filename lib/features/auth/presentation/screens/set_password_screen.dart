@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/auth_repository.dart';
 import 'login_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html;
 import 'dart:convert';
 
-class SetPasswordScreen extends StatefulWidget {
+class SetPasswordScreen extends ConsumerStatefulWidget {
   const SetPasswordScreen({super.key});
   static const String routeName = '/set-password';
 
   @override
-  State<SetPasswordScreen> createState() => _SetPasswordScreenState();
+  ConsumerState<SetPasswordScreen> createState() => _SetPasswordScreenState();
 }
 
-class _SetPasswordScreenState extends State<SetPasswordScreen> {
+class _SetPasswordScreenState extends ConsumerState<SetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -48,10 +50,10 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         "SetPasswordScreen: Found reset code in session storage: $_resetCode",
       );
       // Log out any current user for security
-      final currentUser = Supabase.instance.client.auth.currentUser;
+      final currentUser = ref.read(authRepositoryProvider).currentUser;
       if (currentUser != null) {
         _previousUserEmail = currentUser.email;
-        Supabase.instance.client.auth.signOut().then((_) {
+        ref.read(authRepositoryProvider).signOut().then((_) {
           print("SetPasswordScreen: Logged out user $_previousUserEmail");
           setState(() {
             // don't set target user to the logged out account
@@ -72,7 +74,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     }
 
     // Authenticated user flow
-    final currentUser = Supabase.instance.client.auth.currentUser;
+    final currentUser = ref.read(authRepositoryProvider).currentUser;
     if (currentUser != null) {
       print("SetPasswordScreen: User authenticated: ${currentUser.email}");
       _isAuthenticated = true;
@@ -271,11 +273,13 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       if (_resetCode != null) {
         print("SetPasswordScreen: Processing password reset with code");
         try {
-          final response = await Supabase.instance.client.auth.verifyOTP(
-            token: _resetCode!,
-            type: OtpType.recovery,
-            email: _resetEmail,
-          );
+          final response = await ref
+              .read(authRepositoryProvider)
+              .verifyOTP(
+                token: _resetCode!,
+                type: OtpType.recovery,
+                email: _resetEmail,
+              );
 
           print("Verify OTP response: $response");
           if (response.session != null && response.user != null) {
@@ -295,9 +299,9 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               "SetPasswordScreen: Successfully verified OTP for $_userEmail",
             );
             if (_userEmail != null) {
-              await Supabase.instance.client.auth.updateUser(
-                UserAttributes(password: newPassword),
-              );
+              await ref
+                  .read(authRepositoryProvider)
+                  .updateUser(UserAttributes(password: newPassword));
               if (kIsWeb) {
                 html.window.sessionStorage.remove('kidsync_reset_code');
                 html.window.sessionStorage.remove('kidsync_reset_email');
@@ -336,9 +340,9 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       if (_userEmail != null && _accessToken != null && _refreshToken != null) {
         print("SetPasswordScreen: Setting password via token for $_userEmail");
         try {
-          final response = await Supabase.instance.client.auth.setSession(
-            _refreshToken!,
-          );
+          final response = await ref
+              .read(authRepositoryProvider)
+              .setSession(_refreshToken!);
           if (response.session != null) {
             final tokenUser = response.user;
             if (tokenUser?.email != _userEmail) {
@@ -350,9 +354,9 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               _showError("Token email doesn't match expected user.");
               return;
             }
-            await Supabase.instance.client.auth.updateUser(
-              UserAttributes(password: newPassword),
-            );
+            await ref
+                .read(authRepositoryProvider)
+                .updateUser(UserAttributes(password: newPassword));
             _passwordSetSuccess("Your account has been set up successfully!");
             return;
           } else {
@@ -376,9 +380,9 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
           print(
             "SetPasswordScreen: User is authenticated, directly updating password for $_userEmail",
           );
-          await Supabase.instance.client.auth.updateUser(
-            UserAttributes(password: newPassword),
-          );
+          await ref
+              .read(authRepositoryProvider)
+              .updateUser(UserAttributes(password: newPassword));
           _passwordSetSuccess("Your password has been updated successfully!");
           return;
         } catch (e) {
@@ -472,7 +476,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     }
     // Make sure we sign out any temporary session established earlier
     try {
-      Supabase.instance.client.auth.signOut();
+      ref.read(authRepositoryProvider).signOut();
     } catch (_) {}
     Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
   }
