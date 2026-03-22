@@ -137,6 +137,52 @@ class DriverRepository {
     return cancellationResponse.isEmpty;
   }
 
+  Future<void> logPickupDropoff({
+    required int studentId,
+    required String driverId,
+    required String eventType,
+    String? notes,
+  }) async {
+    await _client.from('pickup_dropoff_logs').insert({
+      'student_id': studentId,
+      'driver_id': driverId,
+      'event_type': eventType,
+      'notes': notes,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<void> sendNotification({
+    required String recipientId,
+    required String title,
+    required String message,
+    String? type,
+  }) async {
+    await _client.from('notifications').insert({
+      'recipient_id': recipientId,
+      'title': title,
+      'message': message,
+      'type': type,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<Map<String, dynamic>?> getStudentDetails(int studentId) async {
+    return await _client
+        .from('students')
+        .select('*, sections(*)')
+        .eq('id', studentId)
+        .maybeSingle();
+  }
+
+  Future<List<Map<String, dynamic>>> getParentsForStudent(int studentId) async {
+    final response = await _client
+        .from('parent_student')
+        .select('parents!inner(*, users!inner(*))')
+        .eq('student_id', studentId);
+    return (response as List).cast<Map<String, dynamic>>();
+  }
+
   User? get currentUser => _client.auth.currentUser;
 }
 

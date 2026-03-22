@@ -90,6 +90,23 @@ class GuardRepository {
     }
   }
 
+  Future<void> insertScanRecord({
+    required int studentId,
+    required String guardId,
+    required String scanType,
+    required String status,
+    String? notes,
+  }) async {
+    await _client.from('scan_records').insert({
+      'student_id': studentId,
+      'guard_id': guardId,
+      'scan_type': scanType,
+      'status': status,
+      'notes': notes,
+      'scanned_at': DateTime.now().toIso8601String(),
+    });
+  }
+
   User? get currentUser => _client.auth.currentUser;
 }
 

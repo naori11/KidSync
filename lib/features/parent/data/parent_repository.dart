@@ -30,6 +30,42 @@ class ParentRepository {
         .maybeSingle();
   }
 
+  Future<void> logPickupDropoff({
+    required int studentId,
+    required String parentId,
+    required String eventType,
+    String? notes,
+  }) async {
+    await _client.from('pickup_dropoff_logs').insert({
+      'student_id': studentId,
+      'parent_id': parentId,
+      'event_type': eventType,
+      'notes': notes,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getPickupDropoffLogs({
+    required int studentId,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    var query = _client
+        .from('pickup_dropoff_logs')
+        .select('*')
+        .eq('student_id', studentId);
+
+    if (startDate != null) {
+      query = query.gte('created_at', startDate.toIso8601String());
+    }
+    if (endDate != null) {
+      query = query.lt('created_at', endDate.toIso8601String());
+    }
+
+    final response = await query.order('created_at', ascending: false);
+    return (response as List).cast<Map<String, dynamic>>();
+  }
+
   User? get currentUser => _client.auth.currentUser;
 }
 
